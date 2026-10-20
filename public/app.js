@@ -3422,6 +3422,10 @@ function showGift() {
     art = `<div class="gift-part pop">${partArt(d.type, d.tier, 'lg')}</div><b class="mt">${esc(S.partLabel(d.type, d.tier))} × ${d.count}</b>`;
   } else if (g.kind === 'keys') {
     art = `<div class="gift-ic">${caseIcon(S.CASE_BY_ID[d.caseId])}</div><b>${esc(S.CASE_BY_ID[d.caseId].name)} × ${d.count}</b><div class="small muted">ключі — відкрий кейс безкоштовно</div>`;
+  } else if (g.kind === 'thanks') {
+    title = 'Дякуємо! 💛';
+    color = '#ffd60a';
+    art = `<div class="gift-ic" style="--c:${color}">${ic('heart')}</div><div class="gift-sum" style="color:${color}">Гравець з перших днів</div>${d.stars ? `<div class="small muted">твоя підтримка: ${d.stars} ⭐</div>` : ''}`;
   } else {
     title = 'Повідомлення';
     color = '#007aff';
@@ -3430,7 +3434,7 @@ function showGift() {
   sheet(title, `<div class="center gift">${art}
     ${g.note ? `<div class="gift-note">${esc(g.note)}</div>` : ''}
     <div class="tiny muted mt">від адміністрації АВТОДРОП</div>
-    <button class="btn yellow mt2" data-act="giftOk">${g.kind === 'message' ? 'Зрозуміло' : 'Забрати'}</button></div>`);
+    <button class="btn yellow mt2" data-act="giftOk">${g.kind === 'message' ? 'Зрозуміло' : g.kind === 'thanks' ? 'Дякую! 💛' : 'Забрати'}</button></div>`);
   haptic('success');
   if (g.kind !== 'message') setTimeout(() => {
     const r = $('#sheet')?.getBoundingClientRect();

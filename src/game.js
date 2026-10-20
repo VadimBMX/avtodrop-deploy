@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import * as S from '../public/shared.js';
 
 export class GameError extends Error {}
@@ -319,6 +320,7 @@ export function createGame(db, opts = {}) {
       if (uname) q('UPDATE users SET username = NULL WHERE lower(username) = lower(?) AND id <> ?').run(uname, uid);
       if (q('SELECT id FROM users WHERE id = ?').get(uid)) {
         q('UPDATE users SET username = ?, first_name = COALESCE(?, first_name), last_seen = ? WHERE id = ?').run(uname, first, now(), uid);
+        legacyWelcome(uid);
         return { created: false };
       }
       const t = now();
@@ -326,6 +328,7 @@ export function createGame(db, opts = {}) {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(uid, uname, first, S.START_BALANCE, S.START_SLOTS, S.SHOWCASE_START, t, S.FUEL_MAX, t, newSeed(), crypto.randomBytes(8).toString('hex'), t, t, weekOf(t));
       addKeys(uid, 'starter', 1);
+      if (legacyWelcome(uid)) return { created: true };
       const m = /^ref_(\d{1,20})$/.exec(startParam || '');
       const ref = m ? Number(m[1]) : null;
       if (ref && ref !== uid && q('SELECT id FROM users WHERE id = ?').get(ref)) {
@@ -334,6 +337,47 @@ export function createGame(db, opts = {}) {
         event(ref, `👥 ${name(uid)} приєднався за твоїм посиланням. Коли він досягне 3 рівня — отримаєш ${S.fmt(S.REF_REWARD)}`);
       }
       return { created: true };
+    });
+  }
+
+  // ---------- players of the first version (src/legacy.json, imported once) ----------
+  // Their inviter is restored (without paying the referral reward again) and donors see a thank-you window once.
+  // Returns true when the player came from the first version (their old inviter wins over a new ref link).
+  function legacyWelcome(uid) {
+    const l = q('SELECT referrer_id, stars, thanked FROM legacy WHERE id = ?').get(uid);
+    if (!l) return false;
+    if (l.referrer_id && l.referrer_id !== uid && q('SELECT id FROM users WHERE id = ?').get(l.referrer_id)) {
+      q('UPDATE users SET referrer_id = ?, ref_paid = 1 WHERE id = ? AND referrer_id IS NULL').run(l.referrer_id, uid);
+    }
+    if (l.stars > 0 && !l.thanked) {
+      q('UPDATE legacy SET thanked = 1 WHERE id = ?').run(uid);
+      gift(uid, 'thanks', { stars: l.stars }, 'Дякуємо, що підтримав АВТОДРОП ще з перших днів! Твій донат допоміг грі вирости — ти з нами від самого початку 💛');
+    }
+    return true;
+  }
+  function importLegacy() {
+    if (metaGet('legacy_import_1')) return;
+    let data;
+    try {
+      data = JSON.parse(fs.readFileSync(new URL('./legacy.json', import.meta.url), 'utf8'));
+    } catch {
+      return;
+    }
+    db.tx(() => {
+      const stars = {};
+      for (const p of data.payments || []) {
+        stars[p.userId] = (stars[p.userId] || 0) + p.stars;
+        q('INSERT OR IGNORE INTO payments (charge_id, user_id, pack, stars, amount, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+          .run('legacy:' + p.chargeId, p.userId, p.pack, p.stars, p.amount, p.createdAt);
+      }
+      for (const p of data.players || []) {
+        q('INSERT OR IGNORE INTO legacy (id, referrer_id, stars) VALUES (?, ?, ?)').run(p.id, p.referrerId || null, stars[p.id] || 0);
+      }
+      // Players already on the server get their inviter now; everyone else when they next open the game.
+      for (const p of data.players || []) if (p.referrerId && q('SELECT id FROM users WHERE id = ?').get(p.id)) {
+        q('UPDATE users SET referrer_id = ?, ref_paid = 1 WHERE id = ? AND referrer_id IS NULL AND ? IN (SELECT id FROM users)').run(p.referrerId, p.id, p.referrerId);
+      }
+      metaSet('legacy_import_1', Date.now());
     });
   }
 
@@ -2988,5 +3032,6 @@ export function createGame(db, opts = {}) {
     });
   }
 
+  importLegacy();
   return { api, admin, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, createPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)) };
 }

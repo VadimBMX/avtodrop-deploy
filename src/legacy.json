@@ -1,0 +1,55 @@
+{
+ "note": "Стара база АВТОДРОП: хто кого привів, хто грав, хто донатив. Застосовується один раз (meta legacy_import_1).",
+ "players": [
+  {
+   "id": 547725271,
+   "referrerId": 5576627779,
+   "createdAt": 1792339401102
+  },
+  {
+   "id": 766647920,
+   "referrerId": null,
+   "createdAt": 1792336711332
+  },
+  {
+   "id": 905593051,
+   "referrerId": null,
+   "createdAt": 1792337052699
+  },
+  {
+   "id": 5576627779,
+   "referrerId": 766647920,
+   "createdAt": 1792336958278
+  },
+  {
+   "id": 5619669810,
+   "referrerId": 5576627779,
+   "createdAt": 1792338824020
+  },
+  {
+   "id": 6135469786,
+   "referrerId": 766647920,
+   "createdAt": 1792337203039
+  },
+  {
+   "id": 8170376242,
+   "referrerId": null,
+   "createdAt": 1792342767905
+  },
+  {
+   "id": 8968001700,
+   "referrerId": null,
+   "createdAt": 1792341650162
+  }
+ ],
+ "payments": [
+  {
+   "chargeId": "stxQfjIyehks7d_WkpwvzK6m57YpL4QpsLPseRWxg6GCBgYtJmVPdCLb1emNefwVcmmccvLbRc7MKwyBeQheTXXyHtaDn1sN6bsE2jdgqt7vTOXPd1Rk4V0YYfikT14VVOM",
+   "userId": 5576627779,
+   "pack": "p1",
+   "stars": 50,
+   "amount": 1500000,
+   "createdAt": 1792341112137
+  }
+ ]
+}

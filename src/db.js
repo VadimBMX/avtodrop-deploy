@@ -146,6 +146,8 @@ CREATE TABLE IF NOT EXISTS battles (
 );
 CREATE INDEX IF NOT EXISTS battles_status ON battles(status, id);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+-- Players of the first (pre-reset) version: who invited them, how many Stars they donated, whether we've thanked them.
+CREATE TABLE IF NOT EXISTS legacy (id INTEGER PRIMARY KEY, referrer_id INTEGER, stars INTEGER NOT NULL DEFAULT 0, thanked INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS dealer_buys (batch INTEGER NOT NULL, user_id INTEGER NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (batch, user_id));
 CREATE TABLE IF NOT EXISTS gifts (
   id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, kind TEXT NOT NULL, data TEXT NOT NULL, note TEXT,
