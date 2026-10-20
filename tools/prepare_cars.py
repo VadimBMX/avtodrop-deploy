@@ -18,7 +18,7 @@ DONE = os.path.join(RAW, 'done')
 OUT = os.path.join(ROOT, 'public', 'cars')
 # Part pictures (docs/part-prompts.txt) are named by part type and go to public/parts/<type>.webp.
 PART_OUT = os.path.join(ROOT, 'public', 'parts')
-PART_KEYS = {'eng', 'turbo', 'exhaust', 'gearbox', 'suspension', 'wheels', 'brakes', 'body'}
+PART_KEYS = {'eng', 'turbo', 'exhaust', 'gearbox', 'suspension', 'wheels', 'brakes', 'body', 'motor', 'battery', 'reducer'}
 PROMPTS = os.path.join(ROOT, 'docs', 'car-prompts.txt')
 sys.stdout.reconfigure(encoding='utf-8')
 
