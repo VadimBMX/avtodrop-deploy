@@ -215,3 +215,46 @@ test('plates: a chosen region gives a plate of that region at its price; ІІ ex
   assert.throws(() => call(1, 'plate/generate', { region: 'ZZ' }), /Невідомий регіон/);
   assert.ok(call(1, 'plate/generate', { gen: 'basic' }).plate.text);
 });
+
+test('cases: every drop is worth at least half the price, fragments turn into a free key', () => {
+  for (const cs of S.CASES) {
+    if (cs.starter) continue;
+    for (const cls of Object.keys(cs.weights)) {
+      const pool = cs.pool(cls);
+      assert.ok(pool.length, `${cs.id}/${cls}`);
+      for (const m of pool) assert.ok(m.price >= cs.price * S.CASE_CORRIDOR.lo, `${cs.id}: ${m.name} ${m.price} < half of ${cs.price}`);
+    }
+    assert.ok(cs.ev > cs.price * 1.3 && cs.ev < cs.price * 2.2, `${cs.id} ev ${cs.ev / cs.price}`);
+    assert.ok(cs.sellEv < cs.price, `${cs.id}: selling every drop pays back less than the price`);
+  }
+  const { db, mk, call } = setup();
+  mk(1);
+  db.prepare('UPDATE users SET balance = 1e12, slots = 1000 WHERE id = 1').run();
+  let keys = 0, frag = 0;
+  for (let i = 0; i < 60; i++) {
+    const r = call(1, 'case/open', { caseId: 'rust', count: 1 });
+    keys += r.newKeys;
+    frag += r.fragments;
+    if (r.results[0].fragment) assert.ok(S.MODELS[r.results[0].car.model].price < 60000);
+  }
+  assert.ok(frag > 10 && frag < 45, `fragments ${frag}`);
+  assert.equal(keys, Math.floor(frag / S.FRAGMENTS_PER_KEY));
+  assert.equal(call(1, 'me').fragments.rust || 0, frag % S.FRAGMENTS_PER_KEY);
+  // Each free key was spent by the next open (keys go first), and a key-open leaves no fragment.
+  assert.equal(call(1, 'me').keys.rust || 0, 0);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM drops WHERE case_id = 'rust'").get().n, 60);
+});
+
+test('electric cars take electric parts only', () => {
+  const { mk, call, g } = setup();
+  mk(1);
+  const ev = g.giveCar(1, 'byd-han').id, petrol = g.giveCar(1, 'vaz-2107').id;
+  g.addPart(1, 'motor', 'sport', 2);
+  g.addPart(1, 'eng', 'sport', 2);
+  assert.throws(() => call(1, 'parts/install', { carId: ev, type: 'eng', tier: 'sport' }), /електромобіль/);
+  assert.throws(() => call(1, 'parts/install', { carId: petrol, type: 'motor', tier: 'sport' }), /для електромобілів/);
+  const before = call(1, 'me').cars.find((c) => c.id === ev).hp;
+  call(1, 'parts/install', { carId: ev, type: 'motor', tier: 'sport' });
+  assert.ok(call(1, 'me').cars.find((c) => c.id === ev).hp > before);
+  assert.equal(S.partKeysOf('byd-han').length, 7);
+});
