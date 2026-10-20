@@ -1,4 +1,4 @@
-import { PACKS, fmt, short } from '../public/shared.js';
+import { PACKS, SHOP_BY_ID, fmt, short } from '../public/shared.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -23,7 +23,16 @@ export function createBot({ token, webappUrl, admins = [], game, log = console.e
       const pq = u.pre_checkout_query;
       const [kind, packId, uid] = String(pq.invoice_payload).split(':');
       const pack = PACKS.find((p) => p.id === packId);
-      const ok = kind === 'pack' && pack && Number(uid) === pq.from.id && pq.total_amount === pack.stars && pq.currency === 'XTR';
+      let ok = Number(uid) === pq.from.id && pq.currency === 'XTR';
+      if (kind === 'pack') ok = ok && pack && pq.total_amount === pack.stars;
+      else if (kind === 'item') {
+        // Checked again at payment time: the starter pack once, the pass once a season, the slot price may have grown.
+        try {
+          ok = ok && pq.total_amount === game.itemPrice(pq.from.id, packId);
+        } catch {
+          ok = false;
+        }
+      } else ok = false;
       await call('answerPreCheckoutQuery', ok ? { pre_checkout_query_id: pq.id, ok: true } : { pre_checkout_query_id: pq.id, ok: false, error_message: 'Пакет недійсний, спробуй ще раз з гри' });
       return;
     }
@@ -31,7 +40,8 @@ export function createBot({ token, webappUrl, admins = [], game, log = console.e
     if (!m || !m.from) return;
     if (m.successful_payment) {
       const sp = m.successful_payment;
-      const [, packId, , amount] = String(sp.invoice_payload).split(':');
+      const [kind, packId, , amount] = String(sp.invoice_payload).split(':');
+      if (kind === 'item') return game.creditItem({ chargeId: sp.telegram_payment_charge_id, userId: m.from.id, itemId: packId, stars: sp.total_amount });
       game.creditPayment({ chargeId: sp.telegram_payment_charge_id, userId: m.from.id, packId, stars: sp.total_amount, amount: Number(amount) });
       return;
     }
@@ -77,7 +87,21 @@ export function createBot({ token, webappUrl, admins = [], game, log = console.e
     }
   }
 
+  // A shop item (VIP, pass, starter pack…) at the player's current price.
+  function itemInvoiceLink(uid, itemId, price) {
+    const it = SHOP_BY_ID[itemId];
+    if (!it) throw new Error('bad item');
+    return call('createInvoiceLink', {
+      title: `${it.name} · АВТОДРОП`,
+      description: 'Зарахується одразу після оплати. Ігрові цінності не можна вивести чи обміняти на реальні гроші.',
+      payload: `item:${it.id}:${uid}:${price}`,
+      currency: 'XTR',
+      prices: [{ label: it.name, amount: price }],
+    });
+  }
+
   return {
+    itemInvoiceLink,
     get username() {
       return username;
     },

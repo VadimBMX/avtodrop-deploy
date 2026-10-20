@@ -30,7 +30,7 @@ test('class ladder: every class is clearly dearer than the one below, secrets ab
     const lo = S.CLASSES[S.CLASS_ORDER[i]].lo, prevHi = S.CLASSES[S.CLASS_ORDER[i - 1]].hi;
     assert.ok(lo >= prevHi * 2, `${S.CLASS_ORDER[i]} starts well above ${S.CLASS_ORDER[i - 1]}`);
   }
-  for (const m of S.ALL_MODELS.filter((x) => x.secret)) assert.ok(m.price >= S.CLASSES.S.lo * 2, m.name);
+  for (const m of S.ALL_MODELS.filter((x) => x.secret && !x.season)) assert.ok(m.price >= S.CLASSES.S.lo * 2, m.name);
 });
 
 test('parts and plates do not turn a cheap car into a money printer', () => {

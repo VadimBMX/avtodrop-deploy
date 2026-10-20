@@ -192,11 +192,22 @@ for (const [name, hp, kg, body, country, year, price] of SECRETS) {
   const id = slug(name);
   MODELS[id] = { id, name, cls: 'X', hp, kg, body, country, year, price, secret: true };
 }
+// Season cars: the premium pass's level-30 reward of each season. A livery of a real car (its photo through a paint
+// filter, `img` + `filter`), never in a case. Like a secret car it can't be sold, traded or burned in an upgrade,
+// and it doesn't count in collections; it stays in the garage for good — the proof you were there that season.
+export const SEASON_CARS = [
+  { season: 1, name: 'Nissan Skyline GT-R R34 «Сезон 1»', img: 'nissan-skyline-gt-r-r34', filter: 'hue-rotate(170deg) saturate(1.6) brightness(1.05)', hp: 640, kg: 1480, body: 'coupe', country: 'JP', year: 2026, price: 40000000 },
+];
+for (const c of SEASON_CARS) {
+  const id = slug(c.name);
+  MODELS[id] = { id, name: c.name, cls: 'X', hp: c.hp, kg: c.kg, body: c.body, country: c.country, year: c.year, price: c.price, secret: true, season: c.season, img: c.img, filter: c.filter };
+  c.id = id;
+}
 // Home-case exclusives: the gold Soviet rarities drop only from the «Україна/СРСР» case (not from Міський or Еліта,
 // not from the dealer), so finishing the Ukrainian collection is a real hunt.
 for (const n of ['ГАЗ-24-95 «Волга» 4x4', 'ВАЗ-2108 Group B', 'ГАЗ-13 «Чайка»', 'ЗІЛ-41047']) MODELS[slug(n)].homeOnly = true;
 export const ALL_MODELS = Object.values(MODELS);
-export const SECRET_BY_COUNTRY = Object.fromEntries(ALL_MODELS.filter((m) => m.secret).map((m) => [m.country, m.id]));
+export const SECRET_BY_COUNTRY = Object.fromEntries(ALL_MODELS.filter((m) => m.secret && !m.season).map((m) => [m.country, m.id]));
 export const countryModels = (c) => ALL_MODELS.filter((m) => m.country === c && !m.secret);
 
 // ---------- cases ----------
@@ -252,7 +263,10 @@ export const CASES = [
   // sale prices and low income of the dear classes, not through dear cases. The cheap ones are held up by the
   // sell-back floor (MAX_SELL_BACK) so open-and-sell never pays.
   { id: 'city', name: 'Міський', icon: 'building-skyscraper', group: 'rarity', weights: { D: 72, C: 22, B: 5, A: 1 }, rate: 0.5 },
+  // Fill the gaps between Міський (~0.2M) → Спорткар (~1.4M) → Еліта (~6.6M), so there is always a next step.
+  { id: 'tuning', name: 'Тюнінг-ательє', icon: 'tool', group: 'rarity', weights: { D: 30, C: 56, B: 12, A: 1.9, S: 0.1 }, rate: 0.5 },
   { id: 'sport', name: 'Спорткар', icon: 'flag-3', group: 'rarity', weights: { C: 66, B: 27, A: 6.4, S: 0.6 }, rate: 0.45 },
+  { id: 'premium', name: 'Преміум', icon: 'diamond', group: 'rarity', weights: { C: 12, B: 68, A: 19, S: 1 }, rate: 0.45 },
   { id: 'elite', name: 'Еліта', icon: 'crown', group: 'rarity', weights: { B: 60, A: 37, S: 3 }, rate: 0.45 },
 ];
 const COUNTRY_RATE = { UA: 0.5, JP: 0.45, DE: 0.45, US: 0.45, GB: 0.45, IT: 0.45 };
@@ -446,14 +460,22 @@ export const CLASS_INCOME = { D: 0.1, C: 0.06, B: 0.025, A: 0.01, S: 0.005, X: 0
 export const incomeRateOf = (model) => CLASS_INCOME[MODELS[model].cls];
 // Income per hour of a car: its class rate on the car itself; installed parts and the plate earn only the lowest
 // rate (X), so dear parts on a cheap high-rate car can't print money.
+// A full set: all parts installed and all of the same tier — +5% power (SET_BONUS).
+export const SET_BONUS = { hp: 0.05 };
+export function hasSet(car) {
+  const tiers = PART_KEYS.map((k) => car.parts?.[k]);
+  return tiers.every((t) => t && t === tiers[0]);
+}
 export function carIncomeOf(car) {
   const m = MODELS[car.model];
   return m.price * CLASS_INCOME[m.cls] + (carValue(car) - m.price) * CLASS_INCOME.X;
 }
+// Three or more cars of one country earning in the garage: +10% to their income.
+export const COUNTRY_BONUS = { cars: 3, income: 0.1 };
 const fx = (car, key) => (car.parts?.[key] ? PARTS[key].fx[TIER_BY_ID[car.parts[key]].index] : 0);
 export function carStats(car) {
   const m = MODELS[car.model];
-  const hp = m.hp * (1 + fx(car, 'eng') + fx(car, 'turbo') + fx(car, 'exhaust'));
+  const hp = m.hp * (1 + fx(car, 'eng') + fx(car, 'turbo') + fx(car, 'exhaust')) * (hasSet(car) ? 1 + SET_BONUS.hp : 1);
   const kg = m.kg * (1 - fx(car, 'body'));
   const grip = 0.35 + fx(car, 'suspension') + fx(car, 'wheels');
   const shift = fx(car, 'gearbox');
@@ -463,7 +485,7 @@ export function carStats(car) {
     hp: Math.round(hp), kg: Math.round(kg), grip: Math.round(grip * 100) / 100, shift,
     base: Math.round(base * 1000) / 1000,
     et: Math.round((base + 0.2) * 100) / 100, // typical run: reaction 0.2 s, good shifts
-    value, income: Math.round(carIncomeOf(car)),
+    value, income: Math.round(carIncomeOf(car)), set: hasSet(car),
   };
 }
 // Hale quarter-mile formula plus a traction penalty for too much power on weak tyres.
@@ -495,6 +517,8 @@ export const OPPONENTS = [
   { id: 'mid', name: 'Середній', delta: [-0.1, 0.15], entry: 1200, prize: 4000 },
   { id: 'hard', name: 'Складний', delta: [-0.55, -0.25], entry: 2500, prize: 8000 },
 ];
+// Training: no entry fee, a small prize (a quarter of the easy rival's) — for learning the shifts without risk.
+export const TRAINING = { id: 'train', name: 'Тренування', delta: [0.35, 0.8], share: 0.25 };
 // Race entry/prize multiplier by class (kept for PvP-free tables and old saves).
 export const CLASS_MULT = { D: 2.5, C: 8, B: 25, A: 120, S: 600, X: 1250 };
 // Race prizes follow the price of the car model you race, whatever its class (parts help you win, they don't raise
@@ -576,14 +600,22 @@ export const XP = { win: 25, race: 10, newCar: 20, daily: 30, task: 30, quest: 6
 export const CAPPED_XP = ['case', 'plate', 'merge', 'install', 'upgrade', 'casino'];
 export const DAILY_XP_CAP = 300;
 
+// 14 days; a missed day loses nothing — the next claim simply continues the series (it starts over every season).
 export const DAILY_BONUS = [
-  { money: 10000 },
+  { money: 15000 },
   { parts: 3, tier: 'stock' },
-  { money: 30000 },
+  { money: 40000 },
   { parts: 2, tier: 'street' },
   { car: 'C', label: 'Машина' },
   { money: 120000 },
-  { caseId: 'sport', label: 'Машина зі «Спорткара»' },
+  { caseId: 'sport', label: 'Машина зі «Спорткара»', big: true },
+  { money: 250000 },
+  { parts: 2, tier: 'sport' },
+  { car: 'B', label: 'Машина' },
+  { money: 500000 },
+  { parts: 1, tier: 'pro' },
+  { money: 1000000 },
+  { caseId: 'elite', label: 'Машина з «Еліти»', big: true },
 ];
 export const REWARD_CASE_HOURS = 4;
 
@@ -741,3 +773,79 @@ export function short(n) {
   if (a >= 1e4) return Math.round(n / 1e3) + ' тис ₴';
   return fmt(n);
 }
+
+// ---------- seasons ----------
+// A season lasts two weeks; season 1 starts 20.10.2026 at 00:00 Kyiv time. Nothing is wiped: cars, money and collections stay. Each
+// season has its own pass (30 levels of season XP — the same XP the player earns anyway), its own rating by season
+// XP with prizes in stars (spent in the shop), and a car you can only get that season.
+export const SEASON = { start: Date.UTC(2026, 9, 19, 21), days: 14, levels: 30, premiumStars: 250 };
+export const seasonOf = (t) => Math.max(1, Math.floor((t - SEASON.start) / (SEASON.days * 86400e3)) + 1);
+export const seasonStartOf = (n) => SEASON.start + (n - 1) * SEASON.days * 86400e3;
+export const seasonEndOf = (n) => seasonStartOf(n + 1);
+// Season XP from one pass level to the next: an active player (~2,000 XP a day) reaches level 30 in about 12 days,
+// a casual one gets halfway.
+export const passXpFor = (lvl) => 300 + 40 * lvl;
+export function passLevel(xp) {
+  let lvl = 1, left = xp;
+  while (lvl < SEASON.levels && left >= passXpFor(lvl)) left -= passXpFor(lvl++);
+  return { level: lvl, xp: left, need: lvl < SEASON.levels ? passXpFor(lvl) : 0 };
+}
+const passMoney = (l) => niceRound(25000 * Math.pow(l, 1.5));
+// Free and premium rewards for each level 2…30 (level 1 is where everyone starts).
+export function passReward(season, lvl, premium) {
+  if (!premium) {
+    const r = { money: passMoney(lvl) };
+    if (lvl === 5) r.caseId = 'city';
+    if (lvl === 10) Object.assign(r, { caseId: 'sport', slots: 1 });
+    if (lvl === 15) Object.assign(r, { parts: 2, tier: 'sport' });
+    if (lvl === 20) Object.assign(r, { caseId: 'premium', slots: 1 });
+    if (lvl === 25) Object.assign(r, { parts: 2, tier: 'pro' });
+    if (lvl === 30) Object.assign(r, { caseId: 'elite', slots: 2 });
+    return r;
+  }
+  if (lvl === 30) return { seasonCar: SEASON_CARS.find((c) => c.season === season)?.id || SEASON_CARS[SEASON_CARS.length - 1].id };
+  if (lvl === 5) return { caseId: 'sport' };
+  if (lvl === 10) return { caseId: 'elite' };
+  if (lvl === 15) return { caseId: 'sport', count: 2 };
+  if (lvl === 20) return { caseId: 'elite' };
+  if (lvl === 25) return { caseId: 'elite', count: 2 };
+  if (lvl % 2 === 0) return { money: passMoney(lvl) };
+  return { parts: lvl < 10 ? 2 : 1, tier: lvl < 10 ? 'street' : lvl < 20 ? 'sport' : 'pro' };
+}
+// Season rating: by season XP. Prizes are stars on the player's account (spent in the shop) and a badge that stays.
+export const SEASON_PRIZES = [500, 250, 250, 50, 50, 50, 50, 50, 50, 50];
+export const SEASON_BADGE_TOP = 100;
+export function seasonBadge(place) {
+  if (place === 1) return { title: 'Чемпіон', tier: 3 };
+  if (place <= 3) return { title: 'Призер', tier: 2 };
+  if (place <= 10) return { title: 'Топ-10', tier: 1 };
+  return { title: 'Топ-100', tier: 0 };
+}
+
+// ---------- VIP and the star shop ----------
+export const VIP = { days: 14, stars: 300, fuelMult: 2, extraHours: 4, daily: 150000 };
+// What stars buy besides money packs. Paid in Telegram Stars or from the stars on the account (season prizes).
+// `slot` gets dearer with every slot bought for stars (×2), `starter` can be bought once.
+export const SHOP_ITEMS = [
+  { id: 'starter', name: 'Стартовий набір', stars: 99, once: true, money: 3000000, keys: { city: 2 }, vipDays: 3 },
+  { id: 'vip', name: `VIP на ${VIP.days} днів`, stars: VIP.stars, vipDays: VIP.days },
+  { id: 'pass', name: 'Преміум-пропуск сезону', stars: SEASON.premiumStars },
+  { id: 'refuel', name: 'Заправити всі баки', stars: 25 },
+  { id: 'cool', name: 'Охолодити деталі', stars: 10 },
+  { id: 'slot', name: '+1 місце в гаражі', stars: 100 },
+];
+export const SHOP_BY_ID = Object.fromEntries(SHOP_ITEMS.map((i) => [i.id, i]));
+export const shopPrice = (item, starSlots = 0) => (item.id === 'slot' ? item.stars * Math.pow(2, starSlots) : item.stars);
+
+// "What's new" story shown once after an update (bump `id` to show it again).
+export const WHATS_NEW = {
+  id: 'season-1',
+  slides: [
+    { icon: 'trophy', title: 'Сезон 1 стартував', text: 'Сезон триває два тижні. Нічого не скидається: машини, гроші й колекція лишаються з тобою.' },
+    { icon: 'ticket', title: 'Сезонний пропуск', text: '30 рівнів нагород за досвід, який ти й так отримуєш: гонки, кейси, завдання. Преміум — ще одна доріжка, а на 30 рівні — машина сезону.' },
+    { icon: 'star', title: 'Призи в зірках', text: 'Рейтинг сезону — за досвідом, а не за донатом. Топ-10 отримує зірки на рахунок, топ-100 — значок, що лишається назавжди.' },
+    { icon: 'crown', title: 'VIP і магазин', text: 'Пальне вдвічі швидше, гараж копить на 4 години довше, щоденний подарунок. Стартовий набір — один раз і дуже вигідно.' },
+    { icon: 'gift', title: 'Бонус на 14 днів', text: 'Пропустив день — нічого не згорає. На 7-й день машина зі «Спорткара», на 14-й — з «Еліти».' },
+    { icon: 'flag-3', title: 'Тренування і бонуси', text: 'Тренувальний заїзд без внеску. Повний комплект деталей одного рівня — +5% потужності. Три машини однієї країни — +10% доходу.' },
+  ],
+};

@@ -174,6 +174,12 @@ CREATE INDEX IF NOT EXISTS invite_log_from ON invite_log(from_id, at);
 CREATE INDEX IF NOT EXISTS pvp_winner ON pvp(winner_id);
 CREATE INDEX IF NOT EXISTS battles_winner ON battles(winner_id);
 CREATE INDEX IF NOT EXISTS users_referrer ON users(referrer_id);
+CREATE TABLE IF NOT EXISTS seasons (season_id INTEGER PRIMARY KEY, settled_at INTEGER NOT NULL);
+-- Badges that stay for good (season top-100 places).
+CREATE TABLE IF NOT EXISTS badges (
+  user_id INTEGER NOT NULL, key TEXT NOT NULL, title TEXT NOT NULL, tier INTEGER NOT NULL DEFAULT 0, season INTEGER, place INTEGER,
+  created_at INTEGER NOT NULL, PRIMARY KEY (user_id, key)
+);
 CREATE TABLE IF NOT EXISTS admin_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT, admin TEXT NOT NULL, action TEXT NOT NULL, target INTEGER, details TEXT, created_at INTEGER NOT NULL
 );
@@ -209,6 +215,15 @@ const MIGRATIONS = [
   'ALTER TABLE users ADD COLUMN sold_full INTEGER NOT NULL DEFAULT 0',
   // Rights in the admin panel given from the panel: 'admin' (everything) or 'helper' (players, support, messages).
   'ALTER TABLE users ADD COLUMN role TEXT',
+  // Seasons (S.SEASON): the season the counters below belong to, season XP, the season whose premium pass is bought.
+  'ALTER TABLE users ADD COLUMN season_id INTEGER',
+  'ALTER TABLE users ADD COLUMN season_xp INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE users ADD COLUMN premium_season INTEGER NOT NULL DEFAULT 0',
+  // Stars on the account (season prizes), spent in the shop; VIP end time; garage slots bought for stars; starter pack.
+  'ALTER TABLE users ADD COLUMN stars INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE users ADD COLUMN vip_until INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE users ADD COLUMN star_slots INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE users ADD COLUMN starter_bought INTEGER NOT NULL DEFAULT 0',
 ];
 
 export function openDb(file) {

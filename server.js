@@ -152,6 +152,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     const body = await readBody(req);
     if (name === 'shop/invoice') {
       if (!bot) throw new GameError('Оплата зірками стане доступною після підключення бота');
+      if (body.item) return send(res, 200, { link: await bot.itemInvoiceLink(uid, String(body.item), game.itemPrice(uid, String(body.item))) });
       if (!PACKS.some((p) => p.id === body.pack)) throw new GameError('Невідомий пакет');
       return send(res, 200, { link: await bot.invoiceLink(uid, body.pack, game.packAmountFor(uid, body.pack)) });
     }

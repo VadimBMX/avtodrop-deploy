@@ -174,8 +174,11 @@ test('race: rivals, fuel and tank, perfect driving beats the easy rival, entry i
   const { mk, call, g, setRandom } = setup();
   mk(1);
   const c = g.giveCar(1, 'vaz-2107').id;
-  const { list } = call(1, 'race/rivals', { carId: c });
-  assert.equal(list.length, 3);
+  const all = call(1, 'race/rivals', { carId: c }).list;
+  assert.equal(all.length, 4);
+  assert.equal(all[0].id, 'train');
+  assert.equal(all[0].entry, 0);
+  const list = all.slice(1);
   assert.ok(list[0].chance > list[2].chance);
   setRandom(0.5);
   const bal = call(1, 'me').balance;

@@ -115,8 +115,11 @@ export function createGame(db, opts = {}) {
     return Object.fromEntries(q('SELECT type, tier FROM car_parts WHERE car_id = ?').all(carId).map((r) => [r.type, r.tier]));
   }
   const carPlate = (carId) => q('SELECT id, text, cls, value FROM plates WHERE car_id = ?').get(carId) || null;
+  const vipOf = (uid) => (q('SELECT vip_until FROM users WHERE id = ?').get(uid)?.vip_until || 0) > now();
+  // VIP refills both the shared tank and the cars' own tanks twice as fast.
+  const regenMs = (vip) => (S.FUEL_REGEN_MIN * 60e3) / (vip ? S.VIP.fuelMult : 1);
   function tankState(c) {
-    const regen = S.FUEL_REGEN_MIN * 60e3;
+    const regen = regenMs(vipOf(c.owner_id));
     if (c.tank >= S.CAR_TANK) return { tank: S.CAR_TANK, at: now(), next: null };
     const g = Math.floor((now() - c.tank_at) / regen);
     const tank = Math.min(S.CAR_TANK, c.tank + g);
@@ -161,11 +164,7 @@ export function createGame(db, opts = {}) {
     q("UPDATE cars SET owner_id = ?, status = 'garage' WHERE id = ?").run(to, carId);
     q('UPDATE plates SET owner_id = ? WHERE car_id = ?').run(to, carId);
     q('DELETE FROM rivals WHERE car_id = ?').run(carId);
-    const model = carRow(carId).model;
-    if (!q('SELECT 1 FROM collection WHERE user_id = ? AND model = ?').get(to, model)) {
-      q('INSERT INTO collection (user_id, model, at) VALUES (?, ?, ?)').run(to, model, now());
-      xp(to, 'newCar');
-    }
+    // A car bought or traded from another player does not count in the collection: collections are found, not bought.
   }
 
   // ---------- income ----------
@@ -175,12 +174,16 @@ export function createGame(db, opts = {}) {
   function incomeRate(uid) {
     const u = q('SELECT slots FROM users WHERE id = ?').get(uid);
     const listed = q("SELECT COUNT(*) n FROM cars WHERE owner_id = ? AND status IN ('market', 'auction')").get(uid).n;
-    const incomes = q("SELECT * FROM cars WHERE owner_id = ? AND status = 'garage'").all(uid).map(carIncome).sort((a, b) => b - a);
-    return incomes.slice(0, Math.max(0, (u?.slots ?? incomes.length) - listed)).reduce((s, v) => s + v, 0);
+    const earning = q("SELECT * FROM cars WHERE owner_id = ? AND status = 'garage'").all(uid).map((c) => ({ country: S.MODELS[c.model].country, v: carIncome(c) }))
+      .sort((a, b) => b.v - a.v).slice(0, Math.max(0, (u?.slots ?? 1e9) - listed));
+    // Three or more earning cars of one country: +10% to their income (S.COUNTRY_BONUS).
+    const per = {};
+    for (const c of earning) per[c.country] = (per[c.country] || 0) + 1;
+    return earning.reduce((s, c) => s + c.v * (per[c.country] >= S.COUNTRY_BONUS.cars ? 1 + S.COUNTRY_BONUS.income : 1), 0);
   }
   function incomeState(u) {
     const rate = incomeRate(u.id);
-    const capH = S.CAP_LEVELS[u.cap_level].hours;
+    const capH = S.CAP_LEVELS[u.cap_level].hours + ((u.vip_until || 0) > now() ? S.VIP.extraHours : 0);
     const elapsed = Math.max(0, now() - u.income_at) / 3600e3;
     const cap = rate * capH;
     // Income already banked is never lost, even if the cap shrinks after selling a car.
@@ -189,7 +192,7 @@ export function createGame(db, opts = {}) {
   }
   // Freeze income earned so far before the set or value of cars changes.
   function bank(uid) {
-    const u = q('SELECT id, banked, income_at, cap_level FROM users WHERE id = ?').get(uid);
+    const u = q('SELECT id, banked, income_at, cap_level, vip_until FROM users WHERE id = ?').get(uid);
     q('UPDATE users SET banked = ?, income_at = ? WHERE id = ?').run(incomeState(u).pending, now(), uid);
   }
 
@@ -205,6 +208,8 @@ export function createGame(db, opts = {}) {
       q('UPDATE users SET xp_day = ?, xp_day_capped = ? WHERE id = ?').run(today, used + amount, uid);
       if (!amount) return;
     }
+    const season = S.seasonOf(now());
+    q('UPDATE users SET season_xp = CASE WHEN season_id = ? THEN season_xp + ? ELSE ? END, season_id = ? WHERE id = ?').run(season, amount, amount, season, uid);
     let { level, xp: cur } = u;
     cur += amount;
     while (cur >= S.xpForLevel(level)) {
@@ -320,7 +325,7 @@ export function createGame(db, opts = {}) {
   }
 
   function fuelState(u) {
-    const regen = S.FUEL_REGEN_MIN * 60e3;
+    const regen = regenMs((u.vip_until || 0) > now());
     if (u.fuel >= S.FUEL_MAX) return { fuel: S.FUEL_MAX, at: now(), next: null };
     const g = Math.floor((now() - u.fuel_at) / regen);
     const fuel = Math.min(S.FUEL_MAX, u.fuel + g);
@@ -369,6 +374,8 @@ export function createGame(db, opts = {}) {
         + q("SELECT COUNT(*) n FROM trade_rooms WHERE invited_id = ? AND status = 'open' AND host_seen > ?").get(uid, now() - 45e3).n,
       noInvites: !!u.no_invites,
       luck: luckOf(u.id),
+      stars: u.stars, vipUntil: u.vip_until, vip: u.vip_until > now(), starterBought: !!u.starter_bought,
+      season: (({ claimed, ...s }) => s)(seasonInfo(u)), badges: badgesOf(uid),
       now: now(),
     };
   }
@@ -750,8 +757,11 @@ export function createGame(db, opts = {}) {
     const cls = S.MODELS[c.model].cls;
     const row = q('SELECT * FROM rivals WHERE user_id = ? AND car_id = ?').get(uid, c.id);
     // Cached rivals keep their cars and odds, but entry/prize always follow the current tables (a balance change applies at once).
-    const money = (op) => S.raceMoney(op, S.MODELS[c.model].price);
-    if (row && row.sig === sig) return { car: o, list: JSON.parse(row.data).map((r) => ({ ...r, ...money(S.OPPONENTS.find((op) => op.id === r.id)) })) };
+    const money = (op) => (op.id === S.TRAINING.id
+      ? { prize: Math.max(500, Math.round((S.raceMoney(S.OPPONENTS[0], S.MODELS[c.model].price).prize * op.share) / 100) * 100), entry: 0 }
+      : S.raceMoney(op, S.MODELS[c.model].price));
+    const opOf = (id) => (id === S.TRAINING.id ? S.TRAINING : S.OPPONENTS.find((op) => op.id === id));
+    if (row && row.sig === sig && JSON.parse(row.data)[0]?.id === S.TRAINING.id) return { car: o, list: JSON.parse(row.data).map((r) => ({ ...r, ...money(opOf(r.id)) })) };
     const pool = S.ALL_MODELS.filter((m) => m.cls === cls);
     const names = [...S.RIVAL_NAMES].sort(() => rnd() - 0.5);
     const list = S.OPPONENTS.map((op, i) => {
@@ -761,6 +771,15 @@ export function createGame(db, opts = {}) {
       const hp = Math.round((model.kg * 2.2046) / Math.pow(Math.max(base - 0.3, 4) / 5.825, 3));
       return { id: op.id, label: op.name, name: names[i], model: model.id, hp, base, ...money(op), chance: winChance(o, base, Math.floor(base * 1e6) + i) };
     });
+    // Training first: an easy rival, no entry fee, a quarter of the easy prize.
+    {
+      const tr = S.TRAINING;
+      const d = tr.delta[0] + rnd() * (tr.delta[1] - tr.delta[0]);
+      const base = round3(o.base * (1 + d / 15));
+      const model = pool[Math.floor(rnd() * pool.length)];
+      const hp = Math.round((model.kg * 2.2046) / Math.pow(Math.max(base - 0.3, 4) / 5.825, 3));
+      list.unshift({ id: tr.id, label: tr.name, name: names[3] || 'Інструктор', model: model.id, hp, base, ...money(tr), chance: winChance(o, base, Math.floor(base * 1e6) + 9) });
+    }
     q('INSERT INTO rivals (user_id, car_id, sig, data) VALUES (?, ?, ?, ?) ON CONFLICT DO UPDATE SET sig = excluded.sig, data = excluded.data').run(uid, c.id, sig, JSON.stringify(list));
     return { car: o, list };
   }
@@ -1440,6 +1459,7 @@ export function createGame(db, opts = {}) {
       id: pid, name: name(pid), level: u.level, value: u.total_value, cars: cars.filter((c) => c.status === 'garage'),
       showcase: cars.filter((c) => c.status === 'showcase'), best, carCount: cars.length,
       collection: q('SELECT COUNT(*) n FROM collection WHERE user_id = ?').get(pid).n, self: pid === uid,
+      vip: u.vip_until > now(), badges: badgesOf(pid),
     };
   }
   function invalidateTrades(carIds) {
@@ -1835,9 +1855,10 @@ export function createGame(db, opts = {}) {
   function rewards(uid) {
     const u = userRow(uid);
     const day = dayOf(now());
-    const yesterday = dayOf(now() - 86400e3);
-    const next = u.streak_day === day ? u.streak : u.streak_day === yesterday ? u.streak + 1 : 1;
-    return { streak: u.streak, ready: u.streak_day !== day, nextDay: ((next - 1) % 7) + 1, todayIndex: ((u.streak_day === day ? u.streak : next) - 1) % 7, rewardCaseAt: u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3, days: S.DAILY_BONUS };
+    // A missed day loses nothing: the next claim continues the series (14 days, then from day 1 again).
+    const next = u.streak_day === day ? u.streak : u.streak + 1;
+    const len = S.DAILY_BONUS.length;
+    return { streak: u.streak, ready: u.streak_day !== day, nextDay: ((next - 1) % len) + 1, todayIndex: ((u.streak_day === day ? u.streak : next) - 1) % len, rewardCaseAt: u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3, days: S.DAILY_BONUS, vip: (u.vip_until || 0) > now(), vipDaily: S.VIP.daily };
   }
   function randomPartOf(tier) {
     return { type: S.PART_KEYS[Math.floor(rnd() * S.PART_KEYS.length)], tier };
@@ -1857,16 +1878,27 @@ export function createGame(db, opts = {}) {
     }
     if (rw.caseId) addKeys(uid, rw.caseId, rw.count || 1);
     if (rw.fuel) q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(S.FUEL_MAX, now(), uid);
+    if (rw.slots) q('UPDATE users SET slots = MIN(?, slots + ?) WHERE id = ?').run(S.MAX_SLOTS, rw.slots, uid);
+    if (rw.seasonCar) {
+      // Like a secret car it never pushes the garage over its limit: no room → it goes to the showcase.
+      const { id } = giveCar(uid, rw.seasonCar);
+      if (garageCount(uid) > userRow(uid).slots) q("UPDATE cars SET status = 'showcase' WHERE id = ?").run(id);
+      got.carOut = carOut(carRow(id));
+    }
     return got;
   }
   function dailyClaim(uid) {
     const u = userRow(uid);
     const day = dayOf(now());
     if (u.streak_day === day) fail('Сьогодні вже забрано — повертайся завтра');
-    const streak = u.streak_day === dayOf(now() - 86400e3) ? u.streak + 1 : 1;
-    const rw = S.DAILY_BONUS[(streak - 1) % 7];
+    const streak = u.streak + 1;
+    const rw = S.DAILY_BONUS[(streak - 1) % S.DAILY_BONUS.length];
     q('UPDATE users SET streak = ?, streak_day = ? WHERE id = ?').run(streak, day, uid);
     const got = grant(uid, rw);
+    if ((u.vip_until || 0) > now()) {
+      addMoney(uid, S.VIP.daily);
+      got.vip = S.VIP.daily;
+    }
     xp(uid, 'daily');
     return { streak, reward: got };
   }
@@ -1917,8 +1949,8 @@ export function createGame(db, opts = {}) {
       pvp: q('SELECT COUNT(*) n FROM pvp WHERE winner_id = ?').get(uid).n,
       battles: q('SELECT COUNT(*) n FROM battles WHERE winner_id = ?').get(uid).n,
       collection: models.filter((m) => !m.secret).length,
-      rarest: Math.max(0, ...models.map((m) => S.rankOf(m.cls))),
-      secrets: models.filter((m) => m.secret).length,
+      rarest: Math.max(0, ...models.filter((m) => !m.season).map((m) => S.rankOf(m.cls))),
+      secrets: models.filter((m) => m.secret && !m.season).length,
       garage: u.total_value, level: u.level, play: Math.floor(u.play_ms / 3600e3), streak: u.streak, merges: u.merges, tuned,
       plates: Math.max(0, ...q('SELECT cls FROM plates WHERE owner_id = ?').all(uid).map((p) => S.rankOf(p.cls))),
       friends: q('SELECT COUNT(*) n FROM users WHERE referrer_id = ? AND ref_paid = 1').get(uid).n,
@@ -1972,7 +2004,7 @@ export function createGame(db, opts = {}) {
       invites.push({ key: 'pvp' + p.id + ':' + p.req_at, kind: 'pvp', id: p.id, from: name(p.opponent_id), bet: p.bet, car: JSON.parse(p.opp_snapshot), expiresAt: p.req_at + PVP_ANSWER_MS });
     }
     const claims = [];
-    if (u.streak_day !== day) claims.push({ key: 'daily:' + day, kind: 'daily', title: 'Щоденний бонус', sub: `День ${Math.min(u.streak + 1, 7)} серії — забери подарунок` });
+    if (u.streak_day !== day) claims.push({ key: 'daily:' + day, kind: 'daily', title: 'Щоденний бонус', sub: `День ${(u.streak % S.DAILY_BONUS.length) + 1} з ${S.DAILY_BONUS.length} — забери подарунок` });
     if (u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3 <= t) claims.push({ key: 'rcase:' + u.reward_case_at, kind: 'rcase', title: 'Кейс нагород готовий', sub: 'Гроші, деталі, пальне або машина' });
     const nb = newbieState(u);
     if (nb?.ready) claims.push({ key: 'newbie:' + nb.step, kind: 'newbie', title: 'Завдання новачка виконано', sub: nb.text, money: nb.money });
@@ -1997,6 +2029,8 @@ export function createGame(db, opts = {}) {
         claims.push({ key: `ach:${s.key}:${tier}`, kind: 'ach', id: s.key, tier, title: `${a.title} · ${S.ACH_TIERS[tier].name}`, sub: S.achText(a, tier), money: a.rewards.slice(s.claimed, s.reached).reduce((x, y) => x + y, 0) });
       }
     }
+    const si = seasonInfo(u);
+    if (si.ready) claims.push({ key: `pass:${si.id}:${si.level}:${si.premium ? 1 : 0}:${si.ready}`, kind: 'pass', title: `Рівень ${si.level} сезонного пропуску!`, sub: `Нагород до забору: ${si.ready}` });
     if (rescueReady(u)) claims.push({ key: 'rescue:' + u.rescue_at, kind: 'rescue', title: 'Не здавайся!', sub: 'Тримай безкоштовний «Іржавий гараж»' });
     const inc = incomeState(u);
     if (inc.rate > 0 && inc.pending >= inc.rate * inc.capH * 0.999) claims.push({ key: 'income:' + u.income_at, kind: 'income', title: 'Гараж набрав максимум', sub: 'Дохід зупинився — забери, щоб він знову йшов', money: inc.pending });
@@ -2052,7 +2086,137 @@ export function createGame(db, opts = {}) {
     return { reward: rw };
   }
 
+  // ---------- seasons (S.SEASON) ----------
+  // Counters belong to a season; a player seen in a new season starts it from zero (nothing else is reset).
+  function rollSeason(uid) {
+    const cur = S.seasonOf(now());
+    q('UPDATE users SET season_id = ?, season_xp = 0 WHERE id = ? AND (season_id IS NULL OR season_id <> ?)').run(cur, uid, cur);
+  }
+  // Prizes of the season that just ended: stars to the top 10, a badge to the top 100 (by season XP).
+  function settleSeason() {
+    const prev = S.seasonOf(now()) - 1;
+    if (prev < 1 || q('SELECT 1 FROM seasons WHERE season_id = ?').get(prev)) return;
+    q('INSERT INTO seasons (season_id, settled_at) VALUES (?, ?)').run(prev, now());
+    const rows = q('SELECT id FROM users WHERE season_id = ? AND season_xp > 0 AND banned = 0 ORDER BY season_xp DESC, id LIMIT ?').all(prev, S.SEASON_BADGE_TOP);
+    rows.forEach((r, i) => {
+      const place = i + 1, stars = S.SEASON_PRIZES[i] || 0, b = S.seasonBadge(place);
+      if (stars) q('UPDATE users SET stars = stars + ? WHERE id = ?').run(stars, r.id);
+      q('INSERT OR IGNORE INTO badges (user_id, key, title, tier, season, place, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(r.id, `s${prev}`, `${b.title} · Сезон ${prev}`, b.tier, prev, place, now());
+      event(r.id, `🏆 Сезон ${prev}: ${place} місце!${stars ? ` +${stars} ⭐ на рахунок` : ''} Значок «${b.title}» тепер у твоєму профілі.`);
+    });
+  }
+  const badgesOf = (uid) => q('SELECT key, title, tier, season, place FROM badges WHERE user_id = ? ORDER BY tier DESC, season DESC').all(uid);
+  function seasonInfo(u) {
+    const cur = S.seasonOf(now());
+    const xp = u.season_id === cur ? u.season_xp : 0;
+    const p = S.passLevel(xp);
+    const claimed = new Set(q("SELECT key FROM claims WHERE user_id = ? AND key LIKE ?").all(u.id, `pass:${cur}:%`).map((r) => r.key));
+    const premium = u.premium_season === cur;
+    let ready = 0;
+    for (let l = 2; l <= p.level; l++) {
+      if (!claimed.has(`pass:${cur}:${l}:f`)) ready++;
+      if (premium && !claimed.has(`pass:${cur}:${l}:p`)) ready++;
+    }
+    return { id: cur, endsAt: S.seasonEndOf(cur), xp, level: p.level, levelXp: p.xp, need: p.need, premium, ready, claimed: [...claimed] };
+  }
+  function season(uid) {
+    const u = userRow(uid);
+    const info = seasonInfo(u);
+    const levels = [];
+    for (let l = 2; l <= S.SEASON.levels; l++) levels.push({ level: l, free: S.passReward(info.id, l, false), premium: S.passReward(info.id, l, true) });
+    const car = S.passReward(info.id, S.SEASON.levels, true).seasonCar;
+    return { ...info, levels, car };
+  }
+  // Claims every pass reward reached and not yet taken (free track, and premium if bought).
+  function passClaim(uid) {
+    const u = userRow(uid);
+    const info = seasonInfo(u);
+    const got = [];
+    for (let l = 2; l <= info.level; l++) {
+      for (const tr of info.premium ? ['f', 'p'] : ['f']) {
+        const key = `pass:${info.id}:${l}:${tr}`;
+        if (info.claimed.includes(key)) continue;
+        q('INSERT INTO claims (user_id, key) VALUES (?, ?)').run(uid, key);
+        const rw = S.passReward(info.id, l, tr === 'p');
+        if (rw.seasonCar && q('SELECT 1 FROM cars WHERE owner_id = ? AND model = ?').get(uid, rw.seasonCar)) continue;
+        got.push({ level: l, premium: tr === 'p', ...grant(uid, rw) });
+      }
+    }
+    if (!got.length) fail('Немає нових нагород пропуску');
+    return { got, money: got.reduce((n, g) => n + (g.money || 0), 0) };
+  }
+  function seasonBoard(uid) {
+    const cur = S.seasonOf(now());
+    const rows = q('SELECT id, season_xp score FROM users WHERE season_id = ? AND season_xp > 0 AND banned = 0 ORDER BY score DESC, id LIMIT 100').all(cur);
+    const vips = new Set(q('SELECT id FROM users WHERE vip_until > ?').all(now()).map((r) => r.id));
+    const list = rows.map((r, i) => ({ place: i + 1, id: r.id, name: name(r.id), score: r.score, me: r.id === uid, vip: vips.has(r.id), level: S.passLevel(r.score).level }));
+    const u = userRow(uid);
+    const myScore = u.season_id === cur ? u.season_xp : 0;
+    const myPlace = q('SELECT COUNT(*) n FROM users WHERE season_id = ? AND banned = 0 AND (season_xp > ? OR season_xp = ? AND id < ?)').get(cur, myScore, myScore, uid).n + 1;
+    return { list, type: 'season', season: cur, me: { place: myPlace, score: myScore }, endsAt: S.seasonEndOf(cur), prizes: S.SEASON_PRIZES, badgeTop: S.SEASON_BADGE_TOP };
+  }
+
+  // ---------- star shop: VIP, pass, starter pack, conveniences (S.SHOP_ITEMS) ----------
+  function itemPrice(uid, itemId) {
+    const it = S.SHOP_BY_ID[itemId];
+    if (!it) fail('Невідомий товар');
+    const u = userRow(uid);
+    if (it.once && u.starter_bought) fail('Стартовий набір можна купити лише один раз');
+    if (it.id === 'pass' && u.premium_season === S.seasonOf(now())) fail('Преміум-пропуск цього сезону вже куплено');
+    if (it.id === 'slot' && u.slots >= S.MAX_SLOTS) fail('Максимум місць');
+    return S.shopPrice(it, u.star_slots);
+  }
+  function applyItem(uid, itemId) {
+    const it = S.SHOP_BY_ID[itemId];
+    const u = userRow(uid);
+    const out = { item: it.id };
+    if (it.vipDays) {
+      bank(uid); // income so far at the old cap; the longer cap starts now
+      const until = Math.max(u.vip_until || 0, now()) + it.vipDays * 86400e3;
+      q('UPDATE users SET vip_until = ? WHERE id = ?').run(until, uid);
+      out.vipUntil = until;
+    }
+    if (it.money) addMoney(uid, it.money);
+    for (const [caseId, n] of Object.entries(it.keys || {})) addKeys(uid, caseId, n);
+    if (it.once) q('UPDATE users SET starter_bought = 1 WHERE id = ?').run(uid);
+    if (it.id === 'pass') q('UPDATE users SET premium_season = ? WHERE id = ?').run(S.seasonOf(now()), uid);
+    if (it.id === 'refuel') {
+      q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(S.FUEL_MAX, now(), uid);
+      q('UPDATE cars SET tank = ?, tank_at = ? WHERE owner_id = ?').run(S.CAR_TANK, now(), uid);
+    }
+    if (it.id === 'cool') q('DELETE FROM parts_cool WHERE user_id = ?').run(uid);
+    if (it.id === 'slot') q('UPDATE users SET slots = MIN(?, slots + 1), star_slots = star_slots + 1 WHERE id = ?').run(S.MAX_SLOTS, uid);
+    return out;
+  }
+  function shop(uid) {
+    const u = userRow(uid);
+    const cur = S.seasonOf(now());
+    return {
+      stars: u.stars, vipUntil: u.vip_until, starterBought: !!u.starter_bought, premium: u.premium_season === cur,
+      items: S.SHOP_ITEMS.map((it) => ({ ...it, price: S.shopPrice(it, u.star_slots) })),
+    };
+  }
+  // Paid from the stars on the account (season prizes).
+  function buyWithStars(uid, { item }) {
+    const price = itemPrice(uid, String(item));
+    if (!q('UPDATE users SET stars = stars - ? WHERE id = ? AND stars >= ?').run(price, uid, price).changes) fail('Недостатньо зірок на рахунку');
+    return { ...applyItem(uid, String(item)), paid: price };
+  }
+  // Paid in Telegram Stars through the bot (each charge once).
+  function creditItem({ chargeId, userId, itemId, stars }) {
+    return db.tx(() => {
+      if (!S.SHOP_BY_ID[itemId]) fail('Невідомий товар');
+      if (q('SELECT 1 FROM payments WHERE charge_id = ?').get(chargeId)) return { duplicate: true };
+      q('INSERT INTO payments (charge_id, user_id, pack, stars, amount, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(chargeId, userId, 'item:' + itemId, stars, 0, now());
+      const out = applyItem(userId, itemId);
+      event(userId, `⭐ Оплата пройшла! ${S.SHOP_BY_ID[itemId].name} — уже твоє`);
+      return out;
+    });
+  }
+  const itemPriceTx = (uid, itemId) => db.tx(() => itemPrice(uid, itemId));
+
   function leaderboard(uid, { type } = {}) {
+    if (type === 'season') return seasonBoard(uid);
     const week = type !== 'all';
     const cur = weekOf(now());
     const rows = week
@@ -2683,6 +2847,7 @@ export function createGame(db, opts = {}) {
     rewards, 'rewards/daily': dailyClaim, 'rewards/case': rewardCase, 'newbie/claim': newbieClaim, 'level/seen': levelSeen,
     quests, 'quests/claim': questClaim, 'collection/claim': collectionClaim,
     leaderboard, promo: redeemPromo, events,
+    season, 'season/claim': passClaim, shop, 'shop/stars': buyWithStars,
   };
   // Every call runs in one transaction, settles the weekly race and refreshes the caller's garage value — except the
   // frequent polls below (every few seconds, or several times a second in a live race), which change no cars.
@@ -2692,6 +2857,8 @@ export function createGame(db, opts = {}) {
     if (!light) {
       settleWeek();
       rollWeek(uid);
+      settleSeason();
+      rollSeason(uid);
     }
     // Presence for "online" (trade hall, live PvP): written at most every 15 s so plain reads don't hit the disk.
     q('UPDATE users SET last_seen = ? WHERE id = ? AND (last_seen IS NULL OR last_seen < ?)').run(now(), uid, now() - 15e3);
@@ -2713,5 +2880,5 @@ export function createGame(db, opts = {}) {
     });
   }
 
-  return { api, admin, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, packAmountFor, createPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)) };
+  return { api, admin, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, createPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)) };
 }
