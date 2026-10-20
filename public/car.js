@@ -1,5 +1,5 @@
 // Car artwork: a real photo from public/cars/<id>.webp when it exists, otherwise a drawn silhouette.
-import { MODELS, CLASSES, PAINT_BY_ID } from './shared.js';
+import { MODELS, CLASSES } from './shared.js';
 
 let IMAGES = {};
 export function setImages(map) {
@@ -46,17 +46,15 @@ function svg(modelId) {
 ${wheel(rx)}${wheel(fx)}</svg>`;
 }
 
-export function carArt(modelId, { glow = false, silhouette = false, paint = null } = {}) {
+export function carArt(modelId, { glow = false, silhouette = false } = {}) {
   const m = MODELS[modelId];
   if (!m) return '';
   const style = glow ? ` style="--c:${CLASSES[m.cls].color}"` : '';
   const cls = [glow ? 'glow' : '', silhouette ? 'silhouette' : ''].join(' ');
-  // Season liveries use another model's photo through a paint filter (MODELS[id].img / .filter); a player's paint
-  // (PAINTS) is a filter too, and the glow is added to the same filter so it is not lost.
+  // Season liveries use another model's photo through a paint filter (MODELS[id].img / .filter).
   const src = IMAGES[modelId] || (m.img && IMAGES[m.img]);
   if (src) {
-    const f = (paint && PAINT_BY_ID[paint]?.css) || m.filter || '';
-    const st = [glow ? `--c:${CLASSES[m.cls].color}` : '', f ? `filter:${f}${glow ? ' drop-shadow(0 0 14px var(--c))' : ''}` : ''].filter(Boolean).join(';');
+    const st = [glow ? `--c:${CLASSES[m.cls].color}` : '', m.filter ? `filter:${m.filter}${glow ? ' drop-shadow(0 0 14px var(--c))' : ''}` : ''].filter(Boolean).join(';');
     return `<img src="${src}" alt="" class="${cls}"${st ? ` style="${st}"` : ''} loading="lazy" draggable="false">`;
   }
   return svg(modelId).replace('<svg ', `<svg class="${cls}"${style} `);

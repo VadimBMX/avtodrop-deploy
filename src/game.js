@@ -132,7 +132,7 @@ export function createGame(db, opts = {}) {
     const plate = carPlate(c.id);
     const st = S.carStats({ model: c.model, parts, plateValue: plate?.value || 0 });
     const t = tankState(c);
-    return { id: c.id, model: c.model, status: c.status, parts, plate, paint: c.paint || null, tank: t.tank, tankNext: t.next, ...st };
+    return { id: c.id, model: c.model, status: c.status, parts, plate, tank: t.tank, tankNext: t.next, ...st };
   }
   const carValueOf = (c) => S.carValue({ model: c.model, parts: carParts(c.id), plateValue: carPlate(c.id)?.value || 0 });
   function ownCar(uid, id, statuses = ['garage']) {
@@ -409,16 +409,6 @@ export function createGame(db, opts = {}) {
     return {};
   }
   // Selling returns installed parts to the warehouse and the plate to the player.
-  // Repaint (S.PAINTS): paid by the model's price; back to the original colour is free.
-  function paintCar(uid, { carId, paint }) {
-    const c = ownCar(uid, carId, ['garage', 'showcase']);
-    const id = paint ? String(paint) : null;
-    if (id && !S.PAINT_BY_ID[id]) fail('Невідомий колір');
-    if ((c.paint || null) === id) fail('Машина вже такого кольору');
-    if (id) pay(uid, S.paintPrice(c.model));
-    q('UPDATE cars SET paint = ? WHERE id = ?').run(id, c.id);
-    return { car: carOut(carRow(c.id)) };
-  }
   function stripCar(uid, carId) {
     for (const p of q('SELECT type, tier FROM car_parts WHERE car_id = ?').all(carId)) addPart(uid, p.type, p.tier);
     q('DELETE FROM car_parts WHERE car_id = ?').run(carId);
@@ -2897,7 +2887,7 @@ export function createGame(db, opts = {}) {
 
   const handlers = {
     me: (u) => me(u),
-    collect, 'buy-slot': buySlot, 'upgrade-cap': upgradeCap, sell, showcase, 'buy-showcase': buyShowcaseSlot, 'car/paint': paintCar,
+    collect, 'buy-slot': buySlot, 'upgrade-cap': upgradeCap, sell, showcase, 'buy-showcase': buyShowcaseSlot,
     'case/open': openCase, 'case/history': dropHistory,
     'fair/seed': setClientSeed, 'fair/rotate': rotateSeed, 'fair/revealed': revealedSeeds,
     'parts/open': openParts, 'parts/merge': merge, 'parts/sell': sellParts, 'parts/install': install, 'parts/uninstall': uninstall,
