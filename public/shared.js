@@ -710,6 +710,12 @@ export const COLLECTION_MILESTONES = [
 // Each achievement has up to four tiers (bronze → diamond). Progress is counted from what the player has done —
 // also before achievements existed — and each tier reached pays its reward once. `goals` are the thresholds of the
 // measure named by `key` (see achievementProgress on the server); `labels` replace `text` where a tier needs words.
+// Balance: achievements are a bonus, not income. A whole track pays back roughly 0.05–0.3 of what reaching it really
+// costs (money lost, not money turned into cars); early tiers are thousands, never millions. A reward is either a
+// sum of money or { money, caseId, count, parts, tier, fuel } — keys and parts where they are healthier than cash.
+// Measures that are cheap to repeat are guarded on the server: PvP wins and case battles count one win per rival per
+// day (no farming against a second account), plates count the best plate the player generated himself (a plate that
+// came with a traded car doesn't count).
 export const ACH_TIERS = [
   { name: 'Бронза', color: '#cd7f32' },
   { name: 'Срібло', color: '#c0c7d1' },
@@ -718,30 +724,53 @@ export const ACH_TIERS = [
 ];
 const REGULAR_MODELS = ALL_MODELS.filter((m) => !m.secret).length;
 export const ACHIEVEMENTS = [
-  { key: 'cases', title: 'Відкривач', icon: 'box', text: 'Відкрий {n} кейсів з машинами', goals: [10, 100, 1000, 5000], rewards: [6000, 62000, 625000, 5000000] },
-  { key: 'wins', title: 'Гонщик', icon: 'flag-3', text: 'Виграй {n} заїздів', goals: [10, 100, 500, 2000], rewards: [6000, 62000, 625000, 5000000] },
-  { key: 'pvp', title: 'Дуелянт', icon: 'bolt', text: 'Виграй {n} PvP-заїздів', goals: [1, 10, 50, 200], rewards: [12000, 125000, 1000000, 6250000] },
-  { key: 'battles', title: 'Боєць', icon: 'flame', text: 'Виграй {n} кейс-батлів', goals: [1, 10, 50, 200], rewards: [12000, 125000, 1000000, 6250000] },
-  { key: 'collection', title: 'Колекціонер', icon: 'books', text: 'Збери {n} різних машин', goals: [10, 40, 80, REGULAR_MODELS], rewards: [12000, 250000, 2500000, 12500000] },
-  { key: 'rarest', title: 'Мисливець', icon: 'diamond', goals: [2, 3, 4, 5], rewards: [12000, 250000, 2500000, 12500000],
+  { key: 'cases', title: 'Відкривач', icon: 'box', text: 'Відкрий {n} кейсів з машинами', goals: [10, 100, 1000, 5000],
+    rewards: [8000, 60000, { money: 300000, caseId: 'city' }, { money: 2500000, caseId: 'sport' }] },
+  { key: 'wins', title: 'Гонщик', icon: 'flag-3', text: 'Виграй {n} заїздів', goals: [10, 100, 500, 2000],
+    rewards: [5000, { money: 30000, fuel: 1 }, { money: 150000, fuel: 1 }, { money: 600000, fuel: 1 }] },
+  { key: 'pvp', title: 'Дуелянт', icon: 'bolt', text: 'Виграй {n} PvP-заїздів (з одним суперником — 1 на день)', goals: [1, 10, 50, 200],
+    rewards: [10000, 50000, 200000, 750000] },
+  { key: 'battles', title: 'Боєць', icon: 'flame', text: 'Виграй {n} кейс-батлів (з одним суперником — 1 на день)', goals: [1, 10, 50, 200],
+    rewards: [10000, 50000, 200000, 750000] },
+  { key: 'collection', title: 'Колекціонер', icon: 'books', text: 'Збери {n} різних машин', goals: [10, 40, 80, REGULAR_MODELS],
+    rewards: [10000, 50000, 500000, 5000000] },
+  { key: 'rarest', title: 'Мисливець', icon: 'diamond', goals: [2, 3, 4, 5], rewards: [10000, 75000, 750000, 2000000],
     labels: ['Отримай епічну (B) машину', 'Отримай легендарну (A) машину', 'Отримай міфічну (S) машину', 'Отримай секретну машину'] },
-  { key: 'secrets', title: 'Секретні справи', icon: 'lock', text: 'Збери {n} секретних машин', goals: [1, 3, 6], rewards: [2500000, 12500000, 62500000] },
-  { key: 'garage', title: 'Магнат', icon: 'building-warehouse', text: 'Гараж вартістю {n}', money: true, goals: [1e6, 100e6, 1e9, 10e9], rewards: [6000, 125000, 1250000, 10000000] },
-  { key: 'level', title: 'Ветеран', icon: 'star', text: 'Досягни {n} рівня', goals: [5, 10, 20, 30], rewards: [12000, 125000, 1250000, 6250000] },
-  { key: 'play', title: 'Свій у гаражі', icon: 'clock', text: 'Проведи в грі {n} год', hours: true, goals: [1, 10, 50, 200], rewards: [6000, 62000, 625000, 3750000] },
-  { key: 'streak', title: 'Постійний', icon: 'calendar', text: 'Заходь {n} днів поспіль', goals: [3, 7, 14, 30], rewards: [6000, 38000, 250000, 1875000] },
-  { key: 'merges', title: 'Механік', icon: 'tools', text: 'Злий деталі {n} раз', goals: [5, 50, 200, 1000], rewards: [6000, 62000, 500000, 3750000] },
-  { key: 'tuned', title: 'Тюнер', icon: 'engine', goals: [1, 2, 3, 4], rewards: [12000, 125000, 1250000, 7500000],
+  { key: 'secrets', title: 'Секретні справи', icon: 'lock', text: 'Збери {n} секретних машин', goals: [1, 3, 6], rewards: [1000000, 4000000, 12000000] },
+  { key: 'garage', title: 'Магнат', icon: 'building-warehouse', text: 'Гараж вартістю {n}', money: true, goals: [1e6, 100e6, 1e9, 10e9], rewards: [5000, 100000, 1000000, 5000000] },
+  { key: 'level', title: 'Ветеран', icon: 'star', text: 'Досягни {n} рівня', goals: [5, 10, 20, 30], rewards: [10000, 60000, 500000, 2500000] },
+  { key: 'play', title: 'Свій у гаражі', icon: 'clock', text: 'Проведи в грі {n} год', hours: true, goals: [1, 10, 50, 200],
+    rewards: [5000, { money: 25000, fuel: 1 }, { money: 100000, fuel: 1 }, { money: 300000, fuel: 1 }] },
+  { key: 'streak', title: 'Постійний', icon: 'calendar', text: 'Забери щоденний бонус {n} днів', goals: [3, 7, 14, 30], rewards: [5000, 20000, 75000, 300000] },
+  { key: 'merges', title: 'Механік', icon: 'tools', text: 'Злий деталі {n} раз', goals: [5, 50, 200, 1000],
+    rewards: [5000, { parts: 1, tier: 'sport' }, { parts: 1, tier: 'pro' }, { parts: 1, tier: 'race' }] },
+  { key: 'tuned', title: 'Тюнер', icon: 'engine', goals: [1, 2, 3, 4], rewards: [5000, 60000, 300000, 1500000],
     labels: ['Постав на машину всі 8 деталей', 'Машина з 8 деталями Sport або краще', 'Машина з 8 деталями Pro або краще', 'Машина з 8 деталями Race'] },
-  { key: 'plates', title: 'Номерний знак', icon: 'license', goals: [1, 2, 3, 4], rewards: [6000, 62000, 625000, 5000000],
-    labels: ['Май рідкісний (C) номер', 'Май епічний (B) номер', 'Май легендарний (A) номер', 'Май міфічний (S) номер'] },
-  { key: 'friends', title: 'Душа компанії', icon: 'users', text: 'Приведи {n} друзів до 3 рівня', goals: [1, 3, 10, 30], rewards: [12000, 125000, 625000, 3750000] },
+  { key: 'plates', title: 'Номерний знак', icon: 'license', goals: [1, 2, 3, 4], rewards: [3000, 10000, 50000, 500000],
+    labels: ['Згенеруй рідкісний (C) номер', 'Згенеруй епічний (B) номер', 'Згенеруй легендарний (A) номер', 'Згенеруй міфічний (S) номер'] },
+  { key: 'friends', title: 'Душа компанії', icon: 'users', text: 'Приведи {n} друзів до 3 рівня', goals: [1, 3, 10, 30], rewards: [10000, 40000, 150000, 500000] },
 ];
 export const ACH_BY_KEY = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.key, a]));
 export function achText(a, tier) {
   if (a.labels) return a.labels[tier];
   const g = a.goals[tier];
   return a.text.replace('{n}', a.money ? short(g) : String(g));
+}
+// A tier reward as an object ({ money } for a plain sum).
+export const achReward = (rw) => (typeof rw === 'number' ? { money: rw } : { money: 0, ...rw });
+// What a reward is worth at list prices (keys at the case price, parts at the tier price, a tank refill ~ nothing).
+export function achRewardValue(rw) {
+  const r = achReward(rw);
+  return (r.money || 0) + (r.caseId ? CASE_BY_ID[r.caseId].price * (r.count || 1) : 0) + (r.parts ? TIER_BY_ID[r.tier].price * r.parts : 0);
+}
+// Short text for the reward: "300 тис ₴ + ключ «Міський» + повний бак".
+export function achRewardText(rw) {
+  const r = achReward(rw), out = [];
+  if (r.money) out.push(short(r.money));
+  if (r.caseId) out.push(`${(r.count || 1) > 1 ? r.count + ' × ' : ''}ключ «${CASE_BY_ID[r.caseId].name}»`);
+  if (r.parts) out.push(`${r.parts > 1 ? r.parts + ' × ' : ''}деталь ${TIER_BY_ID[r.tier].name}`);
+  if (r.fuel) out.push('повний бак');
+  return out.join(' + ');
 }
 
 // Money for finishing a country collection (on top of its secret car): 15% of that secret car's value.

@@ -412,12 +412,12 @@ PAGES.achievements = async () => {
           <div class="small muted">${done ? 'Усі рівні пройдено!' : esc(S.achText(a, next))}</div>
           <div class="ach-dots">${a.goals.map((g, i) => `<i style="${i < s.claimed ? `background:${S.ACH_TIERS[i].color}` : i < s.reached ? 'background:#ff3b30' : ''}"></i>`).join('')}</div>
           ${done ? '' : `<div class="progress mt" style="height:5px"><i style="width:${prog * 100}%"></i></div>
-          <div class="row between tiny muted mt"><span>${val}</span><span>${ic('gift')} ${S.short(a.rewards[next])}</span></div>`}</div>
+          <div class="row between tiny muted mt"><span>${val}</span><span>${ic('gift')} ${esc(S.achRewardText(a.rewards[next]))}</span></div>`}</div>
         ${s.reached > s.claimed ? `<button class="btn sm yellow" data-act="achClaim" data-k="${s.key}">Забрати</button>` : ''}</div>`;
     }).join('')}</div>`;
 };
-H.achClaim = (d) => act('ach/claim', { key: d.k }, (r) => `Досягнення: +${S.fmt(r.got)}`);
-H.achClaimAll = () => act('ach/claim', {}, (r) => `${r.tiers} досягнень: +${S.fmt(r.got)}`);
+H.achClaim = (d) => act('ach/claim', { key: d.k }, (r) => `Досягнення: ${r.text}`);
+H.achClaimAll = () => act('ach/claim', {}, (r) => `${r.tiers} досягнень: ${r.text}`);
 
 // "3 год 12 хв" / "12 хв" — time spent with the game open.
 const playTime = (ms) => {
@@ -3513,8 +3513,8 @@ H.bannerClaim = async (d) => {
   if (c.kind === 'newbie') return act('newbie/claim', {}, (r) => `+${S.fmt(r.got)}`);
   if (c.kind === 'quest') return act('quests/claim', { key: c.id }, (r) => `+${S.fmt(r.got)}`);
   if (c.kind === 'coll') return act('collection/claim', { key: c.id }, (r) => `Отримано: ${S.short(r.reward.money)}${r.reward.secret ? ' + секретна машина!' : ''}`);
-  if (c.kind === 'ach') return act('ach/claim', { key: c.id }, (r) => `Досягнення: +${S.fmt(r.got)}`);
-  if (c.kind === 'achAll') return act('ach/claim', {}, (r) => `${r.tiers} досягнень: +${S.fmt(r.got)}`);
+  if (c.kind === 'ach') return act('ach/claim', { key: c.id }, (r) => `Досягнення: ${r.text}`);
+  if (c.kind === 'achAll') return act('ach/claim', {}, (r) => `${r.tiers} досягнень: ${r.text}`);
   if (c.kind === 'pass') return H.passClaim();
   if (c.kind === 'rescue' && await act('rescue/claim', {}, 'Безкоштовний кейс уже чекає!', { rerender: false })) {
     state.tab = 'cases';

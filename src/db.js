@@ -228,6 +228,12 @@ const MIGRATIONS = [
   'ALTER TABLE users ADD COLUMN starter_bought INTEGER NOT NULL DEFAULT 0',
   // Left over from a dropped repaint feature; kept so existing databases stay valid.
   'ALTER TABLE cars ADD COLUMN paint TEXT',
+  // Best plate class (rank: C 1 … S 4) the player generated himself — the "Номерний знак" achievement counts this, so a
+  // plate that came with a traded car doesn't count and selling one doesn't lose it. The second statement runs once,
+  // when the column is added: plates owned at that moment count as generated.
+  ['ALTER TABLE users ADD COLUMN plate_best INTEGER NOT NULL DEFAULT 0',
+    `UPDATE users SET plate_best = COALESCE((SELECT MAX(CASE cls WHEN 'C' THEN 1 WHEN 'B' THEN 2 WHEN 'A' THEN 3 WHEN 'S' THEN 4 ELSE 0 END)
+       FROM plates WHERE owner_id = users.id), 0)`],
 ];
 
 export function openDb(file) {
@@ -237,12 +243,16 @@ export function openDb(file) {
   // only a power cut could lose the last moments), which keeps many players' requests fast.
   db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000;');
   db.exec(SCHEMA);
-  for (const sql of MIGRATIONS) {
+  // An entry may be [alter, backfill]: the backfill runs only when the column was really added (once per database).
+  for (const m of MIGRATIONS) {
+    const [sql, backfill] = Array.isArray(m) ? m : [m];
     try {
       db.exec(sql);
     } catch (e) {
       if (!/duplicate column/i.test(e.message)) throw e;
+      continue;
     }
+    if (backfill) db.exec(backfill);
   }
   const cache = new Map();
   db.q = (sql) => {
