@@ -26,6 +26,8 @@ function idList(v, max) {
   if (new Set(ids).size !== ids.length) fail('Елементи повторюються');
   return ids;
 }
+// Own keys only: `'constructor' in obj` is true for every plain object and turns race times into NaN.
+const okShifts = (shifts) => Array.isArray(shifts) && shifts.length === S.SHIFTS && shifts.every((s) => typeof s === 'string' && Object.hasOwn(S.SHIFT_LOSS, s));
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 const newSeed = () => crypto.randomBytes(32).toString('hex');
 const round3 = (x) => Math.round(x * 1000) / 1000;
@@ -167,6 +169,14 @@ export function createGame(db, opts = {}) {
     // A car bought or traded from another player does not count in the collection: collections are found, not bought.
   }
 
+  // Parts or plate of a car changed: open offers with it are no longer what the other side saw and agreed to.
+  function carChanged(...ids) {
+    const list = ids.filter(Boolean);
+    if (!list.length) return;
+    invalidateTrades(list);
+    for (const r of q(`SELECT DISTINCT i.room_id id FROM trade_room_items i JOIN trade_rooms r ON r.id = i.room_id WHERE r.status IN ('open', 'active') AND i.car_id IN (${list.map(() => '?').join(',')})`).all(...list)) bump(r.id);
+  }
+
   // ---------- income ----------
   // Only as many cars as the garage has slots earn income (the best earners), so a garage that went over its
   // limit (battle win, auction, reward) gives no extra income until the spare cars are sold.
@@ -218,7 +228,10 @@ export function createGame(db, opts = {}) {
       const rw = S.levelReward(level);
       addMoney(uid, rw.money);
       if (rw.caseId) addKeys(uid, rw.caseId, 1);
-      if (rw.slots) q('UPDATE users SET slots = MIN(?, slots + ?) WHERE id = ?').run(S.MAX_SLOTS, rw.slots, uid);
+      if (rw.slots) {
+        bank(uid);
+        q('UPDATE users SET slots = MIN(?, slots + ?) WHERE id = ?').run(S.MAX_SLOTS, rw.slots, uid);
+      }
       if (level >= 3 && u.referrer_id && !u.ref_paid) {
         q('UPDATE users SET ref_paid = 1 WHERE id = ?').run(uid);
         addMoney(u.referrer_id, S.REF_REWARD);
@@ -673,6 +686,7 @@ export function createGame(db, opts = {}) {
     const old = q('SELECT tier FROM car_parts WHERE car_id = ? AND type = ?').get(c.id, type);
     if (old) coolPart(uid, type, old.tier);
     q('INSERT INTO car_parts (car_id, type, tier) VALUES (?, ?, ?) ON CONFLICT DO UPDATE SET tier = excluded.tier').run(c.id, type, tier);
+    carChanged(c.id);
     xp(uid, 'install');
     flag(uid, 'install');
     return { car: carOut(carRow(c.id)) };
@@ -688,6 +702,7 @@ export function createGame(db, opts = {}) {
     bank(uid);
     q('DELETE FROM car_parts WHERE car_id = ? AND type = ?').run(c.id, type);
     coolPart(uid, type, old.tier);
+    carChanged(c.id);
     return { car: carOut(carRow(c.id)) };
   }
 
@@ -752,9 +767,13 @@ export function createGame(db, opts = {}) {
   function attachPlate(uid, { plateId, carId }) {
     const p = ownPlate(uid, plateId);
     const c = ownCar(uid, carId, ['garage', 'showcase']);
+    // The plate may be on another car: only take it from one that is in the garage or showcase, not one being sold.
+    const from = p.car_id ? carRow(p.car_id) : null;
+    if (from && from.status !== 'garage' && from.status !== 'showcase') fail('Авто з цим номером на ринку — номер зняти не можна');
     bank(uid);
     q('UPDATE plates SET car_id = NULL WHERE car_id = ?').run(c.id);
     q('UPDATE plates SET car_id = ? WHERE id = ?').run(c.id, p.id);
+    carChanged(c.id, from?.id);
     return {};
   }
   function detachPlate(uid, { plateId }) {
@@ -765,6 +784,7 @@ export function createGame(db, opts = {}) {
     }
     bank(uid);
     q('UPDATE plates SET car_id = NULL WHERE id = ?').run(p.id);
+    carChanged(p.car_id);
     return {};
   }
   function sellPlate(uid, { plateId }) {
@@ -885,28 +905,29 @@ export function createGame(db, opts = {}) {
     q('UPDATE cars SET tank = ?, tank_at = ? WHERE id = ?').run(t.tank - 1, t.tank >= S.CAR_TANK ? now() : t.at, c.id);
     const rr = lcg(Math.floor(rnd() * 2 ** 31));
     const rivalTime = rivalRun(rr, r.base);
-    const rec = { ...r, time: rivalTime };
+    // The car is fixed at the start: installing parts or selling it before the finish changes nothing.
+    const rec = { ...r, time: rivalTime, me: { base: car.base, shift: car.shift } };
     const id = Number(q('INSERT INTO races (user_id, car_id, rival, entry, prize, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(uid, c.id, JSON.stringify(rec), r.entry, r.prize, now()).lastInsertRowid);
     return { raceId: id, car, rival: rec, shiftPoints: S.SHIFT_POINTS };
   }
   function raceFinish(uid, { raceId, reaction, shifts }) {
     const race = q('SELECT * FROM races WHERE id = ? AND user_id = ?').get(int(raceId, 1, 1e15, 'ID заїзду'), uid);
     if (!race || race.status !== 'running') fail('Заїзд уже завершено');
-    if (!Array.isArray(shifts) || shifts.length !== S.SHIFTS || shifts.some((s) => !(s in S.SHIFT_LOSS))) fail('Некоректні дані заїзду');
+    if (!okShifts(shifts)) fail('Некоректні дані заїзду');
     let react = Number(reaction);
     if (!Number.isFinite(react)) fail('Некоректний старт');
     if (react >= 0) react = Math.max(0.09, Math.min(react, 3));
     const expired = now() - race.created_at > 3 * 60e3;
-    const c = carRow(race.car_id);
-    const stats = carOut(c);
     const rival = JSON.parse(race.rival);
+    const stats = rival.me || carOut(carRow(race.car_id));
+    if (!stats) fail('Цього авто вже немає');
     const time = expired ? 99 : S.raceTime(stats, react, shifts);
     const win = time < rival.time;
     if (win) addMoney(uid, race.entry + race.prize);
     const result = { win, time, rivalTime: rival.time, diff: round3(Math.abs(time - rival.time)), prize: win ? race.prize : 0, entry: race.entry, jump: react < 0, perfectStart: react >= 0 && react <= S.START.perfectWindow, reaction: react, shifts };
     q("UPDATE races SET status = 'done', result = ? WHERE id = ?").run(JSON.stringify(result), race.id);
     q('UPDATE users SET races = races + 1, wins = wins + ? WHERE id = ?').run(win ? 1 : 0, uid);
-    q('DELETE FROM rivals WHERE user_id = ? AND car_id = ?').run(uid, c.id);
+    q('DELETE FROM rivals WHERE user_id = ? AND car_id = ?').run(uid, race.car_id);
     xp(uid, win ? 'win' : 'race');
     track(uid, 'race');
     if (win) track(uid, 'win');
@@ -1008,7 +1029,7 @@ export function createGame(db, opts = {}) {
     const parsed = bets.map((x) => {
       const isNum = typeof x?.on === 'number' || /^\d+$/.test(String(x?.on));
       const on = isNum ? int(Number(x.on), 0, 36, 'Число') : String(x?.on);
-      if (!isNum && !S.ROULETTE_BETS[on]) fail('Невідома ставка');
+      if (!isNum && !Object.hasOwn(S.ROULETTE_BETS, on)) fail('Невідома ставка');
       const amount = int(x.amount, S.CASINO.minBet, Number.MAX_SAFE_INTEGER, 'Ставка');
       if (amount > S.CASINO.maxBet) fail(`Максимум ${S.fmt(S.CASINO.maxBet)} на одне поле`);
       return { on, amount };
@@ -1312,7 +1333,7 @@ export function createGame(db, opts = {}) {
   function pvpFinish(uid, { id, reaction, shifts }) {
     const p = pvpOf(uid, id);
     if (p.status !== 'live') return pvpOut(p, uid);
-    if (!Array.isArray(shifts) || shifts.length !== S.SHIFTS || shifts.some((s) => !(s in S.SHIFT_LOSS))) fail('Некоректні дані заїзду');
+    if (!okShifts(shifts)) fail('Некоректні дані заїзду');
     if (now() < p.green_at - 1000 && Number(reaction) >= 0) fail('Гонка ще не почалася');
     const isC = p.creator_id === uid;
     if (!p[isC ? 'c_run' : 'o_run']) {
@@ -1418,6 +1439,7 @@ export function createGame(db, opts = {}) {
       return { car: carOut(carRow(l.car_id)) };
     }
     const got = Math.floor(l.price * (1 - S.FEE));
+    bank(l.seller_id); // the lot stops counting against the seller's earning slots from now on
     addMoney(l.seller_id, got);
     transferCar(l.car_id, uid);
     q('DELETE FROM listings WHERE id = ?').run(l.id);
@@ -1926,6 +1948,7 @@ export function createGame(db, opts = {}) {
   }
   function grant(uid, rw) {
     const got = { ...rw };
+    if (rw.car || rw.seasonCar || rw.slots) bank(uid); // a new car (or slot) earns from now on, not for the hours before
     if (rw.money) addMoney(uid, rw.money);
     if (rw.parts) {
       got.items = Array.from({ length: rw.parts }, () => randomPartOf(rw.tier));
@@ -2138,6 +2161,7 @@ export function createGame(db, opts = {}) {
       rw = { money: S.COUNTRY_REWARD[c], secret: S.SECRET_BY_COUNTRY[c] };
     } else fail('Невідома нагорода');
     q('INSERT INTO claims (user_id, key) VALUES (?, ?)').run(uid, k);
+    bank(uid);
     addMoney(uid, rw.money);
     if (rw.slots) q('UPDATE users SET slots = MIN(?, slots + ?) WHERE id = ?').run(S.MAX_SLOTS, rw.slots, uid);
     if (rw.secret) {
@@ -2268,6 +2292,12 @@ export function createGame(db, opts = {}) {
     return db.tx(() => {
       if (!S.SHOP_BY_ID[itemId]) fail('Невідомий товар');
       if (q('SELECT 1 FROM payments WHERE charge_id = ?').get(chargeId)) return { duplicate: true };
+      const it = S.SHOP_BY_ID[itemId], u = userRow(userId);
+      // Two invoices paid back to back both pass the pre-checkout; the second one would buy nothing (or a once-only pack twice).
+      if ((it.once && u.starter_bought) || (it.id === 'pass' && u.premium_season === S.seasonOf(now()))) {
+        q('INSERT INTO payments (charge_id, user_id, pack, stars, amount, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(chargeId, userId, 'refund:' + itemId, stars, 0, now());
+        return { refund: true, item: itemId };
+      }
       q('INSERT INTO payments (charge_id, user_id, pack, stars, amount, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(chargeId, userId, 'item:' + itemId, stars, 0, now());
       const out = applyItem(userId, itemId);
       event(userId, `⭐ Оплата пройшла! ${S.SHOP_BY_ID[itemId].name} — уже твоє`);

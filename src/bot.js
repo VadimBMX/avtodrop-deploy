@@ -41,7 +41,14 @@ export function createBot({ token, webappUrl, admins = [], game, log = console.e
     if (m.successful_payment) {
       const sp = m.successful_payment;
       const [kind, packId, , amount] = String(sp.invoice_payload).split(':');
-      if (kind === 'item') return game.creditItem({ chargeId: sp.telegram_payment_charge_id, userId: m.from.id, itemId: packId, stars: sp.total_amount });
+      if (kind === 'item') {
+        const r = game.creditItem({ chargeId: sp.telegram_payment_charge_id, userId: m.from.id, itemId: packId, stars: sp.total_amount });
+        if (r?.refund) {
+          await call('refundStarPayment', { user_id: m.from.id, telegram_payment_charge_id: sp.telegram_payment_charge_id });
+          await send(m.chat.id, 'Цю покупку вже зроблено раніше — зірки повернуто.');
+        }
+        return;
+      }
       game.creditPayment({ chargeId: sp.telegram_payment_charge_id, userId: m.from.id, packId, stars: sp.total_amount, amount: Number(amount) });
       return;
     }
