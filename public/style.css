@@ -752,3 +752,35 @@ input:focus { border-color: var(--line2); }
 .menu-list .sub { color: var(--muted); font-size: 13px; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
 .menu-list .cnt { background: #ff3b30; color: #fff; border-radius: 999px; min-width: 20px; height: 20px; padding: 0 6px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
 .menu-list .chev { color: #48484a; }
+
+/* ---------- seasons, pass, VIP, shop, what's new ---------- */
+.diff.train { color: #6cc4ff; border-color: #1d3d55; }
+.season-card { display: block; width: 100%; text-align: left; margin-bottom: 14px; border-color: #4a3c10; background: linear-gradient(135deg, #2a2208, var(--card) 65%); }
+.vipchip { color: var(--accent); border-color: #4a3c10; background: #2a2208; }
+.prow { display: grid; grid-template-columns: 34px 1fr 1fr; gap: 6px; align-items: stretch; margin-bottom: 6px; }
+.prow.head { font: 600 11px var(--f-disp); letter-spacing: .6px; text-transform: uppercase; color: var(--muted); margin: 16px 0 6px; }
+.prow.head span { display: flex; align-items: center; gap: 4px; }
+.plvl { display: flex; align-items: center; justify-content: center; font: 700 14px var(--f-disp); color: var(--muted); background: var(--card); border: 1px solid var(--line); border-radius: var(--r-sm); }
+.prow.reached .plvl { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+.prow.cur .plvl { box-shadow: 0 0 0 2px var(--accent-soft); }
+.pcell { display: flex; align-items: center; gap: 6px; padding: 8px; min-height: 44px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r-sm); font-size: 12px; line-height: 1.25; }
+.pcell .i { color: var(--muted); }
+.pcell.ready { border-color: var(--accent); background: linear-gradient(135deg, #2a2208, var(--card) 70%); }
+.pcell.ready .i { color: var(--accent); }
+.pcell.done { opacity: .45; }
+.pcell.lock { opacity: .55; }
+.season-car { border-color: #1d3d55; background: radial-gradient(ellipse at 50% 30%, #12304a, var(--card) 70%); }
+.offer { border-color: #4a2a7a; background: linear-gradient(135deg, #24133d, var(--card) 70%); }
+.offer-list, .vip-list { display: grid; gap: 6px; margin-top: 10px; font-size: 13px; }
+.offer-list span, .vip-list span { display: flex; align-items: center; gap: 8px; }
+.offer-list .i, .vip-list .i { color: var(--accent); }
+.vip-card { border-color: #4a3c10; background: linear-gradient(135deg, #2a2208, var(--card) 70%); }
+.story { position: fixed; inset: 0; z-index: 100; background: radial-gradient(ellipse at 50% 35%, #2a2208, #0b0c0f 70%); display: flex; flex-direction: column; padding: 14px 18px calc(22px + var(--safe-b)); max-width: 520px; margin: 0 auto; }
+.story-bars { display: flex; gap: 4px; }
+.story-bars i { flex: 1; height: 3px; border-radius: 2px; background: #ffffff2a; }
+.story-bars i.done, .story-bars i.on { background: var(--accent); }
+.story-skip { align-self: flex-end; margin-top: 10px; padding: 6px 10px; border-radius: 6px; background: #ffffff14; font-size: 13px; color: var(--muted); }
+.story-body { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 14px; }
+.story-ic { font-size: 64px; color: var(--accent); display: flex; filter: drop-shadow(0 0 24px #f5b30166); }
+.story-title { font-size: 30px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; }
+.story-text { font-size: 16px; color: #c9ced6; max-width: 360px; }

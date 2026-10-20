@@ -518,7 +518,7 @@ export const OPPONENTS = [
   { id: 'hard', name: 'Складний', delta: [-0.55, -0.25], entry: 2500, prize: 8000 },
 ];
 // Training: no entry fee, a small prize (a quarter of the easy rival's) — for learning the shifts without risk.
-export const TRAINING = { id: 'train', name: 'Тренування', delta: [0.35, 0.8], share: 0.25 };
+export const TRAINING = { id: 'train', name: 'Тренування', delta: [0.8, 1.3], share: 0.25 };
 // Race entry/prize multiplier by class (kept for PvP-free tables and old saves).
 export const CLASS_MULT = { D: 2.5, C: 8, B: 25, A: 120, S: 600, X: 1250 };
 // Race prizes follow the price of the car model you race, whatever its class (parts help you win, they don't raise

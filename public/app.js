@@ -43,7 +43,7 @@ const state = {
   raceView: 'race', raceCar: null, race: null,
   shopView: 'cases', partCase: 'scrap', partType: null, partCount: 1, partDrop: null,
   plateView: 'gen', plateDrop: null, marketTab: 'buy', marketCls: '', marketSort: 'new',
-  lbType: 'week', collFilter: '', collAll: false, trade: null,
+  lbType: 'season', collFilter: '', collAll: false, trade: null,
 };
 
 // ---------- infrastructure ----------
@@ -227,7 +227,8 @@ function rewardText(rw) {
   if (rw.money) parts.push(S.fmt(rw.money));
   if (rw.parts) parts.push(`Деталі ${S.TIER_BY_ID[rw.tier].name} ×${rw.parts}`);
   if (rw.car) parts.push(`Машина класу ${rw.car}`);
-  if (rw.caseId) parts.push(`Кейс «${S.CASE_BY_ID[rw.caseId].name}»`);
+  if (rw.caseId) parts.push(`Кейс «${S.CASE_BY_ID[rw.caseId].name}»${rw.count > 1 ? ` ×${rw.count}` : ''}`);
+  if (rw.seasonCar) parts.push(M(rw.seasonCar).name);
   if (rw.slots) parts.push(`+${rw.slots} місце в гаражі`);
   if (rw.fuel) parts.push('Повний бак');
   return parts.join(' · ');
@@ -235,7 +236,7 @@ function rewardText(rw) {
 
 // ---------- header & navigation ----------
 const TITLES = { garage: 'Гараж', cases: 'Кейси', race: 'Гонки', shop: 'Майстерня', menu: 'Меню' };
-const PAGE_TITLES = { casino: 'Казино', upgrade: 'Апгрейд', collection: 'Колекція', plates: 'Номери', market: 'Ринок', trades: 'Обміни', tradeNew: 'Новий обмін', room: 'Кімната обміну', battles: 'Кейс-батли', battle: 'Батл', quests: 'Завдання', leaderboard: 'Рейтинг', store: 'Магазин', friends: 'Друзі', promo: 'Промокоди', fair: 'Чесна гра', events: 'Сповіщення', achievements: 'Досягнення', support: 'Підтримка' };
+const PAGE_TITLES = { casino: 'Казино', upgrade: 'Апгрейд', collection: 'Колекція', plates: 'Номери', market: 'Ринок', trades: 'Обміни', tradeNew: 'Новий обмін', room: 'Кімната обміну', battles: 'Кейс-батли', battle: 'Батл', quests: 'Завдання', leaderboard: 'Рейтинг', store: 'Магазин', season: 'Сезон', friends: 'Друзі', promo: 'Промокоди', fair: 'Чесна гра', events: 'Сповіщення', achievements: 'Досягнення', support: 'Підтримка' };
 function ring(level, xp, need, size = 40) {
   const r = size / 2 - 2, c = 2 * Math.PI * r, f = Math.min(1, xp / need);
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#252c39" stroke-width="3"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#f5b301" stroke-width="3" stroke-linecap="round" stroke-dasharray="${c * f} ${c}" transform="rotate(-90 ${size / 2} ${size / 2})"/></svg>`;
@@ -372,10 +373,12 @@ function openProfile() {
   const initial = (me.firstName || me.username || '?').trim()[0]?.toUpperCase() || '?';
   sheet('Профіль', `<div class="center"><div class="ring">${ring(me.level, me.xp, me.xpNeed, 84)}<span class="face">${esc(initial)}</span><span class="lvl">${me.level}</span></div>
     <div style="font-size:20px;font-weight:900" class="mt">${esc(me.username ? '@' + me.username : me.firstName || 'Гравець')}</div>
-    <div class="small muted">Рівень ${me.level} · ID ${me.id}</div></div>
+    <div class="small muted">Рівень ${me.level} · ID ${me.id}</div>
+    ${me.vip || me.badges.length ? `<div class="row mt" style="justify-content:center;flex-wrap:wrap;gap:6px">${me.vip ? vipChip() : ''}${me.badges.map(badgeChip).join('')}</div>` : ''}</div>
     <div class="progress mt"><i style="width:${(me.xp / me.xpNeed) * 100}%"></i></div>
     <div class="small muted center mt">${me.xp} / ${me.xpNeed} досвіду · до ${me.level + 1} рівня: +${S.short(S.levelReward(me.level + 1).money)}</div>
     <div class="tiny muted center">Досвід за кейси, номери й деталі сьогодні: ${me.xpToday}/${S.DAILY_XP_CAP}</div>
+    <button class="btn ghost mt" data-act="go" data-page="season">${ic('ticket')} Сезонний пропуск · ${me.season.level}/${S.SEASON.levels}</button>
     ${n ? `<div class="h2"><span>Завдання новачка</span><span>${n.step + 1}/${n.total}</span></div>
       <div class="card row"><div class="grow"><b>${esc(n.text)}</b><div class="small muted">+${S.fmt(n.money)} · +${S.XP.task} досвіду</div></div>
       <button class="btn sm" data-act="newbieClaim" ${n.ready ? '' : 'disabled'}>${n.ready ? 'Забрати' : 'Виконай'}</button></div>` : ''}
@@ -409,14 +412,15 @@ async function openRewards(result) {
   const caseReady = serverNow() >= r.rewardCaseAt;
   const doneUpTo = r.ready ? r.nextDay - 1 : r.todayIndex + 1;
   sheet('Нагороди', `${result ? `<div class="card center"><div class="small muted">${esc(result.title)}</div><div style="font-size:18px;font-weight:900" class="win mt">${esc(result.text)}</div>${result.car ? `<div class="art" style="height:90px">${carArt(result.car.model, { glow: true })}</div><b>${esc(M(result.car.model).name)}</b>` : ''}</div>` : ''}
-    <div class="h2"><span>Щоденний бонус</span><span>серія ${Math.min(r.streak, 7)}/7</span></div>
+    <div class="h2"><span>Щоденний бонус</span><span>день ${r.ready ? r.nextDay : r.todayIndex + 1} з ${r.days.length}</span></div>
     <div class="card"><div class="days">${r.days.map((d, i) => {
       const e = ic(d.money ? 'coin' : d.parts ? 'tool' : d.car ? 'car' : 'car-turbine');
       const label = d.money ? S.short(d.money).replace(' ₴', '') : d.parts ? `Деталі ×${d.parts}` : d.label;
       const today = r.ready && i === r.nextDay - 1;
-      return `<div class="day ${i === 6 ? 'big' : ''} ${today ? 'today' : ''} ${i < doneUpTo ? 'done' : ''}"><small>ДЕНЬ ${i + 1}${i < doneUpTo ? ' ✓' : ''}</small><div class="e">${e}</div><b>${esc(label)}</b></div>`;
+      return `<div class="day ${d.big ? 'big' : ''} ${today ? 'today' : ''} ${i < doneUpTo ? 'done' : ''}"><small>ДЕНЬ ${i + 1}${i < doneUpTo ? ' ✓' : ''}</small><div class="e">${e}</div><b>${esc(label)}</b></div>`;
     }).join('')}</div>
-    <div class="tiny muted mt">Заходь щодня — на 7-й день машина зі «Спорткара». Пропустиш день — серія почнеться заново.</div>
+    <div class="tiny muted mt">Заходь щодня: на 7-й день машина зі «Спорткара», на 14-й — з «Еліти». Пропустив день — нічого не згорає, продовжиш з того ж місця.</div>
+    ${r.vip ? `<div class="tiny mt" style="color:var(--accent)">${ic('crown')} VIP: ще +${S.short(r.vipDaily)} щодня до бонусу</div>` : `<div class="tiny muted mt">${ic('crown')} З VIP — ще +${S.short(r.vipDaily)} щодня</div>`}
     <button class="btn mt" data-act="claimDaily" ${r.ready ? '' : 'disabled'}>${r.ready ? `Забрати · день ${r.nextDay}` : 'Наступний через <span data-until="' + (new Date(new Date().toDateString()).getTime() + 86400e3) + '"></span>'}</button></div>
     <div class="h2"><span>Кейс нагород</span><span>раз на ${S.REWARD_CASE_HOURS} год</span></div>
     <div class="card row"><span class="ic" style="font-size:24px;color:var(--accent);display:inline-flex">${ic('gift')}</span><div class="grow"><b>Кейс нагород</b><div class="small muted">Гроші, деталь, повний бак або машина</div></div>
@@ -427,7 +431,7 @@ async function openRewards(result) {
 }
 H.claimDaily = async () => {
   const r = await act('rewards/daily', {}, null, { rerender: false });
-  if (r) openRewards({ title: `День ${((r.streak - 1) % 7) + 1}`, text: rewardText(r.reward) + (r.reward.items ? ': ' + r.reward.items.map((p) => S.PARTS[p.type].name).join(', ') : ''), car: r.reward.carOut });
+  if (r) openRewards({ title: `День ${((r.streak - 1) % S.DAILY_BONUS.length) + 1}`, text: rewardText(r.reward) + (r.reward.items ? ': ' + r.reward.items.map((p) => S.PARTS[p.type].name).join(', ') : '') + (r.reward.vip ? ` + VIP ${S.short(r.reward.vip)}` : ''), car: r.reward.carOut });
 };
 H.claimRewardCase = async () => {
   const r = await act('rewards/case', {}, null, { rerender: false });
@@ -1767,7 +1771,7 @@ TABS.menu = () => {
   const row = (page, icon, title, c, sub = '', count = 0, act = 'go') => `<button class="li" data-act="${act}" data-page="${page}">
     <span class="mi" style="--c:${c}">${ic(icon)}</span><b>${title}</b>${count ? `<span class="cnt" style="margin-left:auto">${count}</span>` : sub ? `<span class="sub">${sub}</span>` : '<span style="margin-left:auto"></span>'}<span class="chev">${ic('chevron-right')}</span></button>`;
   const group = (title, rows) => `<div class="mgroup">${title}</div><div class="list menu-list">${rows.join('')}</div>`;
-  return group('Грати', [
+  return seasonCard() + group('Грати', [
       row('casino', 'cards', 'Казино', '#ff2d55'),
       row('battles', 'flame', 'Кейс-батли', '#ff9500'),
       row('upgrade', 'arrow-big-up-lines', 'Апгрейд', '#af52de'),
@@ -1779,7 +1783,7 @@ TABS.menu = () => {
       row('plates', 'license', 'Номери', '#ffcc00', String(me.plates.length)),
     ])
     + group('Прогрес', [
-      row('leaderboard', 'trophy', 'Рейтинг', '#ff9f0a', 'призи щотижня'),
+      row('leaderboard', 'trophy', 'Рейтинг', '#ff9f0a', 'призи в ⭐ за сезон'),
       row('achievements', 'diamond', 'Досягнення', '#bf5af2', 'бейджі й нагороди', me.achReady || 0),
       row('collection', 'books', 'Колекція', '#5856d6', `${me.collection.filter((id) => !M(id)?.secret).length}/${S.ALL_MODELS.filter((m) => !m.secret).length}`, claimableCollection() ? '!' : 0),
       row('events', 'bell', 'Сповіщення', '#8e8e93', '', me.unread),
@@ -1790,7 +1794,7 @@ TABS.menu = () => {
       row('support', 'info-circle', 'Підтримка', '#ff9500', 'написати нам'),
     ])
     + group('Інше', [
-      row('store', 'star', 'Магазин', '#30b0c7', 'гривні за зірки'),
+      row('store', 'star', 'Магазин', '#30b0c7', me.vip ? 'VIP активний' : 'VIP, пропуск, набори'),
       row('friends', 'users', 'Друзі', '#ff2d55', `+${S.short(S.REF_REWARD)}`),
       row('promo', 'ticket', 'Промокоди', '#64d2ff'),
       ...(me.admin ? [row('', 'adjustments', 'Адмін-панель', '#636366', '', 0, 'openAdmin')] : []),
@@ -1839,7 +1843,7 @@ PAGES.collection = () => {
   ];
   const visible = state.collAll ? rows : rows.filter((r) => !me.claims.includes(r.key)).slice(0, 3);
   const filter = state.collFilter;
-  const models = S.ALL_MODELS.filter((m) => !filter || m.country === filter);
+  const models = S.ALL_MODELS.filter((m) => (!filter || m.country === filter) && (!m.season || owned.has(m.id)));
   return `<div class="card"><div class="row between"><b>Зібрано</b><span class="muted">${n} з ${totalReg}</span></div><div class="progress mt"><i style="width:${(n / totalReg) * 100}%"></i></div></div>
     <div class="h2"><span>Нагороди за колекцію</span></div>
     <div class="list">${visible.map((r) => {
@@ -1856,7 +1860,7 @@ PAGES.collection = () => {
       if (!list.length) return '';
       return `<div class="h2"><span>${clsBadge(cls)} ${cls === 'X' ? 'Секретні' : S.CLASSES[cls].name}</span><span>${list.filter((m) => owned.has(m.id)).length}/${list.length}</span></div>
         <div class="grid">${list.map((m) => `<div class="car" style="min-height:0;--c:${S.CLASSES[cls].color}">${clsBadge(cls, 'tl')}<div class="art" style="height:60px">${carArt(m.id, { silhouette: !owned.has(m.id) })}</div>
-          <div class="nm tiny">${owned.has(m.id) ? esc(m.name) : '???'}</div><div class="meta">${m.secret && !owned.has(m.id) ? `збери: ${S.COUNTRIES[m.country].name}` : `${S.COUNTRIES[m.country].flag} ${S.COUNTRIES[m.country].name}`}</div></div>`).join('')}</div>`;
+          <div class="nm tiny">${owned.has(m.id) ? esc(m.name) : '???'}</div><div class="meta">${m.season ? `Сезон ${m.season}` : m.secret && !owned.has(m.id) ? `збери: ${S.COUNTRIES[m.country].name}` : `${S.COUNTRIES[m.country].flag} ${S.COUNTRIES[m.country].name}`}</div></div>`).join('')}</div>`;
     }).join('')}`;
 };
 H.collClaim = (d) => act('collection/claim', { key: d.k }, (r) => `Отримано: ${S.short(r.reward.money)}${r.reward.secret ? ' + секретна машина!' : ''}`);
@@ -2528,11 +2532,100 @@ PAGES.quests = async () => {
 H.newbieQuest = () => act('newbie/claim', {}, (r) => `+${S.fmt(r.got)}`);
 H.questClaim = (d) => act('quests/claim', { key: d.k }, (r) => `+${S.fmt(r.got)}`);
 
+// ---------- season & pass ----------
+const vipChip = () => `<span class="chip vipchip">${ic('crown')} VIP</span>`;
+const BADGE_COLORS = ['#8e8e93', '#5ac8fa', '#c4c9d2', '#f5b301'];
+const badgeChip = (b) => `<span class="chip" style="color:${BADGE_COLORS[b.tier] || '#8e8e93'};border-color:currentColor">${ic('trophy')} ${esc(b.title)}</span>`;
+function seasonCard() {
+  const s = me.season;
+  if (!s) return '';
+  const pct = s.need ? (s.levelXp / s.need) * 100 : 100;
+  return `<button class="card season-card" data-act="go" data-page="season">
+    <div class="row between"><b class="disp" style="font-size:17px">${ic('ticket')} Пропуск · Сезон ${s.id}</b><span class="chip">${s.level}/${S.SEASON.levels}</span></div>
+    <div class="progress gold mt"><i style="width:${pct}%"></i></div>
+    <div class="row between mt small"><span class="muted">${s.ready ? `<b style="color:var(--accent)">Нагород до забору: ${s.ready}</b>` : `до кінця сезону <span data-until="${s.endsAt - clockOffset}"></span>`}</span>${s.premium ? `<span style="color:var(--accent)">${ic('crown')} Преміум</span>` : '<span class="muted">Преміум</span>'}</div></button>`;
+}
+const passCell = (rw, state) => {
+  const icon = rw.seasonCar ? 'car-turbine' : rw.caseId ? 'gift' : rw.parts ? 'tool' : 'coin';
+  const label = rw.seasonCar ? 'Машина сезону' : rewardText(rw);
+  return `<div class="pcell ${state}">${state === 'lock' ? ic('lock') : ic(icon)}<span>${esc(label)}</span></div>`;
+};
+PAGES.season = async () => {
+  const s = await api('season');
+  const car = s.car && M(s.car);
+  const row = (l) => {
+    const reached = s.level >= l.level;
+    const st = (tr) => (s.claimed.includes(`pass:${s.id}:${l.level}:${tr}`) ? 'done' : reached ? (tr === 'p' && !s.premium ? 'lock' : 'ready') : tr === 'p' && !s.premium ? 'lock' : 'future');
+    return `<div class="prow ${reached ? 'reached' : ''} ${l.level === s.level ? 'cur' : ''}"><span class="plvl">${l.level}</span>${passCell(l.free, st('f'))}${passCell(l.premium, st('p'))}</div>`;
+  };
+  return `<div class="card"><div class="row between"><b class="disp" style="font-size:18px">Сезон ${s.id}</b><span class="small muted">до кінця <span data-until="${s.endsAt - clockOffset}"></span></span></div>
+      <div class="row between mt"><span>Рівень <b>${s.level}</b> з ${S.SEASON.levels}</span><span class="small muted">${s.need ? `${s.levelXp} / ${s.need} досвіду` : 'максимум'}</span></div>
+      <div class="progress gold mt"><i style="width:${s.need ? (s.levelXp / s.need) * 100 : 100}%"></i></div>
+      <div class="tiny muted mt">Досвід сезону — той самий, що й завжди: гонки (перемоги більше), кейси, завдання, бонуси. Нічого не скидається, крім пропуску.</div>
+      ${s.ready ? `<button class="btn yellow mt" data-act="passClaim">${ic('gift')} Забрати нагороди · ${s.ready}</button>` : ''}</div>
+    ${car ? `<div class="card center season-car"><div class="small muted">Рівень ${S.SEASON.levels} · преміум</div><div class="art" style="height:110px">${carArt(car.id, { glow: true })}</div><b style="font-size:17px">${esc(car.name)}</b>
+      <div class="small muted">${car.hp} к.с. · ${S.short(car.price)} · лише в цьому сезоні</div>
+      ${s.premium ? `<div class="mt" style="color:var(--accent)">${ic('crown')} Преміум активний</div>` : `<button class="btn yellow mt" data-act="buyItem" data-id="pass">${ic('crown')} Преміум · ${ic('star')} ${S.SEASON.premiumStars}</button><div class="tiny muted mt">Нагороди правої доріжки за вже пройдені рівні — одразу після покупки</div>`}</div>` : ''}
+    <div class="prow head"><span class="plvl">#</span><span>Безкоштовно</span><span>${ic('crown')} Преміум</span></div>
+    <div class="ptable">${s.levels.map(row).join('')}</div>`;
+};
+AFTER.season = tickUntil;
+H.passClaim = async () => {
+  const r = await act('season/claim', {}, (r) => `Нагород: ${r.got.length}${r.money ? ` · +${S.short(r.money)}` : ''}`, { rerender: false });
+  if (r) {
+    const car = r.got.find((g) => g.carOut);
+    await refresh();
+    if (car) openRewards({ title: 'Машина сезону!', text: M(car.carOut.model).name, car: car.carOut });
+  }
+};
+
+// ---------- what's new (shown once per S.WHATS_NEW.id) ----------
+function whatsNew(force = false) {
+  const key = 'avtodrop-story-' + S.WHATS_NEW.id;
+  try {
+    if (!force && localStorage.getItem(key)) return;
+    localStorage.setItem(key, '1');
+  } catch {
+    if (!force) return;
+  }
+  let i = 0;
+  const slides = S.WHATS_NEW.slides;
+  const el = document.createElement('div');
+  el.className = 'story';
+  const paint = () => {
+    const sl = slides[i];
+    el.innerHTML = `<div class="story-bars">${slides.map((_, k) => `<i class="${k < i ? 'done' : k === i ? 'on' : ''}"></i>`).join('')}</div>
+      <button class="story-skip">Пропустити</button>
+      <div class="story-body"><div class="story-ic">${ic(sl.icon)}</div><div class="story-title disp">${esc(sl.title)}</div><div class="story-text">${esc(sl.text)}</div></div>
+      <button class="btn yellow story-next">${i < slides.length - 1 ? 'Далі' : 'Поїхали!'}</button>`;
+  };
+  const close = () => el.remove();
+  el.addEventListener('click', (e) => {
+    if (e.target.closest('.story-skip')) return close();
+    if (e.target.closest('.story-next') || e.clientX > window.innerWidth / 3) {
+      if (++i >= slides.length) return close();
+    } else if (i > 0) i--;
+    paint();
+  });
+  paint();
+  document.body.appendChild(el);
+}
+
 // ---------- leaderboard ----------
 PAGES.leaderboard = async () => {
+  state.lbType = state.lbType || 'season';
   const lb = await api('leaderboard', { type: state.lbType });
+  const segs = `<div class="seg">${[['season', 'Сезон'], ['week', 'Тиждень'], ['all', 'Весь час']].map(([k, t]) => `<button class="${state.lbType === k ? 'on' : ''}" data-act="lbType" data-k="${k}">${t}</button>`).join('')}</div>`;
+  if (lb.type === 'season') {
+    const p = lb.prizes;
+    return `${segs}<div class="card"><div class="row between"><b>Сезон ${lb.season}</b><span class="small muted">до кінця <span data-until="${lb.endsAt - clockOffset}"></span></span></div>
+      <div class="tiny muted">Місце — за досвідом сезону: гонки, кейси, завдання. Донат тут не вирішує. Наприкінці сезону топ-10 отримує зірки на рахунок, топ-${lb.badgeTop} — значок назавжди.</div>
+      <div class="prizes"><div><span class="medal m1">1</span>${ic('star')} ${p[0]}</div><div><span class="medal m2">2</span>${ic('star')} ${p[1]}</div><div><span class="medal m3">3</span>${ic('star')} ${p[2]}</div><div><span>${ic('trophy')}</span>4–10: ${ic('star')} ${p[3]}</div></div></div>
+      <div class="list">${lb.list.length ? lb.list.map((r) => `<button class="lb ${r.me ? 'me' : ''}" data-act="playerCard" data-id="${r.id}"><span class="pl">${r.place <= 3 ? `<span class="medal m${r.place}">${r.place}</span>` : r.place}</span><span class="grow ellipsis">${esc(r.name)}${r.vip ? ` <span style="color:var(--accent)">${ic('crown')}</span>` : ''}</span><span class="chip">рів. ${r.level}</span><b>${r.score.toLocaleString('uk-UA')}</b></button>`).join('') : '<div class="empty">Сезон щойно почався — будь першим</div>'}</div>
+      <div class="mybar"><span>Ти: #${lb.me.place}</span><span class="grow"></span><span>${lb.me.score.toLocaleString('uk-UA')} досвіду</span></div>`;
+  }
   const week = lb.type === 'week';
-  return `<div class="seg">${[['week', 'Тиждень'], ['all', 'Весь час']].map(([k, t]) => `<button class="${state.lbType === k ? 'on' : ''}" data-act="lbType" data-k="${k}">${t}</button>`).join('')}</div>
+  return `${segs}
     ${week ? `<div class="card"><div class="row between"><b>Гонка тижня</b><span class="small muted">до кінця <span data-until="${lb.endsAt - clockOffset}"></span></span></div>
       <div class="tiny muted">Місце — за тим, наскільки виросла вартість твого гаража з понеділка</div>
       <div class="prizes"><div><span class="medal m1">1</span>${S.short(lb.prizes[0])}</div><div><span class="medal m2">2</span>${S.short(lb.prizes[1])}</div><div><span class="medal m3">3</span>${S.short(lb.prizes[2])}</div><div><span>${ic('trophy')}</span>4–10: ${S.short(lb.prizes[3])}</div></div></div>`
@@ -2551,7 +2644,7 @@ H.playerCard = async (d, el, e, showcase) => {
   }
   if (showcase) return sheet(`Вітрина ${esc(p.name)}`, p.showcase.length ? `<div class="grid">${p.showcase.map((c) => carTile(c, { act: 'noop' })).join('')}</div>` : '<div class="empty">Вітрина порожня</div>', () => H.playerCard(d));
   const b = p.best;
-  sheet(esc(p.name), `${b ? `<div class="hero"><div class="art">${carArt(b.model, { glow: true })}</div>${b.plate ? `<div class="plate-on">${plate(b.plate.text)}</div>` : ''}</div>
+  sheet(esc(p.name), `${p.vip || p.badges?.length ? `<div class="row center" style="justify-content:center;flex-wrap:wrap;gap:6px;margin-bottom:8px">${p.vip ? vipChip() : ''}${(p.badges || []).map(badgeChip).join('')}</div>` : ''}${b ? `<div class="hero"><div class="art">${carArt(b.model, { glow: true })}</div>${b.plate ? `<div class="plate-on">${plate(b.plate.text)}</div>` : ''}</div>
     <div class="center"><b style="font-size:18px">${esc(M(b.model).name)}</b> ${clsBadge(M(b.model).cls)}<div class="small muted">Найкраща машина · ${S.short(b.value)}</div></div>` : ''}
     <div class="stat mt"><div><b>${S.short(p.value)}</b><span>гараж</span></div><div><b>${p.carCount}</b><span>машин</span></div><div><b>${p.collection}</b><span>у колекції</span></div></div>
     <button class="btn mt" data-act="playerShowcase" data-id="${p.id}">${ic('building-arch')} Вітрина · ${p.showcase.length}</button>
@@ -2994,12 +3087,43 @@ H.slotSpin = async () => {
 
 // ---------- store, friends, promo, events, fair ----------
 // Packs grow with the player (S.packAmount): the amounts shown are this player's.
-PAGES.store = () => {
+PAGES.store = async () => {
+  const sh = await api('shop');
   const mult = S.packMult(me.level, me.stats.value);
+  const it = Object.fromEntries(sh.items.map((x) => [x.id, x]));
+  const buyBtns = (x, cls = 'yellow') => `<div class="row" style="gap:6px"><button class="btn sm ${cls}" data-act="buyItem" data-id="${x.id}" ${config.stars ? '' : 'disabled'}>${ic('star')} ${x.price}</button>${sh.stars >= x.price ? `<button class="btn sm ghost" data-act="buyItemStars" data-id="${x.id}" data-p="${x.price}">з рахунку</button>` : ''}</div>`;
+  const vipLeft = sh.vipUntil > serverNow();
   return `${config.stars ? '' : '<div class="card small muted">Оплата зірками запрацює після підключення бота (BOT_TOKEN).</div>'}
-  <div class="card row between"><div><b>Твій множник ×${mult < 10 ? mult.toFixed(1).replace('.', ',') : Math.round(mult)}</b><div class="tiny muted">Пакети ростуть разом з тобою: що вищий рівень і дорожчий гараж, то більше гривень</div></div><span style="font-size:26px;color:var(--accent);display:inline-flex">${ic('rocket')}</span></div>
+  <div class="card row between"><span class="row" style="gap:8px">${ic('star')} Зірки на рахунку</span><b style="font-size:18px">${sh.stars}</b></div>
+  ${sh.starterBought ? '' : `<div class="card offer"><div class="row between"><b class="disp" style="font-size:19px">${esc(it.starter.name)}</b><span class="chip">один раз</span></div>
+    <div class="offer-list"><span>${ic('coin')} ${S.short(it.starter.money)}</span><span>${ic('gift')} 2 × кейс «Міський»</span><span>${ic('crown')} VIP на ${it.starter.vipDays} дні</span></div>
+    <div class="row between mt"><span class="tiny muted">Найвигідніше в магазині</span>${buyBtns(it.starter)}</div></div>`}
+  <div class="card vip-card"><div class="row between"><b class="disp" style="font-size:19px;color:var(--accent)">${ic('crown')} VIP · ${S.VIP.days} днів</b>${vipLeft ? `<span class="chip">ще <span data-until="${sh.vipUntil - clockOffset}"></span></span>` : ''}</div>
+    <div class="vip-list"><span>${ic('gas-station')} Пальне відновлюється вдвічі швидше</span><span>${ic('clock')} Гараж копить на ${S.VIP.extraHours} год довше</span><span>${ic('gift')} +${S.short(S.VIP.daily)} щодня до бонусу</span><span>${ic('crown')} Корона в рейтингу й профілі</span></div>
+    <div class="row between mt"><span class="tiny muted">${vipLeft ? 'Купівля продовжить VIP' : ''}</span>${buyBtns(it.vip)}</div></div>
+  <div class="card row"><span class="ic" style="font-size:24px;color:var(--accent);display:inline-flex">${ic('ticket')}</span><div class="grow"><b>Преміум-пропуск · Сезон ${me.season.id}</b><div class="tiny muted">Друга доріжка нагород і машина сезону</div></div>${sh.premium ? '<span class="chip">куплено</span>' : buyBtns(it.pass)}</div>
+  <div class="h2"><span>Гривні</span><span>×${mult < 10 ? mult.toFixed(1).replace('.', ',') : Math.round(mult)} за рівнем</span></div>
   ${config.packs.map((p) => `<div class="card row"><span class="ic" style="font-size:24px;color:var(--accent);display:inline-flex">${ic('coin')}</span><div class="grow"><b style="font-size:18px">${S.short(S.packAmount(p, me.level, me.stats.value))}</b>${p.tag ? ` <span class="qchip q-perfect">${p.tag}</span>` : ''}</div><button class="btn sm yellow" data-act="buyPack" data-id="${p.id}" ${config.stars ? '' : 'disabled'}>${ic('star')} ${p.stars}</button></div>`).join('')}
-  <div class="tiny muted center mt">Оплата через Telegram Stars, гривні зараховуються одразу — сума фіксується, коли відкриваєш оплату. Ігрову валюту не можна вивести чи обміняти на реальні гроші. Питання — /paysupport у боті.</div>`;
+  <div class="h2"><span>Зручності</span></div>
+  ${[['refuel', 'gas-station', 'Загальний бак і баки всіх машин'], ['cool', 'wind', 'Зняті деталі одразу готові'], ['slot', 'building-warehouse', `Зараз ${me.slots} місць · кожне наступне ×2`]].map(([id, icon, sub]) => `<div class="card row"><span class="ic" style="font-size:22px;color:var(--accent);display:inline-flex">${ic(icon)}</span><div class="grow"><b>${esc(it[id].name)}</b><div class="tiny muted">${sub}</div></div>${buyBtns(it[id], 'ghost')}</div>`).join('')}
+  <div class="tiny muted center mt">Оплата через Telegram Stars, усе зараховується одразу. Зірки на рахунку — призи сезону. Ігрові цінності не можна вивести чи обміняти на реальні гроші. Питання — /paysupport у боті.</div>`;
+};
+AFTER.store = tickUntil;
+H.buyItem = async (d) => {
+  try {
+    const { link } = await api('shop/invoice', { item: d.id });
+    if (!tg?.openInvoice) return toast('Відкрий гру в Telegram, щоб оплатити', true);
+    tg.openInvoice(link, (status) => {
+      if (status === 'paid') toast('Оплата пройшла'), setTimeout(refresh, 1500);
+      else if (status === 'failed') toast('Оплата не пройшла', true);
+    });
+  } catch (e) {
+    toast(e.message, true);
+  }
+};
+H.buyItemStars = async (d) => {
+  if (!(await confirmBox(`Списати ${d.p} ⭐ з рахунку?`))) return;
+  act('shop/stars', { item: d.id }, 'Готово!');
 };
 H.buyPack = async (d) => {
   try {
@@ -3273,6 +3397,7 @@ H.bannerClaim = async (d) => {
   if (c.kind === 'coll') return act('collection/claim', { key: c.id }, (r) => `Отримано: ${S.short(r.reward.money)}${r.reward.secret ? ' + секретна машина!' : ''}`);
   if (c.kind === 'ach') return act('ach/claim', { key: c.id }, (r) => `Досягнення: +${S.fmt(r.got)}`);
   if (c.kind === 'achAll') return act('ach/claim', {}, (r) => `${r.tiers} досягнень: +${S.fmt(r.got)}`);
+  if (c.kind === 'pass') return H.passClaim();
   if (c.kind === 'rescue' && await act('rescue/claim', {}, 'Безкоштовний кейс уже чекає!', { rerender: false })) {
     state.tab = 'cases';
     state.page = null;
@@ -3292,6 +3417,7 @@ H.bannerOpen = (d) => {
   if (k === 'income') return (state.tab = 'garage', state.page = null, render());
   if (k === 'newbie') return openProfile();
   state.tab = 'menu';
+  if (k === 'pass') return go('season');
   go(k === 'quest' ? 'quests' : k === 'ach' || k === 'achAll' ? 'achievements' : 'collection');
 };
 H.toggleDnd = async () => {
@@ -3328,6 +3454,7 @@ H.toggleDnd = async () => {
       openRewards();
       skipDailyBanner = true;
     }
+    if (me.cars.length) whatsNew();
   } catch (e) {
     $('#view').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
   }

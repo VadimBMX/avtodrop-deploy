@@ -51,6 +51,11 @@ export function carArt(modelId, { glow = false, silhouette = false } = {}) {
   if (!m) return '';
   const style = glow ? ` style="--c:${CLASSES[m.cls].color}"` : '';
   const cls = [glow ? 'glow' : '', silhouette ? 'silhouette' : ''].join(' ');
-  if (IMAGES[modelId]) return `<img src="${IMAGES[modelId]}" alt="" class="${cls}"${style} loading="lazy" draggable="false">`;
+  // Season liveries use another model's photo through a paint filter (MODELS[id].img / .filter).
+  const src = IMAGES[modelId] || (m.img && IMAGES[m.img]);
+  if (src) {
+    const st = [glow ? `--c:${CLASSES[m.cls].color}` : '', m.filter ? `filter:${m.filter}${glow ? ' drop-shadow(0 0 14px var(--c))' : ''}` : ''].filter(Boolean).join(';');
+    return `<img src="${src}" alt="" class="${cls}"${st ? ` style="${st}"` : ''} loading="lazy" draggable="false">`;
+  }
   return svg(modelId).replace('<svg ', `<svg class="${cls}"${style} `);
 }
