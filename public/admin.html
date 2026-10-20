@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="robots" content="noindex">
+  <title>АВТОДРОП · Адмінка</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23f5b301'/><path d='M9 23 15 9h2l6 14h-3.4l-1.3-3.3h-4.6L12.4 23Zm5.6-6.1h2.8L16 13.2Z' fill='%231c1500'/></svg>">
+  <link rel="stylesheet" href="fonts.css">
+  <link rel="stylesheet" href="admin.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="side">
+      <div class="brand"><span class="logo">A</span><div><b>АВТОДРОП</b><small>адмін-панель</small></div></div>
+      <nav id="nav">
+        <button data-go="overview"><svg class="i"><use href="icons.svg#i-gauge"/></svg>Огляд</button>
+        <button data-go="users"><svg class="i"><use href="icons.svg#i-users"/></svg>Гравці</button>
+        <button data-go="referrals"><svg class="i"><use href="icons.svg#i-share"/></svg>Реферали</button>
+        <button data-go="search"><svg class="i"><use href="icons.svg#i-license"/></svg>Пошук номерів і авто</button>
+        <button data-go="market"><svg class="i"><use href="icons.svg#i-building-store"/></svg>Ринок</button>
+        <button data-go="promos"><svg class="i"><use href="icons.svg#i-ticket"/></svg>Промокоди</button>
+        <button data-go="support"><svg class="i"><use href="icons.svg#i-info-circle"/></svg>Підтримка <span class="badge red" id="supN" hidden></span></button>
+        <button data-go="payments"><svg class="i"><use href="icons.svg#i-star"/></svg>Платежі</button>
+        <button data-go="log"><svg class="i"><use href="icons.svg#i-shield-check"/></svg>Журнал дій</button>
+      </nav>
+      <button class="back" data-act="backToGame"><svg class="i"><use href="icons.svg#i-chevron-left"/></svg>Назад у гру</button>
+      <div class="side-foot" id="who"></div>
+    </aside>
+    <main id="main"><div class="empty">Завантаження…</div></main>
+  </div>
+  <div id="modal" class="modal" hidden><div class="dialog" id="dialog"></div></div>
+  <div id="toast" class="toast" hidden></div>
+  <script type="module" src="admin.js"></script>
+</body>
+</html>

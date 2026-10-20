@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <title>АВТОДРОП</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23f5b301'/><path d='M9 23 15 9h2l6 14h-3.4l-1.3-3.3h-4.6L12.4 23Zm5.6-6.1h2.8L16 13.2Z' fill='%231c1500'/></svg>">
+  <link rel="preload" href="fonts/FiraSansCondensed-700-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="fonts.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header class="top">
+      <button class="avatar" id="avatar" aria-label="Профіль"></button>
+      <h1 id="title">АВТОДРОП</h1>
+      <button class="iconbtn" id="gift" aria-label="Нагороди"><svg class="i" aria-hidden="true"><use href="icons.svg#i-gift"/></svg><span class="badge" id="giftBadge" hidden>!</span></button>
+      <button class="balance" id="balance">…</button>
+    </header>
+    <main id="view"><div class="loading">Завантаження…</div></main>
+    <nav class="tabs" id="tabs">
+      <button data-tab="garage"><svg class="i" aria-hidden="true"><use href="icons.svg#i-building-warehouse"/></svg><span>Гараж</span></button>
+      <button data-tab="cases"><svg class="i" aria-hidden="true"><use href="icons.svg#i-box"/></svg><span>Кейси</span></button>
+      <button data-tab="race"><svg class="i" aria-hidden="true"><use href="icons.svg#i-flag-3"/></svg><span>Гонки</span></button>
+      <button data-tab="shop"><svg class="i" aria-hidden="true"><use href="icons.svg#i-tool"/></svg><span>Майстерня</span></button>
+      <button data-tab="menu"><svg class="i" aria-hidden="true"><use href="icons.svg#i-menu-2"/></svg><span>Меню</span><i class="dot" id="menuDot" hidden></i></button>
+    </nav>
+  </div>
+  <div id="modal" class="modal" hidden><div class="sheet" id="sheet"></div></div>
+  <div id="toast" class="toast" hidden></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+data/
+data-live/
+raw-cars/
+tools/bin/
+.env
+node_modules/

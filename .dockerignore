@@ -1,0 +1,10 @@
+.env
+data/
+data-live/
+raw-cars/
+tools/
+test/
+docs/
+design-backup/
+node_modules/
+*.log

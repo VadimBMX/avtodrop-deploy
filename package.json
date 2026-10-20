@@ -1,0 +1,15 @@
+{
+  "name": "avtodrop",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "live": "node tools/live.mjs",
+    "test": "node --test test/*.test.js",
+    "prompts": "node tools/make_prompts.mjs",
+    "cars": "python -I tools/prepare_cars.py"
+  },
+  "engines": { "node": ">=22.13" }
+}
