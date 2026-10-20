@@ -1,6 +1,7 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb } from './src/db.js';
@@ -178,10 +179,20 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     });
   }
 
+  function devCars(res) {
+    const root = path.dirname(fileURLToPath(import.meta.url));
+    const py = process.platform === 'win32' ? 'python' : 'python3';
+    execFile(py, ['-I', path.join(root, 'tools', 'prepare_cars.py')], { cwd: root, timeout: 15 * 60e3, maxBuffer: 8e6, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }, (err, out, errOut) => {
+      send(res, 200, { ok: !err, out: String(out), err: String(errOut || (err && err.message) || '') });
+    });
+  }
+
   const server = http.createServer(async (req, res) => {
     const { pathname } = new URL(req.url, 'http://x');
     try {
       if (pathname === '/healthz') return send(res, 200, 'ok', 'text/plain');
+      // DEV only, from this computer: process new photos in raw-cars (same as `npm run cars`).
+      if (pathname === '/api/dev/cars' && dev && isLocal(req) && req.method === 'POST') return devCars(res);
       if (pathname.startsWith('/api/admin/')) return await handleAdmin(req, res, pathname.slice(11));
       if (pathname.startsWith('/api/')) return await handleApi(req, res, pathname.slice(5));
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed', 'text/plain');
