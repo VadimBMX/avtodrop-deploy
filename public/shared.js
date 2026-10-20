@@ -768,6 +768,10 @@ export function achText(a, tier) {
 export const COUNTRY_REWARD = Object.fromEntries(MAIN_COUNTRIES.map((c) => [c, Math.round((MODELS[SECRET_BY_COUNTRY[c]].price * 0.15) / 10000) * 10000]));
 
 // ---------- upgrade (CS-style: risk your cars for a chance at a pricier one) ----------
+// Trade-in at the dealer: three cars of one class go in, one car comes out — of the next class with `chance`, else
+// of the same class. The car out is drawn from that class with price up to `maxMult` × what went in, cheaper cars more
+// often, so three cheap cars can't buy a jackpot. On average ~85% of the value goes back: a fair way to clear doubles.
+export const TRADE_IN = { cars: 3, chance: 0.3, maxMult: 2.5 };
 export const UPGRADE = { maxCars: 6, minMult: 1.2, maxMult: 50, edge: 0.92, perExtraCar: 0.01, maxChance: 0.75 };
 // Value put in = model prices only; installed parts and plates go back to the warehouse either way.
 // Each car beyond the first costs 1% of edge, so dumping a pile of cheap cars is slightly worse than one good car.

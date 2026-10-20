@@ -291,3 +291,20 @@ test('paint: costs by the model price, the original colour is free, unknown colo
   assert.equal(call(1, 'me').balance, b2);
   assert.equal(call(1, 'me').cars[0].paint, null);
 });
+
+test('trade-in: three cars of one class become one car, same class or one above', () => {
+  const { db, mk, call, g } = setup();
+  mk(1);
+  db.prepare('UPDATE users SET slots = 40 WHERE id = 1').run();
+  const keep = g.giveCar(1, 'vaz-2107').id;
+  const ids = ['bmw-325i-e30', 'mazda-mx-5-na', 'audi-80-quattro'].map((m) => g.giveCar(1, m).id);
+  assert.throws(() => call(1, 'dealer/tradein', { carIds: ids.slice(0, 2) }), /рівно 3/);
+  assert.throws(() => call(1, 'dealer/tradein', { carIds: [keep, ids[0], ids[1]] }), /одного класу/);
+  const r = call(1, 'dealer/tradein', { carIds: ids });
+  assert.ok(['C', 'B'].includes(r.to));
+  assert.equal(S.MODELS[r.car.model].cls, r.to);
+  const cars = call(1, 'me').cars;
+  assert.equal(cars.length, 2);
+  assert.ok(cars.some((c) => c.id === r.car.id));
+  assert.ok(S.MODELS[r.car.model].price <= r.stake * S.TRADE_IN.maxMult);
+});

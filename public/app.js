@@ -238,7 +238,7 @@ function rewardText(rw) {
 
 // ---------- header & navigation ----------
 const TITLES = { garage: 'Гараж', cases: 'Кейси', race: 'Гонки', shop: 'Майстерня', menu: 'Меню' };
-const PAGE_TITLES = { casino: 'Казино', upgrade: 'Апгрейд', collection: 'Колекція', plates: 'Номери', market: 'Ринок', trades: 'Обміни', tradeNew: 'Новий обмін', room: 'Кімната обміну', battles: 'Кейс-батли', battle: 'Батл', quests: 'Завдання', leaderboard: 'Рейтинг', store: 'Магазин', season: 'Сезон', friends: 'Друзі', promo: 'Промокоди', fair: 'Чесна гра', events: 'Сповіщення', achievements: 'Досягнення', support: 'Підтримка' };
+const PAGE_TITLES = { casino: 'Казино', upgrade: 'Апгрейд', collection: 'Колекція', plates: 'Номери', market: 'Ринок', trades: 'Обміни', tradeNew: 'Новий обмін', room: 'Кімната обміну', battles: 'Кейс-батли', battle: 'Батл', quests: 'Завдання', leaderboard: 'Рейтинг', store: 'Магазин', season: 'Сезон', tradein: 'Трейд-ін', friends: 'Друзі', promo: 'Промокоди', fair: 'Чесна гра', events: 'Сповіщення', achievements: 'Досягнення', support: 'Підтримка' };
 function ring(level, xp, need, size = 40) {
   const r = size / 2 - 2, c = 2 * Math.PI * r, f = Math.min(1, xp / need);
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#252c39" stroke-width="3"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#f5b301" stroke-width="3" stroke-linecap="round" stroke-dasharray="${c * f} ${c}" transform="rotate(-90 ${size / 2} ${size / 2})"/></svg>`;
@@ -316,6 +316,59 @@ async function render() {
 const AFTER = {};
 const TABS = {};
 const PAGES = {};
+
+// ---------- trade-in (S.TRADE_IN) ----------
+PAGES.tradein = () => {
+  const T = (state.tradein ||= { cars: new Set(), result: null });
+  const garage = me.cars.filter((c) => c.status === 'garage' && !M(c.model).secret).sort((a, b) => b.value - a.value || b.id - a.id);
+  for (const id of [...T.cars]) if (!garage.some((c) => c.id === id)) T.cars.delete(id);
+  const picked = [...T.cars].map((id) => garage.find((c) => c.id === id));
+  const cls = picked[0] ? M(picked[0].model).cls : null;
+  const up = cls ? S.CLASS_ORDER[S.rankOf(cls) + 1] : null;
+  const ready = picked.length === S.TRADE_IN.cars;
+  const r = T.result;
+  const result = r ? `<div class="card center ${state.fx?.type === 'tradein' ? 'pop' : ''}"><div class="small muted">${r.win ? 'Дилер дав клас вище!' : 'Цього разу той самий клас'}</div>
+      <div class="art" style="height:100px" id="tiArt">${carArt(r.car.model, { glow: r.win })}</div><b style="font-size:17px">${esc(M(r.car.model).name)}</b> ${clsBadge(r.to)}${r.isNew ? `<div class="small" style="color:var(--accent)">${ic('sparkles')} Нова в колекції</div>` : ''}
+      <div class="small muted">Вартість ${S.fmt(r.car.value)}</div></div>` : '';
+  return `${result}<div class="card"><b>${ic('refresh')} Трейд-ін у дилера</b>
+      <div class="small muted mt">Віддай ${S.TRADE_IN.cars} машини одного класу — отримаєш одну: з шансом <b>${Math.round(S.TRADE_IN.chance * 100)}%</b> класу вище, інакше того ж класу. Деталі й номери повертаються на склад. Зручно позбутися дублів.</div>
+      ${cls ? `<div class="row mt" style="gap:8px;flex-wrap:wrap"><span class="chip">${clsBadge(cls)} ×${picked.length}</span><span class="muted">→</span>${up && up !== 'X' ? `<span class="chip">${clsBadge(up)} ${Math.round(S.TRADE_IN.chance * 100)}%</span><span class="chip">${clsBadge(cls)} ${100 - Math.round(S.TRADE_IN.chance * 100)}%</span>` : '<span class="chip">вище немає</span>'}</div>` : ''}
+      <button class="btn yellow mt" data-act="tradeInGo" ${ready && up && up !== 'X' ? '' : 'disabled'}>${ready ? 'Обміняти' : `Обери ще ${S.TRADE_IN.cars - picked.length}`}</button></div>
+    <div class="h2"><span>Твої машини</span><span>${cls ? `лише клас ${cls}` : 'одного класу'}</span></div>
+    ${garage.length ? `<div class="grid">${garage.map((c) => carTile(c, { act: 'tradeInPick', sel: T.cars.has(c.id) })).join('')}</div>` : '<div class="empty">Гараж порожній</div>'}`;
+};
+H.tradeInPick = (d) => {
+  const T = state.tradein, id = Number(d.id);
+  const c = me.cars.find((x) => x.id === id);
+  T.result = null;
+  if (T.cars.has(id)) T.cars.delete(id);
+  else {
+    const first = [...T.cars][0] && me.cars.find((x) => x.id === [...T.cars][0]);
+    if (first && M(first.model).cls !== M(c.model).cls) return toast('Усі три мають бути одного класу', true);
+    if (T.cars.size >= S.TRADE_IN.cars) return toast(`Рівно ${S.TRADE_IN.cars} машини`, true);
+    if (me.cars.filter((x) => x.status === 'garage').length - T.cars.size <= 1) return toast('У гаражі має залишитися хоча б одна машина', true);
+    T.cars.add(id);
+  }
+  render();
+};
+H.tradeInGo = async () => {
+  const T = state.tradein;
+  const picked = [...T.cars].map((id) => me.cars.find((c) => c.id === id));
+  if (!(await confirmBox(`Віддати дилеру: ${picked.map((c) => M(c.model).name).join(', ')}?`))) return;
+  const r = await act('dealer/tradein', { carIds: [...T.cars] }, null, { rerender: false });
+  if (!r) return;
+  T.cars = new Set();
+  T.result = r;
+  state.fx = { type: 'tradein' };
+  haptic(r.win ? 'heavy' : 'medium');
+  await refresh();
+};
+AFTER.tradein = () => {
+  if (state.fx?.type !== 'tradein' || !state.tradein?.result) return;
+  state.fx = null;
+  const r = state.tradein.result;
+  if (r.win) setTimeout(() => FX.reveal(S.rankOf(r.to), S.CLASSES[r.to].color, { host: $('#tiArt')?.parentElement, target: $('#tiArt') }), 150);
+};
 
 // ---------- level up, profile, rewards ----------
 function showLevelUp() {
@@ -1835,6 +1888,7 @@ TABS.menu = () => {
     ])
     + group('Торгівля', [
       row('market', 'building-store', 'Ринок', '#34c759'),
+      row('tradein', 'refresh', 'Трейд-ін', '#ff9500', '3 машини → клас вище'),
       row('trades', 'arrows-exchange', 'Обміни', '#007aff', 'трейд-зал', me.incomingTrades),
       row('plates', 'license', 'Номери', '#ffcc00', String(me.plates.length)),
     ])

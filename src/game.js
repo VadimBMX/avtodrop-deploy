@@ -959,6 +959,37 @@ export function createGame(db, opts = {}) {
     return { win, chance, roll, stake, car, isNew, target: t.id };
   }
 
+  // ---------- trade-in (S.TRADE_IN) ----------
+  function tradeIn(uid, { carIds }) {
+    const ids = idList(carIds, S.TRADE_IN.cars);
+    if (ids.length !== S.TRADE_IN.cars) fail(`Потрібно рівно ${S.TRADE_IN.cars} машини`);
+    const cars = ids.map((id) => noSecret(ownCar(uid, id)));
+    const cls = S.MODELS[cars[0].model].cls;
+    if (cars.some((c) => S.MODELS[c.model].cls !== cls)) fail('Усі три машини мають бути одного класу');
+    const up = S.CLASS_ORDER[S.rankOf(cls) + 1];
+    if (!up || up === 'X') fail('Вище за міфічний клас нічого немає');
+    if (q("SELECT COUNT(*) n FROM cars WHERE owner_id = ? AND status = 'garage'").get(uid).n - ids.length < 1) fail('У гаражі має залишитися хоча б одна машина');
+    const stake = cars.reduce((s, c) => s + S.MODELS[c.model].price, 0);
+    const f = nextNonce(uid);
+    const win = f.roll(0) < S.TRADE_IN.chance;
+    const poolOf = (k) => S.ALL_MODELS.filter((m) => m.cls === k && !m.secret && !m.homeOnly && m.price <= stake * S.TRADE_IN.maxMult);
+    let pool = poolOf(win ? up : cls);
+    if (!pool.length) pool = S.ALL_MODELS.filter((m) => m.cls === (win ? up : cls) && !m.secret && !m.homeOnly).sort((a, b) => a.price - b.price).slice(0, 3);
+    const model = pickModel(pool, f.roll(1));
+    bank(uid);
+    for (const c of cars) {
+      stripCar(uid, c.id);
+      q('DELETE FROM cars WHERE id = ?').run(c.id);
+      q('DELETE FROM rivals WHERE car_id = ?').run(c.id);
+    }
+    invalidateTrades(ids);
+    const g = giveCar(uid, model);
+    q('INSERT INTO drops (user_id, case_id, item, cls, seed_hash, client_seed, nonce, forced, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(uid, 'tradein', model, S.MODELS[model].cls, sha256(f.server_seed), f.client_seed, f.nonce, 0, now());
+    xp(uid, 'upgrade');
+    return { win, chance: S.TRADE_IN.chance, stake, car: carOut(carRow(g.id)), isNew: g.isNew, from: cls, to: win ? up : cls };
+  }
+
   // ---------- casino ----------
   function bet(uid, amount) {
     const b = int(amount, S.CASINO.minBet, S.CASINO.maxBet, 'Ставка');
@@ -2873,7 +2904,7 @@ export function createGame(db, opts = {}) {
     'plate/generate': generatePlate, 'plate/attach': attachPlate, 'plate/detach': detachPlate, 'plate/sell': sellPlate,
     'race/rivals': rivals, 'race/start': raceStart, 'race/finish': raceFinish,
     'drift/rivals': driftRivals, 'drift/start': driftStart, 'drift/finish': driftFinish,
-    upgrade,
+    upgrade, 'dealer/tradein': tradeIn,
     'casino/slots': slots, 'casino/roulette': roulette,
     'casino/crash/start': crashStart, 'casino/crash/state': crashState, 'casino/crash/cashout': crashCashout, 'casino/crash/history': crashHistory,
     'casino/mines/start': minesStart, 'casino/mines/reveal': minesReveal, 'casino/mines/cashout': minesCashout, 'casino/mines/state': minesState,
