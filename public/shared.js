@@ -299,7 +299,7 @@ const COUNTRY_CASES = {
   UA: { price: 70000, weights: { D: 86, C: 13.7, A: 0.3 }, hi: 250 },
   JP: { price: 500000, weights: { C: 82, B: 17, A: 0.9, S: 0.1 }, hi: 240 },
   DE: { price: 550000, weights: { C: 80, B: 18.5, A: 1.4, S: 0.1 }, hi: 200 },
-  CN: { price: 500000, weights: { D: 12, C: 70, B: 17.4, A: 0.5, S: 0.1 }, hi: 300 },
+  CN: { price: 550000, weights: { D: 12, C: 69.5, B: 17.3, A: 0.9, S: 0.3 }, hi: 300 },
   US: { price: 2500000, weights: { B: 86, A: 13.5, S: 0.5 }, hi: 50 },
   GB: { price: 4000000, weights: { B: 72, A: 26.5, S: 1.5 }, hi: 35 },
   IT: { price: 4500000, weights: { B: 60, A: 38, S: 2 }, hi: 30 },
@@ -365,6 +365,15 @@ for (const cs of CASES) {
   cs.sellEv = Math.round(caseEV(effectiveWeights(cs), cs.pool, (m) => sellPriceOf(m.id)));
 }
 export const CASE_BY_ID = Object.fromEntries(CASES.map((c) => [c.id, c]));
+// Case of the day: one rarity case (never the starter) is CASE_OF_DAY.off cheaper for the whole Kyiv day.
+export const CASE_OF_DAY = { off: 0.2 };
+const DAY_CASES = CASES.filter((c) => c.group === 'rarity');
+export function caseOfDay(day) {
+  let h = 0;
+  for (const ch of String(day)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return DAY_CASES[h % DAY_CASES.length].id;
+}
+export const casePrice = (cs, day) => (cs.id === caseOfDay(day) ? Math.round((cs.price * (1 - CASE_OF_DAY.off)) / 1000) * 1000 : cs.price);
 
 // ---------- parts ----------
 export const TIERS = [

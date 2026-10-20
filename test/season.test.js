@@ -258,3 +258,20 @@ test('electric cars take electric parts only', () => {
   assert.ok(call(1, 'me').cars.find((c) => c.id === ev).hp > before);
   assert.equal(S.partKeysOf('byd-han').length, 7);
 });
+
+test('case of the day: 20% off for one rarity case, the discount is what gets paid', () => {
+  const { db, mk, call, at } = setup();
+  mk(1);
+  db.prepare('UPDATE users SET balance = 1e12, slots = 1000 WHERE id = 1').run();
+  const id = call(1, 'me').caseOfDay;
+  const cs = S.CASE_BY_ID[id];
+  assert.equal(cs.group, 'rarity');
+  assert.equal(S.casePrice(cs, S.dayOf ? S.dayOf(at()) : ''), undefined === 1 ? 0 : S.casePrice(cs, new Date(at()).toISOString().slice(0, 10)));
+  const bal = call(1, 'me').balance;
+  call(1, 'case/open', { caseId: id, count: 1 });
+  assert.equal(bal - call(1, 'me').balance, Math.round((cs.price * 0.8) / 1000) * 1000);
+  const other = S.CASES.find((c) => c.group === 'rarity' && c.id !== id);
+  const bal2 = call(1, 'me').balance;
+  call(1, 'case/open', { caseId: other.id, count: 1 });
+  assert.equal(bal2 - call(1, 'me').balance, other.price);
+});

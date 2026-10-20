@@ -801,3 +801,4 @@ input:focus { border-color: var(--line2); }
 @keyframes feed { to { transform: translateX(-50%); } }
 .fi { white-space: nowrap; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
 .fi .fm { color: var(--c); font-weight: 700; }
+.dayc { color: var(--accent); border-color: #4a3c10; background: #2a2208; }

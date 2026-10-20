@@ -679,6 +679,8 @@ TABS.cases = () => {
   const keys = me.keys[cs.id] || 0;
   if (cs.starter && !keys) state.caseId = 'rust';
   const n = cs.starter ? 1 : state.count;
+  const dayCase = cs.id === me.caseOfDay;
+  const price = dayCase ? dayPrice(cs) : cs.price;
   const paid = Math.max(0, n - keys);
   const free = me.slots - me.used;
   const d = state.drop;
@@ -707,15 +709,15 @@ TABS.cases = () => {
   const guarantee = [[pity.first, S.PITY - (me.pity[cs.id] || 0)], [pity.second, S.PITY2 - (me.pity[cs.id + ':2'] || 0)]]
     .filter(([cls]) => cls).map(([cls, left]) => `${clsBadge(cls)} або краще через ${left}`).join(' · ');
   return `<div class="feed" id="dropFeed"></div>
-    <div class="row between"><button class="picker" data-act="casePicker">${caseIcon(cs)} ${esc(cs.name)} ▾</button><button class="iconbtn" data-act="odds">i</button></div>
+    <div class="row between"><button class="picker" data-act="casePicker">${caseIcon(cs)} ${esc(cs.name)} ▾</button>${dayCase ? `<span class="chip dayc">${ic('flame')} Кейс дня −${S.CASE_OF_DAY.off * 100}%</span>` : ''}<button class="iconbtn" data-act="odds">i</button></div>
     <div class="stage" id="stage" style="${d?.length > 1 ? 'height:auto;min-height:230px' : ''}">${stage}</div>
     ${cs.starter ? '' : `<div class="seg">${[1, 3, 6].map((k) => `<button class="${k === n ? 'on' : ''}" data-act="pickCount" data-n="${k}">×${k}</button>`).join('')}</div>`}
     ${(() => {
-      const short = cs.price * paid - me.balance;
+      const short = price * paid - me.balance;
       if (free < n) return '<button class="btn" disabled>Гараж заповнений</button>';
       // Not enough money: say so on the button, with how much is missing.
       if (paid && short > 0) return `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(short)}</button>`;
-      return `<button class="btn" data-act="openCase">${paid ? `${d ? 'Відкрити ще' : 'Відкрити'} · ${S.fmt(cs.price * paid)}${keys ? ` + ${ic('key')}${Math.min(keys, n)}` : ''}` : cs.starter ? 'Відкрити безкоштовно' : `Відкрити ключем ${ic('key')} ${n}`}</button>`;
+      return `<button class="btn ${dayCase ? 'yellow' : ''}" data-act="openCase">${paid ? `${d ? 'Відкрити ще' : 'Відкрити'} · ${S.fmt(price * paid)}${dayCase ? ` <s class="muted" style="font-weight:500">${S.short(cs.price * paid)}</s>` : ''}${keys ? ` + ${ic('key')}${Math.min(keys, n)}` : ''}` : cs.starter ? 'Відкрити безкоштовно' : `Відкрити ключем ${ic('key')} ${n}`}</button>`;
     })()}
     ${cs.starter ? '<div class="tiny muted center mt">Подарунок новачку</div>' : ''}
     ${free < n ? '<div class="tiny muted center mt">Продай авто або купи місце в гаражі</div>' : ''}
@@ -773,12 +775,13 @@ H.sellDrops = (d, el) => {
 };
 H.pickCount = (d) => (state.count = Number(d.n), render());
 H.toggleFast = () => (state.fast = !state.fast, render());
+const dayPrice = (cs) => Math.round((cs.price * (1 - S.CASE_OF_DAY.off)) / 1000) * 1000;
 H.casePicker = () => {
   const group = (g, title) => {
     const list = S.CASES.filter((c) => c.group === g && (!c.starter || me.keys[c.id]));
     if (!list.length) return '';
     return `<div class="h2"><span>${title}</span></div><div class="list">${list.map((c) => `<button class="li ${c.id === state.caseId ? 'on' : ''}" data-act="pickCase" data-id="${c.id}">
-      <span class="ic">${caseIcon(c)}</span><div class="grow"><b>${esc(c.name)}</b>${dots(c.weights)}</div><div class="center"><b>${c.starter ? 'Безкоштовно' : S.short(c.price)}</b>${me.keys[c.id] && !c.starter ? `<div class="tiny win">${ic('key')} ${me.keys[c.id]}</div>` : ''}</div></button>`).join('')}</div>`;
+      <span class="ic">${caseIcon(c)}</span><div class="grow"><b>${esc(c.name)}${c.id === me.caseOfDay ? ` <span class="chip dayc">${ic('flame')} −${S.CASE_OF_DAY.off * 100}%</span>` : ''}</b>${dots(c.weights)}</div><div class="center"><b>${c.starter ? 'Безкоштовно' : c.id === me.caseOfDay ? `<span style="color:var(--accent)">${S.short(dayPrice(c))}</span>` : S.short(c.price)}</b>${me.keys[c.id] && !c.starter ? `<div class="tiny win">${ic('key')} ${me.keys[c.id]}</div>` : ''}</div></button>`).join('')}</div>`;
   };
   sheet('Вибір кейсу', group('gift', 'Подарунок новачку') + group('rarity', 'За рідкістю') + group('country', 'За країнами'));
 };

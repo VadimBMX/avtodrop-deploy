@@ -368,6 +368,7 @@ export function createGame(db, opts = {}) {
       xpToday: u.xp_day === day ? u.xp_day_capped : 0, newbie: newbieState(u),
       dailyReady: u.streak_day !== day, streak: u.streak, rewardCaseAt: u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3,
       claims: q('SELECT key FROM claims WHERE user_id = ?').all(uid).map((r) => r.key),
+      caseOfDay: S.caseOfDay(day),
       fair: { seedHash: sha256(u.server_seed), clientSeed: u.client_seed, nonce: u.nonce },
       stats: { cases: u.cases_opened, races: u.races, wins: u.wins, merges: u.merges, value: u.total_value, playMs: u.play_ms },
       unread: q('SELECT COUNT(*) n FROM events WHERE user_id = ? AND seen = 0').get(uid).n,
@@ -470,7 +471,8 @@ export function createGame(db, opts = {}) {
     const k = q('SELECT count FROM keys WHERE user_id = ? AND case_id = ?').get(uid, caseId)?.count || 0;
     if (cs.starter && k < n) fail('Стартовий кейс уже відкрито');
     const useKeys = Math.min(k, n);
-    pay(uid, cs.price * (n - useKeys));
+    const price = S.casePrice(cs, dayOf(now()));
+    pay(uid, price * (n - useKeys));
     if (useKeys) q('UPDATE keys SET count = count - ? WHERE user_id = ? AND case_id = ?').run(useKeys, uid, caseId);
     bank(uid);
     const results = [];
@@ -500,7 +502,7 @@ export function createGame(db, opts = {}) {
       }
       // A drop worth less than the case leaves a key fragment; a full set turns into a free key of this case.
       let fragment = false;
-      if (paid && !cs.starter && S.MODELS[model].price < cs.price) {
+      if (paid && !cs.starter && S.MODELS[model].price < price) {
         fragment = true;
         fragments++;
         const fr = q('INSERT INTO fragments (user_id, case_id, count) VALUES (?, ?, 1) ON CONFLICT DO UPDATE SET count = count + 1 RETURNING count').get(uid, cs.id).count;
