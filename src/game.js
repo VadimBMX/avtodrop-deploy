@@ -2243,6 +2243,11 @@ export function createGame(db, opts = {}) {
   }
   const itemPriceTx = (uid, itemId) => db.tx(() => itemPrice(uid, itemId));
 
+  // Live feed for the case screen: the latest purple-or-better drops of all players (names shortened).
+  function dropFeed() {
+    const rows = q("SELECT d.user_id uid, d.item, d.cls, d.case_id caseId, d.created_at at FROM drops d WHERE d.cls IN ('B', 'A', 'S') AND d.forced <> 3 ORDER BY d.id DESC LIMIT 12").all();
+    return { list: rows.map((r) => ({ name: name(r.uid), model: r.item, cls: r.cls, caseId: r.caseId, at: r.at })) };
+  }
   function leaderboard(uid, { type } = {}) {
     if (type === 'season') return seasonBoard(uid);
     const week = type !== 'all';
@@ -2875,7 +2880,7 @@ export function createGame(db, opts = {}) {
     rewards, 'rewards/daily': dailyClaim, 'rewards/case': rewardCase, 'newbie/claim': newbieClaim, 'level/seen': levelSeen,
     quests, 'quests/claim': questClaim, 'collection/claim': collectionClaim,
     leaderboard, promo: redeemPromo, events,
-    season, 'season/claim': passClaim, shop, 'shop/stars': buyWithStars,
+    season, 'season/claim': passClaim, shop, 'shop/stars': buyWithStars, feed: dropFeed,
   };
   // Every call runs in one transaction, settles the weekly race and refreshes the caller's garage value — except the
   // frequent polls below (every few seconds, or several times a second in a live race), which change no cars.

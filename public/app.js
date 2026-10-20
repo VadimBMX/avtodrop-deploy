@@ -706,7 +706,8 @@ TABS.cases = () => {
   const pity = S.pityClasses(cs);
   const guarantee = [[pity.first, S.PITY - (me.pity[cs.id] || 0)], [pity.second, S.PITY2 - (me.pity[cs.id + ':2'] || 0)]]
     .filter(([cls]) => cls).map(([cls, left]) => `${clsBadge(cls)} або краще через ${left}`).join(' · ');
-  return `<div class="row between"><button class="picker" data-act="casePicker">${caseIcon(cs)} ${esc(cs.name)} ▾</button><button class="iconbtn" data-act="odds">i</button></div>
+  return `<div class="feed" id="dropFeed"></div>
+    <div class="row between"><button class="picker" data-act="casePicker">${caseIcon(cs)} ${esc(cs.name)} ▾</button><button class="iconbtn" data-act="odds">i</button></div>
     <div class="stage" id="stage" style="${d?.length > 1 ? 'height:auto;min-height:230px' : ''}">${stage}</div>
     ${cs.starter ? '' : `<div class="seg">${[1, 3, 6].map((k) => `<button class="${k === n ? 'on' : ''}" data-act="pickCount" data-n="${k}">×${k}</button>`).join('')}</div>`}
     ${(() => {
@@ -834,7 +835,25 @@ H.openCase = async (d, el) => {
   await refresh();
 };
 // Celebrate the drop once it is on screen; the show scales with the best class.
+// The feed of everyone's rare drops scrolls above the case; refreshed on every render of the tab (cheap query).
+let feedCache = { at: 0, list: [] };
+async function paintFeed() {
+  const el = $('#dropFeed');
+  if (!el) return;
+  if (Date.now() - feedCache.at > 20e3) {
+    try {
+      feedCache = { at: Date.now(), list: (await api('feed')).list };
+    } catch {}
+  }
+  const list = feedCache.list;
+  if (!$('#dropFeed')) return;
+  if (!list.length) return (el.hidden = true);
+  el.hidden = false;
+  const item = (f) => `<span class="fi" style="--c:${S.CLASSES[f.cls].color}"><b>${esc(f.name)}</b> вибив ${clsBadge(f.cls)} <span class="fm">${esc(M(f.model)?.name || f.model)}</span> <span class="muted">· ${esc(S.CASE_BY_ID[f.caseId]?.name || '')}</span></span>`;
+  el.innerHTML = `<div class="feed-track">${list.map(item).join('')}${list.map(item).join('')}</div>`;
+}
 AFTER.cases = () => {
+  paintFeed();
   if (state.fx?.type !== 'case' || !state.drop) return;
   state.fx = null;
   const best = state.drop.reduce((a, r) => Math.max(a, S.rankOf(M(r.car.model).cls)), 0);

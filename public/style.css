@@ -794,3 +794,10 @@ input:focus { border-color: var(--line2); }
 .hook .row b { font-family: var(--f-disp); font-size: 15px; }
 .frag-bar { height: 6px; margin: 6px 0; background: var(--card2); border-radius: 3px; overflow: hidden; }
 .frag-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width .5s; }
+/* live feed of everyone's rare drops */
+.feed { overflow: hidden; margin: -4px -16px 10px; padding: 6px 0; border-bottom: 1px solid var(--line); mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
+.feed-track { display: flex; gap: 28px; width: max-content; animation: feed 60s linear infinite; padding-left: 16px; }
+.feed:hover .feed-track { animation-play-state: paused; }
+@keyframes feed { to { transform: translateX(-50%); } }
+.fi { white-space: nowrap; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
+.fi .fm { color: var(--c); font-weight: 700; }

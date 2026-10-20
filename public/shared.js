@@ -255,8 +255,8 @@ export const CASE_CORRIDOR = { lo: 0.5, hi: 12 };
 // Key fragments: every drop worth less than its case leaves a fragment of that case's key; FRAGMENTS_PER_KEY of them
 // make a free key. With ~40–45% of drops below the price, a free case comes every ~18–20 paid opens.
 export const FRAGMENTS_PER_KEY = 8;
-// Instant sale by class: grey 65%, blue 55%, purple 50%, gold 45%, red 40%; no daily limit.
-export const SELL_RATES = { D: 0.65, C: 0.55, B: 0.5, A: 0.45, S: 0.4, X: 0.4 };
+// Instant sale by class: grey 60%, blue 50%, purple 45%, gold 40%, red 35%; no daily limit.
+export const SELL_RATES = { D: 0.6, C: 0.5, B: 0.45, A: 0.4, S: 0.35, X: 0.35 };
 export const sellPriceOf = (model) => Math.floor(MODELS[model].price * SELL_RATES[MODELS[model].cls]);
 
 // Inside a class, cheaper cars drop more often (weight ∝ 1/√price), like in the original.
@@ -490,6 +490,7 @@ export function plateInfo(text) {
 // car = { model, parts: { eng: 'street', ... }, plateValue }
 export function carValue(car) {
   const m = MODELS[car.model];
+  if (!m) return 0; // a model removed from the game: worth nothing, never crashes a garage total
   let v = m.price;
   for (const k of partKeysOf(car.model)) if (car.parts?.[k]) v += TIER_BY_ID[car.parts[k]].price;
   return v + (car.plateValue || 0);
@@ -881,13 +882,13 @@ export const shopPrice = (item, starSlots = 0) => (item.id === 'slot' ? item.sta
 
 // "What's new" story shown once after an update (bump `id` to show it again).
 export const WHATS_NEW = {
-  id: 'season-1',
+  id: 'economy-2',
   slides: [
-    { icon: 'trophy', title: 'Сезон 1 стартував', text: 'Сезон триває два тижні. Нічого не скидається: машини, гроші й колекція лишаються з тобою.' },
-    { icon: 'ticket', title: 'Сезонний пропуск', text: '30 рівнів нагород за досвід, який ти й так отримуєш: гонки, кейси, завдання. Преміум — ще одна доріжка, а на 30 рівні — машина сезону.' },
-    { icon: 'star', title: 'Призи в зірках', text: 'Рейтинг сезону — за досвідом, а не за донатом. Топ-10 отримує зірки на рахунок, топ-100 — значок, що лишається назавжди.' },
-    { icon: 'crown', title: 'VIP і магазин', text: 'Пальне вдвічі швидше, гараж копить на 4 години довше, щоденний подарунок. Стартовий набір — один раз і дуже вигідно.' },
-    { icon: 'gift', title: 'Бонус на 14 днів', text: 'Пропустив день — нічого не згорає. На 7-й день машина зі «Спорткара», на 14-й — з «Еліти».' },
-    { icon: 'flag-3', title: 'Тренування і бонуси', text: 'Тренувальний заїзд без внеску. Повний комплект деталей одного рівня — +5% потужності. Три машини однієї країни — +10% доходу.' },
+    { icon: 'gift', title: 'Кейси стали чеснішими', text: 'Найдешевша машина в кейсі коштує не менше половини його ціни. Ціни машин переглянуто: прірви між класами більше немає.' },
+    { icon: 'key', title: 'Фрагменти ключа', text: 'Машина дешевша за кейс залишає фрагмент. Вісім фрагментів — безкоштовне відкриття цього ж кейсу. Прогрес видно під кнопкою.' },
+    { icon: 'shield-check', title: 'Гарантія на видноті', text: 'Під кейсом видно, через скільки відкриттів гарантовано випаде рідкісний клас.' },
+    { icon: 'world', title: 'Китай і електро', text: '33 нові машини: BYD, Zeekr, Xiaomi, NIO, Yangwang, Tesla, Lucid, Rivian, Lotus Evija. Китай — нова країна з кейсом, колекцією та секретною машиною.' },
+    { icon: 'bolt', title: 'Електродеталі', text: 'Електромобілі тюнінгуються мотором, батареєю й редуктором замість двигуна, турбіни, вихлопу та КПП.' },
+    { icon: 'trophy', title: 'Сезон 1 стартував', text: 'Пропуск на 30 рівнів, рейтинг за досвідом із призами в зірках, щоденний бонус на 14 днів, VIP і магазин.' },
   ],
 };
