@@ -12,26 +12,25 @@ function setup() {
   return { db, g };
 }
 
-test('city case: a purple car at least every PITY2 opens, a blue one every PITY', () => {
+test('city case: a purple car at least every PITY opens', () => {
   const { db, g } = setup();
-  assert.deepEqual(S.pityClasses(S.CASE_BY_ID.city), { first: 'C', second: 'B' });
+  assert.deepEqual(S.pityClasses(S.CASE_BY_ID.city), { first: 'B', second: null });
   for (let i = 0; i < 400; i++) g.api['case/open'](1, { caseId: 'city', count: 6 });
   const drops = db.prepare("SELECT cls FROM drops WHERE case_id = 'city' ORDER BY id").all().map((r) => r.cls);
   let sinceB = 0, sinceC = 0;
   for (const cls of drops) {
     sinceB = S.rankOf(cls) >= S.rankOf('B') ? 0 : sinceB + 1;
     sinceC = S.rankOf(cls) >= S.rankOf('C') ? 0 : sinceC + 1;
-    assert.ok(sinceB < S.PITY2, 'no 40-open streak without purple');
-    assert.ok(sinceC < S.PITY, 'no 30-open streak without blue');
+    assert.ok(sinceB < S.PITY, 'no 30-open streak without purple');
   }
   const purple = drops.filter((c) => S.rankOf(c) >= S.rankOf('B')).length / drops.length;
   const eff = S.effectiveWeights(S.CASE_BY_ID.city);
   // Losing-streak protection only adds good drops on top of the priced share.
-  assert.ok(purple > eff.B + eff.A - 0.01, `purple-or-better ${purple} ≥ priced share ${eff.B + eff.A}`);
+  assert.ok(purple > eff.B - 0.01, `purple-or-better ${purple} ≥ priced share ${eff.B}`);
 });
 
 test('no second guarantee for jackpots or the fixed-price rust case', () => {
-  for (const id of ['rust', 'sport', 'elite', 'c-ua', 'c-jp', 'c-de', 'c-it', 'c-us', 'c-gb']) assert.equal(S.pityClasses(S.CASE_BY_ID[id]).second, null, id);
+  for (const id of ['rust', 'sport', 'elite', 'c-ua', 'c-it', 'c-us', 'c-gb']) assert.equal(S.pityClasses(S.CASE_BY_ID[id]).second, null, id);
 });
 
 

@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS plates (
 CREATE INDEX IF NOT EXISTS plates_owner ON plates(owner_id);
 
 CREATE TABLE IF NOT EXISTS keys (user_id INTEGER, case_id TEXT, count INTEGER NOT NULL, PRIMARY KEY (user_id, case_id));
+-- Key fragments (S.FRAGMENTS_PER_KEY): a drop worth less than its case leaves one; a full set becomes a key.
+CREATE TABLE IF NOT EXISTS fragments (user_id INTEGER, case_id TEXT, count INTEGER NOT NULL, PRIMARY KEY (user_id, case_id));
 CREATE TABLE IF NOT EXISTS collection (user_id INTEGER, model TEXT, at INTEGER, PRIMARY KEY (user_id, model));
 CREATE TABLE IF NOT EXISTS claims (user_id INTEGER, key TEXT, PRIMARY KEY (user_id, key));
 CREATE TABLE IF NOT EXISTS pity (user_id INTEGER, case_id TEXT, count INTEGER NOT NULL, PRIMARY KEY (user_id, case_id));

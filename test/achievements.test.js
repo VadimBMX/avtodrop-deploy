@@ -32,7 +32,7 @@ test('achievements: rarest class, tuning and secrets are measured from what you 
   g.giveCar(1, 'lexus-lfa');
   assert.equal(state(call, 'rarest').reached, 3, 'an S car reaches the B, A and S tiers');
   const car = g.giveCar(1, 'zaz-lanos').id;
-  for (const k of S.PART_KEYS) {
+  for (const k of S.partKeysOf('zaz-lanos')) {
     g.addPart(1, k, 'pro', 1);
     call('parts/install', { carId: car, type: k, tier: 'pro' });
   }

@@ -356,11 +356,12 @@ export function createGame(db, opts = {}) {
     const keys = Object.fromEntries(q('SELECT case_id, count FROM keys WHERE user_id = ? AND count > 0').all(uid).map((r) => [r.case_id, r.count]));
     const collection = q('SELECT model FROM collection WHERE user_id = ?').all(uid).map((r) => r.model);
     const pity = Object.fromEntries(q('SELECT case_id, count FROM pity WHERE user_id = ?').all(uid).map((r) => [r.case_id, r.count]));
+    const fragments = Object.fromEntries(q('SELECT case_id, count FROM fragments WHERE user_id = ? AND count > 0').all(uid).map((r) => [r.case_id, r.count]));
     const plates = q('SELECT id, text, cls, value, car_id carId FROM plates WHERE owner_id = ? ORDER BY value DESC').all(uid);
     const day = dayOf(now());
     return {
       id: u.id, username: u.username, firstName: u.first_name, balance: u.balance,
-      slots: u.slots, used: cars.filter((c) => c.status !== 'showcase').length, showcaseSlots: u.showcase_slots, capLevel: u.cap_level,
+      slots: u.slots, used: cars.filter((c) => c.status !== 'showcase').length, showcaseSlots: u.showcase_slots, capLevel: u.cap_level, fragments,
       income: { rate: Math.round(inc.rate), pending: inc.pending, capH: inc.capH, since: u.income_at, banked: u.banked },
       fuel: fuel.fuel, fuelNext: fuel.next, cars, keys, collection, pity, plates, parts: inventory(uid),
       level: u.level, levelSeen: u.level_seen, xp: u.xp, xpNeed: S.xpForLevel(u.level),
@@ -473,7 +474,9 @@ export function createGame(db, opts = {}) {
     if (useKeys) q('UPDATE keys SET count = count - ? WHERE user_id = ? AND case_id = ?').run(useKeys, uid, caseId);
     bank(uid);
     const results = [];
+    let fragments = 0, newKeys = 0;
     for (let i = 0; i < n; i++) {
+      const paid = i >= useKeys; // keys are used first; only paid opens leave fragments
       const streak = cs.starter ? 0 : q('SELECT bad_streak FROM users WHERE id = ?').get(uid).bad_streak;
       // Hidden boost and luck combine: the class is thrown twice with chance 1 − (1 − boost)(1 − luck).
       const luck = cs.starter ? 0 : 1 - (1 - S.BOOST) * (1 - luckOf(uid));
@@ -495,11 +498,24 @@ export function createGame(db, opts = {}) {
         q('UPDATE users SET luck_spent = luck_spent * ? + ?, luck_got = luck_got * ? + ? WHERE id = ?').run(S.LUCK.decay, cs.ev, S.LUCK.decay, S.MODELS[model].price, uid);
         q('UPDATE users SET bad_streak = ? WHERE id = ?').run(S.MODELS[model].price >= cs.price ? 0 : streak + 1, uid);
       }
-      results.push({ car: carOut(carRow(id)), isNew, forced: !!forced, lucky: !!lucky });
+      // A drop worth less than the case leaves a key fragment; a full set turns into a free key of this case.
+      let fragment = false;
+      if (paid && !cs.starter && S.MODELS[model].price < cs.price) {
+        fragment = true;
+        fragments++;
+        const fr = q('INSERT INTO fragments (user_id, case_id, count) VALUES (?, ?, 1) ON CONFLICT DO UPDATE SET count = count + 1 RETURNING count').get(uid, cs.id).count;
+        if (fr >= S.FRAGMENTS_PER_KEY) {
+          q('UPDATE fragments SET count = count - ? WHERE user_id = ? AND case_id = ?').run(S.FRAGMENTS_PER_KEY, uid, cs.id);
+          addKeys(uid, cs.id, 1);
+          newKeys++;
+        }
+      }
+      results.push({ car: carOut(carRow(id)), isNew, forced: !!forced, lucky: !!lucky, fragment });
     }
     countOpens(uid, n);
+    const fragmentsNow = q('SELECT count FROM fragments WHERE user_id = ? AND case_id = ?').get(uid, cs.id)?.count || 0;
     flag(uid, cs.starter ? 'open_starter' : 'open_case');
-    return { results };
+    return { results, fragments, newKeys, fragmentsNow, keysNow: q('SELECT count FROM keys WHERE user_id = ? AND case_id = ?').get(uid, cs.id)?.count || 0 };
   }
   // One provably fair case roll with the pity guarantee; recorded in drops so it can be verified later.
   // The second guarantee's counter lives in the same table under "<case>:2".
@@ -647,6 +663,7 @@ export function createGame(db, opts = {}) {
   function install(uid, { carId, type, tier }) {
     if (!S.PART_KEYS.includes(type) || !S.TIER_BY_ID[tier]) fail('Невідома деталь');
     const c = ownCar(uid, carId, ['garage', 'showcase']);
+    if (!S.partFits(c.model, type)) fail(S.MODELS[c.model].ev ? 'На електромобіль ставлять електромотор, батарею й редуктор замість двигуна, турбіни, вихлопу й КПП' : 'Ця деталь — для електромобілів');
     const minTier = S.minTierFor(S.MODELS[c.model].cls);
     if (S.TIER_BY_ID[tier].index < minTier) fail(`Для цієї машини потрібні деталі від ${S.TIERS[minTier].name}`);
     takePart(uid, type, tier);
@@ -1947,13 +1964,13 @@ export function createGame(db, opts = {}) {
     const u = userRow(uid);
     const models = q('SELECT model FROM collection WHERE user_id = ?').all(uid).map((r) => S.MODELS[r.model]).filter(Boolean);
     let tuned = 0;
-    for (const r of q('SELECT cp.car_id, cp.tier FROM car_parts cp JOIN cars c ON c.id = cp.car_id WHERE c.owner_id = ?').all(uid).reduce((m, r) => {
-      const x = m.get(r.car_id) || { n: 0, lo: 4 };
+    for (const r of q('SELECT cp.car_id, cp.tier, c.model FROM car_parts cp JOIN cars c ON c.id = cp.car_id WHERE c.owner_id = ?').all(uid).reduce((m, r) => {
+      const x = m.get(r.car_id) || { n: 0, lo: 4, model: r.model };
       x.n++;
       x.lo = Math.min(x.lo, TIER_RANK[r.tier] ?? 0);
       return m.set(r.car_id, x);
     }, new Map()).values()) {
-      if (r.n >= S.PART_KEYS.length) tuned = Math.max(tuned, Math.max(1, r.lo));
+      if (r.n >= S.partKeysOf(r.model).length) tuned = Math.max(tuned, Math.max(1, r.lo));
     }
     return {
       cases: u.cases_opened, wins: u.wins,
