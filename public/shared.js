@@ -193,10 +193,10 @@ for (const [name, hp, kg, body, country, year, price] of SECRETS) {
   MODELS[id] = { id, name, cls: 'X', hp, kg, body, country, year, price, secret: true };
 }
 // Season cars: the premium pass's level-30 reward of each season. A livery of a real car (its photo through a paint
-// filter, `img` + `filter`), never in a case. Like a secret car it can't be sold, traded or burned in an upgrade,
+// filter, `img` + `filter`) or its own photo, never in a case. Like a secret car it can't be sold, traded or burned in an upgrade,
 // and it doesn't count in collections; it stays in the garage for good — the proof you were there that season.
 export const SEASON_CARS = [
-  { season: 1, name: 'Nissan Skyline GT-R R34 «Сезон 1»', img: 'nissan-skyline-gt-r-r34', filter: 'hue-rotate(170deg) saturate(1.6) brightness(1.05)', hp: 640, kg: 1480, body: 'coupe', country: 'JP', year: 2026, price: 40000000 },
+  { season: 1, name: 'BMW X5 M E70 «Monte Carlo Blue»', hp: 555, kg: 2380, body: 'suv', country: 'DE', year: 2010, price: 40000000 },
 ];
 for (const c of SEASON_CARS) {
   const id = slug(c.name);
