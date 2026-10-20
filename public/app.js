@@ -1049,8 +1049,8 @@ function raceScreen() {
     <div class="marks"><span>0 м</span><span>201 м</span><span>402 м</span></div></div>
   <div class="tree" id="tree"><i></i><i></i><i></i><i></i></div>
   <div class="dash"><div class="speed"><span id="rSpeed">0</span><small> км/год</small></div><div class="tacho"><div class="zone"></div><div class="redz"></div><div class="needle" id="needle"></div></div><div class="gear"><span id="rGear">N</span><small>передача</small></div></div>
-  <div class="center small muted mt" id="rHint">Жми «ГАЗ», коли загориться зелений</div>
-  <div style="position:relative"><button class="btn racebtn gas mt" id="raceBtn">ГАЗ!</button></div>
+  <div class="center small muted mt" id="rHint">Чекай зелений — тоді жми «ГАЗ»</div>
+  <div style="position:relative"><button class="btn racebtn wait mt" id="raceBtn">ЧЕКАЙ ЗЕЛЕНИЙ…</button></div>
   <div class="row mt" id="rShifts" style="justify-content:center;gap:6px"></div>`;
 }
 const QLABEL = { perfect: 'Ідеально', good: 'Добре', early: 'Рано', late: 'Пізно', miss: 'Пропуск' };
@@ -1075,6 +1075,9 @@ function runRace() {
   const lbs = R.car.kg * 2.2046;
   const vmax = 1.609 * 234 * Math.cbrt(R.car.hp / lbs);
   const timers = [600, 1200, 1800].map((ms, i) => setTimeout(() => (lights[i].className = 'amber', haptic('light')), Math.max(0, ms - sinceStart)));
+  // Taps before the first amber light (and in the first 0.8 s on screen) don't count: many players hit the button
+  // right away thinking it starts the race. After that, jumping the green is a real false start.
+  const guardUntil = performance.now() + Math.max(800, 600 - sinceStart);
   if (R.live) {
     // Send my progress and read the rival's ~3 times a second until the race is settled.
     R.myD = 0;
@@ -1092,6 +1095,8 @@ function runRace() {
     lights.forEach((l) => (l.className = ''));
     lights[3].className = 'green';
     green = performance.now();
+    btn.className = 'btn racebtn gas mt';
+    btn.textContent = 'ГАЗ!';
     haptic('medium');
   }, greenAt));
   timers.push(setTimeout(() => !runStart && launch(1.5), greenAt + 1500));
@@ -1133,6 +1138,14 @@ function runRace() {
   let curU = 0;
   btn.addEventListener('pointerdown', () => {
     if (R.phase === 'lights') {
+      if (!green && performance.now() < guardUntil) {
+        flashText('ЩЕ РАНО!', '#fbbf24');
+        btn.classList.remove('nudge');
+        void btn.offsetWidth;
+        btn.classList.add('nudge');
+        haptic('warning');
+        return;
+      }
       launch(green ? (performance.now() - green) / 1000 : -1);
       return;
     }
