@@ -1881,7 +1881,6 @@ TABS.menu = () => {
     <span class="mi" style="--c:${c}">${ic(icon)}</span><b>${title}</b>${count ? `<span class="cnt" style="margin-left:auto">${count}</span>` : sub ? `<span class="sub">${sub}</span>` : '<span style="margin-left:auto"></span>'}<span class="chev">${ic('chevron-right')}</span></button>`;
   const group = (title, rows) => `<div class="mgroup">${title}</div><div class="list menu-list">${rows.join('')}</div>`;
   return seasonCard() + group('Грати', [
-      row('casino', 'cards', 'Казино', '#ff2d55'),
       row('battles', 'flame', 'Кейс-батли', '#ff9500'),
       row('upgrade', 'arrow-big-up-lines', 'Апгрейд', '#af52de'),
       row('quests', 'target-arrow', 'Завдання', '#ff3b30', 'щодня нові'),
@@ -2887,6 +2886,9 @@ H.doUpgrade = async () => {
   state.fx = { type: 'upgrade' };
   await refresh();
 };
+const upgradeBase = PAGES.upgrade;
+// The casino is reachable only from here (not from the menu).
+PAGES.upgrade = () => upgradeBase() + `<button class="li mt" data-act="go" data-page="casino" style="justify-content:center;color:var(--muted)">${ic('cards')} Казино на удачу — краш, міни, рулетка, слоти</button>`;
 AFTER.upgrade = () => {
   if (state.fx?.type !== 'upgrade' || !state.up.result) return;
   state.fx = null;
