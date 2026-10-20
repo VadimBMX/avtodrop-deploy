@@ -179,10 +179,10 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     });
   }
 
-  function devCars(res) {
+  function devCars(res, script) {
     const root = path.dirname(fileURLToPath(import.meta.url));
     const py = process.platform === 'win32' ? 'python' : 'python3';
-    execFile(py, ['-I', path.join(root, 'tools', 'prepare_cars.py')], { cwd: root, timeout: 15 * 60e3, maxBuffer: 8e6, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }, (err, out, errOut) => {
+    execFile(py, ['-I', path.join(root, 'tools', script)], { cwd: root, timeout: 15 * 60e3, maxBuffer: 8e6, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }, (err, out, errOut) => {
       send(res, 200, { ok: !err, out: String(out), err: String(errOut || (err && err.message) || '') });
     });
   }
@@ -191,8 +191,8 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     const { pathname } = new URL(req.url, 'http://x');
     try {
       if (pathname === '/healthz') return send(res, 200, 'ok', 'text/plain');
-      // DEV only, from this computer: process new photos in raw-cars (same as `npm run cars`).
-      if (pathname === '/api/dev/cars' && dev && isLocal(req) && req.method === 'POST') return devCars(res);
+      // DEV only, from this computer: process new photos in raw-cars (`npm run cars`) or re-fit all photos to one canvas.
+      if ((pathname === '/api/dev/cars' || pathname === '/api/dev/normalize') && dev && isLocal(req) && req.method === 'POST') return devCars(res, pathname.endsWith('normalize') ? 'normalize_cars.py' : 'prepare_cars.py');
       if (pathname.startsWith('/api/admin/')) return await handleAdmin(req, res, pathname.slice(11));
       if (pathname.startsWith('/api/')) return await handleApi(req, res, pathname.slice(5));
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed', 'text/plain');
