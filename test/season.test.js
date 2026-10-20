@@ -199,3 +199,19 @@ test('race: training costs nothing and pays a little', () => {
   assert.equal(call(1, 'me').balance, bal);
   assert.ok(st.raceId);
 });
+
+test('plates: a chosen region gives a plate of that region at its price; ІІ exists', () => {
+  const { db, mk, call } = setup();
+  mk(1);
+  db.prepare('UPDATE users SET balance = 1e9 WHERE id = 1').run();
+  assert.equal(S.REGIONS.II, 'Загальнодержавний');
+  for (const reg of ['KA', 'II', 'BC']) {
+    const bal = call(1, 'me').balance;
+    const { plate } = call(1, 'plate/generate', { region: reg });
+    assert.ok(plate.text.startsWith(reg + ' '), plate.text);
+    assert.equal(call(1, 'me').balance, bal - S.regionPrice(reg));
+  }
+  assert.equal(S.regionPrice('KA'), 60000);
+  assert.throws(() => call(1, 'plate/generate', { region: 'ZZ' }), /Невідомий регіон/);
+  assert.ok(call(1, 'plate/generate', { gen: 'basic' }).plate.text);
+});

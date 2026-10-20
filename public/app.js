@@ -1878,22 +1878,48 @@ PAGES.plates = () => {
     }).join('')}</div>` : '<div class="empty">Номерів поки немає</div>');
   }
   const gen = S.PLATE_GEN.find((g) => g.id === (state.plateGen || 'basic'));
+  const reg = state.plateRegion;
   const d = state.plateDrop;
   return seg + `<div class="center" style="padding:18px 0 10px" id="plateStage">${plate(d ? d.text : 'AA 0000 AA', 'lg')}</div>
     ${d ? `<div class="center ${state.fx?.type === 'plate' ? 'pop' : ''}">${clsBadge(d.cls)} <span class="chip" style="color:${S.CLASSES[d.cls].color}">${S.CLASSES[d.cls].name}</span><div class="big mt ${S.rankOf(d.cls) >= 3 ? 'shimmer' : ''}" style="--c:${S.CLASSES[d.cls].color}" id="plateValue">${S.fmt(d.value)}</div><div class="small muted">${esc(d.label)}</div><div class="tiny muted">Регіон: ${esc(S.regionOf(d.text) || '—')}</div></div>
       <div class="btns mt"><button class="btn outline" data-act="plateToCar" data-pid="${d.id}">Повісити на машину</button><button class="btn red" data-act="plateSell" data-pid="${d.id}">Продати · ${S.short(d.value / 2)}</button></div>` : ''}
-    <button class="btn mt" data-act="genPlate" id="genBtn">${d ? 'Ще раз' : 'Згенерувати'} · ${gen.name} · ${S.fmt(gen.price)}</button>
-    <div class="h2"><span>Генерація номера</span></div>
-    <div class="list">${S.PLATE_GEN.map((g) => `<button class="li ${g.id === gen.id ? 'on' : ''}" data-act="pickGen" data-id="${g.id}"><span class="ic">${ic(g.id === 'basic' ? 'license' : g.id === 'better' ? 'star' : 'sparkles')}</span><div class="grow"><b>${g.name}</b>${dots(g.weights)}</div><b>${S.short(g.price)}</b></button>`).join('')}</div>
+    <button class="btn mt" data-act="genPlate" id="genBtn">${d ? 'Ще раз' : 'Згенерувати'} · ${reg ? `${reg} · ${S.fmt(S.regionPrice(reg))}` : `${gen.name} · ${S.fmt(gen.price)}`}</button>
+    <div class="list mt"><button class="li" data-act="regionPick"><span class="ic">${ic('world')}</span><div class="grow"><b>Регіон</b><div class="small muted">${reg ? `${reg} · ${esc(S.REGIONS[reg])}` : 'будь-який — випадковий'}</div></div>${reg ? `<span class="chip" data-act="regionClear">✕</span>` : `<span class="chev">${ic('chevron-right')}</span>`}</button></div>
+    ${reg ? `<div class="card mt"><b>Номер області ${reg}</b><div class="small muted">Клас — повний рандом: від звичайного до міфічного, як пощастить</div>${dots(S.REGION_GEN.weights)}</div>` : `<div class="h2"><span>Генерація номера</span></div>
+    <div class="list">${S.PLATE_GEN.map((g) => `<button class="li ${g.id === gen.id ? 'on' : ''}" data-act="pickGen" data-id="${g.id}"><span class="ic">${ic(g.id === 'basic' ? 'license' : g.id === 'better' ? 'star' : 'sparkles')}</span><div class="grow"><b>${g.name}</b>${dots(g.weights)}</div><b>${S.short(g.price)}</b></button>`).join('')}</div>`}
     <div class="tiny muted">Кожен номер існує в одному екземплярі. Номер на машині додає свою ціну до вартості машини — і до доходу. Найдорожчі: 0001–0009, чотири однакові цифри з однаковими літерами (KA 7777 KA).</div>`;
 };
 H.plateView = (d) => (state.plateView = d.k, render());
+// Region picker: search by code or name; each code has its own price (the capital and ІІ cost more).
+function regionSheet(filter = '') {
+  const f = filter.trim().toLowerCase();
+  const norm = S.normalizePlate(filter).slice(0, 2);
+  const rows = S.REGION_LIST.filter((r) => !f || r.name.toLowerCase().includes(f) || (norm && r.codes.some((c) => c.startsWith(norm))));
+  return `<input id="regQ" placeholder="Код або назва: KA, Львівська…" value="${esc(filter)}" autocomplete="off">
+    <div class="tiny muted mt">Обрав регіон — клас номера випадає повним рандомом. Ціна залежить від регіону: Київ і ІІ дорожчі.</div>
+    <div class="list mt"><button class="li" data-act="regionSet" data-k=""><span class="grow"><b>Будь-який регіон</b><div class="small muted">звичайна генерація за типом</div></span></button>
+    ${rows.map((r) => `<div class="li"><div class="grow"><b>${esc(r.name)}</b></div><span class="row" style="gap:6px">${r.codes.map((c) => `<button class="btn sm ${state.plateRegion === c ? 'yellow' : 'ghost'}" data-act="regionSet" data-k="${c}">${c} · ${S.short(S.regionPrice(c)).replace(' ₴', '')}</button>`).join('')}</span></div>`).join('') || '<div class="empty">Нічого не знайдено</div>'}</div>`;
+}
+H.regionPick = () => {
+  sheet('Регіон номера', regionSheet());
+  const bind = () => $('#regQ')?.addEventListener('input', (e) => {
+    const v = e.target.value;
+    sheet('Регіон номера', regionSheet(v));
+    bind();
+    const i = $('#regQ');
+    i.focus();
+    i.setSelectionRange(v.length, v.length);
+  });
+  bind();
+};
+H.regionSet = (d) => (state.plateRegion = d.k || null, state.plateDrop = null, closeModal(), render());
+H.regionClear = () => (state.plateRegion = null, state.plateDrop = null, render());
 H.pickGen = (d) => (state.plateGen = d.id, state.plateDrop = null, render());
 H.genPlate = async (d, el) => {
   el.disabled = true;
   let r;
   try {
-    r = await api('plate/generate', { gen: state.plateGen || 'basic' });
+    r = await api('plate/generate', state.plateRegion ? { region: state.plateRegion } : { gen: state.plateGen || 'basic' });
   } catch (e) {
     el.disabled = false;
     return toast(e.message, true);

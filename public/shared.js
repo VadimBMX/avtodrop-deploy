@@ -408,11 +408,20 @@ export const REGIONS = {
   BM: 'Сумська', HM: 'Сумська', BO: 'Тернопільська', HO: 'Тернопільська', BT: 'Херсонська', HT: 'Херсонська',
   BX: 'Хмельницька', HX: 'Хмельницька', CA: 'Черкаська', IA: 'Черкаська', CB: 'Чернігівська', IB: 'Чернігівська',
   CE: 'Чернівецька', IE: 'Чернівецька', AK: 'АР Крим', KK: 'АР Крим', CH: 'м. Севастополь', IH: 'м. Севастополь',
+  II: 'Загальнодержавний',
 };
 export const PLATE_REGIONS = Object.keys(REGIONS);
 export const regionOf = (text) => REGIONS[String(text).slice(0, 2)] || null;
 export const PLATE_LETTERS = 'ABCEHIKMOPTX';
 export const PLATE_VALUE = { D: [1500, 4000], C: [8000, 20000], B: [40000, 100000], A: [250000, 600000], S: [2000000, 5000000] };
+// Plate of a chosen region: the class is a full random roll from ordinary to mythic (no tier to pick), and the
+// region sets the price — the capital and the national ІІ series cost more, big oblast centres a bit more.
+export const REGION_GEN = { weights: { D: 80, C: 15, B: 4.2, A: 0.75, S: 0.05 }, price: 15000 };
+const REGION_PRICE = { AA: 60000, KA: 60000, II: 100000, AE: 30000, KE: 30000, AX: 30000, KX: 30000, BC: 30000, HC: 30000, BH: 30000, HH: 30000, AI: 25000, KI: 25000 };
+export const regionPrice = (code) => REGION_PRICE[code] || REGION_GEN.price;
+// Regions for the picker: one row per region with all its codes.
+export const REGION_LIST = Object.values(Object.entries(REGIONS).reduce((m, [code, name]) => ((m[name] ||= { name, codes: [] }).codes.push(code), m), {}))
+  .sort((a, b) => (a.name === 'Загальнодержавний') - (b.name === 'Загальнодержавний') || a.name.replace('м. ', '').localeCompare(b.name.replace('м. ', ''), 'uk'));
 export const PLATE_GEN = [
   { id: 'basic', name: 'Звичайний', price: 3000, weights: { D: 84, C: 16 } },
   { id: 'better', name: 'Покращений', price: 30000, weights: { C: 54, B: 44, A: 2 } },

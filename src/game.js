@@ -673,10 +673,10 @@ export function createGame(db, opts = {}) {
   }
 
   // ---------- plates ----------
-  function makePlate(cls) {
+  function makePlate(cls, region = null) {
     const L = S.PLATE_LETTERS;
     const letter = () => L[crypto.randomInt(L.length)];
-    const reg = () => S.PLATE_REGIONS[crypto.randomInt(S.PLATE_REGIONS.length)];
+    const reg = () => region || S.PLATE_REGIONS[crypto.randomInt(S.PLATE_REGIONS.length)];
     const four = () => String(crypto.randomInt(0, 10000)).padStart(4, '0');
     for (let i = 0; i < 400; i++) {
       let r = reg(), d = four(), s = letter() + letter();
@@ -701,12 +701,23 @@ export function createGame(db, opts = {}) {
     }
     fail('Не вдалося згенерувати номер, спробуй ще');
   }
-  function generatePlate(uid, { gen }) {
-    const g = S.PLATE_GEN.find((x) => x.id === gen);
-    if (!g) fail('Невідомий тип номера');
-    pay(uid, g.price);
-    const cls = pickWeighted(classEntries(g.weights), rnd());
-    const text = makePlate(cls);
+  // Either a tier (random region) or a chosen region (full random class, price by region — S.REGION_GEN).
+  function generatePlate(uid, { gen, region }) {
+    let price, weights, reg = null;
+    if (region) {
+      reg = String(region).toUpperCase();
+      if (!S.REGIONS[reg]) fail('Невідомий регіон');
+      price = S.regionPrice(reg);
+      weights = S.REGION_GEN.weights;
+    } else {
+      const g = S.PLATE_GEN.find((x) => x.id === gen);
+      if (!g) fail('Невідомий тип номера');
+      price = g.price;
+      weights = g.weights;
+    }
+    pay(uid, price);
+    const cls = pickWeighted(classEntries(weights), rnd());
+    const text = makePlate(cls, reg);
     const [lo, hi] = S.PLATE_VALUE[cls];
     const value = Math.round((lo + rnd() * (hi - lo)) / 100) * 100;
     const r = q('INSERT INTO plates (owner_id, text, cls, value, created_at) VALUES (?, ?, ?, ?, ?)').run(uid, text, cls, value, now());
