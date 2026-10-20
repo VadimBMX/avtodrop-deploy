@@ -179,6 +179,13 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     });
   }
 
+  function devRailway(res, args) {
+    const root = path.dirname(fileURLToPath(import.meta.url));
+    // shell: true so Windows finds railway.cmd / railway.exe on PATH.
+    execFile('railway', args, { cwd: root, timeout: 10 * 60e3, maxBuffer: 8e6, shell: true }, (err, out, errOut) => {
+      send(res, 200, { ok: !err, out: String(out), err: String(errOut || (err && err.message) || '') });
+    });
+  }
   function devCars(res, script) {
     const root = path.dirname(fileURLToPath(import.meta.url));
     const py = process.platform === 'win32' ? 'python' : 'python3';
@@ -192,6 +199,8 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     try {
       if (pathname === '/healthz') return send(res, 200, 'ok', 'text/plain');
       // DEV only, from this computer: process new photos in raw-cars (`npm run cars`) or re-fit all photos to one canvas.
+      // DEV only, from this computer: Railway CLI status / deploy (same as `railway up --detach` in the game folder).
+      if ((pathname === '/api/dev/railway-status' || pathname === '/api/dev/deploy') && dev && isLocal(req) && req.method === 'POST') return devRailway(res, pathname.endsWith('deploy') ? ['up', '--detach'] : ['status']);
       if ((pathname === '/api/dev/cars' || pathname === '/api/dev/normalize') && dev && isLocal(req) && req.method === 'POST') return devCars(res, pathname.endsWith('normalize') ? 'normalize_cars.py' : 'prepare_cars.py');
       if (pathname.startsWith('/api/admin/')) return await handleAdmin(req, res, pathname.slice(11));
       if (pathname.startsWith('/api/')) return await handleApi(req, res, pathname.slice(5));
