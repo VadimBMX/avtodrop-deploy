@@ -226,6 +226,8 @@ const MIGRATIONS = [
   'ALTER TABLE users ADD COLUMN vip_until INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE users ADD COLUMN star_slots INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE users ADD COLUMN starter_bought INTEGER NOT NULL DEFAULT 0',
+  // Paint id (S.PAINTS) or NULL for the original colour.
+  'ALTER TABLE cars ADD COLUMN paint TEXT',
 ];
 
 export function openDb(file) {

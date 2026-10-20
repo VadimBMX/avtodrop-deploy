@@ -274,3 +274,20 @@ test('case of the day: 20% off for one rarity case, the discount is what gets pa
   call(1, 'case/open', { caseId: other.id, count: 1 });
   assert.equal(bal2 - call(1, 'me').balance, other.price);
 });
+
+test('paint: costs by the model price, the original colour is free, unknown colours refused', () => {
+  const { db, mk, call, g } = setup();
+  mk(1);
+  db.prepare('UPDATE users SET balance = 1e9 WHERE id = 1').run();
+  const id = g.giveCar(1, 'vaz-2107').id;
+  const bal = call(1, 'me').balance;
+  const r = call(1, 'car/paint', { carId: id, paint: 'blue' });
+  assert.equal(r.car.paint, 'blue');
+  assert.equal(bal - call(1, 'me').balance, S.paintPrice('vaz-2107'));
+  assert.throws(() => call(1, 'car/paint', { carId: id, paint: 'blue' }), /вже такого/);
+  assert.throws(() => call(1, 'car/paint', { carId: id, paint: 'gold-leaf' }), /Невідомий колір/);
+  const b2 = call(1, 'me').balance;
+  call(1, 'car/paint', { carId: id, paint: null });
+  assert.equal(call(1, 'me').balance, b2);
+  assert.equal(call(1, 'me').cars[0].paint, null);
+});

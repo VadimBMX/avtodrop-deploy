@@ -210,7 +210,7 @@ function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false 
   const m = M(c.model);
   return `<button class="car r${S.rankOf(m.cls)} ${sel ? 'sel' : ''} ${c.status === 'market' || c.status === 'auction' ? 'listed' : ''}" data-act="${act}" data-id="${c.id}" style="--c:${S.CLASSES[m.cls].color}">
     ${clsBadge(m.cls, 'tl')}<span class="tr">${isNew ? '<span class="new">NEW</span>' : ''}<span class="chip">${ic('tool')}${partCount(c)}/${partSlots(c)}</span></span>
-    <div class="art">${carArt(c.model)}</div>
+    <div class="art">${carArt(c.model, { paint: c.paint })}</div>
     <div class="nm ellipsis">${esc(m.name)}</div>
     ${c.plate ? `<div class="meta">${plate(c.plate.text, 'sm')}</div>` : ''}
     <div class="meta row between" style="gap:4px"><span>${c.hp} к.с.</span><b class="disp" style="color:var(--text);font-size:14px;font-weight:600">${S.short(c.value)}</b></div>
@@ -220,7 +220,7 @@ function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false 
 }
 function carRow(c, right = '') {
   const m = M(c.model);
-  return `<div class="li"><div class="mini art">${carArt(c.model)}</div><div class="grow"><div class="ellipsis"><b>${esc(m.name)}</b></div>
+  return `<div class="li"><div class="mini art">${carArt(c.model, { paint: c.paint })}</div><div class="grow"><div class="ellipsis"><b>${esc(m.name)}</b></div>
     <div class="small muted">${clsBadge(m.cls)} ${c.plate ? plate(c.plate.text, 'sm') : ''} ${c.hp} к.с. · ${S.short(c.value)}</div></div>${right}</div>`;
 }
 function rewardText(rw) {
@@ -538,11 +538,12 @@ function carSheet(id) {
   const locked = c.status === 'market' || c.status === 'auction';
   sheet(esc(m.name), `
     <div class="center">${clsBadge(m.cls)} <span class="chip">${S.CLASSES[m.cls].name}</span> <span class="chip">${S.COUNTRIES[m.country].flag} ${S.COUNTRIES[m.country].name}</span> <span class="chip">${m.year}</span></div>
-    <div class="hero"><div class="art">${carArt(c.model, { glow: S.rankOf(m.cls) >= 3 })}</div>${c.plate ? `<div class="plate-on">${plate(c.plate.text)}</div>` : ''}</div>
+    <div class="hero"><div class="art">${carArt(c.model, { glow: S.rankOf(m.cls) >= 3, paint: c.paint })}</div>${c.plate ? `<div class="plate-on">${plate(c.plate.text)}</div>` : ''}</div>
     <div class="stat four"><div><b>${c.hp}</b><span>к.с.${c.hp > m.hp ? ` <span class="win">+${c.hp - m.hp}</span>` : ''}</span></div><div><b>${c.et.toFixed(2)}</b><span>402 м, с</span></div><div><b>${S.short(c.value)}</b><span>вартість</span></div><div><b>${S.short(c.income)}</b><span>дохід / год</span></div></div>
     ${locked ? `<div class="card mt center muted">Авто виставлено на ${c.status === 'market' ? 'ринок' : 'аукціон'} — керуй ним у «Меню → Ринок → Мої лоти».</div>` : `
     <div class="list mt">
       <button class="li" data-act="carShowcase" data-id="${c.id}"><span class="ic">${ic('building-arch')}</span><div class="grow"><b>${c.status === 'showcase' ? 'Повернути в гараж' : 'Виставити на вітрину'}</b><div class="small muted">${c.status === 'showcase' ? 'знову приноситиме дохід' : `вільно місць: ${me.showcaseSlots - me.cars.filter((x) => x.status === 'showcase').length}`}</div></div><span class="chev">›</span></button>
+      <button class="li" data-act="carPaint" data-id="${c.id}"><span class="ic">${ic('sparkles')}</span><div class="grow"><b>Фарбування</b><div class="small muted">${c.paint ? S.PAINT_BY_ID[c.paint]?.name || c.paint : 'оригінальний колір'} · ${S.short(S.paintPrice(c.model))}</div></div><span class="chev">${ic('chevron-right')}</span></button>
       <button class="li" data-act="carPlate" data-id="${c.id}"><span class="ic">${ic('license')}</span><div class="grow"><b>Номер</b><div class="small muted">${c.plate ? `+${S.short(c.plate.value)} до вартості` : 'немає'}</div></div>${c.plate ? plate(c.plate.text, 'sm') : '<span class="chev">›</span>'}</button>
     </div>
     <div class="h2"><span>Тюнінг · ${partCount(c)}/${partSlots(c)}</span><span>${m.ev ? `${ic('bolt')} електро · ` : ''}деталі від ${S.TIERS[minTier].name}</span></div>
@@ -597,6 +598,26 @@ H.toPartCases = (d) => {
   state.partType = d.type;
   closeModal();
   render();
+};
+H.carPaint = (d) => {
+  const c = me.cars.find((x) => x.id === Number(d.id));
+  if (!c) return;
+  const price = S.paintPrice(c.model);
+  const pick = state.paintPick ?? c.paint;
+  sheet('Фарбування', `<div class="hero"><div class="art" id="paintArt">${carArt(c.model, { paint: pick })}</div></div>
+    <div class="swatches">${[{ id: '', name: 'Оригінал', swatch: 'conic-gradient(#d7263d,#f5c518,#2e9e4f,#1f5fd6,#7b3fe4,#d7263d)' }, ...S.PAINTS].map((p) => `<button class="sw ${(pick || '') === p.id ? 'on' : ''}" data-act="paintPick" data-id="${c.id}" data-p="${p.id}" style="--sw:${p.swatch}" title="${esc(p.name)}"></button>`).join('')}</div>
+    <div class="center small muted">${pick ? S.PAINT_BY_ID[pick].name : 'Оригінальний колір'}</div>
+    <button class="btn yellow mt" data-act="paintApply" data-id="${c.id}" data-p="${pick || ''}" ${(pick || null) === (c.paint || null) ? 'disabled' : ''}>${pick ? `Пофарбувати · ${S.fmt(price)}` : 'Повернути оригінал · безкоштовно'}</button>
+    <div class="tiny muted center mt">Колір видно в гаражі, у рейтингу й на ринку. Повернути оригінал можна будь-коли.</div>`, () => carSheet(c.id));
+};
+H.paintPick = (d) => (state.paintPick = d.p || '', H.carPaint(d));
+H.paintApply = async (d) => {
+  const r = await act('car/paint', { carId: Number(d.id), paint: d.p || null }, d.p ? 'Пофарбовано!' : 'Оригінальний колір повернуто', { rerender: false });
+  state.paintPick = undefined;
+  if (r) {
+    await refresh(false);
+    carSheet(d.id);
+  }
 };
 H.carPlate = (d) => {
   const c = me.cars.find((x) => x.id === Number(d.id));
@@ -1172,7 +1193,7 @@ function liveResult() {
   const R = state.race, s = R.result, my = s.me.run, rv = s.rival.run;
   const t = (x) => x.time.toFixed(3).replace('.', ',');
   const startTxt = (x) => (x.jump ? 'фальстарт' : x.perfectStart ? 'ідеальний старт' : `реакція ${x.reaction.toFixed(3)} с`);
-  const row = (who, car, run, won) => `<div class="li"><div class="mini art">${carArt(car.model)}</div><div class="grow"><b>${esc(who)} ${won ? ic('trophy', 'win') : ''}</b><div class="small muted">${esc(M(car.model).name)} · ${startTxt(run)}</div></div><b>${t(run)} с</b></div>`;
+  const row = (who, car, run, won) => `<div class="li"><div class="mini art">${carArt(car.model, { paint: car.paint })}</div><div class="grow"><b>${esc(who)} ${won ? ic('trophy', 'win') : ''}</b><div class="small muted">${esc(M(car.model).name)} · ${startTxt(run)}</div></div><b>${t(run)} с</b></div>`;
   return `<div class="center mt2"><div class="tiny muted">PvP наживо</div><div class="big ${s.win ? 'win' : 'lose'}">${s.win ? 'Перемога!' : 'Поразка'}</div>
     <div class="muted">${s.win ? 'швидше' : 'повільніше'} на ${Math.abs(my.time - rv.time).toFixed(3).replace('.', ',')} с</div>
     <div style="font-size:26px;font-weight:900" class="mt ${s.win ? 'win' : 'lose'}">${s.win ? '+' + S.fmt(s.prize) : '−' + S.fmt(s.bet)}</div>
@@ -2705,7 +2726,7 @@ H.playerCard = async (d, el, e, showcase) => {
   }
   if (showcase) return sheet(`Вітрина ${esc(p.name)}`, p.showcase.length ? `<div class="grid">${p.showcase.map((c) => carTile(c, { act: 'noop' })).join('')}</div>` : '<div class="empty">Вітрина порожня</div>', () => H.playerCard(d));
   const b = p.best;
-  sheet(esc(p.name), `${p.vip || p.badges?.length ? `<div class="row center" style="justify-content:center;flex-wrap:wrap;gap:6px;margin-bottom:8px">${p.vip ? vipChip() : ''}${(p.badges || []).map(badgeChip).join('')}</div>` : ''}${b ? `<div class="hero"><div class="art">${carArt(b.model, { glow: true })}</div>${b.plate ? `<div class="plate-on">${plate(b.plate.text)}</div>` : ''}</div>
+  sheet(esc(p.name), `${p.vip || p.badges?.length ? `<div class="row center" style="justify-content:center;flex-wrap:wrap;gap:6px;margin-bottom:8px">${p.vip ? vipChip() : ''}${(p.badges || []).map(badgeChip).join('')}</div>` : ''}${b ? `<div class="hero"><div class="art">${carArt(b.model, { glow: true, paint: b.paint })}</div>${b.plate ? `<div class="plate-on">${plate(b.plate.text)}</div>` : ''}</div>
     <div class="center"><b style="font-size:18px">${esc(M(b.model).name)}</b> ${clsBadge(M(b.model).cls)}<div class="small muted">Найкраща машина · ${S.short(b.value)}</div></div>` : ''}
     <div class="stat mt"><div><b>${S.short(p.value)}</b><span>гараж</span></div><div><b>${p.carCount}</b><span>машин</span></div><div><b>${p.collection}</b><span>у колекції</span></div></div>
     <button class="btn mt" data-act="playerShowcase" data-id="${p.id}">${ic('building-arch')} Вітрина · ${p.showcase.length}</button>
