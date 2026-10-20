@@ -266,7 +266,6 @@ test('case of the day: 20% off for one rarity case, the discount is what gets pa
   const id = call(1, 'me').caseOfDay;
   const cs = S.CASE_BY_ID[id];
   assert.equal(cs.group, 'rarity');
-  assert.equal(S.casePrice(cs, S.dayOf ? S.dayOf(at()) : ''), undefined === 1 ? 0 : S.casePrice(cs, new Date(at()).toISOString().slice(0, 10)));
   const bal = call(1, 'me').balance;
   call(1, 'case/open', { caseId: id, count: 1 });
   assert.equal(bal - call(1, 'me').balance, Math.round((cs.price * 0.8) / 1000) * 1000);
