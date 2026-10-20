@@ -21,6 +21,8 @@ PART_OUT = os.path.join(ROOT, 'public', 'parts')
 PART_KEYS = {'eng', 'turbo', 'exhaust', 'gearbox', 'suspension', 'wheels', 'brakes', 'body', 'motor', 'battery', 'reducer'}
 PROMPTS = os.path.join(ROOT, 'docs', 'car-prompts.txt')
 sys.stdout.reconfigure(encoding='utf-8')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from normalize_cars import fit_canvas  # noqa: E402
 
 
 def car_index():
@@ -136,6 +138,7 @@ def main():
             if flip:
                 cut = cut.transpose(Image.FLIP_LEFT_RIGHT)
             cut.thumbnail((1200, 600), Image.LANCZOS)
+            cut = fit_canvas(cut)
             dst = os.path.join(OUT, f'{car_id}.webp')
             cut.save(dst, 'WEBP', quality=86, method=6)
             shutil.move(os.path.join(RAW, f), os.path.join(DONE, f))
