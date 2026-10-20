@@ -784,3 +784,13 @@ input:focus { border-color: var(--line2); }
 .story-ic { font-size: 64px; color: var(--accent); display: flex; filter: drop-shadow(0 0 24px #f5b30166); }
 .story-title { font-size: 30px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; }
 .story-text { font-size: 16px; color: #c9ced6; max-width: 360px; }
+
+/* ---------- case hooks: reel prices, key fragments, visible guarantee ---------- */
+.reel .car .price { font: 700 11px var(--f-disp); letter-spacing: .3px; margin-top: 1px; }
+.reel-wrap.mini .reel .car .price { font-size: 10px; }
+.reel .car.r3 .price, .reel .car.r4 .price { text-shadow: 0 0 10px currentColor; }
+.hooks { display: grid; gap: 10px; }
+.hook .row { font-size: 13px; }
+.hook .row b { font-family: var(--f-disp); font-size: 15px; }
+.frag-bar { height: 6px; margin: 6px 0; background: var(--card2); border-radius: 3px; overflow: hidden; }
+.frag-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width .5s; }

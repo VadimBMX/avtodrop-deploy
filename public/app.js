@@ -22,6 +22,7 @@ const FLAG_SVG = {
   US: `<rect width="30" height="20" fill="#fff"/>${[0, 2, 4, 6].map((i) => `<rect y="${i * 2.86}" width="30" height="1.43" fill="#b22234"/>`).join('')}<rect y="17.14" width="30" height="2.86" fill="#b22234"/><rect width="14" height="10" fill="#3c3b6e"/>${[[3, 2.5], [7, 2.5], [11, 2.5], [5, 5], [9, 5], [3, 7.5], [7, 7.5], [11, 7.5]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r=".8" fill="#fff"/>`).join('')}`,
   GB: '<rect width="30" height="20" fill="#012169"/><path d="M0,0 30,20M30,0 0,20" stroke="#fff" stroke-width="4"/><path d="M0,0 30,20M30,0 0,20" stroke="#c8102e" stroke-width="1.4"/><path d="M15,0v20M0,10h30" stroke="#fff" stroke-width="6"/><path d="M15,0v20M0,10h30" stroke="#c8102e" stroke-width="3.6"/>',
 };
+FLAG_SVG.CN = '<rect width="30" height="20" fill="#de2910"/><polygon points="5,2 6.2,5.6 10,5.6 6.9,7.8 8.1,11.4 5,9.2 1.9,11.4 3.1,7.8 0,5.6 3.8,5.6" fill="#ffde00"/>';
 const flagEmblem = (c) => (FLAG_SVG[c] ? `<span class="flag-emb"><svg viewBox="0 0 30 20" preserveAspectRatio="xMidYMid slice" aria-label="${c}">${FLAG_SVG[c]}</svg></span>` : `<span class="cc">${c}</span>`);
 const caseIcon = (cs) => (cs.country ? flagEmblem(cs.country) : ic(cs.icon));
 const partIcon = (type) => ic(S.PARTS[type].icon);
@@ -203,11 +204,12 @@ function dots(weights, map = (k) => k) {
   const total = Object.values(weights).reduce((a, b) => a + b, 0);
   return `<div class="dots">${Object.entries(weights).map(([k, w]) => `<span style="--c:${S.CLASSES[map(k)].color}">${pct((w / total) * 100)}</span>`).join('')}</div>`;
 }
-const partCount = (c) => S.PART_KEYS.filter((k) => c.parts?.[k]).length;
+const partCount = (c) => S.partKeysOf(c.model).filter((k) => c.parts?.[k]).length;
+const partSlots = (c) => S.partKeysOf(c.model).length;
 function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false } = {}) {
   const m = M(c.model);
   return `<button class="car r${S.rankOf(m.cls)} ${sel ? 'sel' : ''} ${c.status === 'market' || c.status === 'auction' ? 'listed' : ''}" data-act="${act}" data-id="${c.id}" style="--c:${S.CLASSES[m.cls].color}">
-    ${clsBadge(m.cls, 'tl')}<span class="tr">${isNew ? '<span class="new">NEW</span>' : ''}<span class="chip">${ic('tool')}${partCount(c)}/8</span></span>
+    ${clsBadge(m.cls, 'tl')}<span class="tr">${isNew ? '<span class="new">NEW</span>' : ''}<span class="chip">${ic('tool')}${partCount(c)}/${partSlots(c)}</span></span>
     <div class="art">${carArt(c.model)}</div>
     <div class="nm ellipsis">${esc(m.name)}</div>
     ${c.plate ? `<div class="meta">${plate(c.plate.text, 'sm')}</div>` : ''}
@@ -543,8 +545,8 @@ function carSheet(id) {
       <button class="li" data-act="carShowcase" data-id="${c.id}"><span class="ic">${ic('building-arch')}</span><div class="grow"><b>${c.status === 'showcase' ? 'Повернути в гараж' : 'Виставити на вітрину'}</b><div class="small muted">${c.status === 'showcase' ? 'знову приноситиме дохід' : `вільно місць: ${me.showcaseSlots - me.cars.filter((x) => x.status === 'showcase').length}`}</div></div><span class="chev">›</span></button>
       <button class="li" data-act="carPlate" data-id="${c.id}"><span class="ic">${ic('license')}</span><div class="grow"><b>Номер</b><div class="small muted">${c.plate ? `+${S.short(c.plate.value)} до вартості` : 'немає'}</div></div>${c.plate ? plate(c.plate.text, 'sm') : '<span class="chev">›</span>'}</button>
     </div>
-    <div class="h2"><span>Тюнінг · ${partCount(c)}/8</span><span>деталі від ${S.TIERS[minTier].name}</span></div>
-    <div class="list">${S.PART_KEYS.map((k) => {
+    <div class="h2"><span>Тюнінг · ${partCount(c)}/${partSlots(c)}</span><span>${m.ev ? `${ic('bolt')} електро · ` : ''}деталі від ${S.TIERS[minTier].name}</span></div>
+    <div class="list">${S.partKeysOf(c.model).map((k) => {
       const t = c.parts[k];
       return `<button class="li" data-act="carSlot" data-id="${c.id}" data-type="${k}">${partArt(k, t, 'sm')}<div class="grow"><b>${S.PARTS[k].name}</b><div class="small muted">${t ? S.partEffect(k, t) : S.PARTS[k].hint}</div></div>
         ${t ? clsBadge(tierCls(t)) + ` <b>${S.TIER_BY_ID[t].name}</b>` : '<span class="muted small">Порожньо ›</span>'}</button>`;
@@ -671,7 +673,7 @@ function weightedModel(cs) {
 const sellPrice = (model) => S.sellPriceOf(model);
 const sellTotal = (models) => models.reduce((s, m) => s + S.sellPriceOf(m), 0);
 const dropAlive = (r) => !r.sold && me.cars.some((c) => c.id === r.car.id && c.status === 'garage');
-const reelCard = (model) => `<div class="car r${S.rankOf(M(model).cls)}" style="--c:${S.CLASSES[M(model).cls].color}">${clsBadge(M(model).cls, 'tl')}<div class="art">${carArt(model)}</div><div class="nm tiny ellipsis">${esc(M(model).name)}</div></div>`;
+const reelCard = (model) => `<div class="car r${S.rankOf(M(model).cls)}" style="--c:${S.CLASSES[M(model).cls].color}">${clsBadge(M(model).cls, 'tl')}<div class="art">${carArt(model)}</div><div class="nm tiny ellipsis">${esc(M(model).name)}</div><div class="price tiny" style="color:${S.CLASSES[M(model).cls].color}">${S.short(M(model).price)}</div></div>`;
 TABS.cases = () => {
   const cs = S.CASE_BY_ID[state.caseId];
   const keys = me.keys[cs.id] || 0;
@@ -688,7 +690,7 @@ TABS.cases = () => {
     const fresh = state.fx?.type === 'case';
     stage = `<div class="reveal-wrap" id="revealWrap"><div class="art ${fresh ? 'reveal' : ''}" id="dropArt">${carArt(car.model, { glow: rank >= 2 })}</div></div>
       <div class="result-name ${fresh ? 'pop' : ''} ${rank >= 3 ? 'shimmer' : ''}" style="--c:${color}">${esc(m.name)}</div>
-      <div class="mt ${fresh ? 'pop2' : ''}">${clsBadge(m.cls)} <span class="chip" style="color:${color}">${S.CLASSES[m.cls].name}</span> <span class="chip">${flag(car.model)} ${S.COUNTRIES[m.country].name}</span>${forced ? ' <span class="chip">гарантія</span>' : ''}</div>
+      <div class="mt ${fresh ? 'pop2' : ''}">${clsBadge(m.cls)} <span class="chip" style="color:${color}">${S.CLASSES[m.cls].name}</span> <span class="chip">${flag(car.model)} ${S.COUNTRIES[m.country].name}</span>${forced ? ' <span class="chip">гарантія</span>' : ''}${d[0].fragment ? ` <span class="chip" style="color:var(--accent)">${ic('key')} +фрагмент</span>` : ''}</div>
       <div class="small muted mt ${fresh ? 'pop2' : ''}">${isNew ? `<span style="color:var(--accent)">${ic('sparkles')} Нова в колекції</span> · ` : ''}Вартість <b id="dropValue">${S.fmt(car.value)}</b>${d[0].sold ? ` · <span class="win">продано за ${S.fmt(sellPrice(car.model))}</span>` : ''}</div>`;
   } else if (d?.length) {
     const fresh = state.fx?.type === 'case';
@@ -723,7 +725,14 @@ TABS.cases = () => {
       return `<div class="btns mt"><button class="btn outline" data-act="toGarage">У гараж</button>${sellBtn}</div>`;
     })() : ''}
     <div class="card row between mt"><span>Швидке відкриття</span><button class="toggle ${state.fast ? 'on' : ''}" data-act="toggleFast"></button></div>
-    ${guarantee && !cs.starter ? `<div class="small muted center">Гарантія: ${guarantee} відкриттів</div>` : ''}`;
+    ${cs.starter ? '' : (() => {
+      const fr = me.fragments?.[cs.id] || 0, need = S.FRAGMENTS_PER_KEY;
+      const pity1 = pity.first ? S.PITY - (me.pity[cs.id] || 0) : 0;
+      return `<div class="card hooks mt">
+        <div class="hook"><div class="row between"><span>${ic('key')} Фрагменти ключа</span><b>${fr}/${need}</b></div><div class="frag-bar"><i style="width:${(fr / need) * 100}%"></i></div><div class="tiny muted">Кожна машина дешевша за кейс дає фрагмент · ${need} фрагментів = безкоштовне відкриття${keys ? ` · у тебе ${ic('key')} ${keys}` : ''}</div></div>
+        ${pity.first ? `<div class="hook"><div class="row between"><span>${ic('shield-check')} Гарантія ${clsBadge(pity.first)} або краще</span><b>через ${pity1}</b></div><div class="frag-bar"><i style="width:${((S.PITY - pity1) / S.PITY) * 100}%;background:${S.CLASSES[pity.first].color}"></i></div></div>` : ''}
+      </div>`;
+    })()}`;
 };
 H.toGarage = () => {
   state.drop = null;
@@ -821,6 +830,7 @@ H.openCase = async (d, el) => {
   state.drop = r.results;
   state.fx = { type: 'case' };
   if (cs.starter) state.caseId = 'rust';
+  if (r.newKeys) setTimeout(() => toast(`${ic('key')} Фрагменти зібрано — безкоштовний кейс «${cs.name}»!`), 1200);
   await refresh();
 };
 // Celebrate the drop once it is on screen; the show scales with the best class.
@@ -849,26 +859,29 @@ AFTER.cases = () => {
 };
 function spin(cs, winner, reelOpts = {}) {
   const pool = Object.keys(cs.weights);
-  // Near-miss tease: rarer cars sit right next to the winner.
+  const loss = M(winner).price < cs.price;
+  // Near-miss tease (visual only, the drop is already decided): a rarer car sits right next to the winner; on a
+  // losing drop it is the case's top class and the reel leans towards it, so it stops "almost" on the jackpot.
+  const side = Math.random() < 0.5 ? -1 : 1;
   const tease = (i, W) => {
-    if (Math.abs(i - W) !== 1 || pool.length < 2 || Math.random() < 0.4) return weightedModel(cs);
-    const cls = pool[Math.min(pool.length - 1, Math.max(1, pool.indexOf(M(winner).cls) + 1))];
+    if (Math.abs(i - W) !== 1 || pool.length < 2 || (!loss && Math.random() < 0.4)) return weightedModel(cs);
+    const cls = loss && i - W === side ? pool[pool.length - 1] : pool[Math.min(pool.length - 1, Math.max(1, pool.indexOf(M(winner).cls) + 1))];
     const list = cs.pool(cls);
     return list[Math.floor(Math.random() * list.length)].id;
   };
-  return spinReel({ cardAt: (i, W) => reelCard(i === W ? winner : tease(i, W)), color: S.CLASSES[M(winner).cls].color, rank: S.rankOf(M(winner).cls), ...reelOpts });
+  return spinReel({ cardAt: (i, W) => reelCard(i === W ? winner : tease(i, W)), color: S.CLASSES[M(winner).cls].color, rank: S.rankOf(M(winner).cls), lean: loss ? side : 0, ...reelOpts });
 }
 // The horizontal case reel shared by car and part cases: cardAt(i, W) builds card i, W is the winner's index.
 // wrap/reel default to the single big reel; several small reels (×3/×6) pass their own, each a bit longer (`extra`)
 // so they stop one after another, and all but the first stay `quiet` (no haptics, no flash).
-function spinReel({ cardAt, color, rank, wrap = $('#reelWrap'), reel = $('#reel'), extra = 0, quiet = false }) {
+function spinReel({ cardAt, color, rank, lean = 0, wrap = $('#reelWrap'), reel = $('#reel'), extra = 0, quiet = false }) {
   return new Promise((resolve) => {
     if (!reel) return resolve();
     const N = 46, W = 34;
     reel.innerHTML = Array.from({ length: N }, (_, i) => cardAt(i, W)).join('');
     const card = reel.children[1].offsetLeft - reel.children[0].offsetLeft; // card width + gap, big or mini reel
     const cardW = reel.children[0].offsetWidth;
-    const target = W * card + cardW / 2 - wrap.clientWidth / 2 + (Math.random() - 0.5) * cardW * 0.6;
+    const target = W * card + cardW / 2 - wrap.clientWidth / 2 + (lean ? lean * (0.3 + Math.random() * 0.12) : (Math.random() - 0.5) * 0.6) * cardW;
     const dur = (rank >= 2 ? 6000 : 5000) + extra; // rare drops spin a little longer for suspense
     let last = -1;
     wrap.classList.add('spinning');
@@ -2009,7 +2022,7 @@ H.plateSell = async (d) => {
 // ---------- market ----------
 PAGES.market = async () => {
   const seg = `<div class="seg">${[['buy', 'Купити'], ['auction', 'Аукціони'], ['mine', 'Мої лоти']].map(([k, t]) => `<button class="${state.marketTab === k ? 'on' : ''}" data-act="mTab" data-k="${k}">${t}</button>`).join('')}</div>`;
-  const info = (c) => `<span class="chip">${partCount(c)}/8 деталей</span>`;
+  const info = (c) => `<span class="chip">${partCount(c)}/${partSlots(c)} деталей</span>`;
   if (state.marketTab === 'buy') {
     const { list, dealer, now } = await api('market/list', { cls: state.marketCls, sort: state.marketSort });
     // Own lots stay in the list (marked), so a freshly listed car doesn't look like it vanished.
