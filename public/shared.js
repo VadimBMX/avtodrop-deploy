@@ -628,13 +628,13 @@ export const DEALER = {
 // A paint is a CSS filter over the car's photo (sepia makes the colour absolute whatever the photo's own colour).
 // Costs PAINT_RATE of the model's price (at least PAINT_MIN); the original colour comes back for free.
 export const PAINTS = [
-  { id: 'red', name: 'Червоний', css: 'sepia(1) saturate(6) hue-rotate(-35deg)', swatch: '#d7263d' },
-  { id: 'orange', name: 'Помаранчевий', css: 'sepia(1) saturate(6) hue-rotate(-5deg)', swatch: '#f26b1d' },
+  { id: 'red', name: 'Червоний', css: 'sepia(1) saturate(7) hue-rotate(-35deg) brightness(0.85) contrast(1.3)', swatch: '#d7263d' },
+  { id: 'orange', name: 'Помаранчевий', css: 'sepia(1) saturate(7) hue-rotate(-5deg) brightness(0.9) contrast(1.25)', swatch: '#f26b1d' },
   { id: 'yellow', name: 'Жовтий', css: 'sepia(1) saturate(6) hue-rotate(15deg) brightness(1.1)', swatch: '#f5c518' },
-  { id: 'green', name: 'Зелений', css: 'sepia(1) saturate(5) hue-rotate(75deg)', swatch: '#2e9e4f' },
-  { id: 'teal', name: 'Бірюзовий', css: 'sepia(1) saturate(5) hue-rotate(130deg)', swatch: '#1fa8a0' },
-  { id: 'blue', name: 'Синій', css: 'sepia(1) saturate(6) hue-rotate(185deg)', swatch: '#1f5fd6' },
-  { id: 'purple', name: 'Фіолетовий', css: 'sepia(1) saturate(5) hue-rotate(240deg)', swatch: '#7b3fe4' },
+  { id: 'green', name: 'Зелений', css: 'sepia(1) saturate(6) hue-rotate(75deg) brightness(0.8) contrast(1.3)', swatch: '#2e9e4f' },
+  { id: 'teal', name: 'Бірюзовий', css: 'sepia(1) saturate(6) hue-rotate(130deg) brightness(0.8) contrast(1.3)', swatch: '#1fa8a0' },
+  { id: 'blue', name: 'Синій', css: 'sepia(1) saturate(8) hue-rotate(185deg) brightness(0.75) contrast(1.35)', swatch: '#1f5fd6' },
+  { id: 'purple', name: 'Фіолетовий', css: 'sepia(1) saturate(7) hue-rotate(240deg) brightness(0.8) contrast(1.3)', swatch: '#7b3fe4' },
   { id: 'pink', name: 'Рожевий', css: 'sepia(1) saturate(5) hue-rotate(290deg) brightness(1.1)', swatch: '#e24fae' },
   { id: 'white', name: 'Білий', css: 'grayscale(1) brightness(1.45) contrast(0.85)', swatch: '#eef0f3' },
   { id: 'graphite', name: 'Графіт', css: 'grayscale(1) brightness(0.75) contrast(1.15)', swatch: '#5b606a' },
