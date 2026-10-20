@@ -259,7 +259,7 @@ test('electric cars take electric parts only', () => {
   assert.equal(S.partKeysOf('byd-han').length, 7);
 });
 
-test('case of the day: 20% off for one rarity case, the discount is what gets paid', () => {
+test('case of the day: 10% off for one rarity case, the discount is what gets paid', () => {
   const { db, mk, call, at } = setup();
   mk(1);
   db.prepare('UPDATE users SET balance = 1e12, slots = 1000 WHERE id = 1').run();
@@ -268,7 +268,7 @@ test('case of the day: 20% off for one rarity case, the discount is what gets pa
   assert.equal(cs.group, 'rarity');
   const bal = call(1, 'me').balance;
   call(1, 'case/open', { caseId: id, count: 1 });
-  assert.equal(bal - call(1, 'me').balance, Math.round((cs.price * 0.8) / 1000) * 1000);
+  assert.equal(bal - call(1, 'me').balance, Math.round((cs.price * (1 - S.CASE_OF_DAY.off)) / 1000) * 1000);
   const other = S.CASES.find((c) => c.group === 'rarity' && c.id !== id);
   const bal2 = call(1, 'me').balance;
   call(1, 'case/open', { caseId: other.id, count: 1 });

@@ -532,7 +532,7 @@ TABS.garage = () => {
     <div class="tiny muted center mt">Копиться до ${i.capH} год, потім зупиняється${nextCap ? ` · <a data-act="upgradeCap" style="color:#f5b301">сховище до ${nextCap.hours} год за ${S.short(nextCap.cost)}</a>` : ''}</div>
   </div>
   <div class="h2"><span>Машини ${cars.length}/${me.slots}</span><span>${S.short(total)}</span></div>
-  ${cars.length > 1 ? `<div class="row between" style="margin:-2px 2px 10px"><span class="small muted">${sel ? `Обрано ${sel.size} · ${S.fmt(selTotal)}` : 'Продаж: 40–70% ціни моделі, деталі й номер повертаються'}</span>
+  ${cars.length > 1 ? `<div class="row between" style="margin:-2px 2px 10px"><span class="small muted">${sel ? `Обрано ${sel.size} · ${S.fmt(selTotal)}` : 'Продаж: 32–50% ціни моделі, деталі й номер повертаються'}</span>
     <span class="row">${sel ? `<button class="btn sm red" data-act="sellSel" ${sel.size ? '' : 'disabled'}>Продати</button>` : ''}<button class="btn sm ghost" data-act="sellMode">${sel ? 'Скасувати' : 'Продати'}</button></span></div>` : ''}
   <div class="grid">${cars.map((c) => carTile(c, { sel: sel?.has(c.id), act: sel ? 'selToggle' : 'car' })).join('')}
     ${Array.from({ length: free }, () => '<button class="slot" data-act="toCases">+ Вільне місце</button>').join('')}

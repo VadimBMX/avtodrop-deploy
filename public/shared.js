@@ -255,8 +255,10 @@ export const CASE_CORRIDOR = { lo: 0.5, hi: 12 };
 // Key fragments: every drop worth less than its case leaves a fragment of that case's key; FRAGMENTS_PER_KEY of them
 // make a free key. With ~40–45% of drops below the price, a free case comes every ~18–20 paid opens.
 export const FRAGMENTS_PER_KEY = 8;
-// Instant sale by class: grey 60%, blue 50%, purple 45%, gold 40%, red 35%; no daily limit.
-export const SELL_RATES = { D: 0.6, C: 0.5, B: 0.45, A: 0.4, S: 0.35, X: 0.35 };
+// Instant sale by class: grey 50%, blue 45%, purple 42%, gold 37%, red 32%; no daily limit. With boost, luck, the
+// losing-streak save and key fragments counted, open-and-sell returns 0.69–0.79 of the price for every case (tools/sim-cases.mjs),
+// so even the case of the day (CASE_OF_DAY.off cheaper) never farms money.
+export const SELL_RATES = { D: 0.5, C: 0.45, B: 0.42, A: 0.37, S: 0.32, X: 0.32 };
 export const sellPriceOf = (model) => Math.floor(MODELS[model].price * SELL_RATES[MODELS[model].cls]);
 
 // Inside a class, cheaper cars drop more often (weight ∝ 1/√price), like in the original.
@@ -287,8 +289,8 @@ export const CASES = [
   { id: 'starter', name: 'Стартовий', icon: 'gift', group: 'gift', weights: { D: 100 }, starter: true },
   // Rarity cases: a ladder of prices, each about 2.5× the one before, so there is always a next step.
   { id: 'rust', name: 'Іржавий гараж', icon: 'tool', group: 'rarity', price: 60000, weights: { D: 93, C: 7 }, pity2: false },
-  { id: 'city', name: 'Міський', icon: 'building-skyscraper', group: 'rarity', price: 300000, weights: { C: 90, B: 10 } },
-  { id: 'tuning', name: 'Тюнінг-ательє', icon: 'tool', group: 'rarity', price: 900000, weights: { C: 42, B: 56, A: 2 } },
+  { id: 'city', name: 'Міський', icon: 'building-skyscraper', group: 'rarity', price: 300000, weights: { C: 92.5, B: 7.5 } },
+  { id: 'tuning', name: 'Тюнінг-ательє', icon: 'tool', group: 'rarity', price: 900000, weights: { C: 45, B: 53.5, A: 1.5 } },
   { id: 'sport', name: 'Спорткар', icon: 'flag-3', group: 'rarity', price: 2000000, weights: { B: 86, A: 14 } },
   { id: 'premium', name: 'Преміум', icon: 'diamond', group: 'rarity', price: 5000000, weights: { B: 46, A: 51, S: 3 } },
   { id: 'elite', name: 'Еліта', icon: 'crown', group: 'rarity', price: 10000000, weights: { A: 89, S: 11 } },
@@ -296,13 +298,13 @@ export const CASES = [
 // Country cases start cheap and have a wider ceiling (hi), so the country's dear cars — the ones its collection needs —
 // can still drop from its own case, rarely. Ukraine's gold Soviet rarities drop only from here (homeOnly).
 const COUNTRY_CASES = {
-  UA: { price: 70000, weights: { D: 86, C: 13.7, A: 0.3 }, hi: 250 },
-  JP: { price: 500000, weights: { C: 82, B: 17, A: 0.9, S: 0.1 }, hi: 240 },
-  DE: { price: 550000, weights: { C: 80, B: 18.5, A: 1.4, S: 0.1 }, hi: 200 },
-  CN: { price: 550000, weights: { D: 12, C: 69.5, B: 17.3, A: 0.9, S: 0.3 }, hi: 300 },
-  US: { price: 2500000, weights: { B: 86, A: 13.5, S: 0.5 }, hi: 50 },
-  GB: { price: 4000000, weights: { B: 72, A: 26.5, S: 1.5 }, hi: 35 },
-  IT: { price: 4500000, weights: { B: 60, A: 38, S: 2 }, hi: 30 },
+  UA: { price: 55000, weights: { D: 95, C: 4.85, A: 0.15 }, hi: 250 },
+  JP: { price: 450000, weights: { C: 82, B: 17, A: 0.9, S: 0.1 }, hi: 240 },
+  DE: { price: 400000, weights: { C: 88, B: 11.1, A: 0.84, S: 0.06 }, hi: 200 },
+  CN: { price: 480000, weights: { C: 88.9, B: 10.4, A: 0.54, S: 0.18 }, hi: 300 },
+  US: { price: 2400000, weights: { B: 88.8, A: 10.8, S: 0.4 }, hi: 50 },
+  GB: { price: 3100000, weights: { B: 83.2, A: 15.9, S: 0.9 }, hi: 35 },
+  IT: { price: 3200000, weights: { B: 80, A: 19, S: 1 }, hi: 30 },
 };
 for (const c of MAIN_COUNTRIES) {
   const cc = COUNTRY_CASES[c];
@@ -316,10 +318,10 @@ for (const c of MAIN_COUNTRIES) {
 // Luck only ever improves a roll, is never shown to players, and fades as soon as drops pay off again.
 // Boost: on top of the odds shown, every case roll has this chance to throw the class twice and keep the better one
 // (the shown odds are the minimum; players get a little more than promised).
-export const BOOST = 0.25;
+export const BOOST = 0.15;
 // Losing streak: after `streak` drops in a row worth less than the case price, the next roll is thrown up to
 // `tries` times until a car worth the price comes; after `hardStreak` it is guaranteed (the cheapest such car).
-export const LUCK = { decay: 0.95, threshold: 0.4, max: 0.5, broke: 0.6, brokeCash: 100000, brokeBelow: 500000, rescueHours: 12, streak: 4, tries: 4, hardStreak: 6 };
+export const LUCK = { decay: 0.95, threshold: 0.3, max: 0.5, broke: 0.6, brokeCash: 100000, brokeBelow: 500000, rescueHours: 12, streak: 6, tries: 2, hardStreak: 10 };
 export const isBroke = (balance, garageValue) => balance < LUCK.brokeCash && balance + garageValue < LUCK.brokeBelow;
 // expected / got: fading sums of the opened cases' expected values and of the drops' values.
 export function luckChance(expected, got, broke = false) {
@@ -366,7 +368,7 @@ for (const cs of CASES) {
 }
 export const CASE_BY_ID = Object.fromEntries(CASES.map((c) => [c.id, c]));
 // Case of the day: one rarity case (never the starter) is CASE_OF_DAY.off cheaper for the whole Kyiv day.
-export const CASE_OF_DAY = { off: 0.2 };
+export const CASE_OF_DAY = { off: 0.1 };
 const DAY_CASES = CASES.filter((c) => c.group === 'rarity');
 export function caseOfDay(day) {
   let h = 0;
@@ -506,8 +508,9 @@ export function carValue(car) {
 }
 // Garage income per hour, as a share of the car's value, by class: cheap cars earn a bigger share so a new player
 // isn't stuck waiting, expensive cars a smaller one so the late game doesn't print money.
-// D 8% (a 60k car → 4.8k/h), C 4.5%, B 2%, A 0.8%, S 0.4%, secret cars 0.3%.
-export const CLASS_INCOME = { D: 0.08, C: 0.045, B: 0.02, A: 0.008, S: 0.004, X: 0.003 };
+// D 5% (a 60k car → 3k/h), C 3%, B 1.3%, A 0.5%, S 0.25%, secret cars 0.15%: a kept drop pays its case back in ~2–3 days
+// of play (owner chose a softer cut than tools/sim.mjs suggests).
+export const CLASS_INCOME = { D: 0.05, C: 0.03, B: 0.013, A: 0.005, S: 0.0025, X: 0.0015 };
 export const incomeRateOf = (model) => CLASS_INCOME[MODELS[model].cls];
 // Income per hour of a car: its class rate on the car itself; installed parts and the plate earn only the lowest
 // rate (X), so dear parts on a cheap high-rate car can't print money.
@@ -574,11 +577,11 @@ export const TRAINING = { id: 'train', name: 'Тренування', delta: [0.8
 // Race entry/prize multiplier by class (kept for PvP-free tables and old saves).
 export const CLASS_MULT = { D: 2.5, C: 8, B: 25, A: 120, S: 600, X: 1250 };
 // Race prizes follow the price of the car model you race, whatever its class (parts help you win, they don't raise
-// the stakes): the hard rival pays 18 000 × (price / 40 000)^0.65 — ~45% of a 40k car, ~2% of a 200M one — the
+// the stakes): the hard rival pays 18 000 × (price / 40 000)^0.55 — ~45% of a 40k car, ~1% of a 200M one — the
 // medium one half that, the easy one a quarter; the entry is ~30% of the prize. A dearer car always races for more.
 export function raceMoney(op, value) {
   const hard = OPPONENTS[OPPONENTS.length - 1].prize;
-  const top = 18000 * Math.pow(Math.max(value, 1000) / 40000, 0.65);
+  const top = 18000 * Math.pow(Math.max(value, 1000) / 40000, 0.55);
   const prize = Math.max(1000, Math.round((top * op.prize) / hard / 1000) * 1000);
   return { prize, entry: Math.round((prize * op.entry) / op.prize / 1000) * 1000 };
 }
@@ -700,10 +703,10 @@ export const COLLECTION_MILESTONES = [
   { n: 5, money: 20000 },
   { n: 10, money: 60000, slots: 1 },
   { n: 20, money: 150000 },
-  { n: 30, money: 400000, slots: 1 },
-  { n: 45, money: 1500000 },
-  { n: 60, money: 4000000, slots: 1 },
-  { n: 80, money: 12000000 },
+  { n: 30, money: 350000, slots: 1 },
+  { n: 45, money: 1100000 },
+  { n: 60, money: 3000000, slots: 1 },
+  { n: 80, money: 8000000 },
   { n: ALL_MODELS.filter((m) => !m.secret).length, money: 30000000, slots: 2, label: 'Уся колекція' },
 ];
 // ---------- achievements ----------
@@ -773,8 +776,8 @@ export function achRewardText(rw) {
   return out.join(' + ');
 }
 
-// Money for finishing a country collection (on top of its secret car): 15% of that secret car's value.
-export const COUNTRY_REWARD = Object.fromEntries(MAIN_COUNTRIES.map((c) => [c, Math.round((MODELS[SECRET_BY_COUNTRY[c]].price * 0.15) / 10000) * 10000]));
+// Money for finishing a country collection (on top of its secret car): 11% of that secret car's value.
+export const COUNTRY_REWARD = Object.fromEntries(MAIN_COUNTRIES.map((c) => [c, Math.round((MODELS[SECRET_BY_COUNTRY[c]].price * 0.11) / 10000) * 10000]));
 
 // ---------- upgrade (CS-style: risk your cars for a chance at a pricier one) ----------
 // Trade-in at the dealer: three cars of one class go in, one car comes out — of the next class with `chance`, else
@@ -876,7 +879,7 @@ export function passLevel(xp) {
   while (lvl < SEASON.levels && left >= passXpFor(lvl)) left -= passXpFor(lvl++);
   return { level: lvl, xp: left, need: lvl < SEASON.levels ? passXpFor(lvl) : 0 };
 }
-const passMoney = (l) => niceRound(25000 * Math.pow(l, 1.5));
+const passMoney = (l) => niceRound(16000 * Math.pow(l, 1.5));
 // Free and premium rewards for each level 2…30 (level 1 is where everyone starts).
 export function passReward(season, lvl, premium) {
   if (!premium) {
