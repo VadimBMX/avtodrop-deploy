@@ -1,0 +1,45 @@
+﻿АВТОДРОП — промпти для картинок деталей (11 штук, один стиль)
+=============================================================
+
+ЯК КОРИСТУВАТИСЯ
+1. Копіюй промпт повністю (рядок після «PROMPT:») у Gemini або інший генератор.
+2. Збережи картинку в  C:\Users\vdm\Desktop\avtodrop\raw-cars\  з назвою з цього файлу:
+   eng.png, turbo.png, exhaust.png, gearbox.png, suspension.png, wheels.png, brakes.png, body.png,
+   motor.png, battery.png, reducer.png (деталі електромобілів)
+3. Запусти  npm run cars  (або python -I tools/prepare_cars.py) — фон виріжеться, картинка ляже в public/parts/.
+   Гра підхопить її протягом 30 секунд. Колір рівня (Stock…Race) гра малює сама — картинка одна на тип.
+
+--------------------------------------------------------------------------
+eng | Двигун
+PROMPT: Photorealistic studio product photo of a modern high-performance car engine block with intake manifold, single object, three-quarter view from slightly above, clean metal and black parts, soft even studio lighting, small soft shadow, plain flat light-grey background (#D9D9D9) with nothing else, object centered with empty space around it, no text, no logos, no watermark. Square 1:1.
+--------------------------------------------------------------------------
+turbo | Турбіна
+PROMPT: Photorealistic studio product photo of a car turbocharger, single object, three-quarter view showing the snail-shaped housing and compressor wheel, polished steel with heat-tinted metal, soft even studio lighting, small soft shadow, plain flat light-grey background (#D9D9D9) with nothing else, object centered with empty space around it, no text, no logos, no watermark. Square 1:1.
+--------------------------------------------------------------------------
+exhaust | Вихлоп
+PROMPT: Photorealistic studio product photo of a sports car exhaust system with a muffler and twin polished tips, single object, three-quarter view, brushed stainless steel with a little titanium blue tint, soft even studio lighting, small soft shadow, plain flat light-grey background (#D9D9D9) with nothing else, object centered with empty space around it, no text, no logos, no watermark. Square 1:1.
+--------------------------------------------------------------------------
+gearbox | КПП
+PROMPT: Photorealistic studio product photo of a car manual gearbox (transmission) with the gear shifter knob on top, single object, three-quarter view, aluminium casing, soft even studio lighting, small soft shadow, plain flat light-grey background (#D9D9D9) with nothing else, object centered with empty space around it, no text, no logos, no watermark. Square 1:1.
+--------------------------------------------------------------------------
+suspension | Підвіска
+PROMPT: Photorealistic studio product photo of a car coilover suspension unit (shock absorber with a red coil spring), single object, standing upright at a slight angle, soft even studio lighting, small soft shadow, plain flat light-grey background (#D9D9D9) with nothing else, object centered with empty space around it, no text, no logos, no watermark. Square 1:1.
+--------------------------------------------------------------------------
+wheels | Диски і шини
+PROMPT: Photorealistic studio product photo of a single sports car wheel with a multi-spoke dark alloy rim and a low-profile tyre, single object, three-quarter view, soft even studio lighting, small soft shadow, plain flat light-grey background (#D9D9D9) with nothing else, object centered with empty space around it, no text, no logos, no watermark. Square 1:1.
+--------------------------------------------------------------------------
+brakes | Гальма
+PROMPT: Photorealistic studio product photo of a car brake kit: a large drilled brake disc with a red brake caliper, single object, three-quarter view, soft even studio lighting, small soft shadow, plain flat light-grey background (#D9D9D9) with nothing else, object centered with empty space around it, no text, no logos, no watermark. Square 1:1.
+--------------------------------------------------------------------------
+body | Обвіс
+PROMPT: Photorealistic studio product photo of a carbon-fibre car rear spoiler wing, single object, three-quarter view, glossy carbon weave, soft even studio lighting, small soft shadow, plain flat light-grey background (#D9D9D9) with nothing else, object centered with empty space around it, no text, no logos, no watermark. Square 1:1.
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+motor | Електромотор
+PROMPT: Photorealistic studio product photo of a compact electric car drive motor (permanent-magnet EV motor with orange high-voltage cable connectors), single object, three-quarter view from slightly above, clean silver and black casing, soft even studio lighting, small soft shadow, plain flat light-grey background (#D9D9D9) with nothing else, object centered with empty space around it, no text, no logos, no watermark. Square 1:1.
+--------------------------------------------------------------------------
+battery | Батарея
+PROMPT: Photorealistic studio product photo of an electric car high-voltage battery pack (flat skateboard-style pack with visible cell modules and orange connectors), single object, three-quarter view from slightly above, clean grey and black, soft even studio lighting, small soft shadow, plain flat light-grey background (#D9D9D9) with nothing else, object centered with empty space around it, no text, no logos, no watermark. Square 1:1.
+--------------------------------------------------------------------------
+reducer | Редуктор
+PROMPT: Photorealistic studio product photo of an electric car single-speed reduction gearbox (compact aluminium reducer housing with two gears visible through a cutaway), single object, three-quarter view from slightly above, clean machined metal, soft even studio lighting, small soft shadow, plain flat light-grey background (#D9D9D9) with nothing else, object centered with empty space around it, no text, no logos, no watermark. Square 1:1.
