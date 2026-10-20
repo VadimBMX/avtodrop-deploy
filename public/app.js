@@ -252,7 +252,7 @@ function renderHeader() {
   $('#giftBadge').hidden = !giftReady;
   $('#menuDot').hidden = !(me.incomingTrades || me.unread || claimableCollection() || me.newbie?.ready || me.achReady);
   $('#title').textContent = state.page ? PAGE_TITLES[state.page] : TITLES[state.tab];
-  $('#title').classList.toggle('long', $('#title').textContent.length > 9);
+  $('#title').classList.toggle('long', $('#title').textContent.length > 8);
   for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('on', b.dataset.tab === state.tab && !state.page);
   if (tg?.initData && tg.BackButton) state.page ? tg.BackButton.show() : tg.BackButton.hide();
 }
@@ -592,7 +592,7 @@ function carSheet(id) {
   const locked = c.status === 'market' || c.status === 'auction';
   sheet(esc(m.name), `
     <div class="center">${clsBadge(m.cls)} <span class="chip">${S.CLASSES[m.cls].name}</span> <span class="chip">${S.COUNTRIES[m.country].flag} ${S.COUNTRIES[m.country].name}</span> <span class="chip">${m.year}</span></div>
-    <div class="hero"><div class="art">${carArt(c.model, { glow: S.rankOf(m.cls) >= 3 })}</div>${c.plate ? `<div class="plate-on">${plate(c.plate.text)}</div>` : ''}</div>
+    <div class="hero" style="--c:${S.CLASSES[m.cls].color}"><div class="art">${carArt(c.model, { glow: S.rankOf(m.cls) >= 3 })}</div>${c.plate ? `<div class="plate-on">${plate(c.plate.text)}</div>` : ''}</div>
     <div class="stat four"><div><b>${c.hp}</b><span>к.с.${c.hp > m.hp ? ` <span class="win">+${c.hp - m.hp}</span>` : ''}</span></div><div><b>${c.et.toFixed(2)}</b><span>402 м, с</span></div><div><b>${S.short(c.value)}</b><span>вартість</span></div><div><b>${S.short(c.income)}</b><span>дохід / год</span></div></div>
     ${locked ? `<div class="card mt center muted">Авто виставлено на ${c.status === 'market' ? 'ринок' : 'аукціон'} — керуй ним у «Меню → Ринок → Мої лоти».</div>` : `
     <div class="list mt">
@@ -744,7 +744,7 @@ TABS.cases = () => {
     const m = M(car.model);
     const rank = S.rankOf(m.cls), color = S.CLASSES[m.cls].color;
     const fresh = state.fx?.type === 'case';
-    stage = `<div class="reveal-wrap" id="revealWrap"><div class="art ${fresh ? 'reveal' : ''}" id="dropArt">${carArt(car.model, { glow: rank >= 2 })}</div></div>
+    stage = `<div class="reveal-wrap r${rank}" id="revealWrap" style="--c:${color}"><div class="art ${fresh ? 'reveal' : ''}" id="dropArt">${carArt(car.model, { glow: rank >= 2 })}</div></div>
       <div class="result-name ${fresh ? 'pop' : ''} ${rank >= 3 ? 'shimmer' : ''}" style="--c:${color}">${esc(m.name)}</div>
       <div class="mt ${fresh ? 'pop2' : ''}">${clsBadge(m.cls)} <span class="chip" style="color:${color}">${S.CLASSES[m.cls].name}</span> <span class="chip">${flag(car.model)} ${S.COUNTRIES[m.country].name}</span>${forced ? ' <span class="chip">гарантія</span>' : ''}${d[0].fragment ? ` <span class="chip" style="color:var(--accent)">${ic('key')} +фрагмент</span>` : ''}</div>
       <div class="small muted mt ${fresh ? 'pop2' : ''}">${isNew ? `<span style="color:var(--accent)">${ic('sparkles')} Нова в колекції</span> · ` : ''}Вартість <b id="dropValue">${S.fmt(car.value)}</b>${d[0].sold ? ` · <span class="win">продано за ${S.fmt(sellPrice(car.model))}</span>` : ''}</div>`;
@@ -764,7 +764,7 @@ TABS.cases = () => {
     .filter(([cls]) => cls).map(([cls, left]) => `${clsBadge(cls)} або краще через ${left}`).join(' · ');
   return `<div class="feed" id="dropFeed"></div>
     <div class="row between"><button class="picker" data-act="casePicker">${caseIcon(cs)} ${esc(cs.name)} ▾</button>${dayCase ? `<span class="chip dayc">${ic('flame')} Кейс дня −${S.CASE_OF_DAY.off * 100}%</span>` : ''}<button class="iconbtn" data-act="odds">i</button></div>
-    <div class="stage" id="stage" style="${d?.length > 1 ? 'height:auto;min-height:230px' : ''}">${stage}</div>
+    <div class="stage ${d?.length ? 'lit' : ''}" id="stage" style="${d?.length > 1 ? 'height:auto;min-height:230px;' : ''}${d?.length ? `--c:${S.CLASSES[M(d.reduce((a, r) => (S.rankOf(M(r.car.model).cls) > S.rankOf(M(a.car.model).cls) ? r : a)).car.model).cls].color}` : ''}">${stage}</div>
     ${cs.starter ? '' : `<div class="seg">${[1, 3, 6].map((k) => `<button class="${k === n ? 'on' : ''}" data-act="pickCount" data-n="${k}">×${k}</button>`).join('')}</div>`}
     ${(() => {
       const short = price * paid - me.balance;
@@ -1009,7 +1009,7 @@ TABS.race = async () => {
   const cls = M(car.model).cls;
   return seg + `<div class="h2"><span>Твоя машина</span><span>${garage.length}</span></div>
     <div class="carpick">${garage.map((c) => carTile(c, { act: 'pickRaceCar', sel: c.id === car.id, showTank: true })).join('')}</div>
-    <div class="card mt"><div class="row between"><b class="disp" style="font-size:16px">${ic('gas-station')} ПАЛЬНЕ ${me.fuel}/${S.FUEL_MAX}</b><span class="small muted">${me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}"></span>` : 'бак повний'}</span></div>
+    <div class="card mt"><div class="row between"><b class="disp" style="font-size:16px">${ic('gas-station')} Пальне ${me.fuel}/${S.FUEL_MAX}</b><span class="small muted">${me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}"></span>` : 'бак повний'}</span></div>
       <div class="progress gold mt"><i style="width:${(me.fuel / S.FUEL_MAX) * 100}%"></i></div>
       <div class="row between small mt"><span>Бак ${esc(M(car.model).name)}: <b>${car.tank}/${S.CAR_TANK}</b></span><span class="muted">${car.tankNext ? `+1 через <span data-until="${car.tankNext - clockOffset}"></span>` : 'повний'}</span></div>
       <div class="tiny muted mt">Загальний бак — на всі машини, і в кожної машини свій бак на ${S.CAR_TANK} гонок · ${car.hp} к.с. · ${car.et.toFixed(2)} с на 402 м</div></div>
@@ -1261,7 +1261,7 @@ async function driftView(car, garage) {
   const zone = Math.round(model.zone[1] - model.zone[0]);
   return `<div class="h2"><span>Твоя машина</span><span>${garage.length}</span></div>
     <div class="carpick">${garage.map((c) => carTile(c, { act: 'pickRaceCar', sel: c.id === car.id, showTank: true })).join('')}</div>
-    <div class="card mt"><div class="row between"><b class="disp" style="font-size:16px">${ic('gas-station')} ПАЛЬНЕ ${me.fuel}/${S.FUEL_MAX}</b><span class="small muted">бак машини ${car.tank}/${S.CAR_TANK}</span></div>
+    <div class="card mt"><div class="row between"><b class="disp" style="font-size:16px">${ic('gas-station')} Пальне ${me.fuel}/${S.FUEL_MAX}</b><span class="small muted">бак машини ${car.tank}/${S.CAR_TANK}</span></div>
       <div class="row mt" style="gap:8px;flex-wrap:wrap"><span class="chip">зелена зона ${zone}°</span><span class="chip">занос ${model.turn}°/с</span><span class="chip">вирівнювання ${model.recover}°/с</span></div>
       <div class="tiny muted mt">Ширша зелена зона — легше тримати занос (підвіска й диски). Більше потужності — різкіший занос.</div></div>
     <div class="h2"><span>Суперники в дрифті</span><span>${S.DRIFT.corners} поворотів</span></div>
@@ -3548,8 +3548,9 @@ H.toggleDnd = async () => {
     tg.ready();
     tg.expand();
     try {
-      tg.setHeaderColor('#07090d');
-      tg.setBackgroundColor('#07090d');
+      tg.setHeaderColor('#0b0f16');
+      tg.setBackgroundColor('#0b0f16');
+      tg.setBottomBarColor?.('#0e131b');
       tg.disableVerticalSwipes?.();
     } catch {}
     tg.BackButton?.onClick(back);

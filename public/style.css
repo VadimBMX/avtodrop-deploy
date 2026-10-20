@@ -568,17 +568,10 @@ input:focus { border-color: var(--line2); }
 .toggle.on { background: #34c759; }
 .toggle.on::after { background: #fff; }
 
-/* garage cards: neutral grey, rarity only as the small badge (colour stays for drops, battles and the case reel) */
-.grid .car, .carpick .car { background: var(--card) !important; border: 0 !important; border-radius: var(--r) !important; box-shadow: none !important; padding: 10px 12px 12px; }
-.grid .car::before, .carpick .car::before { display: none; }
-/* Rarity as a soft glow out of the top-left corner (where the class badge sits), fading diagonally into grey. */
-.grid .car[style*="--c"], .carpick .car[style*="--c"] {
-  background: radial-gradient(130% 100% at 0% 0%, color-mix(in srgb, var(--c) 34%, transparent) 0%, color-mix(in srgb, var(--c) 10%, transparent) 38%, transparent 62%), var(--card) !important;
-}
+/* garage cards: see the v3 «Нічний паддок» block at the end */
 .car .nm { font: 600 14.5px/1.2 var(--f-body); letter-spacing: 0; }
 .car .meta { font-size: 12px; }
 .car .new, .car .status { font-family: var(--f-body); letter-spacing: 0; text-transform: none; border-radius: 999px; }
-.car.sel { outline: 2px solid #f2f2f7; }
 .slot { border: 1px dashed var(--line2); border-radius: var(--r); font-size: 13px; }
 .slot.buy { border: 0; background: var(--card); }
 .slot b { font-family: var(--f-body); }
@@ -808,3 +801,271 @@ input:focus { border-color: var(--line2); }
 .fi { white-space: nowrap; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
 .fi .fm { color: var(--c); font-weight: 700; }
 .dayc { color: var(--accent); border-color: #4a3c10; background: #2a2208; }
+
+/* ============================================================================================================
+   v3 «Нічний паддок»: an asphalt-blue night garage. Every car stands under a spotlight on a floor lit in its class
+   colour; timing-board yellow is the only accent; titles and numbers are a slanted condensed face (Fira Sans
+   Condensed, self-hosted), body text stays Manrope. Overrides v1/v2 above; delete this block to go back to v2.
+   Cheap-phone rules: no backdrop blur, no animated filters or big shadows in loops, motion off with reduced motion.
+   ============================================================================================================ */
+:root {
+  --bg: #0b0f16;          /* asphalt at night */
+  --bg-hi: #131a27;       /* floodlight wash at the top of the screen */
+  --card: #141a24;        /* pit wall */
+  --card2: #1c2330;       /* raised surface */
+  --card3: #262f3f;       /* pressed / active */
+  --line: #232c3b;
+  --line2: #33405a;
+  --text: #eef1f6;
+  --muted: #8a94a7;
+  --accent: #ffc400;      /* timing-board yellow */
+  --accent-hi: #ffd84d;
+  --accent-ink: #1a1300;
+  --accent-soft: #ffc4001f;
+  --green: #2fd27a;
+  --red: #ff4d5a;
+  --r: 14px; --r-sm: 10px;
+  --f-body: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --f-disp: 'Fira Sans Condensed', 'Roboto Condensed', 'Arial Narrow', system-ui, sans-serif;
+  --slant: skewX(-8deg);
+  --tabs-h: 64px;
+}
+html, body { font: 500 14.5px/1.4 var(--f-body); }
+body { background: radial-gradient(120% 340px at 50% -60px, var(--bg-hi), var(--bg) 70%) no-repeat, var(--bg); }
+#app { padding-bottom: calc(var(--tabs-h) + 24px + var(--safe-b)); }
+
+/* header: slanted condensed title like a livery number, balance as a yellow readout */
+.top { background: linear-gradient(var(--bg) 72%, #0b0f1600); padding: 12px 16px 12px; }
+.top h1 { font: 800 27px/1.05 var(--f-disp); letter-spacing: .2px; transform: var(--slant); transform-origin: left center; padding-right: 6px; }
+.top h1.long { font-size: 22px; }
+.iconbtn { width: 38px; height: 38px; border-radius: var(--r-sm); background: var(--card); border: 1px solid var(--line); }
+.balance { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 7px 10px 7px 9px; color: var(--accent); font: 700 16.5px/1.2 var(--f-disp); letter-spacing: .2px; display: inline-flex; align-items: center; gap: 5px; }
+.balance::before { content: ''; width: 6px; height: 13px; background: var(--accent); transform: skewX(-14deg); border-radius: 1px; }
+.avatar .face { background: var(--card2); }
+.avatar .lvl, .badge { border-radius: 4px; font-family: var(--f-disp); font-weight: 800; }
+.avatar .lvl { border-color: var(--bg); }
+
+/* bottom bar: docked, solid (no blur — cheap phones), icons back; «Кейси» is the raised main action */
+.tabs { left: 0; right: 0; bottom: 0; transform: none; width: auto; max-width: none; border-radius: 0; gap: 0; border: 0; border-top: 1px solid var(--line);
+  padding: 4px max(6px, calc(50% - 254px)) calc(4px + var(--safe-b)); background: #0e131b; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.tabs button { flex: 1; min-width: 0; padding: 7px 0 5px; font-size: 23px; gap: 3px; border: 0; border-radius: 0; color: var(--muted); }
+.tabs button .i { display: block; }
+.tabs button span { font: 600 11.5px var(--f-disp); letter-spacing: .3px; color: inherit; }
+.tabs button.on { background: none; border: 0; color: var(--accent); }
+.tabs button.on span { color: var(--accent); font-weight: 700; }
+.tabs button.on::before { display: block; content: ''; position: absolute; top: -5px; left: 32%; right: 32%; height: 3px; background: var(--accent); transform: skewX(-24deg); border-radius: 1px; }
+.tabs button[data-tab="cases"] .i { box-sizing: content-box; width: 26px; height: 26px; padding: 8px 12px; margin: -22px 0 0; border-radius: 12px; color: var(--accent-ink);
+  background: linear-gradient(180deg, var(--accent-hi), var(--accent)); box-shadow: 0 0 0 4px #0e131b, 0 8px 18px -6px #ffc40088; }
+.tabs button[data-tab="cases"].on::before { display: none; }
+.tabs button[data-tab="cases"]:not(.on) span { color: var(--text); }
+.tabs .dot { top: 6px; right: calc(50% - 17px); border: 2px solid #0e131b; width: 10px; height: 10px; }
+.mybar { bottom: calc(var(--tabs-h) + 8px + var(--safe-b)); }
+
+/* type: section labels and numbers in the condensed face */
+.h2 { font: 600 15px var(--f-disp); letter-spacing: .2px; color: var(--muted); margin: 22px 2px 9px; }
+.big { font: 800 40px/1.05 var(--f-disp); letter-spacing: 0; transform: var(--slant); transform-origin: left; }
+.disp { font-family: var(--f-disp); letter-spacing: .2px; }
+.card, .list { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); box-shadow: inset 0 1px 0 #ffffff07; }
+.li { border-top: 1px solid var(--line); }
+.li .ic { background: var(--card2); border-radius: var(--r-sm); }
+.chip { background: var(--card2); border: 0; border-radius: 5px; font-weight: 600; }
+
+/* class badge: a slanted plate in the class colour */
+.cls { border-radius: 3px; transform: skewX(-10deg); font: 800 12px/1 var(--f-disp); min-width: 21px; height: 19px; color: #0b0f16; box-shadow: inset 0 -2px 0 #0003; }
+
+/* buttons: yellow with a lit top edge; sentence case in the condensed face */
+.btn { font: 700 17.5px/1.15 var(--f-disp); letter-spacing: .3px; border-radius: 12px; padding: 14px; }
+.btn, .btn.yellow { background: linear-gradient(180deg, var(--accent-hi), var(--accent) 55%, #f0b000); color: var(--accent-ink); box-shadow: inset 0 1px 0 #fff9, inset 0 -2px 0 #0002; }
+.btn:active { transform: translateY(1px); box-shadow: inset 0 1px 0 #fff6; }
+.btn.ghost { background: var(--card2); color: var(--text); border: 1px solid var(--line2); box-shadow: none; }
+.btn.outline { background: transparent; color: var(--text); border: 1px solid var(--line2); box-shadow: none; }
+.btn.red { background: transparent; color: #ff8a92; border: 1px solid #5a2430; box-shadow: none; }
+.btn.green { background: var(--green); box-shadow: inset 0 1px 0 #fff6; }
+.btn.sm { font-size: 15px; padding: 8px 13px; border-radius: 9px; }
+.btn[disabled] { opacity: .4; }
+/* A blocked main action (garage full, not enough money) wears hazard stripes instead of a faded yellow. */
+#view > .btn[disabled]:not([data-act]) { opacity: 1; background: repeating-linear-gradient(-45deg, #241f10 0 12px, #18150c 12px 24px); color: #c9ad5a; border: 1px solid #3a3115; box-shadow: none; font-size: 16px; }
+.btn.btn2 > small { font-family: var(--f-disp); font-size: 13.5px; }
+
+/* segmented control: dark track, the active segment raised with a yellow underline */
+.seg { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 3px; gap: 2px; }
+.seg button { font: 600 15px var(--f-disp); letter-spacing: .3px; border-radius: 9px; padding: 8px 4px 7px; color: var(--muted); }
+.seg button.on { background: var(--card3); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+.chips button { background: var(--card); border: 1px solid var(--line); border-radius: 8px; font: 600 14px var(--f-disp); }
+.chips button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.toggle { background: var(--card3); }
+.toggle.on { background: var(--accent); }
+.toggle.on::after { background: var(--accent-ink); }
+.progress { height: 6px; border-radius: 3px; background: var(--card3); }
+.progress > i { background: linear-gradient(90deg, #f0a800, var(--accent-hi)); border-radius: 3px; }
+
+/* ---------- car cards: a bay in the paddock, the car on a pool of light in its class colour ---------- */
+.car { background: var(--card); border: 0; border-radius: 12px; padding: 9px 11px 11px; box-shadow: inset 0 0 0 1px var(--line); }
+.car::before { display: none; }
+.car[style*="--c"] {
+  background:
+    radial-gradient(64% 17% at 50% var(--fy, 49%), color-mix(in srgb, var(--c) 55%, transparent), transparent 72%),
+    linear-gradient(180deg, color-mix(in srgb, var(--c) 16%, var(--card)) 0%, var(--card) 62%);
+  border: 0; border-left: 0;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent), inset 0 -3px 0 color-mix(in srgb, var(--c) 85%, transparent);
+}
+.car.r0[style*="--c"] {
+  background: radial-gradient(64% 16% at 50% var(--fy, 49%), #9aa4b236, transparent 72%), var(--card);
+  box-shadow: inset 0 0 0 1px var(--line), inset 0 -3px 0 #9aa4b255;
+}
+.car.r3[style*="--c"], .car.r4[style*="--c"], .car.r5[style*="--c"] {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 55%, transparent), inset 0 -3px 0 var(--c), 0 6px 22px -10px var(--c);
+}
+.car.sel[style*="--c"], .car.sel { box-shadow: inset 0 0 0 2px var(--accent), inset 0 -3px 0 var(--accent), 0 0 0 3px var(--accent-soft); }
+.car .art { position: relative; }
+.grid .car .art img, .carpick .car .art img, .multi .car .art img { filter: drop-shadow(0 5px 4px #0009); }
+.car .nm { font: 600 16px/1.15 var(--f-disp); letter-spacing: .2px; }
+.car .meta { font-size: 12px; }
+.car .meta > b.disp { font: 700 16px var(--f-disp) !important; letter-spacing: .2px; }
+.car .tl { top: 9px; left: 10px; }
+.car .tr .chip { background: #0b0f16aa; }
+.car .new { border-radius: 4px; font: 800 11px var(--f-disp); letter-spacing: .4px; transform: skewX(-10deg); }
+.grid .car { min-height: 168px; --fy: 55%; }
+.grid .car .art { height: 86px; margin: 14px 0 6px; }
+.slot { border: 1px dashed var(--line2); border-radius: 12px; background: #141a2466; min-height: 168px; font-family: var(--f-disp); font-size: 14px; }
+.slot.buy { border: 1px solid #4a3c10; background: linear-gradient(180deg, #2a2208, var(--card)); color: var(--accent); }
+.slot b { font: 700 17px var(--f-disp); }
+.tank i { height: 4px; border-radius: 1px; background: var(--card3); transform: skewX(-20deg); }
+.tank i.on { background: var(--accent); }
+
+/* ---------- case screen: a showroom spotlight over the reel / the drop ---------- */
+.picker { background: var(--card); border: 1px solid var(--line); border-radius: 12px; font: 700 17px var(--f-disp); letter-spacing: .2px; padding: 9px 14px; }
+.stage { height: 250px; background: none; isolation: isolate; }
+.stage::before { content: ''; position: absolute; z-index: -1; top: -18px; left: 50%; width: 330px; height: calc(100% + 18px); transform: translateX(-50%); pointer-events: none;
+  background: linear-gradient(180deg, transparent, #ffffff10 28%, color-mix(in srgb, var(--c, #ffffff) 10%, transparent) 72%, transparent);
+  clip-path: polygon(41% 0, 59% 0, 100% 100%, 0 100%); }
+.stage::after { content: ''; position: absolute; z-index: -1; left: 4%; right: 4%; bottom: 6px; height: 54px; pointer-events: none;
+  background: radial-gradient(50% 50% at 50% 50%, color-mix(in srgb, var(--c, #8a94a7) 30%, transparent), transparent 70%); }
+.stage.lit::after { background: radial-gradient(50% 50% at 50% 50%, color-mix(in srgb, var(--c) 55%, transparent), transparent 70%); }
+
+/* the reel: cards on a strip, a yellow gate marks where it stops */
+.reel-wrap { height: 154px; }
+.reel { gap: 8px; padding: 14px 0; }
+.reel .car { width: 132px; padding: 7px 8px 9px; border-radius: 11px; }
+.reel .car .art { height: 68px; margin: 12px 0 4px; }
+.reel .car .nm { font-size: 13.5px; }
+.reel .car .price { font: 700 13px var(--f-disp); }
+.reel-wrap::after { top: 0; bottom: 0; width: 22px; margin-left: -11px; background: var(--accent); box-shadow: none;
+  clip-path: polygon(0 0, 100% 0, calc(50% + 1.5px) 13px, calc(50% + 1.5px) calc(100% - 13px), 100% 100%, 0 100%, calc(50% - 1.5px) calc(100% - 13px), calc(50% - 1.5px) 13px); z-index: 4; }
+.reel-wrap.spinning::after { animation: none; }
+.reel-wrap.spinning .reel .car { filter: none; }   /* no per-card blur while spinning: too heavy on cheap phones */
+.reel .car.winner { transform: translateY(-5px) scale(1.08);
+  box-shadow: inset 0 0 0 2px var(--c), inset 0 -4px 0 var(--c), 0 14px 30px -8px var(--c) !important; }
+.reel .car.winner.r3, .reel .car.winner.r4, .reel .car.winner.r5 { animation: winPulse .9s ease-out 2; }
+@keyframes winPulse { 50% { transform: translateY(-7px) scale(1.12); } }
+.reel-wrap.mini { height: 96px; }
+.reel-wrap.mini::after { width: 16px; margin-left: -8px; clip-path: polygon(0 0, 100% 0, calc(50% + 1px) 9px, calc(50% + 1px) calc(100% - 9px), 100% 100%, 0 100%, calc(50% - 1px) calc(100% - 9px), calc(50% - 1px) 9px); }
+.reel-wrap.mini .reel { padding: 8px 0; }
+
+/* the drop: car on a lit floor, name slanted like a livery */
+.reveal-wrap { height: 160px; }
+.reveal-wrap::after { content: ''; position: absolute; left: 6%; right: 6%; bottom: 0; height: 34px; z-index: 0; pointer-events: none;
+  background: radial-gradient(50% 50% at 50% 50%, color-mix(in srgb, var(--c, #fff) 70%, transparent), transparent 72%); }
+.reveal-wrap .art img { filter: drop-shadow(0 8px 6px #000b); }
+.reveal-wrap .art img.glow { filter: drop-shadow(0 8px 6px #000b) drop-shadow(0 0 16px color-mix(in srgb, var(--c) 60%, transparent)); }
+.result-name { font: 800 31px/1.05 var(--f-disp); letter-spacing: .2px; transform: var(--slant); margin-top: 4px; }
+.result-name.pop { animation: nameIn .5s .25s cubic-bezier(.2, 1.5, .4, 1) both; }
+@keyframes nameIn { from { transform: var(--slant) translateX(-24px); opacity: 0; } }
+.stage .chip { font-family: var(--f-disp); font-size: 13px; letter-spacing: .2px; }
+.reveal-wrap.r3 ~ .result-name, .reveal-wrap.r4 ~ .result-name, .reveal-wrap.r5 ~ .result-name { text-shadow: none; }
+.multi { gap: 7px; }
+.multi .car .art { height: 58px; margin: 16px 0 3px; }
+.dropsell { background: var(--card); border: 1px solid var(--line); font: 700 13.5px var(--f-disp); border-radius: 8px; }
+.hook .row b { font: 700 16px var(--f-disp); }
+.frag-bar { height: 6px; background: var(--card3); }
+.frag-bar i { background: linear-gradient(90deg, #f0a800, var(--accent-hi)); }
+.feed { border-bottom-color: var(--line); }
+
+/* ---------- car sheet: the car under a spotlight, stats as a timing board ---------- */
+.sheet { background: #10151e; border-top: 1px solid var(--line2); border-radius: 18px 18px 0 0; }
+.sheet .list, .sheet .card, .sheet .stat, .sheet input, .sheet .trade-side { background: var(--card); }
+.sheet .li .ic, .sheet .btn.ghost { background: var(--card2); }
+.sheet-head h3 { font: 800 21px/1.1 var(--f-disp); letter-spacing: .2px; transform: var(--slant); }
+.sheet-head .x { background: var(--card2); border-radius: 10px; }
+.hero { height: 170px; isolation: isolate; }
+.hero::before { content: ''; position: absolute; z-index: -1; top: -14px; left: 50%; width: 300px; height: calc(100% + 14px); transform: translateX(-50%); pointer-events: none;
+  background: linear-gradient(180deg, transparent, #ffffff0e 30%, color-mix(in srgb, var(--c, #fff) 12%, transparent) 75%, transparent); clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%); }
+.hero::after { content: ''; position: absolute; z-index: -1; left: 6%; right: 6%; bottom: 2px; height: 30px; pointer-events: none;
+  background: radial-gradient(50% 50% at 50% 50%, color-mix(in srgb, var(--c, #fff) 55%, transparent), transparent 72%); }
+.hero .art img { filter: drop-shadow(0 8px 6px #000b); }
+.stat { background: var(--line); border: 1px solid var(--line); border-radius: 12px; }
+.stat div { background: var(--card); padding: 11px 2px 9px; }
+.stat b { font: 700 18px/1.15 var(--f-disp); letter-spacing: .1px; white-space: nowrap; }
+.stat span { font-size: 11px; text-transform: none; letter-spacing: 0; }
+
+/* ---------- races ---------- */
+.carpick { gap: 8px; }
+.carpick .car { width: 136px; padding: 8px 9px 10px; }
+.carpick .car .art { height: 58px; margin: 12px 0 4px; }
+.carpick .car .nm { font-size: 14.5px; }
+.carpick .car .meta { font-size: 11px; }
+.carpick .car .meta > b.disp { font-size: 14px !important; white-space: nowrap; }
+.carpick .car .meta > span { white-space: nowrap; }
+.rival { padding: 12px 14px; border-top: 1px solid var(--line); }
+.rival .center b.win { font: 700 17px var(--f-disp); white-space: nowrap; }
+.rival .center { flex: none; }
+.diff { font: 700 12px var(--f-disp); border-radius: 4px; letter-spacing: .3px; transform: skewX(-8deg); display: inline-block; }
+
+/* ---------- leaderboard: the podium rows carry their medal colour ---------- */
+.lb { padding: 12px 14px; }
+.lb .pl { width: 30px; font: 800 17px var(--f-disp); transform: var(--slant); }
+.lb b { font: 700 17px var(--f-disp); }
+.lb:has(.m1) { background: linear-gradient(90deg, #ffc40024, transparent 70%); }
+.lb:has(.m2) { background: linear-gradient(90deg, #c4c9d21c, transparent 70%); }
+.lb:has(.m3) { background: linear-gradient(90deg, #c98a521f, transparent 70%); }
+.lb.me { box-shadow: inset 3px 0 0 var(--accent); }
+.medal { border-radius: 4px; transform: skewX(-10deg); font: 800 14px var(--f-disp); width: 24px; height: 24px; }
+.prizes { background: var(--line); border-radius: 10px; }
+.prizes div { background: var(--card2); font: 700 13.5px var(--f-disp); padding: 9px 2px; white-space: nowrap; }
+.mybar { background: var(--card2); border: 1px solid var(--line2); border-left: 0; border-radius: 12px; box-shadow: inset 4px 0 0 var(--accent), 0 10px 26px -8px #000; font: 700 17px var(--f-disp); }
+
+/* ---------- season pass: the premium lane is gold, reached levels light up ---------- */
+.season-card { border: 1px solid #4a3c10; background: linear-gradient(120deg, #2b2309, var(--card) 60%); }
+.season-car { border: 1px solid #1d3d55; background: radial-gradient(70% 55% at 50% 45%, #13304a, var(--card) 75%); }
+.season-car > b { font: 800 22px/1.15 var(--f-disp) !important; transform: var(--slant); display: inline-block; }
+.prow { grid-template-columns: 36px 1fr 1fr; }
+.prow.head { font: 700 13px var(--f-disp); letter-spacing: .3px; text-transform: none; }
+.plvl { font: 800 16px var(--f-disp); border-radius: 8px; background: var(--card); border: 1px solid var(--line); }
+.prow.reached .plvl { transform: skewX(-8deg); }
+.pcell { border-radius: 10px; border: 1px solid var(--line); background: var(--card); font-size: 12.5px; font-weight: 600; }
+.prow > .pcell:last-child { background: linear-gradient(135deg, #261f0b, var(--card) 75%); border-color: #3b3112; }
+.prow > .pcell:last-child .i { color: #c9a640; }
+.pcell.ready { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.pcell.lock { opacity: .7; }
+.pcell.done { opacity: .4; }
+
+/* ---------- store & menu ---------- */
+.offer { border: 1px solid #4a2a7a; background: linear-gradient(135deg, #26143f, var(--card) 70%); }
+.vip-card { border: 1px solid #4a3c10; background: linear-gradient(135deg, #2b2309, var(--card) 70%); }
+.offer b.disp, .vip-card b.disp { transform: var(--slant); display: inline-block; }
+.menu-list .li b { font: 600 17px var(--f-disp); letter-spacing: .2px; }
+.menu-list .mi { border-radius: 9px; }
+.mgroup { font: 600 15px var(--f-disp); letter-spacing: .2px; }
+.toast { border-radius: 12px; background: var(--card2); border: 1px solid var(--line2); border-left: 0; box-shadow: inset 4px 0 0 var(--accent), 0 10px 30px #000a; font-family: var(--f-disp); font-size: 16px; }
+.toast.err { box-shadow: inset 4px 0 0 var(--red), 0 10px 30px #000a; }
+.banner { background: #1a2130f2; backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+/* motion is decoration here: switch the loops off for people who ask for less */
+@media (prefers-reduced-motion: reduce) {
+  .feed-track, .fx-rays, .shimmer, .reel .car.winner, .result-name.pop, .pop, .pop2, .flip-in, .reveal { animation: none !important; }
+  .reel { transition-duration: 1ms !important; }
+}
+
+/* fixes after the first screenshot pass */
+.multi .car .meta > b.disp { font-size: 13.5px !important; }
+.multi .car .meta > span { font-size: 10.5px; }
+.pcase { background: var(--card); border: 1px solid var(--line); }
+.pcase.on { border-color: var(--accent); background: linear-gradient(180deg, #2a2208, var(--card)); box-shadow: inset 0 0 0 1px var(--accent); }
+.pcase b { font: 700 16px var(--f-disp); }
+.pcase .pprice { font: 600 14px var(--f-disp); }
+.ptype.on { color: var(--accent); }
+.ptype.on .part { box-shadow: 0 0 0 2px var(--accent); }
+.stat.four b { font-size: 16.5px; }
+.hero::after { bottom: 16px; }
+/* a main action that is only busy (case spinning) goes neutral instead of a muddy yellow */
+#view > .btn[disabled][data-act] { opacity: 1; background: var(--card2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line2); }
