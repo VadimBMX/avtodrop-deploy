@@ -609,7 +609,12 @@ input:focus { border-color: var(--line2); }
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c, #8e8e93) 45%, transparent); }
 .part .i { width: 1em; height: 1em; stroke-width: 1.7; filter: drop-shadow(0 2px 6px #0008); }
 .part img { width: 88%; height: 88%; object-fit: contain; filter: drop-shadow(0 3px 8px #000a); }
-.part.sm { --s: 38px; }
+.part.sm { --s: 46px; }
+/* Part photos: a light studio tile so dark metal reads; an empty slot is dimmed, an installed part glows in its tier colour. */
+.part.photo { background: radial-gradient(circle at 50% 38%, #4a4e58, #24272e 78%); box-shadow: inset 0 0 0 1px #ffffff14; }
+.part.photo img { width: 94%; height: 94%; filter: drop-shadow(0 2px 4px #0009) contrast(1.08) brightness(1.12); }
+.part.photo.empty img { opacity: .5; filter: grayscale(.7) brightness(.95); }
+.part.photo.on { background: radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--c) 45%, #4a4e58), #24272e 80%); box-shadow: inset 0 0 0 1.5px var(--c), 0 0 10px color-mix(in srgb, var(--c) 40%, transparent); }
 .part.lg { --s: 76px; }
 .li > .part.sm { margin: -2px 0; }
 

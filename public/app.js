@@ -31,7 +31,7 @@ const partIcon = (type) => ic(S.PARTS[type].icon);
 function partArt(type, tier, size = '') {
   const c = tier ? S.CLASSES[S.TIER_BY_ID[tier].cls].color : '#8e8e93';
   const img = config.partImages?.[type];
-  return `<span class="part ${size} ${img ? 'photo' : ''}" style="--c:${c}">${img ? `<img src="${img}" alt="" loading="lazy">` : ic(S.PARTS[type].icon)}</span>`;
+  return `<span class="part ${size} ${img ? 'photo' : ''} ${tier ? 'on' : ''}" style="--c:${c}">${img ? `<img src="${img}" alt="" loading="lazy">` : ic(S.PARTS[type].icon)}</span>`;
 }
 const countryTag = (c) => `<span class="cc sm">${c}</span>`;
 
@@ -602,7 +602,7 @@ function carSheet(id) {
     <div class="h2"><span>Тюнінг · ${partCount(c)}/${partSlots(c)}</span><span>${m.ev ? `${ic('bolt')} електро · ` : ''}деталі від ${S.TIERS[minTier].name}</span></div>
     <div class="list">${S.partKeysOf(c.model).map((k) => {
       const t = c.parts[k];
-      return `<button class="li" data-act="carSlot" data-id="${c.id}" data-type="${k}">${partArt(k, t, 'sm')}<div class="grow"><b>${S.PARTS[k].name}</b><div class="small muted">${t ? S.partEffect(k, t) : S.PARTS[k].hint}</div></div>
+      return `<button class="li" data-act="carSlot" data-id="${c.id}" data-type="${k}">${partArt(k, t, t ? 'sm' : 'sm empty')}<div class="grow"><b>${S.PARTS[k].name}</b><div class="small muted">${t ? S.partEffect(k, t) : S.PARTS[k].hint}</div></div>
         ${t ? clsBadge(tierCls(t)) + ` <b>${S.TIER_BY_ID[t].name}</b>` : '<span class="muted small">Порожньо ›</span>'}</button>`;
     }).join('')}</div>
     ${c.status === 'garage' ? `<div class="btns"><button class="btn yellow" data-act="raceWith" data-id="${c.id}">${ic('flag-3')} Гонка</button>${m.secret ? '' : `<button class="btn ghost" data-act="carSellMenu" data-id="${c.id}">${ic('cash')} Продати</button>`}</div>
