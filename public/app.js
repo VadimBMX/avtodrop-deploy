@@ -4,6 +4,7 @@ import { carArt, setImages } from './car.js';
 import * as PAINT from './paint.js';
 import * as FX from './fx.js';
 import * as SFX from './sfx.js';
+import * as WOW from './wow.js';
 
 const tg = window.Telegram?.WebApp;
 const $ = (s, el = document) => el.querySelector(s);
@@ -396,7 +397,7 @@ async function refresh(rerender = true) {
   const wait = state.fx ? 2600 : 0;
   setTimeout(() => {
     if (me.level > me.levelSeen && guideOn()) return levelToast();
-    if (me.level > me.levelSeen && $('#modal').hidden && !state.opening && !state.race && !battleTimers.length) showLevelUp();
+    if (me.level > me.levelSeen && $('#modal').hidden && !state.opening && !state.race && !battleTimers.length && !WOW.isOpen()) showLevelUp();
   }, wait);
 }
 // During the first steps a level-up doesn't open a window over the path: a toast says it, the gift is already given.
@@ -750,6 +751,7 @@ TABS.garage = () => {
     ${i.comebackUntil ? `<div class="tiny center mt" style="color:#30d158">${ic('gift')} Подарунок повернення: +${S.COMEBACK.capHours} год сховища ще <span data-until="${i.comebackUntil - clockOffset}"></span></div>` : ''}
     <div class="tiny muted center mt">Каса заповнюється за ${i.capH} год${nextCap ? ` · <a data-act="upgradeCap" style="color:#f5b301">збільшити до ${nextCap.hours} год — ${S.short(nextCap.cost)}</a>` : ''}</div>
   </div>
+  ${dreamCard()}
   <div class="h2 garage-h"><span>Машини <b>${all.length}</b>/${me.slots}</span><span>${S.short(total)}${all.length ? `<small class="sellp"> · продаж ~${S.short(sellTotal(all.filter((c) => !M(c.model).secret)))}</small>` : ''}</span></div>
   ${all.length > 1 ? `${present.length > 1 ? `<div class="chips gfilter"><button class="${state.garageCls ? '' : 'on'}" data-act="gFilter" data-k="">Усі</button>${present.map((k) => `<button class="${state.garageCls === k ? 'on' : ''}" data-act="gFilter" data-k="${k}" style="--c:${S.CLASSES[k].color}"><i></i>${k}<small>${all.filter((c) => M(c.model).cls === k).length}</small></button>`).join('')}</div>` : ''}
     <div class="row between sellbar">${sel ? `<span class="small muted">${sel.size ? `Обрано ${sel.size} · ${S.fmt(selTotal)}` : `Обери машини. Продаж: ${Math.round(Math.min(...Object.values(S.SELL_RATES)) * 100)}–${Math.round(Math.max(...Object.values(S.SELL_RATES)) * 100)}% ціни моделі, деталі й номер повертаються`}</span>` : `<button class="gsort" data-act="gSort">${ic('adjustments')}${SORT_NAMES[sort]}</button>`}
@@ -825,6 +827,7 @@ function carSheet(id) {
     <div class="list mt">
       <button class="li" data-act="carShowcase" data-id="${c.id}"><span class="ic">${ic('building-arch')}</span><div class="grow"><b>${c.status === 'showcase' ? 'Повернути в гараж' : 'Виставити на вітрину'}</b><div class="small muted">${c.status === 'showcase' ? 'знову приноситиме дохід' : `вільно місць: ${me.showcaseSlots - me.cars.filter((x) => x.status === 'showcase').length}`}</div></div><span class="chev">›</span></button>
       <button class="li" data-act="carPlate" data-id="${c.id}"><span class="ic">${ic('license')}</span><div class="grow"><b>Номер</b><div class="small muted">${c.plate ? `+${S.short(c.plate.value)} до вартості` : 'немає'}</div></div>${c.plate ? plate(c.plate.text, 'sm') : '<span class="chev">›</span>'}</button>
+      <button class="li" data-act="shareCar" data-id="${c.id}"><span class="ic">${ic('share')}</span><div class="grow"><b>Поділитися</b><div class="small muted">картка машини в Telegram: чат або історія</div></div><span class="chev">›</span></button>
       ${PAINT.canPaint(c.model) || c.look ? `<button class="li" data-act="carPaint" data-id="${c.id}"><span class="ic">${ic('palette')}</span><div class="grow"><b>Фарбування</b><div class="small muted">${c.look ? [S.PAINT_BY_ID[c.look.paint]?.name, S.LIVERY_BY_ID[c.look.livery] && 'ліврея «' + S.LIVERY_BY_ID[c.look.livery].name + '»'].filter(Boolean).join(' · ') : 'заводський колір'}</div></div>${c.look?.paint ? `<span class="sw-dot ${S.PAINT_BY_ID[c.look.paint].finish}" style="--sw:${S.PAINT_BY_ID[c.look.paint].hex}"></span>` : '<span class="chev">›</span>'}</button>` : ''}
     </div>
     <div class="h2 tune-h"><span>Тюнінг <b>${partCount(c)}</b>/${partSlots(c)}</span><span>${isOpen('parts') ? '' : lockChip('parts') + ' '}${m.ev ? `${ic('bolt')} електро · ` : ''}деталі від ${S.TIERS[minTier].name}</span></div>
@@ -1090,7 +1093,7 @@ TABS.cases = () => {
       // The only car can't be sold (the server says «Останню машину продати не можна»), so it isn't offered.
       const last = alive.length && me.cars.length - alive.length < 1;
       const sellBtn = alive.length && !last ? `<button class="btn ghost btn2" data-act="sellDrops"><span>${ic('cash')} ${alive.length > 1 ? 'Продати все' : 'Продати'}</span><small>${S.short(sum)}</small></button>` : '';
-      return `<div class="btns mt"><button class="btn outline" data-act="toGarage">У гараж</button>${sellBtn}</div>${last ? '<div class="tiny muted center mt">Це твоя єдина машина: на ній ганяєш і заробляєш, тому продати її не можна</div>' : ''}`;
+      return `<div class="btns mt"><button class="btn outline" data-act="toGarage">У гараж</button>${sellBtn}</div>${last ? '<div class="tiny muted center mt">Це твоя єдина машина: на ній ганяєш і заробляєш, тому продати її не можна</div>' : ''}${wowShareRow(d)}`;
     })() : ''}
     ${cs.starter ? '' : (() => {
       const fr = me.fragments?.[cs.id] || 0, need = S.FRAGMENTS_PER_KEY;
@@ -1250,6 +1253,7 @@ async function paintFeed() {
 AFTER.cases = () => {
   paintFeed();
   if (state.fx?.type !== 'case' || !state.drop) return;
+  if (wowDrop()) return; // a rare drop gets the full-screen show first; tapping through plays the normal result below
   state.fx = null;
   const best = state.drop.reduce((a, r) => Math.max(a, S.rankOf(M(r.car.model).cls)), 0);
   const color = S.CLASS_ORDER.map((c) => S.CLASSES[c].color)[best];
@@ -3189,7 +3193,7 @@ const collectionCars = () => {
     }).join('')}`;
 };
 H.collMissing = () => (state.collMissing = !state.collMissing, render());
-H.collClaim = (d) => act('collection/claim', { key: d.k }, (r) => `Отримано: ${S.short(r.reward.money)}${r.reward.secret ? ' + секретна машина!' : ''}`);
+H.collClaim = (d) => act('collection/claim', { key: d.k }, (r) => `Отримано: ${S.short(r.reward.money)}${r.reward.secret ? ' + секретна машина!' : ''}`).then(wowSecret);
 H.collAll = () => (state.collAll = !state.collAll, render());
 H.collFilter = (d) => (state.collFilter = d.k, render());
 
@@ -5154,7 +5158,7 @@ H.giftOk = async () => {
   if (giftQueue.length) return setTimeout(showGift, 300);
   await refresh();
 };
-const busyForBanners = () => state.opening || (state.race && state.race.phase !== 'done') || battleTimers.length;
+const busyForBanners = () => state.opening || (state.race && state.race.phase !== 'done') || battleTimers.length || WOW.isOpen();
 async function pulse() {
   if (document.hidden || !me) return;
   let p;
@@ -5246,7 +5250,7 @@ H.bannerClaim = async (d) => {
   if (c.kind === 'quest') return act('quests/claim', { key: c.id }, (r) => `+${S.fmt(r.got)}`);
   if (c.kind === 'weekly') return H.wkClaim({ k: c.id });
   if (c.kind === 'wchest') return H.wkChest({ d: c.id });
-  if (c.kind === 'coll') return act('collection/claim', { key: c.id }, (r) => `Отримано: ${S.short(r.reward.money)}${r.reward.secret ? ' + секретна машина!' : ''}`);
+  if (c.kind === 'coll') return act('collection/claim', { key: c.id }, (r) => `Отримано: ${S.short(r.reward.money)}${r.reward.secret ? ' + секретна машина!' : ''}`).then(wowSecret);
   if (c.kind === 'set') return H.setClaim({ id: c.id });
   if (c.kind === 'ach') return act('ach/claim', { key: c.id }, (r) => `Досягнення: ${r.text}`);
   if (c.kind === 'achAll') return act('ach/claim', {}, (r) => `${r.tiers} досягнень: ${r.text}`);
@@ -5362,3 +5366,240 @@ H.toggleDnd = async () => {
     } catch {}
   }, 20000);
 })();
+
+// ---------- «вау»: the rare-drop takeover, sharing a drop, the dream car (public/wow.js, public/wow.css) ----------
+WOW.init({ haptic, esc, ic, showroom: SHOWROOM_SVG });
+const dropMult = (car) => {
+  const cs = S.CASE_BY_ID[state.dropCase];
+  return cs?.price ? car.value / cs.price : 0;
+};
+// After a case opening: the best rare drop (or the dream car) gets the full-screen show; when the player taps
+// through, AFTER.cases runs again and plays the usual result effects. Once per drop.
+function wowDrop() {
+  const d = state.drop;
+  if (!d || d.wowDone) return false;
+  d.wowDone = true;
+  const pick = WOW.pickDrop(d, { fast: state.fast });
+  if (!pick) return false;
+  const cs = S.CASE_BY_ID[state.dropCase];
+  hideClaimBanners();
+  WOW.celebrate(pick, { casePrice: cs?.price || 0, onShare: (r) => openShare(r.car, { mult: dropMult(r.car) }) }).then(() => {
+    if (state.drop !== d) return;
+    if (state.tab === 'cases' && !state.page) AFTER.cases();
+    else state.fx = null;
+    setTimeout(() => {
+      if (me.level > me.levelSeen && $('#modal').hidden && !state.opening && !state.race && !WOW.isOpen()) guideOn() ? levelToast() : showLevelUp();
+    }, 2600);
+  });
+  return true;
+}
+// A secret car from a finished country collection gets the same show (cyan, the biggest star storm).
+function wowSecret(r) {
+  const model = r?.reward?.secret;
+  if (!model || !M(model)) return r;
+  const car = me.cars.find((c) => c.model === model) || { model, value: M(model).price };
+  closeModal();
+  WOW.celebrate({ car, isNew: true }, { onShare: () => openShare(car) });
+  return r;
+}
+// «Поділитися» under a rare drop (the best one of ×3 / ×6).
+function wowShareRow(d) {
+  const pick = WOW.pickDrop(d.filter((r) => !r.sold));
+  return pick ? `<button class="btn ghost share-drop mt" data-act="shareDrop" data-id="${pick.car.id}">${ic('share')} Поділитися: ${esc(M(pick.car.model).name)}</button>` : '';
+}
+H.shareDrop = (d) => {
+  const r = state.drop?.find((x) => x.car.id === Number(d.id));
+  if (r) openShare(r.car, { mult: dropMult(r.car) });
+};
+H.shareCar = (d) => {
+  const c = me.cars.find((x) => x.id === Number(d.id));
+  if (c) openShare(c, {}, () => carSheet(c.id));
+};
+
+// Sharing: the card is drawn on a canvas (wow.js). «Надіслати в чат» = WebApp.shareMessage with a prepared photo
+// message (Bot API 8.0+, needs the bot and an https WEBAPP_URL), else the t.me/share/url link with the referral
+// link; «В історію» = WebApp.shareToStory (Telegram on iOS/Android only); «Зберегти» = downloadFile / a plain download.
+let shareState = null;
+const tgAt = (v) => !!(tg?.initData && tg.isVersionAtLeast?.(v));
+const shareCaps = () => ({
+  message: !!(tgAt('8.0') && tg.shareMessage && config.bot),
+  story: !!(tgAt('7.8') && tg.shareToStory && /^(ios|android|android_x)$/.test(tg.platform || '')),
+  download: !!(tgAt('8.0') && tg.downloadFile),
+});
+function authHeaders(type) {
+  const h = { 'content-type': type };
+  if (tg?.initData) h['x-init-data'] = tg.initData;
+  else if (config.dev) h['x-dev-user'] = encodeURIComponent(JSON.stringify(devUser()));
+  return h;
+}
+async function uploadCard() {
+  if (shareState.path) return shareState;
+  if (!shareState.blob) throw new Error('Картка ще не готова');
+  const r = await fetch('/api/share/card', { method: 'POST', headers: authHeaders('image/jpeg'), body: shareState.blob });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Не вдалося завантажити картку');
+  Object.assign(shareState, { id: j.id, path: j.path, url: `${location.origin}/${j.path}` });
+  return shareState;
+}
+async function openShare(car, { mult = 0 } = {}, back = null) {
+  const m = M(car.model);
+  const who = me.username ? '@' + me.username : me.firstName || '';
+  sheet('Поділитися', `<div class="share-prev" id="sharePrev" style="--c:${S.CLASSES[m.cls].color}"><div class="share-wait">${ic('sparkles')} Малюю картку…</div></div>
+    <div class="share-acts" id="shareActs"></div>
+    <div class="tiny muted center mt">Друг за твоїм посиланням отримає ${S.short(S.REF_FRIEND_BONUS)} на старт, а ти — ${S.short(S.REF_REWARD)}, коли він досягне 3 рівня</div>`, back);
+  const token = (shareState = { car, blob: null, link: '' });
+  const [blob, ref] = await Promise.all([WOW.shareCard({ model: car.model, value: car.value, mult, who, bot: config.bot }).catch(() => null), api('ref').catch(() => ({}))]);
+  if (shareState !== token || !$('#sharePrev')) return; // the sheet was closed or another share started
+  Object.assign(shareState, { blob, link: ref.link || '' });
+  if (shareState.preview) URL.revokeObjectURL(shareState.preview);
+  shareState.preview = blob ? URL.createObjectURL(blob) : '';
+  $('#sharePrev').innerHTML = blob ? `<img src="${shareState.preview}" alt="Картка: ${esc(m.name)}">` : `<div class="share-wait">Картку не вдалося намалювати — можна поділитися посиланням</div>`;
+  const can = shareCaps();
+  $('#shareActs').innerHTML = `<button class="btn yellow" data-act="shareChat">${ic('share')} Надіслати друзям</button>
+    <div class="btns">${can.story && blob ? `<button class="btn ghost" data-act="shareStory">${ic('sparkles')} В історію</button>` : ''}${blob ? `<button class="btn ghost" data-act="shareSave">Зберегти картинку</button>` : ''}</div>`;
+}
+H.shareChat = async (d, el) => {
+  const st = shareState;
+  if (!st) return;
+  const caption = S.shareCaption(st.car.model);
+  if (shareCaps().message && st.blob) {
+    el.disabled = true;
+    try {
+      await uploadCard();
+      const r = await api('share/prepare', { id: st.id, model: st.car.model });
+      el.disabled = false;
+      return tg.shareMessage(r.preparedId, (ok) => ok && (toast('Надіслано!'), haptic('success')));
+    } catch {
+      el.disabled = false; // an older bot setup or no https: fall back to the plain share link below
+    }
+  }
+  if (st.link) return H.shareRef({ link: st.link, text: caption });
+  navigator.clipboard?.writeText(caption).then(() => toast('Текст скопійовано — посилання з’явиться після підключення бота'), () => toast(caption));
+};
+H.shareStory = async (d, el) => {
+  const st = shareState;
+  if (!st) return;
+  el.disabled = true;
+  try {
+    await uploadCard();
+    // A link widget is for Premium users only; everyone else gets the link in the caption (200 characters max).
+    const premium = !!tg.initDataUnsafe?.user?.is_premium;
+    const name = M(st.car.model).name;
+    const text = (premium || !st.link ? `🏁 ${name} — мій дроп в АВТОДРОП!` : `🏁 ${name} — мій дроп в АВТОДРОП! ${st.link}`).slice(0, 200);
+    tg.shareToStory(st.url, premium && st.link ? { text, widget_link: { url: st.link, name: 'Грати в АВТОДРОП' } } : { text });
+  } catch (e) {
+    toast(e.message, true);
+  }
+  el.disabled = false;
+};
+H.shareSave = async (d, el) => {
+  const st = shareState;
+  if (!st?.blob) return;
+  const file = `avtodrop-${st.car.model}.jpg`;
+  try {
+    if (shareCaps().download) {
+      el.disabled = true;
+      await uploadCard();
+      el.disabled = false;
+      return tg.downloadFile({ url: st.url, file_name: file });
+    }
+    // Phone browsers: the system share sheet with the picture; desktop: a plain download.
+    const f = typeof File === 'function' ? new File([st.blob], file, { type: 'image/jpeg' }) : null;
+    if (f && navigator.canShare?.({ files: [f] })) return await navigator.share({ files: [f], text: S.shareCaption(st.car.model) });
+    const a = document.createElement('a');
+    a.href = st.preview;
+    a.download = file;
+    document.body.append(a);
+    a.click();
+    a.remove();
+  } catch (e) {
+    el.disabled = false;
+    if (e?.name !== 'AbortError') toast(e.message || 'Не вдалося зберегти', true);
+  }
+};
+
+// The dream car on the garage screen: no dream yet → the suggested one (from day 1); a dream → how close the player
+// is (money + garage vs its price) and the best case for it with the chance; got it → a trophy and «Нова мрія».
+const DREAM_HIDE = 'avtodrop-dream-hide';
+function dreamCard() {
+  const d = me.dream;
+  if (!d) return '';
+  if (!d.model) {
+    const sm = d.suggest && M(d.suggest);
+    let hidden = 0;
+    try {
+      hidden = Number(localStorage.getItem(DREAM_HIDE)) || 0;
+    } catch {}
+    if (!sm || Date.now() - hidden < 3 * 86400e3) return '';
+    return `<div class="card dream sug" style="--c:${S.CLASSES[sm.cls].color}">
+      <div class="dream-h"><span>${ic('heart')} Яка машина — твоя мрія?</span><button class="dream-x" data-act="dreamHide" aria-label="Сховати">${ic('x')}</button></div>
+      <div class="dream-row"><div class="dream-art">${carArt(sm.id, { glow: true })}</div><div class="grow"><b class="dream-nm">${esc(sm.name)}</b>
+        <div class="small muted">${clsBadge(sm.cls)} ${S.short(sm.price)}</div><div class="tiny muted">Обери ціль — гараж показуватиме, скільки лишилось і де її шукати</div></div></div>
+      <div class="btns"><button class="btn yellow" data-act="dreamSet" data-id="${sm.id}">${ic('heart')} Хочу її</button><button class="btn ghost" data-act="dreamPick">Обрати іншу</button></div></div>`;
+  }
+  const m = M(d.model);
+  const color = S.CLASSES[m.cls].color;
+  if (d.got) {
+    const own = me.cars.find((c) => c.model === m.id);
+    return `<div class="card dream got" style="--c:${color}">
+      <div class="dream-h"><span>${ic('trophy')} Мрію здійснено!</span></div>
+      <div class="dream-row"><div class="dream-art">${carArt(m.id, { glow: true, look: own?.look })}</div><div class="grow"><b class="dream-nm">${esc(m.name)}</b><div class="small muted">${clsBadge(m.cls)} у твоєму гаражі</div></div></div>
+      <div class="btns">${own ? `<button class="btn ghost" data-act="shareCar" data-id="${own.id}">${ic('share')} Поділитися</button>` : ''}<button class="btn yellow" data-act="dreamPick">${ic('heart')} Нова мрія</button></div></div>`;
+  }
+  const p = WOW.dreamProgress(me, m.id);
+  const ch = S.dreamChances(m.id)[0];
+  const cs = ch && S.CASE_BY_ID[ch.caseId];
+  return `<div class="card dream" style="--c:${color}">
+    <div class="dream-h"><span>${ic('heart')} Машина мрії</span><button class="dream-edit" data-act="dreamPick">Змінити</button></div>
+    <div class="dream-row"><div class="dream-art">${carArt(m.id, { glow: true })}</div><div class="grow"><b class="dream-nm">${esc(m.name)}</b><div class="small muted">${clsBadge(m.cls)} ${m.hp} к.с. · ${S.short(m.price)}</div></div></div>
+    <div class="dream-prog"><div class="row between tiny"><span class="muted">Гроші й гараж</span><span><b>${S.short(me.balance + me.stats.value)}</b> / ${S.short(m.price)}</span></div>
+      <div class="progress dream-bar"><i style="width:${Math.max(2, p * 100)}%"></i></div>
+      ${p >= 1 ? `<div class="tiny mt" style="color:var(--green)">${ic('check')} Статків уже вистачає — її можна пошукати на ринку чи аукціоні</div>` : ''}</div>
+    ${cs ? `<button class="dream-case" data-act="dreamCase" data-id="${cs.id}"><span class="ic">${caseIcon(cs)}</span><span class="grow"><b>Випадає з «${esc(cs.name)}»</b><span class="tiny muted">шанс ${pct(ch.pct)} · це ${WOW.oneIn(ch.pct)} · кейс ${S.short(cs.price)}</span></span><span class="chev">${ic('chevron-right')}</span></button>`
+      : '<div class="tiny muted mt">У кейсах не випадає — шукай на ринку та аукціонах</div>'}</div>`;
+}
+H.dreamHide = () => {
+  try {
+    localStorage.setItem(DREAM_HIDE, String(Date.now()));
+  } catch {}
+  render();
+};
+H.dreamSet = async (d) => {
+  closeModal();
+  if (await act('dream/set', { model: d.id }, `${ic('heart')} Мрія: ${M(d.id).name}`)) FX.sparkle($('.card.dream .dream-art'), [S.CLASSES[M(d.id).cls].color, '#ffffff'], 14);
+};
+H.dreamCase = (d) => {
+  state.caseId = d.id;
+  state.drop = null;
+  state.tab = 'cases';
+  state.page = null;
+  window.scrollTo(0, 0);
+  render();
+};
+// The picker: every non-secret car of a class, dearest first, with the best case chance; the current dream marked.
+function dreamPicker() {
+  const cur = me.dream?.model;
+  const cls = state.dreamCls || (cur ? M(cur).cls : M(me.dream?.suggest)?.cls) || 'A';
+  const owned = new Set(me.collection);
+  const list = S.ALL_MODELS.filter((m) => !m.secret && m.cls === cls).sort((a, b) => b.price - a.price);
+  const tile = (m) => {
+    const ch = S.dreamChances(m.id)[0];
+    return `<button class="car dream-tile ${m.id === cur ? 'on' : ''}" data-act="dreamSet" data-id="${m.id}" style="--c:${S.CLASSES[m.cls].color}">${m.id === cur ? `<span class="tr">${ic('heart')}</span>` : owned.has(m.id) ? '<span class="tr win">✓</span>' : ''}
+      <div class="art">${carArt(m.id)}</div><div class="nm">${esc(m.name)}</div><div class="meta"><b>${S.short(m.price)}</b> · ${ch ? pct(ch.pct) : 'ринок'}</div></button>`;
+  };
+  sheet('Машина мрії', `<div class="small muted">Обери ціль з каталогу. Коли вона випаде — буде окреме свято й досягнення «Мрійник».</div>
+    <div class="chips gfilter mt">${['S', 'A', 'B', 'C', 'D'].map((k) => `<button class="${k === cls ? 'on' : ''}" data-act="dreamCls" data-k="${k}" style="--c:${S.CLASSES[k].color}"><i></i>${k}<small>${S.CLASSES[k].name}</small></button>`).join('')}</div>
+    <div class="grid dream-grid mt">${list.map(tile).join('')}</div>
+    ${cur ? '<button class="btn ghost mt" data-act="dreamClear">Прибрати мрію</button>' : ''}`);
+}
+H.dreamPick = () => dreamPicker();
+H.dreamCls = (d) => {
+  state.dreamCls = d.k;
+  const y = $('#sheet').scrollTop;
+  dreamPicker();
+  $('#sheet').scrollTop = Math.min(y, 120);
+};
+H.dreamClear = async () => {
+  closeModal();
+  await act('dream/set', { model: null }, 'Мрію прибрано');
+};

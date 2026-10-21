@@ -1538,6 +1538,9 @@ export const ACHIEVEMENTS = [
   { key: 'plates', title: 'Номерний знак', icon: 'license', goals: [1, 2, 3, 4], rewards: [3000, 10000, 50000, 500000],
     labels: ['Згенеруй рідкісний (C) номер', 'Згенеруй епічний (B) номер', 'Згенеруй легендарний (A) номер', 'Згенеруй міфічний (S) номер'] },
   { key: 'friends', title: 'Душа компанії', icon: 'users', text: 'Приведи {n} друзів до 3 рівня', goals: [1, 3, 10, 30], rewards: [10000, 40000, 150000, 500000] },
+  // A dream car (class B or better, chosen at least 12 h before) that really dropped; each model counts once.
+  { key: 'dream', title: 'Мрійник', icon: 'heart', goals: [1, 3, 7], rewards: [10000, 300000, 1500000],
+    labels: ['Отримай свою машину мрії', 'Здійсни 3 різні мрії', 'Здійсни 7 різних мрій'] },
 ];
 export const ACH_BY_KEY = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.key, a]));
 export function achText(a, tier) {
@@ -2186,4 +2189,40 @@ export function bossRewardText(rw) {
   if (rw.plate) out.push(`номер класу ${rw.plate}`);
   if (rw.badge) out.push(`значок «${rw.badge}»`);
   return out.filter(Boolean).join(' + ');
+// ---------- dream car: the player's goal from the catalogue (any non-secret car) ----------
+// Which cases can drop the model and with what chance (base odds, no events/luck): [{ caseId, pct }] best first.
+export function dreamChances(modelId) {
+  const m = MODELS[modelId];
+  if (!m || m.secret) return [];
+  const out = [];
+  for (const cs of CASES) {
+    if (cs.starter || !cs.weights[m.cls]) continue;
+    const list = cs.pool(m.cls);
+    const i = list.findIndex((x) => x.id === m.id);
+    if (i < 0) continue;
+    const total = Object.values(cs.weights).reduce((a, b) => a + b, 0);
+    const mw = modelWeights(list), sw = mw.reduce((a, b) => a + b, 0);
+    out.push({ caseId: cs.id, pct: (cs.weights[m.cls] / total) * (mw[i] / sw) * 100 });
+  }
+  return out.sort((a, b) => b.pct - a.pct || CASE_BY_ID[a.caseId].price - CASE_BY_ID[b.caseId].price);
+}
+// What to dream of when nothing is chosen yet: a car roughly 30× what the player has (at least a legendary-class
+// price, ~30M: a Lamborghini rather than a family EV), that some case drops; `seed` (the player id) picks one of the close candidates so players differ.
+export const DREAM = { mult: 30, min: 30e6, max: 300e6, achMinRank: 2, achAgeMs: 12 * 3600e3 };
+export function suggestDream(worth = 0, seed = 0) {
+  const target = Math.min(DREAM.max, Math.max(DREAM.min, worth * DREAM.mult));
+  const fit = ALL_MODELS.filter((m) => !m.secret && m.price >= target / 1.7 && m.price <= target * 1.7 && dreamChances(m.id).length);
+  let list = fit.length ? fit : ALL_MODELS.filter((m) => !m.secret && rankOf(m.cls) >= 3 && dreamChances(m.id).length);
+  // Cars from the rarity cases first (a country-only car is a narrower goal), then the likeliest drops.
+  if (list.some((m) => !m.homeOnly)) list = list.filter((m) => !m.homeOnly);
+  const best = (m) => dreamChances(m.id)[0]?.pct || 0;
+  const near = list.sort((a, b) => best(b) - best(a)).slice(0, 6);
+  return near.length ? near[Math.abs(Math.floor(seed)) % near.length].id : null;
+}
+// The text that goes with a shared drop (the photo message caption, the share/url fallback, the story caption).
+export function shareCaption(modelId) {
+  const m = MODELS[modelId];
+  if (!m) return '🏁 АВТОДРОП — кейси зі справжніми авто. Перший кейс безкоштовно 👇';
+  const cls = CLASSES[m.cls];
+  return `🏁 Я вибив ${m.cls === 'X' ? 'секретну' : cls.name.toLowerCase().replace(/ий$/, 'у')} ${m.name} в АВТОДРОП! Вартість ${short(m.price)}.\nВідкрий свій перший кейс безкоштовно 👇`;
 }

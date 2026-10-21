@@ -150,8 +150,23 @@ export function createBot({ token, webappUrl, admins = [], game, log = console.e
     });
   }
 
+  // A drop card the player can send to any chat from the Mini App (WebApp.shareMessage, Bot API 8.0): a photo with a
+  // caption and a «Грати» button that opens the bot with the player's referral link. Returns the prepared message id.
+  async function prepareShare(uid, { photoUrl, caption, link }) {
+    const r = await call('savePreparedInlineMessage', {
+      user_id: uid,
+      result: {
+        type: 'photo', id: crypto.randomUUID().slice(0, 32), photo_url: photoUrl, thumbnail_url: photoUrl, caption: String(caption).slice(0, 1024),
+        reply_markup: { inline_keyboard: [[{ text: '🏎 Грати в АВТОДРОП', url: link }]] },
+      },
+      allow_user_chats: true, allow_group_chats: true, allow_channel_chats: true, allow_bot_chats: false,
+    });
+    return r.id;
+  }
+
   return {
     itemInvoiceLink,
+    prepareShare,
     get username() {
       return username;
     },

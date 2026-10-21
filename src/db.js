@@ -308,6 +308,9 @@ const MIGRATIONS = [
        UNION ALL SELECT 'upgrade' WHERE users.level >= 3
        UNION ALL SELECT 'casino' WHERE users.level >= 3 OR EXISTS (SELECT 1 FROM crash_games WHERE user_id = users.id)
          OR EXISTS (SELECT 1 FROM mines_games WHERE user_id = users.id)))`],
+  // Dream car (S.dreamChances): the model the player is aiming for and when it was chosen (NULL = none yet).
+  'ALTER TABLE users ADD COLUMN dream_car TEXT',
+  'ALTER TABLE users ADD COLUMN dream_at INTEGER NOT NULL DEFAULT 0',
 ];
 
 export function openDb(file) {

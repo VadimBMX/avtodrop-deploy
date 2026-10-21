@@ -1,0 +1,122 @@
+/* «Вау»-moments (public/wow.js): the full-screen rare-drop celebration, the share sheet, the dream car card/picker.
+   Kept in its own file so it never collides with style.css edits. Night-showroom look: violet haze, neon in the
+   class colour (--c), the season showroom scene recoloured. Only opacity/transform animate. */
+
+/* ---------- celebration takeover: under the fx canvas (z 30) and flash (29), over sheets (20) ---------- */
+.wow { position: fixed; inset: 0; z-index: 28; display: flex; align-items: center; justify-content: center; overflow: hidden;
+  opacity: 0; transition: opacity .22s ease-out; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+.wow.in { opacity: 1; }
+.wow.out { opacity: 0; transition-duration: .25s; }
+.wow.ready { cursor: pointer; }
+.wow-bg { position: absolute; inset: 0; background:
+  radial-gradient(70% 45% at 50% 42%, color-mix(in srgb, var(--c) 30%, transparent), transparent 70%),
+  radial-gradient(120% 70% at 50% 38%, #1a1446 0%, #0a0c18 55%, #030408 100%); }
+.wow-bg::after { content: ''; position: absolute; inset: 0; background: #000; animation: wowDark .7s ease-out both; }
+@keyframes wowDark { 0% { opacity: 1; } 100% { opacity: 0; } }
+/* the light sweep: a soft diagonal band crossing the screen once */
+.wow-sweep { position: absolute; top: -20%; bottom: -20%; left: 0; width: 60%; pointer-events: none;
+  background: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--c) 18%, #ffffff00) 42%, #ffffff40 50%, color-mix(in srgb, var(--c) 18%, #ffffff00) 58%, transparent 80%);
+  transform: translateX(-120%) skewX(-12deg); animation: wowSweep 1.1s cubic-bezier(.5, 0, .3, 1) .12s both; mix-blend-mode: screen; }
+@keyframes wowSweep { to { transform: translateX(260%) skewX(-12deg); } }
+.wow-body { position: relative; width: 100%; max-width: 520px; padding: 0 16px calc(18px + var(--safe-b)); text-align: center; display: flex; flex-direction: column; align-items: center; }
+.wow-kicker { font: 800 clamp(30px, 9vw, 42px)/1 var(--f-disp); letter-spacing: 3px; color: var(--c); display: inline-flex; align-items: center; gap: 10px;
+  text-shadow: 0 0 22px color-mix(in srgb, var(--c) 80%, transparent), 0 0 2px #fff8; opacity: 0; transform: scale(.6); }
+.wow-kicker .i { width: .9em; height: .9em; }
+.wow.hit .wow-kicker { animation: wowKick .55s cubic-bezier(.2, 1.4, .4, 1) both; }
+@keyframes wowKick { 0% { opacity: 0; transform: scale(.5); } 60% { opacity: 1; transform: scale(1.12); } 100% { opacity: 1; transform: scale(1); } }
+/* stage: the season showroom scene (360×200) with the car and its reflection placed in the same coordinates */
+.wow-stage { position: relative; width: calc(100% + 32px); max-width: 560px; aspect-ratio: 360 / 200; margin: 6px -16px 0; isolation: isolate; }
+.wow-scene { position: absolute; inset: 0; opacity: 0; transition: opacity .5s ease-out .25s; }
+.wow.in .wow-scene { opacity: 1; }
+.wow-scene svg { width: 100%; height: 100%; display: block; }
+.wow-rays { position: absolute; left: 50%; top: 46%; width: 0; height: 0; z-index: 0; }
+.wow-rays .fx-rays { width: 520px; height: 520px; margin: -260px 0 0 -260px; }
+.wow-car, .wow-refl img { position: absolute; left: 50%; width: 72.78%; aspect-ratio: 5 / 2; }
+.wow-car { bottom: 25.5%; z-index: 2; transform: translateX(-50%); animation: wowSlide .8s cubic-bezier(.16, .9, .3, 1.12) .28s both; }
+.wow-car img, .wow-car svg { display: block; width: 100%; height: 100%; object-fit: contain; object-position: 50% 100%; filter: drop-shadow(0 4px 4px #000c) brightness(1.06) contrast(1.05); }
+.wow.hit .wow-car img, .wow.hit .wow-car svg { filter: drop-shadow(0 4px 4px #000c) drop-shadow(0 0 22px color-mix(in srgb, var(--c) 70%, transparent)) brightness(1.06) contrast(1.05); transition: filter .4s; }
+@keyframes wowSlide { 0% { transform: translateX(-190%) skewX(-14deg); opacity: 0; } 55% { opacity: 1; } 80% { transform: translateX(-46%) skewX(3deg); } 100% { transform: translateX(-50%) skewX(0); opacity: 1; } }
+.wow-refl { position: absolute; left: 8.333%; width: 83.333%; top: 63%; height: 24%; border-radius: 50%; overflow: hidden; z-index: 1; pointer-events: none; opacity: 0; transition: opacity .4s .7s; }
+.wow.in .wow-refl { opacity: 1; }
+.wow-refl img { top: 47.9%; width: 87.33%; transform: translateX(-50%) scaleY(-1); opacity: .42; object-fit: contain; object-position: 50% 100%;
+  -webkit-mask-image: linear-gradient(to top, #000 0, #0008 25%, transparent 60%); mask-image: linear-gradient(to top, #000 0, #0008 25%, transparent 60%); }
+.wow-refl svg { display: none; }
+/* details appear on the hit, one after another */
+.wow-tags, .wow-name, .wow-val, .wow-dream, .wow-acts, .wow-tap { opacity: 0; transform: translateY(12px); }
+.wow.hit .wow-tags { animation: wowUp .4s ease-out .05s both; }
+.wow.hit .wow-name { animation: wowUp .45s ease-out .15s both; }
+.wow.hit .wow-val { animation: wowUp .45s ease-out .3s both; }
+.wow.hit .wow-dream { animation: wowUp .45s ease-out .45s both; }
+.wow.hit .wow-acts { animation: wowUp .45s ease-out .6s both; }
+.wow.hit .wow-tap { animation: wowUp .45s ease-out .9s both, wowBlink 2s ease-in-out 1.5s infinite; }
+@keyframes wowUp { to { opacity: 1; transform: none; } }
+@keyframes wowBlink { 50% { opacity: .45; } }
+.wow-tags { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; margin-top: -4px; }
+.wow-new { display: inline-flex; align-items: center; gap: 5px; font: 700 13px var(--f-disp); color: #ffd500; letter-spacing: .3px; text-transform: uppercase; }
+.wow-new .i { width: 14px; height: 14px; }
+.wow-name { margin-top: 10px; font: 800 clamp(26px, 8vw, 36px)/1.05 var(--f-disp); color: #fff; letter-spacing: .3px; text-shadow: 0 0 26px color-mix(in srgb, var(--c) 75%, transparent); max-width: 100%; overflow-wrap: anywhere; }
+.wow-val { display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+.wow-num { font: 800 24px/1 var(--f-disp); color: var(--accent); font-variant-numeric: tabular-nums; }
+.wow-mult { padding: 4px 9px; border-radius: 6px; transform: skewX(-10deg); font: 800 17px/1.1 var(--f-disp); background: #ffffff10; color: #c3cad6; }
+.wow-mult small { font: 600 12px var(--f-body); opacity: .85; }
+.wow-mult.up { background: #2fd27a22; color: #4be08f; box-shadow: inset 0 0 0 1px #2fd27a66, 0 0 18px -6px #2fd27a; }
+.wow-dream { margin-top: 12px; display: inline-flex; gap: 6px; align-items: center; color: #ffd500; font-weight: 700; }
+.wow-acts { margin-top: 18px; width: 100%; max-width: 320px; }
+.wow-acts .btn { width: 100%; margin: 0; }
+.wow-tap { margin-top: 12px; font-size: 13px; color: #c3cad6b0; }
+/* S: the neon breathes; secret: a cyan shimmer over the name */
+.wow.r4.hit .wow-stage, .wow.r5.hit .wow-stage { animation: wowThump .5s ease-out; }
+@keyframes wowThump { 30% { transform: scale(1.04); } }
+.wow.r5 .wow-name { background: linear-gradient(100deg, #fff 30%, #a5f3fc 45%, #fff 60%) 0 0 / 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: wowUp .45s ease-out .15s both, wowShine 2.4s linear 1s infinite; }
+@keyframes wowShine { to { background-position: -250% 0; } }
+.wow.dream .wow-kicker { color: #ffd500; text-shadow: 0 0 24px #ffc400cc; }
+/* reduced motion: a plain fade-in with everything in place */
+.wow.still .wow-sweep, .wow.still .wow-bg::after { display: none; }
+.wow.still .wow-car, .wow.still .wow-kicker, .wow.still .wow-tags, .wow.still .wow-name, .wow.still .wow-val, .wow.still .wow-dream, .wow.still .wow-acts, .wow.still .wow-tap, .wow.still .wow-stage { animation: none !important; opacity: 1; transform: none; }
+.wow.still .wow-car { transform: translateX(-50%); }
+@media (prefers-reduced-motion: reduce) { .wow-sweep { display: none; } }
+
+/* ---------- share ---------- */
+.share-drop { width: 100%; }
+.share-prev { position: relative; width: min(62vw, 250px); aspect-ratio: 9 / 16; margin: 2px auto 14px; border-radius: 16px; overflow: hidden; background: #0b0f1c;
+  box-shadow: 0 0 0 1px #ffffff14, 0 18px 40px -12px color-mix(in srgb, var(--c, #ffc400) 55%, transparent); display: grid; place-items: center; }
+.share-prev img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.share-wait { padding: 16px; color: var(--muted); font-size: 13px; display: flex; gap: 6px; align-items: center; text-align: center; }
+.share-acts .btn { margin-top: 0; }
+.share-acts .btns { margin-top: 8px; }
+.share-acts .btns:empty { display: none; }
+
+/* ---------- dream car card (garage) and picker ---------- */
+.card.dream { position: relative; overflow: hidden; border-color: color-mix(in srgb, var(--c) 35%, #2a2f52);
+  background: radial-gradient(90% 120% at 18% 30%, color-mix(in srgb, var(--c) 16%, #141433) 0%, #0d1020 55%, var(--card) 100%); }
+.dream-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; font: 700 15px var(--f-disp); letter-spacing: .4px; text-transform: uppercase; color: #ffd500; }
+.dream-h > span { display: inline-flex; gap: 6px; align-items: center; }
+.dream-x { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); background: #ffffff0a; }
+.dream-x .i { width: 14px; height: 14px; }
+.dream-edit { font: 600 13px var(--f-body); color: var(--muted); text-transform: none; letter-spacing: 0; padding: 4px 2px; }
+.dream-row { display: flex; gap: 12px; align-items: center; margin-top: 8px; }
+.dream-art { position: relative; flex: none; width: 46%; max-width: 190px; aspect-ratio: 5 / 2.6; display: flex; align-items: flex-end; }
+.dream-art::before { content: ''; position: absolute; left: 4%; right: 4%; bottom: -2px; height: 30%; border-radius: 50%; z-index: 0;
+  background: radial-gradient(50% 50% at 50% 50%, color-mix(in srgb, var(--c) 55%, transparent), transparent 70%); }
+.dream-art::after { content: ''; position: absolute; left: 10%; right: 10%; bottom: 4px; height: 1.5px; z-index: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--c) 90%, #fff), transparent); }
+.dream-art img, .dream-art svg { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: contain; object-position: 50% 100%; filter: drop-shadow(0 3px 3px #000c); }
+.dream-nm { display: block; font: 800 18px/1.1 var(--f-disp); }
+.dream-prog { margin-top: 12px; }
+.dream-bar { margin-top: 6px; height: 7px; }
+.dream-bar i { background: linear-gradient(90deg, color-mix(in srgb, var(--c) 70%, #ffc400), #ffd500); box-shadow: 0 0 10px -2px #ffc400; }
+.dream-case { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 10px; padding: 9px 10px; border-radius: 10px; background: #ffffff08; box-shadow: inset 0 0 0 1px #ffffff12; text-align: left; }
+.dream-case .ic { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 8px; background: #ffffff0d; color: var(--accent); }
+.dream-case .grow { display: flex; flex-direction: column; min-width: 0; }
+.dream-case b { font-size: 14px; }
+.dream-case .chev { color: var(--muted); }
+.card.dream .btns { margin-top: 12px; }
+.card.dream.sug .dream-h { color: var(--text); }
+.card.dream.got .dream-h { color: #ffd500; }
+.dream-grid .dream-tile { min-height: 0; text-align: left; }
+.dream-grid .dream-tile .art { height: 58px; }
+.dream-grid .dream-tile.on { box-shadow: inset 0 0 0 2px #ffd500, 0 0 20px -8px #ffd500; }
+.dream-grid .dream-tile .tr { color: #ffd500; }
+.dream-grid .dream-tile .tr .i { width: 15px; height: 15px; }
+/* claim / event banners wait while the takeover is on screen */
+body:has(.wow) #banners { visibility: hidden; }

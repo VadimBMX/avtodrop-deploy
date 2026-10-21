@@ -10,7 +10,8 @@ import { verifyInitData } from './src/auth.js';
 import { createBot } from './src/bot.js';
 import { createSender, createReminders } from './src/reminders.js';
 import { createStatic, compressSmall } from './src/static.js';
-import { PACKS, REF_REWARD } from './public/shared.js';
+import { PACKS, REF_REWARD, MODELS, shareCaption } from './public/shared.js';
+import { createShareStore, SHARE } from './src/share.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
@@ -55,6 +56,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
   }
   const carImages = () => folderImages('cars');
 
+  const shares = createShareStore(); // drop cards uploaded for Telegram stories / shared messages (src/share.js)
   const authCache = new Map(); // initData → { uid, until }
   const hits = new Map(); // uid → [windowStart, count]
 
@@ -172,6 +174,46 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     });
   }
 
+  // Raw body (a share card JPEG) up to `max` bytes.
+  function readRaw(req, max) {
+    return new Promise((resolve, reject) => {
+      let size = 0;
+      const chunks = [];
+      req.on('data', (c) => {
+        size += c.length;
+        if (size > max) {
+          reject(new GameError('Картинка завелика'));
+          req.destroy();
+        } else chunks.push(c);
+      });
+      req.on('end', () => resolve(Buffer.concat(chunks)));
+      req.on('error', reject);
+    });
+  }
+  // Share a drop: the card picture (POST share/card, raw JPEG) and a prepared photo message with the player's referral
+  // link for WebApp.shareMessage (POST share/prepare). Only cars from the player's own collection can be shared.
+  async function handleShare(req, res, name, uid) {
+    if (name === 'share/card') {
+      // A declared size over the limit is answered before reading (a stream that lies is cut off by readRaw).
+      if (Number(req.headers['content-length']) > SHARE.maxBytes) {
+        res.setHeader('connection', 'close');
+        return send(res, 413, { error: 'Картинка завелика' });
+      }
+      const r = shares.put(uid, await readRaw(req, SHARE.maxBytes));
+      if (r.error) return send(res, r.code, { error: r.error });
+      return send(res, 200, { id: r.id, path: `share/${r.id}.jpg` });
+    }
+    const body = await readBody(req);
+    const m = MODELS[String(body.model || '')];
+    if (!m || !db.q('SELECT 1 FROM collection WHERE user_id = ? AND model = ?').get(uid, m.id)) throw new GameError('Цієї машини немає у твоїй колекції');
+    if (!bot?.username) throw new GameError('Поширення стане доступним після підключення бота');
+    if (!/^https:\/\//.test(webappUrl)) throw new GameError('Потрібна https-адреса гри (WEBAPP_URL)');
+    if (!shares.get(body.id)) throw new GameError('Картка застаріла, спробуй ще раз');
+    const link = `https://t.me/${bot.username}?start=ref_${uid}`;
+    const preparedId = await bot.prepareShare(uid, { photoUrl: `${new URL(webappUrl).origin}/share/${body.id}.jpg`, caption: `${shareCaption(m.id)}\n${link}`, link });
+    return send(res, 200, { preparedId, link });
+  }
+
   async function handleApi(req, res, name) {
     if (name === 'config') {
       // Community links (Telegram channel with news, players' chat) come from Railway variables; empty = button hidden.
@@ -183,6 +225,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     if (!uid) return send(res, 401, { error: 'Відкрий гру через Telegram' });
     if (limited(uid)) return send(res, 429, { error: 'Забагато запитів, зачекай секунду' });
     if (game.isBanned(uid)) return send(res, 403, { error: 'Акаунт заблоковано адміністрацією' });
+    if (name === 'share/card' || name === 'share/prepare') return await handleShare(req, res, name, uid);
     const body = await readBody(req);
     if (name === 'shop/invoice') {
       if (!bot) throw new GameError('Оплата зірками стане доступною після підключення бота');
@@ -261,6 +304,13 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
       if (pathname.startsWith('/api/admin/')) return await handleAdmin(req, res, pathname.slice(11));
       if (pathname.startsWith('/api/')) return await handleApi(req, res, pathname.slice(5));
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed', 'text/plain');
+      const shareM = /^\/share\/([0-9a-f]{32})\.jpg$/.exec(pathname);
+      if (shareM) {
+        const c = shares.get(shareM[1]);
+        if (!c) return send(res, 404, 'Not found', 'text/plain');
+        res.writeHead(200, { 'content-type': 'image/jpeg', 'content-length': c.buf.length, 'cache-control': 'public, max-age=86400, immutable', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'" });
+        return res.end(req.method === 'HEAD' ? undefined : c.buf);
+      }
       return await serveStatic(req, res, pathname, searchParams.get('v'));
     } catch (e) {
       if (e instanceof GameError) return send(res, 400, { error: e.message });
@@ -279,7 +329,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
   sweeper.unref();
 
   return {
-    server, game, db, bot, sender, reminders, statics,
+    server, game, db, bot, sender, reminders, statics, shares,
     async start(port) {
       if (bot) {
         try {
