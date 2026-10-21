@@ -1747,7 +1747,9 @@ export const upgradeChance = (stake, targetPrice, cars = 1) => Math.min(UPGRADE.
 
 // ---------- casino (in-game hryvnias only, no cash-out) ----------
 // maxBet caps a single bet; on roulette up to rouletteFields different fields per spin, adding up to rouletteTotal.
-export const CASINO = { minBet: 1000, maxBet: 50000000, rouletteFields: 4, rouletteTotal: 200000000 };
+export const CASINO = { minBet: 1000, maxBet: 50000000, rouletteFields: 4, rouletteTotal: 200000000, maxShare: 0.5 };
+// No all-in: one bet (or one roulette spin, all fields together) is at most half of the balance.
+export const casinoMaxBet = (balance, limit = CASINO.maxBet) => Math.max(0, Math.min(limit, Math.floor((balance || 0) * CASINO.maxShare)));
 export const CRASH = { k: 0.07, edge: 0.97, max: 1000 }; // multiplier = e^(k·seconds)
 export const crashAt = (sec) => Math.floor(Math.exp(CRASH.k * Math.max(0, sec)) * 100) / 100;
 export const MINES = { cells: 25, edge: 0.97, choices: [1, 3, 5, 10, 24] };

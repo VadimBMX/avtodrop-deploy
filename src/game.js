@@ -1438,8 +1438,13 @@ export function createGame(db, opts = {}) {
   // ---------- casino ----------
   function bet(uid, amount) {
     const b = int(amount, S.CASINO.minBet, S.CASINO.maxBet, 'Ставка');
+    halfCap(uid, b);
     pay(uid, b);
     return b;
+  }
+  function halfCap(uid, stake, limit) {
+    const bal = userRow(uid).balance, cap = S.casinoMaxBet(bal, limit);
+    if (stake <= bal && stake > cap) fail(cap < S.CASINO.minBet ? 'Замало грошей для ставки: можна ставити до половини балансу' : `Ставка — не більше половини балансу: до ${S.fmt(cap)}`);
   }
   // bet × multiplier without float artefacts (1.14 × 10000 must be 11400, not 11399).
   const payout = (b, mult) => Math.floor(Math.round(b * mult * 100) / 100);
@@ -1471,6 +1476,7 @@ export function createGame(db, opts = {}) {
     if (new Set(parsed.map((x) => String(x.on))).size !== parsed.length) fail('Ставки на одне поле повторюються');
     const total = parsed.reduce((s, x) => s + x.amount, 0);
     if (total > S.CASINO.rouletteTotal) fail(`Максимум ${S.fmt(S.CASINO.rouletteTotal)} на всі ставки за один спін`);
+    halfCap(uid, total, S.CASINO.rouletteTotal);
     pay(uid, total);
     const n = Math.floor(nextNonce(uid).roll(0) * 37);
     let won = 0;

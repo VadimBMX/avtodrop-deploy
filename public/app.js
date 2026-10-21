@@ -4681,15 +4681,18 @@ AFTER.upgrade = () => {
 // ---------- casino ----------
 state.cas = { game: 'crash', bet: 10000, rbets: {}, mines: 3, crash: null, minesG: null, slots: null, roulette: null, busy: false };
 function readBet() {
-  const v = Math.max(S.CASINO.minBet, Math.min(S.CASINO.maxBet, Math.round(num($('#betIn')?.value) || state.cas.bet)));
+  const cap = Math.max(S.CASINO.minBet, S.casinoMaxBet(me.balance));
+  const v = Math.max(S.CASINO.minBet, Math.min(cap, Math.round(num($('#betIn')?.value) || state.cas.bet)));
   state.cas.bet = v;
   return v;
 }
 const betRow = () => `<div class="bet"><button data-act="betAdj" data-k="min">Мін</button><button data-act="betAdj" data-k="half">½</button><input id="betIn" inputmode="numeric" value="${grp(state.cas.bet)}"><button data-act="betAdj" data-k="double">×2</button><button data-act="betAdj" data-k="max">Макс</button></div>`;
 H.betAdj = (d) => {
   const b = readBet();
-  const v = { min: S.CASINO.minBet, half: Math.floor(b / 2), double: b * 2, max: Math.min(me.balance, S.CASINO.maxBet) }[d.k];
-  state.cas.bet = Math.max(S.CASINO.minBet, Math.min(S.CASINO.maxBet, v));
+  const cap = Math.max(S.CASINO.minBet, S.casinoMaxBet(me.balance));
+  const v = { min: S.CASINO.minBet, half: Math.floor(b / 2), double: b * 2, max: cap }[d.k];
+  state.cas.bet = Math.max(S.CASINO.minBet, Math.min(cap, v));
+  if (d.k === 'max' || (d.k === 'double' && b * 2 > cap)) toast(`Максимум — половина балансу: ${S.short(cap)}`);
   $('#betIn').value = grp(state.cas.bet);
 };
 const winRank = (mult) => (mult >= 50 ? 4 : mult >= 10 ? 3 : mult >= 3 ? 2 : mult > 1 ? 1 : 0);
@@ -4900,7 +4903,7 @@ function rouletteView() {
   const strip = (res ? [...WHEEL, ...WHEEL] : WHEEL).map((n) => `<div class="rnum ${rColor(n)} ${res && !R.busy && n === res.number ? 'hit' : ''}">${n}</div>`).join('');
   return `<div class="rwrap"><div class="rstrip" id="rstrip">${strip}</div></div>
     <div class="winline" id="rRes">${res && !R.busy ? (res.won ? `<span class="win">${res.number} · виграш ${S.fmt(res.won)}</span>` : `<span class="lose">${res.number} · не зіграло</span>`) : ''}</div>
-    ${betRow()}<div class="tiny muted mt">Обери суму і тисни на поля — можна ставити на ${S.CASINO.rouletteFields} поля одразу (до ${S.short(S.CASINO.maxBet)} на кожне). Число платить 35:1, дюжини 2:1, решта 1:1.</div>
+    ${betRow()}<div class="tiny muted mt">Обери суму і тисни на поля — можна ставити на ${S.CASINO.rouletteFields} поля одразу; разом не більше половини балансу. Число платить 35:1, дюжини 2:1, решта 1:1.</div>
     <div class="routs">${['red', 'black', 'even', 'odd', 'low', 'high', 'd1', 'd2', 'd3'].map((k) => `<button class="rout ${k === 'red' ? 'red' : k === 'black' ? 'black' : ''} ${won(k)}" data-act="rBet" data-k="${k}">${S.ROULETTE_BETS[k].label}${stake(k)}</button>`).join('')}</div>
     <div class="rboard"><button class="rcell green zero ${won(0)}" data-act="rBet" data-k="0">0${stake(0)}</button>${Array.from({ length: 36 }, (_, i) => i + 1).map((n) => `<button class="rcell ${rColor(n)} ${won(n)}" data-act="rBet" data-k="${n}">${n}${stake(n)}</button>`).join('')}</div>
     <div class="btns mt"><button class="btn ghost" data-act="rClear" ${total ? '' : 'disabled'}>Очистити</button><button class="btn yellow" data-act="rSpin" ${total && !R.busy ? '' : 'disabled'}>Крутити · ${S.short(total)}</button></div>`;
@@ -4914,6 +4917,8 @@ H.rBet = (d) => {
   if (!state.cas.rbets[k] && Object.keys(state.cas.rbets).length >= S.CASINO.rouletteFields) return toast(`Максимум ${S.CASINO.rouletteFields} поля за один спін`, true);
   if (total + amount > me.balance) return toast(`Недостатньо гривень: уже поставлено ${S.short(total)}`, true);
   if ((state.cas.rbets[k] || 0) + amount > S.CASINO.maxBet) return toast(`Максимум ${S.short(S.CASINO.maxBet)} на одне поле`, true);
+  { const tot = Object.values(state.cas.rbets).reduce((a, x) => a + x, 0) + amount, cap = S.casinoMaxBet(me.balance, S.CASINO.rouletteTotal);
+    if (tot > cap) return toast(`Усі ставки за спін — не більше половини балансу: ${S.short(cap)}`, true); }
   if (total + amount > S.CASINO.rouletteTotal) return toast(`Максимум ${S.short(S.CASINO.rouletteTotal)} на всі ставки за спін`, true);
   if (state.cas.roulette) state.cas.roulette = null;
   state.cas.rbets[k] = (state.cas.rbets[k] || 0) + amount;

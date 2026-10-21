@@ -255,3 +255,21 @@ test('casino: bet limits and balance checks', () => {
   assert.throws(() => call(1, 'casino/slots', { amount: 6000 }), /Недостатньо/);
   assert.throws(() => call(1, 'casino/slots', { amount: S.CASINO.maxBet + 1 }), /Ставка/);
 });
+
+test('casino: no all-in — one bet or one roulette spin is at most half of the balance', () => {
+  const { call, setBalance, balance } = setup();
+  setBalance(1, 100000);
+  assert.throws(() => call(1, 'casino/slots', { amount: 50001 }), /половини балансу/);
+  assert.throws(() => call(1, 'casino/slots', { amount: 100000 }), /половини балансу/);
+  call(1, 'casino/slots', { amount: 50000 });
+  setBalance(1, 100000);
+  assert.throws(() => call(1, 'casino/roulette', { bets: [{ on: 'red', amount: 30000 }, { on: 'black', amount: 30000 }] }), /половини балансу/);
+  call(1, 'casino/roulette', { bets: [{ on: 'red', amount: 25000 }, { on: 'black', amount: 25000 }] });
+  setBalance(1, 100000);
+  assert.throws(() => call(1, 'casino/crash/start', { amount: 60000 }), /половини балансу/);
+  assert.throws(() => call(1, 'casino/mines/start', { amount: 60000, mines: 3 }), /половини балансу/);
+  setBalance(1, 1500);
+  assert.throws(() => call(1, 'casino/slots', { amount: 1000 }), /Замало грошей/);
+  assert.equal(S.casinoMaxBet(1e12), S.CASINO.maxBet);
+  assert.equal(balance(1), 1500);
+});
