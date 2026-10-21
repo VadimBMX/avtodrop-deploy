@@ -274,6 +274,8 @@ export function createGame(db, opts = {}) {
       if (level >= 3 && u.referrer_id && !u.ref_paid) {
         q('UPDATE users SET ref_paid = 1 WHERE id = ?').run(uid);
         addMoney(u.referrer_id, S.REF_REWARD);
+        addMoney(uid, S.REF_FRIEND_L3);
+        event(uid, `👥 3 рівень! Бонус за запрошення: +${S.fmt(S.REF_FRIEND_L3)}`);
         event(u.referrer_id, `👥 Твій друг ${name(uid)} досяг 3 рівня! +${S.fmt(S.REF_REWARD)}`);
       }
     }
@@ -397,6 +399,8 @@ export function createGame(db, opts = {}) {
       if (ref && ref !== uid && q('SELECT id FROM users WHERE id = ?').get(ref)) {
         q('UPDATE users SET referrer_id = ? WHERE id = ?').run(ref, uid);
         addMoney(uid, S.REF_FRIEND_BONUS);
+        addKeys(uid, S.REF_FRIEND_KEY, 1);
+        gift(uid, 'ref', { from: name(ref), money: S.REF_FRIEND_BONUS, caseId: S.REF_FRIEND_KEY, l3: S.REF_FRIEND_L3 });
         event(ref, `👥 ${name(uid)} приєднався за твоїм посиланням. Коли він досягне 3 рівня — отримаєш ${S.fmt(S.REF_REWARD)}`);
         return { created: true, ref: true };
       }

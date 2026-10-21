@@ -4347,7 +4347,7 @@ H.buyPack = async (d) => {
 PAGES.friends = async () => {
   const r = await api('ref');
   return `<div class="card center"><div style="font-size:36px;color:var(--accent)">${ic('users')}</div><b class="disp" style="font-size:20px">КЛИЧ ДРУЗІВ</b>
-    <div class="muted mt">За кожного друга — <b class="win">${S.fmt(S.REF_REWARD)}</b> тобі, коли він досягне 3 рівня, і ${S.fmt(S.REF_FRIEND_BONUS)} йому на старт</div>
+    <div class="muted mt">За кожного друга — <b class="win">${S.fmt(S.REF_REWARD)}</b> тобі, коли він досягне 3 рівня, а йому — ${S.fmt(S.REF_FRIEND_BONUS)} і кейс «${esc(S.CASE_BY_ID[S.REF_FRIEND_KEY].name)}» на старт та ще ${S.fmt(S.REF_FRIEND_L3)} на 3 рівні</div>
     ${r.link ? `<div class="mono mt">${esc(r.link)}</div><div class="btns mt"><button class="btn" data-act="shareRef" data-link="${esc(r.link)}">Поділитися</button><button class="btn ghost" data-act="copyRef" data-link="${esc(r.link)}">Скопіювати</button></div>` : '<div class="small muted mt">Посилання з’явиться після підключення бота</div>'}</div>
     <div class="stat" style="grid-template-columns:1fr 1fr"><div><b>${r.invited}</b><span>запрошено</span></div><div><b>${S.short(r.earned)}</b><span>зароблено</span></div></div>`;
 };
@@ -4576,6 +4576,12 @@ function showGift() {
     art = `<div class="gift-ic" style="--c:${color}">${ic('car')}</div><div class="gift-sum" style="color:${color};font-size:26px">Гараж скучив за тобою</div>
       <div class="small muted">тебе не було ${d.days} ${d.days % 10 >= 2 && d.days % 10 <= 4 && (d.days % 100 < 12 || d.days % 100 > 14) ? 'дні' : 'днів'}</div>
       <div class="cb-list mt">${lines.map((l) => `<div>${l}</div>`).join('')}</div>`;
+  } else if (g.kind === 'ref') {
+    title = 'Тебе запросив друг!';
+    color = '#30d158';
+    art = `<div class="gift-ic" style="--c:${color}">${ic('users')}</div><div class="gift-sum win">+${S.fmt(d.money)}</div>
+      <div class="mt"><b>${ic('key')} Кейс «${esc(S.CASE_BY_ID[d.caseId]?.name || '')}»</b> — безкоштовно</div>
+      <div class="small muted mt">${esc(d.from || 'Друг')} запросив тебе в АВТОДРОП. На 3 рівні отримаєш ще ${S.fmt(d.l3)}</div>`;
   } else if (g.kind === 'thanks') {
     title = 'Дякуємо! 💛';
     color = '#ffd60a';
@@ -4587,7 +4593,7 @@ function showGift() {
   }
   sheet(title, `<div class="center gift">${art}
     ${g.note ? `<div class="gift-note">${esc(g.note)}</div>` : ''}
-    ${g.kind === 'comeback' ? '' : '<div class="tiny muted mt">від адміністрації АВТОДРОП</div>'}
+    ${g.kind === 'comeback' || g.kind === 'ref' ? '' : '<div class="tiny muted mt">від адміністрації АВТОДРОП</div>'}
     <button class="btn yellow mt2" data-act="giftOk">${g.kind === 'message' ? 'Зрозуміло' : g.kind === 'thanks' ? 'Дякую! 💛' : g.kind === 'comeback' ? 'Погнали!' : 'Забрати'}</button></div>`);
   haptic('success');
   if (g.kind !== 'message') setTimeout(() => {

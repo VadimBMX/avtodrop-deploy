@@ -364,11 +364,15 @@ test('referral pays when the friend reaches level 3', () => {
   g.ensureUser({ id: 1 });
   g.ensureUser({ id: 2 }, 'ref_1');
   assert.equal(call(2, 'me').balance, S.START_BALANCE + S.REF_FRIEND_BONUS);
+  assert.equal(call(2, 'me').keys[S.REF_FRIEND_KEY], 1, 'the friend gets a free case');
+  assert.ok(call(2, 'pulse').gifts.some((x) => x.kind === 'ref'), 'and a welcome window');
+  const before = call(2, 'me').balance;
   db.prepare('UPDATE users SET xp = ? WHERE id = 2').run(S.xpForLevel(1) + S.xpForLevel(2));
   db.prepare('UPDATE users SET level = 1, xp = ? WHERE id = 2').run(S.xpForLevel(1) + S.xpForLevel(2) - 1);
   call(2, 'rewards/daily');
   assert.ok(call(2, 'me').level >= 3);
   assert.equal(call(1, 'me').balance, S.START_BALANCE + S.REF_REWARD);
+  assert.ok(call(2, 'me').balance >= before + S.REF_FRIEND_L3, 'the friend gets a level-3 bonus too');
 });
 
 test('initData signature check', () => {

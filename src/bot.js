@@ -28,7 +28,7 @@ export function startText({ name, created = false, ref = false, pushBack = false
     `🚗 ${CARS} справжні авто: від «Запорожця» до Bugatti`,
     '🏎 Гараж заробляє, поки ти ганяєш дрег проти інших',
   );
-  if (ref) lines.push('', `👥 Тебе запросив друг — +${fmt(REF_FRIEND_BONUS)} на старт!`);
+  if (ref) lines.push('', `👥 Тебе запросив друг — +${fmt(REF_FRIEND_BONUS)} і безкоштовний кейс «Міський» на старт!`);
   lines.push('', canButton ? 'Тисни «Грати» 👇' : '(WEBAPP_URL ще не налаштовано — кнопка гри з’явиться після деплою на https)');
   return lines.join('\n');
 }

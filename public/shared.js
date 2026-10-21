@@ -1655,8 +1655,12 @@ export function slotPayout(reels) {
 }
 
 export const WEEKLY_PRIZES = [3000000, 1500000, 1000000, 250000, 250000, 250000, 250000, 250000, 250000, 250000];
-export const REF_REWARD = 1500000; // to the inviter when the friend reaches level 3
-export const REF_FRIEND_BONUS = 150000;
+export const REF_REWARD = 1000000; // to the inviter when the friend reaches level 3
+// The invited friend: money and a free «Міський» case at the start (shown as a welcome window), and a little more
+// when they reach level 3 together with the inviter's reward.
+export const REF_FRIEND_BONUS = 200000;
+export const REF_FRIEND_KEY = 'city';
+export const REF_FRIEND_L3 = 100000;
 export const START_BALANCE = 250000; // ~5 rusty-garage cases on top of the free starter one
 
 // Packs grow with the player, so buying stays worth it with billions in the garage: the base amount × the larger of
