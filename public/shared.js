@@ -673,10 +673,12 @@ export function carValue(car) {
 }
 // Garage income per hour, as a share of the car's value, by class: cheap cars earn a bigger share so a new player
 // isn't stuck waiting, expensive cars a smaller one so the late game doesn't print money.
-// D 5% (a 60k car → 3k/h), C 3%, B 1.3%, A 0.5%, S 0.25%, secret cars (and parts/plates on top of a car) 0.06%: a kept
-// drop pays its case back in ~2–3 days of play (owner chose a softer cut than tools/sim.mjs suggests). Secret cars are
-// 2.5× dearer since the wide class ranges, so their rate is 2.5× lower and they earn as before.
-export const CLASS_INCOME = { D: 0.05, C: 0.03, B: 0.013, A: 0.005, S: 0.0025, X: 0.0006 };
+// D 7% (a 74k Нива → 5.2k/h), C 4%, B 1.6%, A 0.5%, S 0.25%, secret cars (and parts/plates on top of a car) 0.06%.
+// race2: D/C/B raised (5/3/1.3% before) — the early game, where cases are a money sink (open-and-sell 0.8), was too
+// slow (a starter garage needed ~5 h of income for one 60k case, now ~3.5 h); A/S stay: their cases already pay
+// 1.5–2.6× on open-and-sell (eco3), and A/S garages grow to hundreds of millions within weeks. Secret cars are 2.5×
+// dearer since the wide class ranges, so their rate is 2.5× lower and they earn as before.
+export const CLASS_INCOME = { D: 0.07, C: 0.04, B: 0.016, A: 0.005, S: 0.0025, X: 0.0006 };
 export const incomeRateOf = (model) => CLASS_INCOME[MODELS[model].cls];
 // Income per hour of a car: its class rate on the car itself; installed parts and the plate earn only the lowest
 // rate (X), so dear parts on a cheap high-rate car can't print money.
@@ -729,7 +731,11 @@ export function raceTime(stats, reaction, shifts) {
   if (reaction < 0) t *= START.jumpPenalty;
   else if (perfectStartOf(reaction)) t *= START.perfectBonus;
   t += Math.max(0, reaction < 0 ? 0.25 : Math.min(reaction, 1.5));
-  for (const q of shifts) t += (SHIFT_LOSS[q] ?? SHIFT_LOSS.miss) * (1 - stats.shift);
+  // A gearbox cuts what a bad shift loses; a perfect shift keeps its full gain.
+  for (const q of shifts) {
+    const l = SHIFT_LOSS[q] ?? SHIFT_LOSS.miss;
+    t += l > 0 ? l * (1 - stats.shift) : l;
+  }
   return Math.round(t * 1000) / 1000;
 }
 // ---------- drag race timeline (shared so the server can replay a run from its tap times) ----------
@@ -820,24 +826,182 @@ export function dragReplay(stats, reaction, shiftAt, claims = []) {
 export const FUEL_MAX = 15;
 export const CAR_TANK = 5;
 export const FUEL_REGEN_MIN = 20;
-// entry / prize for class D; multiplied by CLASS_MULT
+// ---------- solo drag rivals (race2) ----------
+// A rival is a real car: a model of your class (a class above for a hard rival when your class has nothing faster)
+// with the parts it needs, and its shown power and time are that car's own (carStats). It is driven by RIVAL_AI.
+// How fast each rival is comes from the odds of a GOOD driver (DRIVERS.good) in a reference car: your model as it
+// leaves the factory plus PARTS_SHARE of what your parts gain (you keep the rest, at most PARTS_KEEP_MAX of the
+// time), so parts and skill push your odds up (a full kit: hard ~22% → ~30–45%), but never make the hard rival free. Tier `chance` is that target (±`spread`).
+// Money follows the price of the car model you race, whatever its class: `ev` is what a good driver earns per race
+// against this tier on average (in units of raceEv(price)), and the prize is set so that this holds at the target
+// chance: prize = ev × raceEv / (chance × (1 + entry) − entry). The entry is a share of the prize.
 export const OPPONENTS = [
-  { id: 'easy', name: 'Легкий', delta: [0.25, 0.6], entry: 600, prize: 2000 },
-  { id: 'mid', name: 'Середній', delta: [-0.1, 0.15], entry: 1200, prize: 4000 },
-  { id: 'hard', name: 'Складний', delta: [-0.55, -0.25], entry: 2500, prize: 8000 },
+  { id: 'easy', name: 'Легкий', chance: 0.94, spread: 0.03, ev: 0.8, entry: 0.35 },
+  { id: 'mid', name: 'Середній', chance: 0.55, spread: 0.04, ev: 1, entry: 0.3 },
+  { id: 'hard', name: 'Складний', chance: 0.22, spread: 0.04, ev: 0.9, entry: 0.1 },
 ];
-// Training: no entry fee, a small prize (a quarter of the easy rival's) — for learning the shifts without risk.
-export const TRAINING = { id: 'train', name: 'Тренування', delta: [0.8, 1.3], share: 0.25 };
-// Race entry/prize multiplier by class (kept for PvP-free tables and old saves).
-export const CLASS_MULT = { D: 2.5, C: 8, B: 25, A: 120, S: 600, X: 1250 };
-// Race prizes follow the price of the car model you race, whatever its class (parts help you win, they don't raise
-// the stakes): the hard rival pays 18 000 × (price / 40 000)^0.55 — ~45% of a 40k car, ~1% of a 200M one — the
-// medium one half that, the easy one a quarter; the entry is ~30% of the prize. A dearer car always races for more.
+// Training: no entry fee, a slow rival and a third of the easy prize — for learning the shifts without risk.
+export const TRAINING = { id: 'train', name: 'Тренування', chance: 0.985, spread: 0.01, share: 1 / 3 };
+export const PARTS_SHARE = 0.9, PARTS_KEEP_MAX = 0.008;
+// The AI behind every solo rival drives like a human (DRIVERS below): quick but uneven at the light (sometimes a
+// perfect start, sometimes a false one) and less exact with the shifts than a good player. So a rival in the same
+// car as yours is a ~55% race for a good driver, an easy one has a slower car, a hard one a faster car.
+export const RIVAL_AI = { react: [0.2, 0.08], jump: 0.04, sd: 100, bias: -10 };
+// Human drivers for odds and simulations: reaction (s after green, real time: mean, sd), share of false starts, tap
+// noise around the middle of the perfect zone (ms, real time, sd) and a habit of tapping late (ms).
+export const DRIVERS = {
+  perfect: { react: [0.13, 0.015], jump: 0, sd: 15, bias: 0 },
+  good: { react: [0.2, 0.035], jump: 0.02, sd: 45, bias: 10 },
+  average: { react: [0.28, 0.06], jump: 0.05, sd: 90, bias: 35 },
+};
+export function seededRand(seed) {
+  let s = seed >>> 0 || 1;
+  return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
+}
+const gauss = (rand) => Math.sqrt(-2 * Math.log(rand() || 1e-9)) * Math.cos(2 * Math.PI * rand());
+export const rivalRun = (rand, r) => humanRun({ base: r.base, shift: r.shift || 0 }, RIVAL_AI, rand);
+// One run of driver d in a car with `stats`, scored exactly as the server scores a report (dragReplay + raceTime):
+// every tap aims at the middle of the perfect zone with the driver's noise; a tap after the limiter is a late shift.
+export function humanRun(stats, d, rand) {
+  const reaction = rand() < d.jump ? -1 : Math.max(0.1, d.react[0] + gauss(rand) * d.react[1]);
+  const shiftAt = [], shifts = [];
+  let seg = 0;
+  for (let i = 0; i < SHIFTS; i++) {
+    const { react, drive } = dragDrive(stats, reaction, shifts);
+    const span = Math.max(0.03, SHIFT_POINTS[i] - seg);
+    const uLate = seg + ((SHIFT_AUTO_RPM - 0.3) / 0.58) * span;
+    const lateMs = ((react + uLate * drive) / RACE_SPEED) * 1000;
+    let ms = ((react + (seg + span) * drive) / RACE_SPEED) * 1000 + d.bias + gauss(rand) * d.sd;
+    ms = Math.max(ms, shiftAt[i - 1] ?? 0);
+    const late = ms >= lateMs;
+    const u = late ? uLate : Math.max(seg, Math.min(1, (msToTau(ms) - react) / drive));
+    shiftAt.push(Math.round((late ? lateMs : ms) * 10) / 10);
+    shifts.push(late ? 'late' : tapQuality(shiftRpm(i, seg, u)));
+    seg = u;
+  }
+  const rep = dragReplay(stats, reaction, shiftAt, shifts);
+  return raceTime(stats, reaction, rep.error ? shifts : rep.shifts);
+}
+// Win probability of a set of own times (sorted ascending) against a rival car with this base/shift and RIVAL_AI.
+export const RIVAL_SAMPLES = 240;
+// How much slower than its base the rival AI runs in a car of this base (the shift zones are shorter in a fast car).
+export function rivalOffsets(base, shift = 0, seed = 7) {
+  const rand = seededRand(seed + Math.round(base * 100));
+  return Array.from({ length: RIVAL_SAMPLES }, () => rivalRun(rand, { base, shift }) - base);
+}
+export function oddsVs(mine, offsets, base) {
+  let w = 0;
+  for (const o of offsets) {
+    const t = base + o;
+    let lo = 0, hi = mine.length;
+    while (lo < hi) {
+      const m = (lo + hi) >> 1;
+      if (mine[m] < t) lo = m + 1;
+      else hi = m;
+    }
+    w += lo;
+  }
+  return w / (offsets.length * mine.length);
+}
+// Times of driver d (sorted) in a car: deterministic for the same car, so the same car always gets the same rivals' odds.
+export function driverTimes(stats, d = DRIVERS.good, n = RIVAL_SAMPLES, seed = 11) {
+  const rand = seededRand(seed + Math.round(stats.base * 1000));
+  return Array.from({ length: n }, () => humanRun(stats, d, rand)).sort((a, b) => a - b);
+}
+// The rival base that gives `mine` the chance p against a rival car with RIVAL_AI (bisection; chance falls as base falls).
+export function baseForChance(mine, offsets, p) {
+  let lo = mine[0] - 3, hi = mine[mine.length - 1] + 3;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (oddsVs(mine, offsets, mid) > p) hi = mid;
+    else lo = mid;
+  }
+  return (lo + hi) / 2;
+}
+// The reference car the tiers are set for: the factory model, plus PARTS_SHARE of what the parts gain.
+export function raceRef(car) {
+  const stock = carStats({ model: car.model });
+  const own = carStats(car);
+  const gain = stock.base - own.base;
+  const kept = Math.min((1 - PARTS_SHARE) * gain, PARTS_KEEP_MAX * stock.base);
+  return { base: own.base + kept, shift: PARTS_SHARE * own.shift, stock };
+}
+// Rival cars: every stock model of the class and of the classes next to it (for a target faster or slower than
+// anything in it).
+const rivalPoolCache = {};
+export function rivalPool(cls) {
+  if (rivalPoolCache[cls]) return rivalPoolCache[cls];
+  const own = cls === 'X' ? 'S' : cls, i = CLASS_ORDER.indexOf(own);
+  const near = [own, CLASS_ORDER[i - 1], i + 1 <= CLASS_ORDER.indexOf('S') ? CLASS_ORDER[i + 1] : null].filter(Boolean);
+  const out = ALL_MODELS.filter((m) => !m.secret && near.includes(m.cls)).map((m) => ({ model: m.id, cls: m.cls, hp: m.hp, kg: m.kg }));
+  return (rivalPoolCache[cls] = out);
+}
+// The power a model needs to run `base` on the factory grip (the same formula as carStats), so the shown power and
+// the rival's real pace always agree. On factory tyres the time has a best power (above it the wheels spin, see
+// raceBaseTime): of the two powers that give `base`, the one nearer the model's own; null if it can't run that fast.
+export function bestHp(kg, grip = 0.35) {
+  let a = 1, b = 50000;
+  for (let i = 0; i < 80; i++) {
+    const m1 = a + (b - a) / 3, m2 = b - (b - a) / 3;
+    if (raceBaseTime(m1, kg, grip) < raceBaseTime(m2, kg, grip)) b = m2;
+    else a = m1;
+  }
+  return (a + b) / 2;
+}
+export function hpForBase(kg, base, near, grip = 0.35) {
+  const t = (hp) => raceBaseTime(hp, kg, grip);
+  const opt = bestHp(kg, grip);
+  if (t(opt) > base) return null;
+  const solve = (lo, hi, rising) => {
+    for (let i = 0; i < 60; i++) {
+      const mid = (lo + hi) / 2;
+      if (t(mid) > base === rising) lo = mid;
+      else hi = mid;
+    }
+    return (lo + hi) / 2;
+  };
+  const low = solve(1, opt, true), high = t(50000) <= base ? 50000 : solve(opt, 50000, false);
+  return Math.abs(Math.log(low / near)) <= Math.abs(Math.log(high / near)) ? low : high;
+}
+// Picks the rival car for a target base: the model that needs the least tuning (or detuning) to run it, preferring
+// the own class, and for a hard rival a car with more power than yours (for an easy one, less), so the list reads
+// right. Returns { model, hp (shown = the power it needs), tuned (it runs on more power than from the factory) }.
+export function pickRival(cls, target, { hp, harder = null, rand = Math.random, avoid = [] } = {}) {
+  const own = cls === 'X' ? 'S' : cls;
+  let best = null, bs = Infinity;
+  for (const c of rivalPool(cls)) {
+    const need = hpForBase(c.kg, target, c.hp);
+    if (need == null) continue;
+    const mul = need / c.hp;
+    // A little tuning is fine (a rival on more power than from the factory), a detuned car is not.
+    let s = mul >= 0.98 ? Math.log(mul) / 0.06 : 0.3 - Math.log(mul) / 0.015;
+    if (mul > 1.4) s += 20;
+    if (c.cls !== own) s += 6 + 4 * (CLASS_ORDER.indexOf(c.cls) < CLASS_ORDER.indexOf(own));
+    if (harder != null && (harder ? need <= hp * 1.05 : need >= hp)) s += 5;
+    if (avoid.includes(c.model)) s += 6;
+    s += rand() * 2.5;
+    if (s < bs) ((bs = s), (best = { model: c.model, hp: Math.round(need), tuned: mul > 1.03 }));
+  }
+  if (best) return best;
+  // Faster than any car of the class can run on factory tyres (a heavily tuned car): the quickest one, tuned.
+  let quick = null, qt = Infinity;
+  for (const c of rivalPool(cls)) {
+    const hpOpt = bestHp(c.kg), t = raceBaseTime(hpOpt, c.kg, 0.35);
+    if (c.cls === own && t < qt) ((qt = t), (quick = { model: c.model, hp: Math.round(Math.max(hpOpt, c.hp)), tuned: true }));
+  }
+  return quick;
+}
+// Money per race for a good driver racing a model of this price: ~10k for a 40k car, ~33k at 350k, ~130k at 4M,
+// ~350k at 23M, ~950k at 140M, ~1.45M at 300M — a full tank (15 races) is about one case of the car's class.
+export const raceEv = (value) => 10000 * Math.pow(Math.max(value, 1000) / 40000, 0.56);
 export function raceMoney(op, value) {
-  const hard = OPPONENTS[OPPONENTS.length - 1].prize;
-  const top = 18000 * Math.pow(Math.max(value, 1000) / 40000, 0.55);
-  const prize = Math.max(1000, Math.round((top * op.prize) / hard / 1000) * 1000);
-  return { prize, entry: Math.round((prize * op.entry) / op.prize / 1000) * 1000 };
+  const ev = raceEv(value);
+  if (op.share != null) {
+    const easy = raceMoney(OPPONENTS[0], value).prize;
+    return { prize: Math.max(500, Math.round((easy * op.share) / 100) * 100), entry: 0 };
+  }
+  const prize = Math.max(1000, Math.round((op.ev * ev) / (op.chance * (1 + op.entry) - op.entry) / 1000) * 1000);
+  return { prize, entry: Math.round((prize * op.entry) / 1000) * 1000 };
 }
 // ---------- drift («Дрифт 2.0») ----------
 // A run is a track of DRIFT.corners corners (fast sweepers, medium corners, hairpins; left and right) with straights
@@ -1165,11 +1329,12 @@ export const DEALER = {
 export const START_SLOTS = 6;
 export const MAX_SLOTS = 40;
 export const slotCost = (slots) => niceRound(50000 * Math.pow(1.6, slots - START_SLOTS));
+// Income storage: the first step is within reach of a D/C garage (race2: 1M/10M/100M before).
 export const CAP_LEVELS = [
   { hours: 4, cost: 0 },
-  { hours: 6, cost: 1000000 },
-  { hours: 8, cost: 10000000 },
-  { hours: 12, cost: 100000000 },
+  { hours: 6, cost: 400000 },
+  { hours: 8, cost: 4000000 },
+  { hours: 12, cost: 40000000 },
 ];
 export const SHOWCASE_START = 4;
 export const SHOWCASE_MAX = 12;

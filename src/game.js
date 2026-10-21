@@ -54,30 +54,6 @@ function lcg(seed) {
   let s = seed >>> 0 || 1;
   return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
 }
-function rivalRun(rand, base) {
-  const reaction = 0.15 + rand() * 0.2;
-  const shifts = Array.from({ length: S.SHIFTS }, () => {
-    const x = rand();
-    return x < 0.25 ? 'perfect' : x < 0.85 ? 'good' : 'early';
-  });
-  return S.raceTime({ base, shift: 0 }, reaction, shifts);
-}
-function playerRun(rand, stats) {
-  const j = rand();
-  const reaction = j < 0.05 ? -1 : Math.max(0.1, Math.min(0.8, 0.28 + (rand() + rand() + rand() - 1.5) * 0.15));
-  const shifts = Array.from({ length: S.SHIFTS }, () => {
-    const x = rand();
-    return x < 0.2 ? 'perfect' : x < 0.6 ? 'good' : x < 0.9 ? 'late' : 'miss';
-  });
-  return S.raceTime(stats, reaction, shifts);
-}
-export function winChance(stats, rivalBase, seed) {
-  const rand = lcg(seed);
-  let wins = 0;
-  for (let i = 0; i < 300; i++) if (playerRun(rand, stats) < rivalRun(rand, rivalBase)) wins++;
-  return Math.round((wins / 300) * 100);
-}
-
 // Cars whose photo has a good body mask (public/paint/meta.json from `npm run paint-masks`; `off` = disabled by hand).
 export function paintableModels(file = new URL('../public/paint/meta.json', import.meta.url)) {
   try {
@@ -1000,8 +976,25 @@ export function createGame(db, opts = {}) {
 
   // ---------- racing ----------
   function rivalSig(c) {
-    return JSON.stringify([c.model, carParts(c.id), carPlate(c.id)?.id || 0]);
+    return JSON.stringify([2, c.model, carParts(c.id), carPlate(c.id)?.id || 0]);
   }
+  // The player's own form for the shown odds: what their last solo races took over their car's base time (at least
+  // 5 races; before that a mix of a good and an average driver). Only the shown chance uses it — how fast the
+  // rivals are never depends on the player's skill.
+  function myTimes(uid, o) {
+    const offs = [];
+    for (const r of q("SELECT rival, result FROM races WHERE user_id = ? AND status = 'done' ORDER BY id DESC LIMIT 30").all(uid)) {
+      try {
+        const rv = JSON.parse(r.rival), res = JSON.parse(r.result);
+        if (rv.me?.base && res.time < 99) offs.push(res.time - rv.me.base);
+      } catch {}
+    }
+    if (offs.length >= 5) return offs.map((x) => o.base + x).sort((a, b) => a - b);
+    const st = { base: o.base, shift: o.shift };
+    return [...S.driverTimes(st, S.DRIVERS.good, 120), ...S.driverTimes(st, S.DRIVERS.average, 120)].sort((a, b) => a - b);
+  }
+  // Rivals (rules in S.OPPONENTS): for every tier the base time that gives a good driver in the reference car
+  // (S.raceRef) the tier's chance, then a real model that runs it (S.pickRival) — its shown power is what it needs.
   function rivals(uid, { carId }) {
     const c = ownCar(uid, carId);
     const o = carOut(c);
@@ -1012,30 +1005,26 @@ export function createGame(db, opts = {}) {
     // The race weekend raises the prize (S.eventPrize, at most EVENT_CAPS.prizeMult); the entry stays the same.
     const fx = evFx();
     const money = (op) => {
-      if (op.id === S.TRAINING.id) return { prize: S.eventPrize(Math.max(500, Math.round((S.raceMoney(S.OPPONENTS[0], S.MODELS[c.model].price).prize * op.share) / 100) * 100), fx, 100), entry: 0 };
       const m = S.raceMoney(op, S.MODELS[c.model].price);
-      return { ...m, prize: S.eventPrize(m.prize, fx) };
+      return { ...m, prize: S.eventPrize(m.prize, fx, op.share != null ? 100 : 1000) };
     };
-    const opOf = (id) => (id === S.TRAINING.id ? S.TRAINING : S.OPPONENTS.find((op) => op.id === id));
-    if (row && row.sig === sig && JSON.parse(row.data)[0]?.id === S.TRAINING.id) return { car: o, list: JSON.parse(row.data).map((r) => ({ ...r, ...money(opOf(r.id)) })) };
-    const pool = S.ALL_MODELS.filter((m) => m.cls === cls);
+    const tiers = [S.TRAINING, ...S.OPPONENTS];
+    const opOf = (id) => tiers.find((op) => op.id === id);
+    if (row && row.sig === sig) return { car: o, list: JSON.parse(row.data).map((r) => ({ ...r, ...money(opOf(r.id)) })) };
+    const ref = S.raceRef({ model: c.model, parts: carParts(c.id) });
+    const refTimes = S.driverTimes({ base: ref.base, shift: ref.shift });
+    const refOffsets = S.rivalOffsets(ref.base);
+    const mine = myTimes(uid, o);
     const names = [...S.RIVAL_NAMES].sort(() => rnd() - 0.5);
-    const list = S.OPPONENTS.map((op, i) => {
-      const d = op.delta[0] + rnd() * (op.delta[1] - op.delta[0]);
-      const base = round3(o.base * (1 + d / 15));
-      const model = pool[Math.floor(rnd() * pool.length)];
-      const hp = Math.round((model.kg * 2.2046) / Math.pow(Math.max(base - 0.3, 4) / 5.825, 3));
-      return { id: op.id, label: op.name, name: names[i], model: model.id, hp, base, ...money(op), chance: winChance(o, base, Math.floor(base * 1e6) + i) };
+    const used = [c.model];
+    const list = tiers.map((op, i) => {
+      const p = op.chance + (rnd() * 2 - 1) * op.spread;
+      const base = round3(S.baseForChance(refTimes, refOffsets, p));
+      const pick = S.pickRival(cls, base, { hp: ref.stock.hp, harder: op.id === 'hard' ? true : op.id === 'mid' ? null : false, rand: rnd, avoid: used });
+      used.push(pick.model);
+      const chance = Math.round(S.oddsVs(mine, S.rivalOffsets(base), base) * 100);
+      return { id: op.id, label: op.name, name: names[i] || 'Інструктор', model: pick.model, hp: pick.hp, tuned: pick.tuned, base, et: Math.round((base + 0.2) * 100) / 100, ...money(op), chance };
     });
-    // Training first: an easy rival, no entry fee, a quarter of the easy prize.
-    {
-      const tr = S.TRAINING;
-      const d = tr.delta[0] + rnd() * (tr.delta[1] - tr.delta[0]);
-      const base = round3(o.base * (1 + d / 15));
-      const model = pool[Math.floor(rnd() * pool.length)];
-      const hp = Math.round((model.kg * 2.2046) / Math.pow(Math.max(base - 0.3, 4) / 5.825, 3));
-      list.unshift({ id: tr.id, label: tr.name, name: names[3] || 'Інструктор', model: model.id, hp, base, ...money(tr), chance: winChance(o, base, Math.floor(base * 1e6) + 9) });
-    }
     q('INSERT INTO rivals (user_id, car_id, sig, data) VALUES (?, ?, ?, ?) ON CONFLICT DO UPDATE SET sig = excluded.sig, data = excluded.data').run(uid, c.id, sig, JSON.stringify(list));
     return { car: o, list };
   }
@@ -1179,7 +1168,7 @@ export function createGame(db, opts = {}) {
     q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(f.fuel - 1, f.fuel >= S.FUEL_MAX ? now() : f.at, uid);
     q('UPDATE cars SET tank = ?, tank_at = ? WHERE id = ?').run(t.tank - 1, t.tank >= S.CAR_TANK ? now() : t.at, c.id);
     const rr = lcg(Math.floor(rnd() * 2 ** 31));
-    const rivalTime = rivalRun(rr, r.base);
+    const rivalTime = S.rivalRun(rr, r);
     // The car is fixed at the start: installing parts or selling it before the finish changes nothing.
     // The server picks the green light; the exact rival time stays here until the finish (the client gets it
     // rounded to 0.1 s, enough to animate the rival's car).
