@@ -3000,3 +3000,24 @@ button.li:active { background-color: #ffffff08; }
   .garage-h .hn-gsum > span { font-size: 12px; }
   .garage-h .hn-gsum b { font-size: 14px; }
 }
+/* ============================================================================================================
+   night wave A (audit §2 №12–13): banners never float over the page, one yellow per screen, battle case picker
+   ============================================================================================================ */
+/* reward banners: a strip at the top of the page that scrolls away with it; only a live invite stays pinned */
+#banners { position: relative; top: auto; }
+#banners.pinned { position: sticky; top: 60px; }
+/* drop screen: «У гараж» is the yellow one, «Відкрити ще» steps back to an outline */
+.btn.opencase.second { background: transparent; color: var(--text); border: 1px solid var(--line2); box-shadow: none; text-shadow: none; }
+.btn.opencase.second::after { display: none; }
+.btn.opencase.second .oc-p { background: #ffffff0d; box-shadow: inset 0 0 0 1px #ffffff14; }
+/* secondary yellow: outlined in the accent (the dream card, the guide's reward pill) — the screen keeps one filled yellow */
+.btn.soft { background: #ffc40012; color: var(--accent-hi); border: 0; box-shadow: inset 0 0 0 1.5px #ffc40070; text-shadow: none; }
+.btn.soft:active { background: #ffc40028; }
+.guide-gift { background: #ffc40012; color: var(--accent-hi); box-shadow: inset 0 0 0 1.5px #ffc40070; }
+/* race result: the fuel left sits inside «Ще раз» (a line under the buttons hid behind the raised «Кейси») */
+.dr-btns .btn.btn2 > small .i { width: 13px; height: 13px; margin-right: 2px; vertical-align: -2px; }
+/* battles: the case picker instead of a raw <select> */
+.picker.bpick { width: 100%; }
+.bpick-p { flex: none; font: 800 17px var(--f-disp); color: var(--text); white-space: nowrap; }
+.dr-btns { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.dr-btns .btn.btn2 > small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

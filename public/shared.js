@@ -736,7 +736,7 @@ export function partEffect(type, tier) {
   if (p.stat === 'kg') return `−${Math.round(v * 100)}% ваги`;
   if (p.stat === 'grip') return `+${Math.round(v * 100)} до зчеплення`;
   if (p.stat === 'shift') return `−${Math.round(v * 100)}% втрат на перемиканні`;
-  return `−${(v * 100).toFixed(1).replace('.', ',')}% часу`;
+  return `−${(v * 100).toFixed(1).replace('.', ',')}% часу`; // uk-UA: a decimal comma, like everywhere else
 }
 export const PART_CASES = [
   { id: 'scrap', name: 'Розбірка', icon: 'tool', weights: { stock: 85, street: 14, sport: 1 } },
@@ -847,21 +847,23 @@ export const COUNTRY_BONUS = { cars: 3, income: 0.1 };
 
 // ---------- car wash (мийка) ----------
 // Dirt per car, 0–100%: every race the car drives adds race (drag, career, PvP) or drift % (random in the range), and
-// standing anywhere it gathers perHour % an hour (cars.dirt + cars.dirt_at, counted lazily like the tanks). From `from`%
-// the car's garage income falls linearly to −maxCut at 100%; race power and times never change. Any wash sets dirt to 0
-// and the car «Блищить» for shineHours: +shine to its income. Hand wash (the rub-off mini-game): free, `hand` a day.
-// Car wash: price by class (secret cars like S), free with VIP. `dirty`+% shows «брудна» on the car.
+// standing anywhere it gathers perHour % an hour (cars.dirt + cars.dirt_at, counted lazily like the tanks). Owner
+// decision (night wave, audit §3): dirt is visual only — no income penalty (maxCut 0), race power and times never
+// change. Any wash sets dirt to 0 and the car «Блищить» for shineHours: +shine to its income — a bonus, never a tax.
+// Hand wash (the rub-off mini-game): free, `hand` a day. Car wash: price by class (secret cars like S), free with VIP.
+// `dirty`+% shows «брудна» on the car.
 export const WASH = {
-  race: [8, 12], drift: [11, 15], perHour: 1, from: 50, maxCut: 0.2, dirty: 50,
+  race: [8, 12], drift: [11, 15], perHour: 1, from: 50, maxCut: 0, dirty: 50,
   shine: 0.05, shineHours: 6, hand: 3, handClean: 0.85,
   price: { D: 2000, C: 6000, B: 25000, A: 120000, S: 500000, X: 500000 },
 };
 export const washPrice = (model) => WASH.price[MODELS[model]?.cls] ?? WASH.price.S;
 // Dirt at time t of a car stored as (dirt at `at`); `at` 0 = no clock yet (stays as stored).
 export const dirtNow = (dirt, at, t) => Math.min(100, Math.max(0, (dirt || 0) + (at > 0 && t > at ? ((t - at) / 3600e3) * WASH.perHour : 0)));
-// Share of income lost at this much dirt (0 … maxCut).
-export const dirtCut = (d) => (d <= WASH.from ? 0 : WASH.maxCut * Math.min(1, (d - WASH.from) / (100 - WASH.from)));
-// Income multiplier of a car at time t; cut = false while the wash is still locked for the player (no penalty yet).
+// Share of income lost at this much dirt: always 0 now (WASH.maxCut 0 — dirt is visual only); kept for old callers.
+export const dirtCut = (d) => (WASH.maxCut > 0 && d > WASH.from ? WASH.maxCut * Math.min(1, (d - WASH.from) / (100 - WASH.from)) : 0);
+// Income multiplier of a car at time t: 1, or 1 + shine while it shines after a wash. `cut` (wash locked for the
+// player) only mattered for the old dirt penalty.
 export const washFactor = (dirt, at, shineUntil, t, cut = true) => 1 - (cut ? dirtCut(dirtNow(dirt, at, t)) : 0) + ((shineUntil || 0) > t ? WASH.shine : 0);
 // The multiplier averaged over [a, b]. Exact: between the moments dirt crosses `from` and 100% and the shine ends, the
 // factor is linear in time, so each piece's average is its value at the middle.
@@ -879,7 +881,7 @@ export function washFactorAvg(dirt, at, shineUntil, a, b, cut = true) {
 // cars ({ id, model, status, parts, plateValue, dirt, dirtAt, shineUntil }); cars on the market or auction take a slot
 // each, and of the garage cars only the best earners up to the free slots earn. Each car: clean income (class rate +
 // parts/plate) × the claimed-set bonus (setIncomeBonus); three or more earning cars of one country: +COUNTRY_BONUS;
-// then × its dirt/shine (washFactor at t; cut = false while the wash is locked for the player). VIP only lengthens the
+// then × its shine (washFactor at t: +WASH.shine after a wash, dirt costs nothing). VIP only lengthens the
 // cash cap, not the rate. Returns the total rate and per car { earning, clean, set, country, base, wash, rate }.
 export function garageIncome({ cars, slots = 1e9, claimed = [], t = Date.now(), cut = false }) {
   const listed = cars.filter((c) => c.status === 'market' || c.status === 'auction').length;
@@ -1545,6 +1547,18 @@ export const CAP_LEVELS = [
   { hours: 8, cost: 4000000 },
   { hours: 12, cost: 40000000 },
 ];
+// The next cash upgrade as the player would really have it: the bought level's hours plus the extra hours on top now
+// (VIP or the comeback gift, the larger — capH is what the server reports), so a VIP at 4 + 4 = 8 h is offered
+// 6 + 4 = 10 h, never «до 6 год». null at the top level.
+export function nextCapOffer(capLevel, capH) {
+  const next = CAP_LEVELS[capLevel + 1];
+  if (!next) return null;
+  const extra = Math.max(0, (capH ?? CAP_LEVELS[capLevel].hours) - CAP_LEVELS[capLevel].hours);
+  return { hours: next.hours + extra, base: next.hours, extra, cost: next.cost };
+}
+// The very first garage income (owner: «+25 ₴ ображає»): opening the starter case puts this into the cash at once,
+// so the first «Забрати» is a real sum. Once per player (the starter case opens once); CLASS_INCOME is untouched.
+export const FIRST_CASH = 2500;
 export const SHOWCASE_START = 4;
 export const SHOWCASE_MAX = 12;
 export const showcaseCost = (n) => niceRound(300000 * Math.pow(2, n - SHOWCASE_START));
@@ -1573,7 +1587,7 @@ export const DAILY_XP_CAP = 300;
 // are never locked.
 export const UNLOCKS = [
   { key: 'parts', level: 2, name: 'Деталі й склад', icon: 'tool', text: 'Кейси з деталями, установка й злиття — машина їде швидше' },
-  { key: 'wash', level: 2, name: 'Мийка', icon: 'droplet', text: 'Брудні машини заробляють менше, чисті блищать: +5% доходу' },
+  { key: 'wash', level: 2, name: 'Мийка', icon: 'droplet', text: 'Помита машина блищить: +5% доходу на 6 год' },
   { key: 'drift', level: 3, name: 'Дрифт', icon: 'tornado', text: 'Другий режим гонок: траса дня й три суперники' },
   { key: 'plates', level: 3, name: 'Номери', icon: 'license', text: 'Генеруй номерні знаки — рідкісні коштують мільйони' },
   { key: 'paint', level: 4, name: 'Фарбування', icon: 'palette', text: 'Колір кузова й ліврея для твоїх машин' },
@@ -2086,16 +2100,20 @@ export const WHATS_NEW = {
 export const INTRO_STORY = {
   id: 'intro-1',
   last: 'Відкрити кейс!',
+  // Four slides (were seven): the showroom car on each one (app.js INTRO_CARS by icon), the class badges on the case
+  // slide (`classes`). Every car counts, the secret ones too.
   slides: [
-    { icon: 'car-turbine', title: 'Вітаємо в АВТОДРОПі', text: `Збирай гараж мрії: ${ALL_MODELS.filter((m) => !m.secret).length} справжні авто — від «Запорожця» до Bugatti. Відкривай кейси, ганяй, торгуй.` },
-    { icon: 'gift', title: 'Перший кейс — безкоштовно', text: 'Стартовий кейс уже чекає: усередині українська класика. Відкрий його одразу після цих слайдів.' },
-    { icon: 'diamond', title: 'Кейси і класи', text: 'Кожен кейс — шанс на рідкісне авто. Класи: D → C → B → A → S, від звичайних до міфічних. Скільки лишилось до гарантії — видно під кейсом.' },
-    { icon: 'coin', title: 'Гараж заробляє', text: 'Кожна машина приносить дохід щогодини, навіть коли гра закрита. Заходь і тисни «Забрати». Непотрібне авто продай одразу з кейсу.' },
-    { icon: 'flag-3', title: 'Гонки', text: 'Драг на 402 м: жми «ГАЗ» рівно на зелений і перемикай передачі в зеленій зоні. Перемога — гроші й досвід, тюнінг — більше к.с.' },
-    { icon: 'books', title: 'Колекції і секретки', text: `Збери всі машини однієї країни — отримаєш секретну, якої немає в жодному кейсі. ${MAIN_COUNTRIES.length} країн — ${MAIN_COUNTRIES.length} секреток.` },
-    { icon: 'calendar', title: 'Щодня — подарунок', text: `Щоденний бонус на ${DAILY_BONUS.length} днів: на 7-й — авто зі «Спорткара», на 14-й — з «Еліти». Плюс сезонний пропуск на ${SEASON.levels} рівнів.` },
+    { icon: 'car-turbine', title: 'Вітаємо в АВТОДРОПі', text: `Збирай гараж мрії: ${ALL_MODELS.length} ${realCars(ALL_MODELS.length)} — від «Запорожця» до Bugatti. Відкривай кейси, ганяй і збирай колекції.` },
+    { icon: 'gift', classes: true, title: 'Перший кейс — безкоштовно', text: 'Усередині — радянська й українська класика. Класи машин: D → C → B → A → S — що рідший, то дорожча. Скільки лишилось до гарантії — видно під кейсом.' },
+    { icon: 'coin', title: 'Гараж заробляє', text: `Машини приносять дохід щогодини, навіть коли гра закрита, — заходь і тисни «Забрати». Щоденний бонус на ${DAILY_BONUS.length} днів: на 7-й — авто зі «Спорткара».` },
+    { icon: 'flag-3', title: 'Гонки й колекції', text: `Драг на 402 м: «Газ» — на зелений, передачі — у зеленій зоні. Збери всі машини країни — і отримаєш секретну, якої немає в жодному кейсі.` },
   ],
 };
+// «1 справжнє авто», «3 справжні авто», «177 справжніх авто».
+function realCars(n) {
+  const a = n % 10, b = n % 100;
+  return a === 1 && b !== 11 ? 'справжнє авто' : a >= 2 && a <= 4 && (b < 12 || b > 14) ? 'справжні авто' : 'справжніх авто';
+}
 // Which story the app shows at start. `localSeen`: WHATS_NEW already shown in this browser.
 export function storyFor(me, localSeen = false) {
   if (me.intro) return 'intro';
@@ -2112,7 +2130,7 @@ export const GUIDE_STEPS = [
   { key: 'keep', tab: 'cases', target: '[data-act="toGarage"]', title: 'Постав машину в гараж', text: 'Тисни «У гараж» — машина почне заробляти й зможе їздити в гонках.' },
   // Only when the garage is empty (the starter car was sold): a car is needed for income and races.
   { key: 'case', tab: 'cases', target: '[data-act="openCase"]', title: 'Відкрий кейс з машиною', text: '«Іржавий гараж» — найдешевший. Машина в гаражі заробляє гроші й їздить у гонках.', extra: true },
-  { key: 'collect', tab: 'garage', target: '[data-act="collect"]', title: 'Забери дохід гаража', text: 'Машина вже заробила кілька гривень. Тисни «Забрати» — і так щоразу, як заходиш.' },
+  { key: 'collect', tab: 'garage', target: '[data-act="collect"]', title: 'Забери дохід гаража', text: 'У касі вже лежить перший дохід. Тисни «Забрати» — і так щоразу, як заходиш.' },
   { key: 'race', tab: 'race', target: '.rival', title: 'Проїдь перший заїзд', text: 'Обери суперника. На світлофорі жми «ГАЗ» на зелений, передачі — у зеленій зоні.' },
   { key: 'daily', tab: null, target: '#gift', title: 'Забери щоденний бонус', text: 'Подарунок угорі екрана. Заходь щодня — на 7-й день машина зі «Спорткара».' },
 ];
@@ -2146,7 +2164,9 @@ export const EVENTS = {
     text: 'Загальний бак і баки машин наповнюються вдвічі швидше (з VIP — утричі).' },
   race: { name: 'Гоночний уїкенд', icon: 'flag-3', color: '#ff3b30', days: 2, prizeMult: 1.25,
     text: 'Призи за перемоги в драгу й дрифті +25%. Внесок той самий.' },
-  country: { name: 'Країна тижня', icon: 'world', color: '#0a84ff', days: 7, off: 0.15, boost: 0, fragments: false, save: false,
+  // The losing-streak save stays on: the China case (every C car under its price) leaned on it, and without it its
+  // discounted open-and-sell fell to 0.63 while the others sat at 0.90–0.98; with it China is ~0.85, the rest < 1.
+  country: { name: 'Країна тижня', icon: 'world', color: '#0a84ff', days: 7, off: 0.15, boost: 0, fragments: false, save: true,
     text: 'Кейс країни −15%. Знижений кейс не дає фрагментів ключа.' },
   plates: { name: 'Щасливі номери', icon: 'license', color: '#bf5af2', days: 1, off: 0.2, gens: ['pretty', 'region'],
     text: '«Красивий» номер і номери областей −20%.' },

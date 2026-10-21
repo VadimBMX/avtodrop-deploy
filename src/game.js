@@ -231,9 +231,10 @@ export function createGame(db, opts = {}) {
   // ---------- income ----------
   // Only as many cars as the garage has slots earn income (the best earners), so a garage that went over its
   // limit (battle win, auction, reward) gives no extra income until the spare cars are sold.
-  // The rate now, and (with `from`) what was earned from `from` until now: each car's dirt and shine (S.WASH) change its
-  // income over time, so that part is the exact average of its multiplier over the stretch (S.washFactorAvg). Which
-  // cars earn and the country bonus go by the clean income. The dirt penalty starts once the wash is open to the player.
+  // The rate now, and (with `from`) what was earned from `from` until now: a car's shine after a wash (S.WASH, +shine
+  // for shineHours; dirt itself costs nothing) changes its income over time, so that part is the exact average of its
+  // multiplier over the stretch (S.washFactorAvg — the same function the client's S.garageIncome uses). Which cars
+  // earn and the country bonus go by the clean income.
   function incomeRate(uid, from = null) {
     const u = q('SELECT slots FROM users WHERE id = ?').get(uid);
     const rows = q("SELECT * FROM cars WHERE owner_id = ? AND status IN ('garage', 'market', 'auction') ORDER BY id").all(uid);
@@ -730,6 +731,9 @@ export function createGame(db, opts = {}) {
     pay(uid, price * (n - useKeys));
     if (useKeys) q('UPDATE keys SET count = count - ? WHERE user_id = ? AND case_id = ?').run(useKeys, uid, caseId);
     bank(uid);
+    // The first garage income is a real sum, not «+25 ₴»: the starter case puts S.FIRST_CASH into the cash once
+    // (banked income is never lost, so it waits for the first «Забрати»).
+    if (cs.starter && !JSON.parse(userRow(uid).newbie_flags).includes('collect')) q('UPDATE users SET banked = MAX(banked, ?) WHERE id = ?').run(S.FIRST_CASH, uid);
     const results = [];
     let fragments = 0, newKeys = 0;
     for (let i = 0; i < n; i++) {
@@ -1253,11 +1257,19 @@ export function createGame(db, opts = {}) {
     const trackSeed = parseInt(h.slice(48, 56), 16);
     const par = S.driftPar(S.driftModel(S.carStats({ model: c.model })), S.driftTrack(trackSeed));
     const pool = S.ALL_MODELS.filter((m) => m.cls === S.MODELS[c.model].cls && !m.secret);
+    // Names from the same hash, but never twice in one list (two «Вовк» side by side): a taken one moves to the next.
+    const taken = new Set();
+    const nameAt = (k) => {
+      let j = k % S.RIVAL_NAMES.length;
+      while (taken.has(j)) j = (j + 1) % S.RIVAL_NAMES.length;
+      taken.add(j);
+      return S.RIVAL_NAMES[j];
+    };
     const list = S.DRIFT_RIVALS.map((r, i) => {
       const x = parseInt(h.slice(i * 6, i * 6 + 6), 16) / 0xffffff;
       const base = S.raceMoney(S.OPPONENTS.find((op) => op.id === r.id), S.MODELS[c.model].price);
       const money = { ...base, prize: S.eventPrize(base.prize, evFx()) };
-      return { id: r.id, label: r.name, name: S.RIVAL_NAMES[parseInt(h.slice(20 + i * 2, 22 + i * 2), 16) % S.RIVAL_NAMES.length],
+      return { id: r.id, label: r.name, name: nameAt(parseInt(h.slice(20 + i * 2, 22 + i * 2), 16)),
         model: pool[Math.floor(x * pool.length)]?.id || c.model, target: Math.max(10, Math.round((par * r.share * (0.96 + 0.08 * x)) / 10) * 10), ...money };
     });
     return { car: o, list, model: S.driftModel(o), track: trackSeed, par };

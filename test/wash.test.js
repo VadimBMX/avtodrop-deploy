@@ -1,5 +1,6 @@
-// Car wash (S.WASH): dirt from races and from time, the income cut from 50% dirt, the «Блищить» bonus, hand wash (3 a
-// day, server-counted) and the car wash (price by class, free with VIP), the daily task, and the in-place upgrade.
+// Car wash (S.WASH): dirt from races and from time (visual only — owner decision, no income cut), the «Блищить» bonus,
+// hand wash (3 a day, server-counted) and the car wash (price by class, free with VIP), the daily task, and the
+// in-place upgrade.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -29,15 +30,17 @@ const D_MODEL = S.ALL_MODELS.find((m) => m.cls === 'D' && !m.secret).id;
 const B_MODEL = S.ALL_MODELS.find((m) => m.cls === 'B' && !m.secret).id;
 const A_MODEL = S.ALL_MODELS.find((m) => m.cls === 'A' && !m.secret).id;
 
-test('dirt maths: +1%/h capped at 100, no cut up to 50%, −20% at 100%, exact average over a stretch', () => {
+test('dirt maths: +1%/h capped at 100, no income cut at any dirt (visual only), shine +5%, exact average', () => {
   assert.equal(S.dirtNow(10, T0, T0 + 5 * H), 15);
   assert.equal(S.dirtNow(90, T0, T0 + 50 * H), 100);
   assert.equal(S.dirtNow(30, 0, T0 + 50 * H), 30, 'no clock: stays as stored');
-  assert.equal(S.dirtCut(50), 0);
-  assert.ok(Math.abs(S.dirtCut(75) - 0.1) < 1e-12);
-  assert.ok(Math.abs(S.dirtCut(100) - 0.2) < 1e-12);
+  assert.equal(S.WASH.maxCut, 0);
+  for (const d of [0, 50, 75, 100]) assert.equal(S.dirtCut(d), 0, `${d}%`);
   assert.equal(S.washFactor(0, T0, T0 + H, T0), 1 + S.WASH.shine);
-  assert.equal(S.washFactor(100, T0, 0, T0, false), 1, 'no cut while the wash is locked');
+  assert.equal(S.washFactor(100, T0, 0, T0), 1, '100% dirty earns in full');
+  assert.equal(S.washFactor(100, T0, T0 + H, T0), 1 + S.WASH.shine, 'shine counts however dirty');
+  assert.equal(S.washFactor(100, T0, 0, T0, false), 1);
+  assert.equal(S.washFactorAvg(60, T0, T0 + 3 * H, T0, T0 + 6 * H), 1 + S.WASH.shine / 2, 'half the stretch shining');
   // The closed form against a fine numeric integral, across the 50% and 100% bends and the end of a shine.
   for (const [dirt, shineH, a, b] of [[40, 3, 0, 80], [0, 6, 1, 7], [95, 0, 0, 30], [60, 0, 2, 3]]) {
     const exact = S.washFactorAvg(dirt, T0, shineH ? T0 + shineH * H : 0, T0 + a * H, T0 + b * H);
@@ -68,21 +71,21 @@ test('a race adds 8–12% dirt, time adds 1%/h; new cars start clean; the car ca
   assert.equal(meCar(u, id).dirt, 100, 'capped');
 });
 
-test('income: from 50% dirt the car earns less (−20% at 100%), integrated exactly; level 1 has no cut yet', () => {
+test('income: dirt costs nothing at any level (owner: visual only) — the server rate and «Забрати» stay full', () => {
   const { db, mk, call, g, advance, now } = setup();
   const u = mk(1);
   const id = g.giveCar(u, B_MODEL).id;
   const clean = call(u, 'me').income.rate;
   assert.ok(clean > 0);
-  // 100% dirty: the rate is 80%.
+  // 100% dirty: still the full rate.
   db.prepare('UPDATE cars SET dirt = 100, dirt_at = ? WHERE id = ?').run(now(), id);
-  assert.equal(call(u, 'me').income.rate, Math.round(clean * 0.8));
-  // From 40%: 10 h at the full rate, then 2 h sliding 50→52% dirt: pending is the exact integral (the largest cap and
-  // VIP's extra hours, so the cap never bites).
+  assert.equal(call(u, 'me').income.rate, clean);
+  // From 40%: 12 h with dirt sliding 40→52% pay exactly 12 h of the clean rate (the largest cap and VIP's extra hours,
+  // so the cap never bites).
   db.prepare('UPDATE cars SET dirt = 40, dirt_at = ? WHERE id = ?').run(now(), id);
   db.prepare('UPDATE users SET banked = 0, income_at = ?, cap_level = ?, vip_until = ? WHERE id = ?').run(now(), S.CAP_LEVELS.length - 1, now() + 99 * H, u);
   advance(12 * H);
-  const want = clean * (10 + 2 * (1 - S.dirtCut(51)));
+  const want = clean * 12;
   const got = call(u, 'collect').got;
   assert.ok(Math.abs(got - want) <= 2, `${got} vs ${want}`);
   // A level-1 player (wash still locked) keeps the full income however dirty the car is.

@@ -296,8 +296,8 @@ test('reminder: «event started» once, in the first hours, within the daily lim
 // hence 1.05; the Monte Carlo of test/caseev.test.js pins < 1.01 on deal days.
 const OPEN_SELL_CAP = 1.05;
 test('economy: open-and-sell under the price for every case during every event (exact odds)', () => {
-  // Exact for the country discount (boost, fragments and streak save are all off there); for the luck weekend the
-  // streak save still works, +5% covers it (tools/sim-events.mjs measures it at 0–3%).
+  // Exact odds; the country discount (boost and fragments off) and the luck weekend keep the streak save, +5% covers
+  // it (tools/sim-events.mjs measures it at 0–3%).
   for (const cs of S.CASES.filter((c) => !c.starter)) {
     const fxs = cs.group === 'rarity' ? [S.eventEffects([{ id: 'luck' }]), S.eventEffects(S.EVENT_IDS.map((id) => ({ id, country: 'UA' })))]
       : [S.eventEffects([{ id: 'country', country: cs.country }]), S.eventEffects(S.EVENT_IDS.map((id) => ({ id, country: cs.country })))];

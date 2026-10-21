@@ -53,14 +53,14 @@ test('shared garageIncome = server rate = what collect credits (country, set, sh
   assert.ok(e0.set > 0);
   assert.equal(e0.wash, 1 + S.WASH.shine);
   assert.ok(Math.abs(e0.rate - e0.clean * (1 + e0.set) * (1 + e0.country) * e0.wash) < 1e-6);
-  assert.ok(inc.cars[jdm[1]].wash < 1, 'the dirty car earns less');
+  assert.equal(inc.cars[jdm[1]].wash, 1, 'dirt costs nothing (owner: visual only)');
 
-  // Without the dirty car's changing dirt the rate holds for 3 h: collect pays rate × 3 h.
-  db.prepare('UPDATE cars SET dirt = 0, dirt_at = ? WHERE id = ?').run(now(), jdm[1]);
+  // Dirt keeps growing (80 → 83%) but costs nothing; with no shine changing the rate holds for 3 h: collect pays
+  // rate × 3 h.
+  db.prepare('UPDATE cars SET shine_until = 0 WHERE owner_id = ?').run(u);
   const steady = clientIncome(call(u, 'me')).rate;
   db.prepare('UPDATE users SET banked = 0, income_at = ? WHERE id = ?').run(now(), u);
   advance(3 * H);
-  db.prepare('UPDATE cars SET dirt = 0, dirt_at = ? WHERE owner_id = ?').run(now(), u); // dirt stays < 50%: no cut
   const got = call(u, 'collect').got;
   assert.ok(Math.abs(got - steady * 3) <= 1, `${got} vs ${steady * 3}`);
 
