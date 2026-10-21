@@ -153,3 +153,17 @@ export const fanfare = safe(() => {
   [523, 659, 784, 1047, 1319].forEach((f, i) => tone({ f, type: 'triangle', at: i * 0.07, dur: 0.3, vol: 0.3 }));
   noise({ at: 0.3, dur: 0.5, vol: 0.06, from: 3000, to: 9000, q: 3 });
 });
+// Hand wash: a short wet swish under the finger (throttled), and a splash with a bright "clean" ping at the end.
+let lastScrub = 0;
+export const scrub = safe((speed = 1) => {
+  const now = performance.now();
+  if (now - lastScrub < 110) return;
+  lastScrub = now;
+  const s = Math.max(0.6, Math.min(1.6, speed));
+  noise({ dur: 0.16, vol: 0.05 * s, from: 700 * s, to: 2200 * s, q: 0.7 });
+  if (Math.random() < 0.25) tone({ f: 1800 + Math.random() * 900, f2: 2600, type: 'sine', at: 0.03, dur: 0.05, vol: 0.03 });
+});
+export const splash = safe(() => {
+  noise({ dur: 0.5, vol: 0.12, from: 3000, to: 500, q: 0.6 });
+  [1319, 1760, 2637].forEach((f, i) => tone({ f, type: 'sine', at: 0.25 + i * 0.07, dur: 0.35, vol: 0.12 }));
+});

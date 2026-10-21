@@ -2722,3 +2722,85 @@ button.li:active { background-color: #ffffff08; }
 .banner .bbtns .btn { padding: 0 10px; font-size: 14px; }
 /* hub: what the next level brings, under the XP bar */
 .hub-next { display: block; margin-top: 4px; font: 500 11px/1.25 var(--f-body); color: var(--muted); max-width: 100%; }
+
+/* ============================================================================================================
+   Car wash (S.WASH; app.js «car wash» section, dirt.js): dirt markers on tiles, cards and market rows, Майстерня →
+   Мийка, the hand-wash mini-game. Mud is brown (#b0865a), the shine is cold white-blue. Nothing loops at rest: the
+   shine sweep plays once after a wash; the «Три!» hint pulses only until the first touch; reduced motion: none of it.
+   ============================================================================================================ */
+:root { --mud: #b0865a; --mud-ink: #2a1c0e; --shine: #cfe8ff; }
+.seg.seg4 button { font-size: 14px; letter-spacing: 0; }
+@media (max-width: 374px) { .seg.seg4 button { font-size: 12.5px; } }
+/* tile pip: bottom-left of the photo */
+.car .art .dirt-pip { position: absolute; left: -2px; bottom: -2px; display: inline-flex; align-items: center; gap: 2px; padding: 1px 5px 1px 3px; border-radius: 999px;
+  background: #0b0f16d9; color: var(--muted); font: 700 10.5px/1.5 var(--f-disp); letter-spacing: .2px; pointer-events: none; }
+.car .art .dirt-pip .i { width: 11px; height: 11px; }
+.car .art .dirt-pip.dirty { color: var(--mud); box-shadow: inset 0 0 0 1px #b0865a55; }
+.car .art .dirt-pip.shine { color: var(--shine); padding: 2px 4px; box-shadow: inset 0 0 0 1px #cfe8ff40; }
+/* «брудна» / «блищить» next to a car */
+.dirt-tag { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px 1px 4px; border-radius: 5px; font: 700 11px/1.45 var(--f-body); vertical-align: 1px; white-space: nowrap; }
+.dirt-tag .i { width: 11px; height: 11px; }
+.dirt-tag.dirty { background: #b0865a26; color: #d7aa78; }
+.dirt-tag.shine { background: #cfe8ff1f; color: var(--shine); }
+.sheet-tags .dirt-tag { font-size: 12px; padding: 3px 8px 3px 6px; }
+/* dirt meter: brown fill, the 50% line where income starts to fall */
+.wash-meter { position: relative; display: block; height: 4px; border-radius: 2px; background: var(--card3); overflow: hidden; }
+.wash-meter > i { display: block; height: 100%; border-radius: 2px; background: linear-gradient(90deg, #8a6a46, var(--mud)); transition: width .3s; }
+.wash-meter > s { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #0b0f16; text-decoration: none; }
+.wash-meter.sm { width: 46px; flex: none; }
+.wash-meter.lg { height: 6px; border-radius: 3px; }
+.wash-meter.clean > i { background: linear-gradient(90deg, #7fc4ff, var(--shine)); }
+/* garage hint */
+.card.wash-hint { width: 100%; text-align: left; gap: 12px; padding: 11px 14px; }
+.wash-hint-ic { width: 38px; height: 38px; flex: none; border-radius: var(--r-sm); display: inline-flex; align-items: center; justify-content: center; background: #b0865a22; color: var(--mud); font-size: 19px; }
+.wash-hint b { font: 600 15.5px var(--f-disp); letter-spacing: .2px; }
+/* wash screen */
+.wash-cars .pcar { gap: 3px; }
+.wash-cars .pcar .wash-meter { margin-top: 1px; }
+.pcar-d { display: inline-flex; align-items: center; gap: 2px; font: 700 11px/1.2 var(--f-disp); color: var(--muted); }
+.pcar-d .i { width: 11px; height: 11px; color: var(--shine); }
+.pcar-d.dirty { color: var(--mud); }
+.wash-hero { height: 150px; margin-top: 4px; overflow: hidden; }
+.wash-now { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+.wash-now > b { font: 600 17px var(--f-disp); letter-spacing: .2px; }
+.wash-state { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: var(--muted); }
+.wash-state.dirty { color: #d7aa78; }
+.wash-state.shine { color: var(--shine); }
+.wash-bar { padding: 10px 2px 2px; }
+.wash-opts { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.wash-opt { display: flex; align-items: center; gap: 12px; padding: 4px 2px 0; }
+.wash-opt .ic { width: 38px; height: 38px; flex: none; border-radius: var(--r-sm); background: var(--card2); display: inline-flex; align-items: center; justify-content: center; font-size: 19px; }
+.wash-opt b { font: 600 15.5px var(--f-disp); letter-spacing: .2px; }
+.wash-opt .small b { font: inherit; font-weight: 800; }
+.wash-opt + .btn { margin-top: -2px; }
+.wash-opts .btn.btn2 { margin-top: 6px; }
+/* «Блищить»: a cool glint on the car — static; one sweep right after a wash */
+.hero.shining .art img, .wg-stage.shining .wg-car { filter: drop-shadow(0 0 10px #cfe8ff40) brightness(1.04) saturate(1.06); }
+.hero.shining::after, .wg-stage.shining::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  background: linear-gradient(105deg, transparent 35%, #ffffff55 48%, #cfe8ff22 52%, transparent 65%) no-repeat; background-size: 250% 100%; background-position: 120% 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .hero.shining.just::after, .wg-stage.shining::after { animation: wash-sweep 1.1s ease-out .15s 1 both; }
+  .wg-hint { animation: wash-pulse 1.2s ease-in-out infinite; }
+}
+@keyframes wash-sweep { 0% { opacity: 1; background-position: 120% 0; } 100% { opacity: 1; background-position: -60% 0; } }
+@keyframes wash-pulse { 50% { transform: translate(-50%, -50%) scale(1.08); opacity: .75; } }
+/* the mini-game: a card over a dimmed screen */
+.washgame { position: fixed; inset: 0; z-index: 70; background: #000c; display: flex; align-items: center; justify-content: center; padding: 16px; touch-action: none; }
+.wg-card { width: 100%; max-width: 440px; background: var(--card); border: 1px solid var(--line2); border-radius: 16px; padding: 14px 14px 16px; box-shadow: 0 20px 50px #000a; }
+.wg-head { display: flex; align-items: center; justify-content: space-between; }
+.wg-head b { font: 800 21px/1.1 var(--f-disp); transform: var(--slant); transform-origin: left; }
+.wg-head .x { width: 32px; height: 32px; border-radius: 10px; background: var(--card2); display: inline-flex; align-items: center; justify-content: center; font-size: 16px; color: var(--text); }
+.wg-sub { margin: 4px 0 10px; font-size: 13px; color: var(--muted); min-height: 19px; }
+.wg-sub b.win { display: inline-flex; align-items: center; gap: 4px; color: var(--shine); }
+.wg-stage { position: relative; width: 100%; aspect-ratio: 5 / 2; border-radius: 12px; background: radial-gradient(70% 60% at 50% 70%, #1f2a3d, #10151f 75%); overflow: hidden; }
+.wg-stage .wg-car, .wg-stage .wg-cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.wg-cover { touch-action: none; cursor: grab; transition: opacity .5s; }
+.wg-cover.gone { opacity: 0; }
+.washgame.calm .wg-cover { transition: none; }
+.wg-hint { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 999px;
+  background: #0b0f16cc; color: var(--text); font: 700 15px var(--f-disp); pointer-events: none; }
+.wg-load { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; }
+.wg-meter { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.wg-meter .wash-meter { flex: 1; }
+.wg-pct { width: 44px; text-align: right; font: 700 16px var(--f-disp); }
+.wg-foot { margin-top: 12px; }

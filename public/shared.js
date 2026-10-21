@@ -772,6 +772,37 @@ export function carIncomeOf(car) {
 }
 // Three or more cars of one country earning in the garage: +10% to their income.
 export const COUNTRY_BONUS = { cars: 3, income: 0.1 };
+
+// ---------- car wash (мийка) ----------
+// Dirt per car, 0–100%: every race the car drives adds race (drag, career, PvP) or drift % (random in the range), and
+// standing anywhere it gathers perHour % an hour (cars.dirt + cars.dirt_at, counted lazily like the tanks). From `from`%
+// the car's garage income falls linearly to −maxCut at 100%; race power and times never change. Any wash sets dirt to 0
+// and the car «Блищить» for shineHours: +shine to its income. Hand wash (the rub-off mini-game): free, `hand` a day.
+// Car wash: price by class (secret cars like S), free with VIP. `dirty`+% shows «брудна» on the car.
+export const WASH = {
+  race: [8, 12], drift: [11, 15], perHour: 1, from: 50, maxCut: 0.2, dirty: 50,
+  shine: 0.05, shineHours: 6, hand: 3, handClean: 0.85,
+  price: { D: 2000, C: 6000, B: 25000, A: 120000, S: 500000, X: 500000 },
+};
+export const washPrice = (model) => WASH.price[MODELS[model]?.cls] ?? WASH.price.S;
+// Dirt at time t of a car stored as (dirt at `at`); `at` 0 = no clock yet (stays as stored).
+export const dirtNow = (dirt, at, t) => Math.min(100, Math.max(0, (dirt || 0) + (at > 0 && t > at ? ((t - at) / 3600e3) * WASH.perHour : 0)));
+// Share of income lost at this much dirt (0 … maxCut).
+export const dirtCut = (d) => (d <= WASH.from ? 0 : WASH.maxCut * Math.min(1, (d - WASH.from) / (100 - WASH.from)));
+// Income multiplier of a car at time t; cut = false while the wash is still locked for the player (no penalty yet).
+export const washFactor = (dirt, at, shineUntil, t, cut = true) => 1 - (cut ? dirtCut(dirtNow(dirt, at, t)) : 0) + ((shineUntil || 0) > t ? WASH.shine : 0);
+// The multiplier averaged over [a, b]. Exact: between the moments dirt crosses `from` and 100% and the shine ends, the
+// factor is linear in time, so each piece's average is its value at the middle.
+export function washFactorAvg(dirt, at, shineUntil, a, b, cut = true) {
+  if (!(b > a)) return washFactor(dirt, at, shineUntil, b, cut);
+  const pts = [a, b];
+  if (at > 0) for (const d of [WASH.from, 100]) pts.push(at + ((d - (dirt || 0)) / WASH.perHour) * 3600e3);
+  if (shineUntil) pts.push(shineUntil);
+  const cuts = [...new Set(pts.filter((p) => p >= a && p <= b))].sort((x, y) => x - y);
+  let s = 0;
+  for (let i = 0; i + 1 < cuts.length; i++) s += washFactor(dirt, at, shineUntil, (cuts[i] + cuts[i + 1]) / 2, cut) * (cuts[i + 1] - cuts[i]);
+  return s / (b - a);
+}
 const fx = (car, key) => (car.parts?.[key] ? PARTS[key].fx[TIER_BY_ID[car.parts[key]].index] : 0);
 export function carStats(car) {
   const m = MODELS[car.model];
@@ -1443,6 +1474,7 @@ export const DAILY_XP_CAP = 300;
 // are never locked.
 export const UNLOCKS = [
   { key: 'parts', level: 2, name: 'Деталі й склад', icon: 'tool', text: 'Кейси з деталями, установка й злиття — машина їде швидше' },
+  { key: 'wash', level: 2, name: 'Мийка', icon: 'droplet', text: 'Брудні машини заробляють менше, чисті блищать: +5% доходу' },
   { key: 'drift', level: 3, name: 'Дрифт', icon: 'tornado', text: 'Другий режим гонок: траса дня й три суперники' },
   { key: 'plates', level: 3, name: 'Номери', icon: 'license', text: 'Генеруй номерні знаки — рідкісні коштують мільйони' },
   { key: 'paint', level: 4, name: 'Фарбування', icon: 'palette', text: 'Колір кузова й ліврея для твоїх машин' },
@@ -1516,6 +1548,8 @@ export const QUESTS = {
   collect: { text: 'Забери дохід гаража {n} раз', range: [2, 3] },
   pvp: { text: 'Зіграй {n} PvP-заїзд', range: [1, 2], feature: 'pvp' },
   market: { text: 'Купи або продай авто на ринку', range: [1, 1], feature: 'market' },
+  // 3–4: three free hand washes a day do it; a cheaper task would tip the weekly-route balance (test/weekly.test.js).
+  wash: { text: 'Помий машини {n} рази', range: [3, 4], feature: 'wash' },
 };
 
 // ---------- weekly route ----------

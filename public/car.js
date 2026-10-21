@@ -1,6 +1,7 @@
 // Car artwork: a real photo from public/cars/<id>.webp when it exists, otherwise a drawn silhouette.
 import { MODELS, CLASSES } from './shared.js';
 import { lookKey, cachedLook, canPaint, setPhotoSource } from './paint.js';
+import { dirtKey, cachedDirt } from './dirt.js';
 
 let IMAGES = {};
 export function setImages(map) {
@@ -49,8 +50,9 @@ ${wheel(rx)}${wheel(fx)}</svg>`;
 }
 
 // look = an owned car's paint/livery ({ paint, livery, n } from the server): the <img> carries data-look and paint.js
-// swaps in the recoloured picture (straight away when it's already cached).
-export function carArt(modelId, { glow = false, silhouette = false, look = null } = {}) {
+// swaps in the recoloured picture (straight away when it's already cached). dirt = the car's dirt % (S.WASH): from 10%
+// the <img> carries data-dirt instead and dirt.js swaps in the dirty picture (painted underneath when it has a look).
+export function carArt(modelId, { glow = false, silhouette = false, look = null, dirt = 0 } = {}) {
   const m = MODELS[modelId];
   if (!m) return '';
   const style = glow ? ` style="--c:${CLASSES[m.cls].color}"` : '';
@@ -60,6 +62,11 @@ export function carArt(modelId, { glow = false, silhouette = false, look = null 
   if (src) {
     const st = [glow ? `--c:${CLASSES[m.cls].color}` : '', m.filter ? `filter:${m.filter}${glow ? ' drop-shadow(0 0 14px var(--c))' : ''}` : ''].filter(Boolean).join(';');
     const key = !silhouette && IMAGES[modelId] && canPaint(modelId) ? lookKey(modelId, look) : null;
+    const dk = !silhouette && IMAGES[modelId] && !m.filter ? dirtKey(modelId, key ? look : null, dirt) : null;
+    if (dk) {
+      const ready = cachedDirt(dk) || (key && cachedLook(key));
+      return `<img src="${ready || src}" alt="" class="${cls}"${st ? ` style="${st}"` : ''} data-dirt="${dk}"${cachedDirt(dk) ? ` data-dirtied="${dk}"` : ''} loading="lazy" draggable="false">`;
+    }
     const ready = key && cachedLook(key);
     return `<img src="${ready || src}" alt="" class="${cls}"${st ? ` style="${st}"` : ''}${key ? ` data-look="${key}"${ready ? ` data-painted="${key}"` : ''}` : ''} loading="lazy" draggable="false">`;
   }

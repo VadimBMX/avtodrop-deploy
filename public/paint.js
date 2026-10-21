@@ -24,6 +24,10 @@ export function loadPaintMeta() {
   return metaP;
 }
 export const paintMetaReady = () => !!META;
+// For the dirt layer (dirt.js): a car's mask entry, its mask URL and the photo the game shows.
+export const metaOf = (id) => META?.cars?.[id] || null;
+export const maskUrl = (id) => `paint/${id}.png?v=${META?.v || ''}`;
+export const photoUrl = (id) => photoOf(id);
 export const canPaint = (id) => !!(META?.cars?.[id]?.w && !META.cars[id].off);
 // Green key cars (meta.base, made by `npm run green-cars`): paint starts from the green original in public/cars/base,
 // not from the photo the game shows (that one is baked in the factory colour); other cars paint their own photo.

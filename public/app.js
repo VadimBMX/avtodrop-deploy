@@ -2,6 +2,8 @@ import * as S from './shared.js';
 import { carArt, setImages } from './car.js';
 // Painted cars get their recoloured photo once the picture is in the page.
 import * as PAINT from './paint.js';
+// Dirty cars (S.WASH) get their dirt layer the same way; the hand-wash mini-game takes its scene from here too.
+import * as DIRT from './dirt.js';
 import * as FX from './fx.js';
 import * as SFX from './sfx.js';
 import * as WOW from './wow.js';
@@ -69,7 +71,7 @@ const countryTag = (c) => `<span class="cc sm">${c}</span>`;
 const emptyBox = (icon, title, sub = '', cta = '') => `<div class="empty-box"><span class="empty-ic">${ic(icon)}</span><b>${title}</b>${sub ? `<span>${sub}</span>` : ''}${cta}</div>`;
 const initialOf = (n) => (String(n || '?').replace(/^@/, '').trim()[0] || '?').toUpperCase();
 // A small car picture standing on a floor lit in its class colour (lists, market, rivals).
-const miniCar = (model, cls = '', look = null) => `<div class="mini art lit r${S.rankOf(M(model).cls)} ${cls}" style="--c:${S.CLASSES[M(model).cls].color}">${carArt(model, { look })}</div>`;
+const miniCar = (model, cls = '', look = null, dirt = 0) => `<div class="mini art lit r${S.rankOf(M(model).cls)} ${cls}" style="--c:${S.CLASSES[M(model).cls].color}">${carArt(model, { look, dirt })}</div>`;
 
 let config = { dev: false, packs: [], images: {} };
 let me = null;
@@ -336,7 +338,7 @@ function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false,
   const m = M(c.model);
   return `<button class="car r${S.rankOf(m.cls)} ${sel ? 'sel' : ''} ${c.status === 'market' || c.status === 'auction' ? 'listed' : ''}" data-act="${act}" data-id="${c.id}" style="--c:${S.CLASSES[m.cls].color}">
     ${clsBadge(m.cls, 'tl')}<span class="tr">${isNew ? `<span class="new">${ic('sparkles')}нова</span>` : ''}<span class="chip">${ic('tool')}${partCount(c)}/${partSlots(c)}</span></span>
-    <div class="art">${carArt(c.model, { look: c.look })}</div>
+    <div class="art">${carArt(c.model, { look: c.look, dirt: c.dirt })}${dirtPip(c)}</div>
     <div class="nm clamp2" title="${esc(m.name)}">${esc(m.name)}</div>
     ${c.plate ? `<div class="meta">${plate(c.plate.text, 'sm')}</div>` : ''}
     <div class="meta row between" style="gap:4px"><span>${c.hp} к.с.</span><b class="disp" style="color:var(--text);font-size:14px;font-weight:600">${S.short(c.value)}</b></div>
@@ -347,8 +349,8 @@ function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false,
 }
 function carRow(c, right = '', meta = '') {
   const m = M(c.model);
-  return `<div class="li">${miniCar(c.model, '', c.look)}<div class="grow"><div class="clamp2"><b>${esc(m.name)}</b></div>
-    <div class="small muted">${clsBadge(m.cls)} ${c.plate ? plate(c.plate.text, 'sm') : ''} <span class="nw">${c.hp} к.с.</span> · <span class="nw">${S.short(c.value)}</span></div>${meta ? `<div class="lot-meta">${meta}</div>` : ''}</div>${right}</div>`;
+  return `<div class="li">${miniCar(c.model, '', c.look, c.dirt)}<div class="grow"><div class="clamp2"><b>${esc(m.name)}</b></div>
+    <div class="small muted">${clsBadge(m.cls)} ${c.plate ? plate(c.plate.text, 'sm') : ''} <span class="nw">${c.hp} к.с.</span> · <span class="nw">${S.short(c.value)}</span>${dirtTag(c)}</div>${meta ? `<div class="lot-meta">${meta}</div>` : ''}</div>${right}</div>`;
 }
 function rewardText(rw) {
   if (!rw) return '';
@@ -793,6 +795,7 @@ TABS.garage = () => {
     <div class="tiny muted center mt">Каса заповнюється за ${i.capH} год${nextCap ? ` · <a data-act="upgradeCap" style="color:#f5b301">збільшити до ${nextCap.hours} год — ${S.short(nextCap.cost)}</a>` : ''}</div>
   </div>
   ${dreamCard()}
+  ${washHint(all)}
   <div class="h2 garage-h"><span>Машини <b>${all.length}</b>/${me.slots}</span><span>${S.short(total)}${all.length ? `<small class="sellp"> · продаж ~${S.short(sellTotal(all.filter((c) => !M(c.model).secret)))}</small>` : ''}</span></div>
   ${all.length > 1 ? `${present.length > 1 ? `<div class="chips gfilter"><button class="${state.garageCls ? '' : 'on'}" data-act="gFilter" data-k="">Усі</button>${present.map((k) => `<button class="${state.garageCls === k ? 'on' : ''}" data-act="gFilter" data-k="${k}" style="--c:${S.CLASSES[k].color}"><i></i>${k}<small>${all.filter((c) => M(c.model).cls === k).length}</small></button>`).join('')}</div>` : ''}
     <div class="row between sellbar">${sel ? `<span class="small muted">${sel.size ? `Обрано ${sel.size} · ${S.fmt(selTotal)}` : `Обери машини. Продаж: ${Math.round(Math.min(...Object.values(S.SELL_RATES)) * 100)}–${Math.round(Math.max(...Object.values(S.SELL_RATES)) * 100)}% ціни моделі, деталі й номер повертаються`}</span>` : `<button class="gsort" data-act="gSort">${ic('adjustments')}${SORT_NAMES[sort]}</button>`}
@@ -861,13 +864,14 @@ function carSheet(id) {
   const locked = c.status === 'market' || c.status === 'auction';
   const rank = S.rankOf(m.cls), color = S.CLASSES[m.cls].color;
   sheet(esc(m.name), `
-    <div class="rarity-row sheet-tags"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span>${originChip(c.model)}<span class="chip">${m.year}</span></div>
-    <div class="hero r${rank}" style="--c:${color}"><div class="art">${carArt(c.model, { glow: rank >= 3, look: c.look })}</div>${c.plate ? `<div class="plate-on">${plate(c.plate.text)}</div>` : ''}</div>
-    <div class="stat four"><div><b>${c.hp}${c.hp > m.hp ? `<em class="win">+${c.hp - m.hp}</em>` : ''}</b><span>к.с.</span></div><div><b>${dec(c.et, 2)}</b><span>с на 402 м</span></div><div class="val"><b>${S.short(c.value)}</b><span>вартість</span>${m.secret ? '' : `<span class="sellp">продаж ${S.short(sellPrice(c))}</span>`}</div><div><b>${S.short(c.income)}</b><span>дохід / год</span></div></div>
+    <div class="rarity-row sheet-tags"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span>${originChip(c.model)}<span class="chip">${m.year}</span>${dirtTag(c)}</div>
+    <div class="hero r${rank} ${shining(c) ? 'shining' : ''}" style="--c:${color}"><div class="art">${carArt(c.model, { glow: rank >= 3, look: c.look, dirt: c.dirt })}</div>${c.plate ? `<div class="plate-on">${plate(c.plate.text)}</div>` : ''}</div>
+    <div class="stat four"><div><b>${c.hp}${c.hp > m.hp ? `<em class="win">+${c.hp - m.hp}</em>` : ''}</b><span>к.с.</span></div><div><b>${dec(c.et, 2)}</b><span>с на 402 м</span></div><div class="val"><b>${S.short(c.value)}</b><span>вартість</span>${m.secret ? '' : `<span class="sellp">продаж ${S.short(sellPrice(c))}</span>`}</div><div><b>${S.short(c.income * washMult(c))}${washEffect(c)}</b><span>дохід / год</span></div></div>
     ${locked ? `<div class="card mt center muted">Авто виставлено на ${c.status === 'market' ? 'ринок' : 'аукціон'} — керуй ним у «Меню → Ринок → Мої лоти».</div>` : `
     <div class="list mt">
       <button class="li" data-act="carShowcase" data-id="${c.id}"><span class="ic">${ic('building-arch')}</span><div class="grow"><b>${c.status === 'showcase' ? 'Повернути в гараж' : 'Виставити на вітрину'}</b><div class="small muted">${c.status === 'showcase' ? 'знову приноситиме дохід' : `вільно місць: ${me.showcaseSlots - me.cars.filter((x) => x.status === 'showcase').length}`}</div></div><span class="chev">›</span></button>
       <button class="li" data-act="carPlate" data-id="${c.id}"><span class="ic">${ic('license')}</span><div class="grow"><b>Номер</b><div class="small muted">${c.plate ? `+${S.short(c.plate.value)} до вартості` : 'немає'}</div></div>${c.plate ? plate(c.plate.text, 'sm') : '<span class="chev">›</span>'}</button>
+      ${washLi(c)}
       <button class="li" data-act="shareCar" data-id="${c.id}"><span class="ic">${ic('share')}</span><div class="grow"><b>Поділитися</b><div class="small muted">картка машини в Telegram: чат або історія</div></div><span class="chev">›</span></button>
       ${PAINT.canPaint(c.model) || c.look ? `<button class="li" data-act="carPaint" data-id="${c.id}"><span class="ic">${ic('palette')}</span><div class="grow"><b>Фарбування</b><div class="small muted">${c.look ? [S.PAINT_BY_ID[c.look.paint]?.name, S.LIVERY_BY_ID[c.look.livery] && 'ліврея «' + S.LIVERY_BY_ID[c.look.livery].name + '»'].filter(Boolean).join(' · ') : 'заводський колір'}</div></div>${c.look?.paint ? `<span class="sw-dot ${S.PAINT_BY_ID[c.look.paint].finish}" style="--sw:${S.PAINT_BY_ID[c.look.paint].hex}"></span>` : '<span class="chev">›</span>'}</button>` : ''}
     </div>
@@ -2759,9 +2763,10 @@ async function pvpAutopilot(id, carId) {
 
 // ---------- workshop ----------
 TABS.shop = () => {
-  const seg = `<div class="seg">${[['cases', 'Кейси'], ['stock', `Склад${me.parts.length ? ' · ' + me.parts.reduce((s, p) => s + p.count, 0) : ''}`], ['paint', 'Фарбування']].map(([k, t]) => `<button class="${state.shopView === k ? 'on' : ''} ${isOpen(k) ? '' : 'locked'}" data-act="shopView" data-k="${k}">${isOpen(k) ? '' : ic('lock')}${t}</button>`).join('')}</div>`;
+  const seg = `<div class="seg seg4">${[['cases', 'Кейси'], ['stock', `Склад${me.parts.length ? ' · ' + me.parts.reduce((s, p) => s + p.count, 0) : ''}`], ['paint', 'Фарбування'], ['wash', 'Мийка']].map(([k, t]) => `<button class="${state.shopView === k ? 'on' : ''} ${isOpen(k) ? '' : 'locked'}" data-act="shopView" data-k="${k}">${isOpen(k) ? '' : ic('lock')}${t}</button>`).join('')}</div>`;
   if (!isOpen(state.shopView)) state.shopView = 'cases';
   if (state.shopView === 'stock') return seg + stockView();
+  if (state.shopView === 'wash') return seg + washView();
   if (state.shopView === 'paint') return seg + paintView();
   const pc = S.PART_CASE_BY_ID[state.partCase];
   if (pc.randomOnly && state.partType) state.partCase = 'racing';
@@ -2820,6 +2825,7 @@ const partReelCard = (p) => {
   return `<div class="car pcard" style="--c:${S.CLASSES[t.cls].color}">${clsBadge(t.cls, 'tl')}<div class="art">${partArt(p.type, p.tier)}</div><div class="nm tiny ellipsis">${S.PARTS[p.type].name} · ${t.name}</div></div>`;
 };
 AFTER.shop = () => {
+  if (state.shopView === 'wash') return washAfter();
   if (state.shopView === 'paint') {
     const on = $('.pcar.on'), strip = $('#paintCars');
     if (on && strip && (on.offsetLeft < strip.scrollLeft || on.offsetLeft + on.offsetWidth > strip.scrollLeft + strip.clientWidth)) strip.scrollLeft = on.offsetLeft - 16;
@@ -2958,6 +2964,250 @@ H.merge = async (d) => {
 H.sellPart = async (d) => {
   if (await act('parts/sell', { type: d.k, tier: d.tier, count: 1 }, (r) => `+${S.fmt(r.got)}`)) H.stockType({ k: d.k });
 };
+
+// ---------- car wash (S.WASH): dirt on cars, Майстерня → Мийка, the hand-wash mini-game ----------
+// Dirt comes from the server per car (c.dirt, at the time of the last refresh); «Блищить» until c.shineUntil.
+const shining = (c) => (c.shineUntil || 0) > serverNow();
+const isDirty = (c) => (c.dirt || 0) >= S.WASH.dirty;
+const washable = (c) => c.status === 'garage' || c.status === 'showcase';
+// The car's income multiplier now, as the server counts it (no cut while the wash is still locked for the player).
+const washMult = (c) => S.washFactor(c.dirt || 0, 0, c.shineUntil, serverNow(), isOpen('wash'));
+const cutPct = (c) => (isOpen('wash') ? Math.round(S.dirtCut(c.dirt || 0) * 100) : 0);
+const washEffect = (c) => (shining(c) ? `<em class="win">+${Math.round(S.WASH.shine * 100)}%</em>` : cutPct(c) ? `<em class="lose">−${cutPct(c)}%</em>` : '');
+// Marker next to a car (car card, market rows): «брудна» from WASH.dirty, «блищить» while the shine lasts.
+const dirtTag = (c) => (shining(c) ? ` <span class="dirt-tag shine">${ic('sparkles')}блищить</span>` : isDirty(c) ? ` <span class="dirt-tag dirty">${ic('droplet')}брудна</span>` : '');
+// Small indicator on a garage tile: sparkles while it shines, a drop with the % once there's visible dirt.
+const dirtPip = (c) => (shining(c) ? `<span class="dirt-pip shine" title="Блищить">${ic('sparkles')}</span>` : (c.dirt || 0) >= 20 ? `<span class="dirt-pip ${isDirty(c) ? 'dirty' : ''}">${ic('droplet')}${c.dirt}%</span>` : '');
+function washLi(c) {
+  if (!washable(c)) return '';
+  const sub = shining(c) ? `блищить ще <span data-until="${c.shineUntil - clockOffset}"></span> · +${Math.round(S.WASH.shine * 100)}% доходу`
+    : `бруд ${c.dirt || 0}%${cutPct(c) ? ` · дохід −${cutPct(c)}%` : (c.dirt || 0) >= 30 ? ` · з ${S.WASH.dirty}% дохід падає` : ''}`;
+  return `<button class="li" data-act="washCar" data-id="${c.id}"><span class="ic">${ic('droplet')}</span><div class="grow"><b>Мийка</b><div class="small muted">${sub}</div></div>${isOpen('wash') ? `<span class="wash-meter sm"><i style="width:${c.dirt || 0}%"></i></span>` : lockChip('wash')}</button>`;
+}
+function washHint(all) {
+  if (!isOpen('wash')) return '';
+  const dirty = all.filter((c) => c.status === 'garage' && isDirty(c));
+  if (dirty.length < 2) return '';
+  const worst = Math.max(...dirty.map((c) => cutPct(c)));
+  return `<button class="card row wash-hint" data-act="toWash"><span class="wash-hint-ic">${ic('droplet')}</span><div class="grow"><b>${dirty.length} ${plural(dirty.length, ['машина брудна', 'машини брудні', 'машин брудні'])}</b>
+    <div class="small muted">Брудні заробляють менше${worst ? ` — до −${worst}%` : ''}. Помий — і вони блищатимуть: +${Math.round(S.WASH.shine * 100)}% на ${S.WASH.shineHours} год</div></div><span class="chev">${ic('chevron-right')}</span></button>`;
+}
+H.toWash = (d) => {
+  if (!isOpen('wash')) return lockedSheet('wash');
+  closeModal();
+  state.tab = 'shop';
+  state.page = null;
+  state.shopView = 'wash';
+  state.washCar = d?.id ? Number(d.id) : null;
+  window.scrollTo(0, 0);
+  render();
+};
+H.washCar = (d) => H.toWash(d);
+// Cars that can go to the wash: dirtiest first.
+function washList() {
+  return me.cars.filter(washable).sort((a, b) => (b.dirt || 0) - (a.dirt || 0) || b.value - a.value || b.id - a.id);
+}
+function washView() {
+  const cars = washList();
+  if (!cars.length) return emptyBox('droplet', 'Немає машин для мийки', 'Мити можна машини в гаражі й на вітрині.');
+  let c = cars.find((x) => x.id === state.washCar);
+  if (!c) (c = cars[0], (state.washCar = c.id));
+  const m = M(c.model), rank = S.rankOf(m.cls), sh = shining(c), d = c.dirt || 0;
+  const left = me.wash?.handLeft ?? 0, vip = !!me.vip;
+  const price = vip ? 0 : S.washPrice(c.model);
+  const dirtyAll = cars.filter((x) => (x.dirt || 0) >= 10);
+  const allSum = vip ? 0 : dirtyAll.reduce((s, x) => s + S.washPrice(x.model), 0);
+  const strip = `<div class="paint-cars wash-cars" id="washCars">${cars.map((x) => `<button class="pcar ${x.id === c.id ? 'on' : ''}" data-act="washPick" data-id="${x.id}" style="--c:${S.CLASSES[M(x.model).cls].color}">
+    <span class="art">${carArt(x.model, { look: x.look, dirt: x.dirt })}</span><span class="pcar-nm ellipsis">${esc(M(x.model).name)}</span>
+    <span class="wash-meter"><i style="width:${x.dirt || 0}%"></i></span><span class="pcar-d ${isDirty(x) ? 'dirty' : ''}">${shining(x) ? `${ic('sparkles')}блищить` : `${x.dirt || 0}%`}</span></button>`).join('')}</div>`;
+  const state1 = sh ? `<span class="wash-state shine">${ic('sparkles')} Блищить ще <span data-until="${c.shineUntil - clockOffset}"></span> · +${Math.round(S.WASH.shine * 100)}% доходу</span>`
+    : `<span class="wash-state ${isDirty(c) ? 'dirty' : ''}">${ic('droplet')} Бруд ${d}% · ${cutPct(c) ? `дохід −${cutPct(c)}%` : d >= 30 ? `з ${S.WASH.dirty}% дохід падає` : 'майже чиста'}</span>`;
+  const handBtn = left > 0
+    ? `<button class="btn" data-act="washHand" data-id="${c.id}">${ic('droplet')} Помити руками · безкоштовно</button>`
+    : `<button class="btn ghost" disabled>Ручна мийка — завтра знову ${S.WASH.hand}</button>`;
+  const autoBtn = `<button class="btn ${left > 0 ? 'ghost' : ''}" data-act="washAuto" data-id="${c.id}" ${!vip && price > me.balance ? 'disabled' : ''}>${ic('spray')} Автомийка · ${vip ? 'VIP безкоштовно' : S.fmt(price)}</button>`;
+  return `${strip}
+    <div class="hero wash-hero r${rank} ${sh ? 'shining' : ''}" id="washHero" style="--c:${S.CLASSES[m.cls].color}"><div class="art">${carArt(c.model, { look: c.look, dirt: d })}</div></div>
+    <div class="wash-now"><b>${esc(m.name)}</b>${state1}</div>
+    <div class="wash-bar"><span class="wash-meter lg"><i style="width:${d}%"></i><s style="left:${S.WASH.dirty}%"></s></span></div>
+    <div class="wash-opts">
+      <div class="wash-opt"><span class="ic">${ic('droplet')}</span><div class="grow"><b>Ручна мийка</b><div class="small muted">Зітри піну пальцем · ~10 с · сьогодні ще <b class="${left ? '' : 'lose'}">${left}</b> з ${S.WASH.hand}</div></div></div>
+      ${handBtn}
+      <div class="wash-opt"><span class="ic">${ic('spray')}</span><div class="grow"><b>Автомийка</b><div class="small muted">Миттєво · клас ${m.cls} — ${S.fmt(S.washPrice(c.model))}${vip ? ' · з VIP безкоштовно' : ''}</div></div></div>
+      ${autoBtn}
+      ${dirtyAll.length > 1 ? `<button class="btn outline btn2" data-act="washAll" ${!vip && allSum > me.balance ? 'disabled' : ''}><span>${ic('spray')} Помити всі · ${dirtyAll.length}</span><small>${vip ? 'VIP — безкоштовно' : S.fmt(allSum)}</small></button>` : ''}
+    </div>
+    <div class="tiny muted center mt">Кожен заїзд бруднить машину на ${S.WASH.race[0]}–${S.WASH.drift[1]}%, у гаражі — +${S.WASH.perHour}% за годину. Від ${S.WASH.dirty}% бруду дохід машини падає, до −${Math.round(S.WASH.maxCut * 100)}% на 100%. На швидкість бруд не впливає. Після мийки машина блищить ${S.WASH.shineHours} год: +${Math.round(S.WASH.shine * 100)}% доходу.</div>`;
+}
+function washAfter() {
+  const on = $('.wash-cars .pcar.on'), strip = $('#washCars');
+  if (on && strip && (on.offsetLeft < strip.scrollLeft || on.offsetLeft + on.offsetWidth > strip.scrollLeft + strip.clientWidth)) strip.scrollLeft = on.offsetLeft - 16;
+  if (state.washFx) {
+    state.washFx = false;
+    const hero = $('#washHero');
+    if (!hero) return;
+    hero.classList.add('just');
+    FX.sparkle(hero, ['#ffffff', '#cfe8ff', '#ffd500'], 14);
+  }
+}
+H.washPick = (d) => {
+  state.washCar = Number(d.id);
+  const x = $('#washCars')?.scrollLeft;
+  render();
+  if (x != null && $('#washCars')) $('#washCars').scrollLeft = x;
+};
+// After a car wash: `act` has already refreshed `me`; redraw with the shine and a splash.
+function washDoneFx() {
+  state.washFx = true;
+  SFX.splash();
+  render();
+}
+H.washAuto = async (d, el) => {
+  const c = me.cars.find((x) => x.id === Number(d.id));
+  if (!c) return;
+  const price = me.vip ? 0 : S.washPrice(c.model);
+  if (price && !armed(el, `Точно? · −${S.fmt(price)}`)) return;
+  const r = await act('wash/auto', { carIds: [c.id] }, (x) => (x.paid ? `Помито · −${S.fmt(x.paid)}. Блищить ${S.WASH.shineHours} год` : `Помито безкоштовно (VIP). Блищить ${S.WASH.shineHours} год`), { rerender: false });
+  if (r) washDoneFx();
+};
+H.washAll = async () => {
+  const list = washList().filter((x) => (x.dirt || 0) >= 10);
+  if (!list.length) return;
+  const sum = me.vip ? 0 : list.reduce((s, x) => s + S.washPrice(x.model), 0);
+  if (!(await confirmBox(`Помити ${list.length} ${plural(list.length, ['машину', 'машини', 'машин'])} на автомийці${sum ? ` за ${S.fmt(sum)}` : ' безкоштовно (VIP)'}?`))) return;
+  const r = await act('wash/auto', { carIds: list.map((x) => x.id) }, (x) => `Помито ${x.count} ${plural(x.count, ['машину', 'машини', 'машин'])}${x.paid ? ` · −${S.fmt(x.paid)}` : ''}`, { rerender: false });
+  if (r) washDoneFx();
+};
+
+// Hand wash: the car under foam and mud on a canvas; the finger (any pointer) wipes it off. Done at WASH.handClean of
+// the cover gone; only then the server is asked (it checks the car and the day's count, nothing about the game).
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+H.washHand = (d) => {
+  const c = me.cars.find((x) => x.id === Number(d.id));
+  if (!c) return;
+  if (!(me.wash?.handLeft > 0)) return toast(`Ручна мийка на сьогодні все — завтра знову ${S.WASH.hand}`, true);
+  washGame(c);
+};
+async function washGame(c) {
+  const m = M(c.model);
+  const box = document.createElement('div');
+  box.className = 'washgame' + (reducedMotion ? ' calm' : '');
+  box.innerHTML = `<div class="wg-card"><div class="wg-head"><b>Ручна мийка</b><button class="x" data-wg="close" aria-label="Закрити">✕</button></div>
+    <div class="wg-sub">${esc(m.name)} · три пальцем по піні, поки не заблищить</div>
+    <div class="wg-stage"><img class="wg-car" alt="" draggable="false"><canvas class="wg-cover"></canvas><div class="wg-hint">${ic('droplet')} Три!</div><div class="wg-load">Набираємо піну…</div></div>
+    <div class="wg-meter"><span class="wash-meter lg clean"><i></i></span><b class="wg-pct">0%</b></div>
+    <div class="wg-foot"><button class="btn" data-wg="done" hidden>Готово</button></div></div>`;
+  document.body.append(box);
+  let over = false, alive = true;
+  const close = () => {
+    alive = false;
+    box.remove();
+    if (over) refresh();
+  };
+  box.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-wg]');
+    if (b || e.target === box) e.stopPropagation();
+    if (b?.dataset.wg === 'close' || b?.dataset.wg === 'done' || (e.target === box && !over)) close();
+  });
+  let scene;
+  try {
+    scene = await DIRT.washScene(c.model, c.look, c.dirt);
+  } catch {
+    close();
+    return toast('Не вдалося підготувати мийку — спробуй ще раз', true);
+  }
+  if (!alive) return;
+  const stage = $('.wg-stage', box), img = $('.wg-car', box), cv = $('.wg-cover', box), pctEl = $('.wg-pct', box), bar = $('.wg-meter i', box);
+  stage.style.aspectRatio = `${scene.w} / ${scene.h}`;
+  img.src = scene.car.src;
+  cv.width = scene.w;
+  cv.height = scene.h;
+  const x = cv.getContext('2d', { willReadFrequently: true });
+  x.drawImage(scene.cover, 0, 0);
+  $('.wg-load', box).remove();
+  // Sample points: every 3rd pixel of the cover that starts out covered.
+  const start = x.getImageData(0, 0, scene.w, scene.h).data;
+  const pts = [];
+  for (let y = 1; y < scene.h; y += 3) for (let i = 1; i < scene.w; i += 3) if (start[(y * scene.w + i) * 4 + 3] > 60) pts.push((y * scene.w + i) * 4 + 3);
+  let last = null, dirty = false, clean = 0, t0 = 0;
+  const brush = () => (22 * scene.w) / cv.getBoundingClientRect().width; // ~22 css px
+  const toCanvas = (e) => {
+    const r = cv.getBoundingClientRect();
+    return [((e.clientX - r.left) / r.width) * scene.w, ((e.clientY - r.top) / r.height) * scene.h];
+  };
+  const wipe = (p, q) => {
+    const R = brush(), dist = Math.hypot(q[0] - p[0], q[1] - p[1]), n = Math.max(1, Math.ceil(dist / (R * 0.3)));
+    x.globalCompositeOperation = 'destination-out';
+    for (let i = 1; i <= n; i++) {
+      const cx = p[0] + ((q[0] - p[0]) * i) / n, cy = p[1] + ((q[1] - p[1]) * i) / n;
+      const g = x.createRadialGradient(cx, cy, 0, cx, cy, R);
+      g.addColorStop(0, 'rgba(0,0,0,0.5)');
+      g.addColorStop(0.6, 'rgba(0,0,0,0.3)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      x.fillStyle = g;
+      x.fillRect(cx - R, cy - R, R * 2, R * 2);
+    }
+    x.globalCompositeOperation = 'source-over';
+    dirty = true;
+  };
+  const measure = () => {
+    if (!dirty || over) return;
+    dirty = false;
+    const d = x.getImageData(0, 0, scene.w, scene.h).data;
+    let n = 0;
+    for (const o of pts) if (d[o] < 40) n++;
+    clean = pts.length ? n / pts.length : 1;
+    const shown = Math.min(100, Math.round((clean / S.WASH.handClean) * 100));
+    pctEl.textContent = shown + '%';
+    bar.style.width = shown + '%';
+    if (clean >= S.WASH.handClean) finish();
+  };
+  const timer = setInterval(() => (alive ? measure() : clearInterval(timer)), 150);
+  cv.addEventListener('pointerdown', (e) => {
+    if (over) return;
+    e.preventDefault();
+    cv.setPointerCapture?.(e.pointerId);
+    last = toCanvas(e);
+    t0 ||= performance.now();
+    $('.wg-hint', box)?.remove();
+    wipe(last, last);
+  });
+  cv.addEventListener('pointermove', (e) => {
+    if (!last || over) return;
+    e.preventDefault();
+    const p = toCanvas(e);
+    const speed = Math.hypot(p[0] - last[0], p[1] - last[1]) / brush();
+    wipe(last, p);
+    last = p;
+    SFX.scrub(0.7 + speed * 0.4);
+    hapticTick('soft', 120);
+  });
+  const up = () => (last = null);
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointercancel', up);
+  async function finish() {
+    over = true;
+    clearInterval(timer);
+    pctEl.textContent = '100%';
+    bar.style.width = '100%';
+    cv.classList.add('gone');
+    try {
+      const r = await api('wash/hand', { carId: c.id });
+      me.wash = { ...me.wash, handLeft: r.handLeft };
+      haptic('success');
+      SFX.splash();
+      stage.classList.add('shining');
+      FX.sparkle(stage, ['#ffffff', '#cfe8ff', '#ffd500'], 18);
+      $('.wg-sub', box).innerHTML = `<b class="win">${ic('sparkles')} Блищить!</b> +${Math.round(S.WASH.shine * 100)}% доходу на ${S.WASH.shineHours} год · ${((performance.now() - t0) / 1000).toFixed(1).replace('.', ',')} с`;
+      state.washFx = true;
+    } catch (e) {
+      haptic('error');
+      $('.wg-sub', box).innerHTML = `<span class="lose">${esc(e.message)}</span>`;
+    }
+    const done = $('[data-wg="done"]', box);
+    done.hidden = false;
+  }
+}
 
 // ---------- paint shop (Фарба 2.0) ----------
 // Pick a car, try colours and liveries on its photo (rendered by paint.js right here), pay to keep them.
@@ -5496,6 +5746,7 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide']) {
   // body masks' index (small); painted cars render as plain photos if it's slow or missing
   await Promise.race([PAINT.loadPaintMeta(), new Promise((r) => setTimeout(r, 1500))]);
   PAINT.watchLooks(document.body);
+  DIRT.watchDirt(document.body);
   measurePlateFont();
   if (!tg?.initData && !config.dev) {
     $('#view').innerHTML = '<div class="empty">Відкрий АВТОДРОП через Telegram-бота</div>';

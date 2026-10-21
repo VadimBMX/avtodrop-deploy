@@ -311,6 +311,15 @@ const MIGRATIONS = [
   // Dream car (S.dreamChances): the model the player is aiming for and when it was chosen (NULL = none yet).
   'ALTER TABLE users ADD COLUMN dream_car TEXT',
   'ALTER TABLE users ADD COLUMN dream_at INTEGER NOT NULL DEFAULT 0',
+  // Car wash (S.WASH): dirt % at dirt_at (it grows by the hour from there), until when the car shines after a wash.
+  // Cars already in the game start clean, with the clock running from the upgrade (dirt_at 0 would mean "no clock").
+  'ALTER TABLE cars ADD COLUMN dirt REAL NOT NULL DEFAULT 0',
+  ['ALTER TABLE cars ADD COLUMN dirt_at INTEGER NOT NULL DEFAULT 0',
+    "UPDATE cars SET dirt_at = CAST(strftime('%s', 'now') AS INTEGER) * 1000"],
+  'ALTER TABLE cars ADD COLUMN shine_until INTEGER NOT NULL DEFAULT 0',
+  // Free hand washes used on the Kyiv day wash_day.
+  'ALTER TABLE users ADD COLUMN wash_day TEXT',
+  'ALTER TABLE users ADD COLUMN wash_hand INTEGER NOT NULL DEFAULT 0',
 ];
 
 export function openDb(file) {

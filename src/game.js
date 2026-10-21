@@ -160,7 +160,8 @@ export function createGame(db, opts = {}) {
     const plate = carPlate(c.id);
     const st = S.carStats({ model: c.model, parts, plateValue: plate?.value || 0 });
     const t = tankState(c);
-    return { id: c.id, model: c.model, status: c.status, parts, plate, look: lookOf(c), tank: t.tank, tankNext: t.next, sell: S.sellPriceOf(c.model, now() - c.created_at), ...st };
+    return { id: c.id, model: c.model, status: c.status, parts, plate, look: lookOf(c), tank: t.tank, tankNext: t.next, sell: S.sellPriceOf(c.model, now() - c.created_at), ...st,
+      dirt: Math.floor(S.dirtNow(c.dirt, c.dirt_at, now())), shineUntil: c.shine_until > now() ? c.shine_until : 0 };
   }
   // Paint and livery as the client draws them (n = the race livery's number); null for a factory car. Unknown ids
   // (an old colour that was dropped) count as factory.
@@ -192,7 +193,7 @@ export function createGame(db, opts = {}) {
     // The one door every car comes in by: a car not in the game (a NEW_RAW car still without its photo) never gets in.
     if (!S.MODELS[model]) fail('Невідома модель');
     const isNew = !q('SELECT 1 FROM collection WHERE user_id = ? AND model = ?').get(uid, model);
-    const r = q('INSERT INTO cars (owner_id, model, tank, tank_at, created_at) VALUES (?, ?, ?, ?, ?)').run(uid, model, S.CAR_TANK, now(), now());
+    const r = q('INSERT INTO cars (owner_id, model, tank, tank_at, created_at, dirt_at) VALUES (?, ?, ?, ?, ?, ?)').run(uid, model, S.CAR_TANK, now(), now(), now());
     if (isNew) {
       q('INSERT INTO collection (user_id, model, at) VALUES (?, ?, ?)').run(uid, model, now());
       xp(uid, 'newCar');
@@ -218,29 +219,38 @@ export function createGame(db, opts = {}) {
   // Only as many cars as the garage has slots earn income (the best earners), so a garage that went over its
   // limit (battle win, auction, reward) gives no extra income until the spare cars are sold.
   const carIncome = (c) => S.carIncomeOf({ model: c.model, parts: carParts(c.id), plateValue: carPlate(c.id)?.value || 0 });
-  function incomeRate(uid) {
+  // The rate now, and (with `from`) what was earned from `from` until now: each car's dirt and shine (S.WASH) change its
+  // income over time, so that part is the exact average of its multiplier over the stretch (S.washFactorAvg). Which
+  // cars earn and the country bonus go by the clean income. The dirt penalty starts once the wash is open to the player.
+  function incomeRate(uid, from = null) {
     const u = q('SELECT slots FROM users WHERE id = ?').get(uid);
     const listed = q("SELECT COUNT(*) n FROM cars WHERE owner_id = ? AND status IN ('market', 'auction')").get(uid).n;
     // Finished collection sets: a small bonus for their cars (S.setIncomeBonus — the largest, never a sum).
     const done = claimedSets(uid);
     const earning = q("SELECT * FROM cars WHERE owner_id = ? AND status = 'garage'").all(uid)
-      .map((c) => ({ country: S.MODELS[c.model].country, v: carIncome(c) * (1 + (done.length ? S.setIncomeBonus(c.model, done) : 0)) }))
+      .map((c) => ({ c, country: S.MODELS[c.model].country, v: carIncome(c) * (1 + (done.length ? S.setIncomeBonus(c.model, done) : 0)) }))
       .sort((a, b) => b.v - a.v).slice(0, Math.max(0, (u?.slots ?? 1e9) - listed));
     // Three or more earning cars of one country: +10% to their income (S.COUNTRY_BONUS).
     const per = {};
     for (const c of earning) per[c.country] = (per[c.country] || 0) + 1;
-    return earning.reduce((s, c) => s + c.v * (per[c.country] >= S.COUNTRY_BONUS.cars ? 1 + S.COUNTRY_BONUS.income : 1), 0);
+    const t = now(), cut = earning.length > 0 && isOpen(uid, 'wash');
+    let rate = 0, earned = 0;
+    for (const { c, country, v } of earning) {
+      const base = v * (per[country] >= S.COUNTRY_BONUS.cars ? 1 + S.COUNTRY_BONUS.income : 1);
+      rate += base * S.washFactor(c.dirt, c.dirt_at, c.shine_until, t, cut);
+      if (from != null && t > from) earned += base * S.washFactorAvg(c.dirt, c.dirt_at, c.shine_until, from, t, cut) * ((t - from) / 3600e3);
+    }
+    return { rate, earned };
   }
   function incomeState(u) {
-    const rate = incomeRate(u.id);
+    const { rate, earned } = incomeRate(u.id, u.income_at);
     // VIP and the comeback gift both lengthen the cap; they don't add up. The comeback cap covers every stretch of
     // income that began before it ran out (it was banked when given, so the hours before it never count).
     const extra = Math.max((u.vip_until || 0) > now() ? S.VIP.extraHours : 0, u.income_at < (u.comeback_cap_until || 0) ? S.COMEBACK.capHours : 0);
     const capH = S.CAP_LEVELS[u.cap_level].hours + extra;
-    const elapsed = Math.max(0, now() - u.income_at) / 3600e3;
     const cap = rate * capH;
     // Income already banked is never lost, even if the cap shrinks after selling a car.
-    const pending = Math.max(Math.min(u.banked + rate * elapsed, cap), u.banked);
+    const pending = Math.max(Math.min(u.banked + earned, cap), u.banked);
     return { rate, capH, pending: Math.floor(pending) };
   }
   // Freeze income earned so far before the set or value of cars changes.
@@ -309,6 +319,7 @@ export function createGame(db, opts = {}) {
     'drift/rivals': 'drift', 'drift/start': 'drift',
     'plate/generate': 'plates', 'plate/attach': 'plates',
     'car/paint': 'paint', 'car/livery': 'paint',
+    'wash/hand': 'wash', 'wash/auto': 'wash',
     'dealer/tradein': 'tradein',
     'market/sell': 'market', 'market/buy': 'market', 'market/item-sell': 'market', 'market/item-buy': 'market',
     'pvp/create': 'pvp', 'pvp/accept': 'pvp', 'pvp/request': 'pvp', 'pvp/answer': 'pvp',
@@ -578,6 +589,7 @@ export function createGame(db, opts = {}) {
       legacy: isLegacy(uid), // played the first version: «Гравець з перших днів» badge in the profile
       unlocked: openKeys(u), casino: casinoMode(), // S.UNLOCKS keys open to this player; the owner's casino switch
       dream: dreamOut(u),
+      wash: { handLeft: handLeft(u), hand: S.WASH.hand }, // free hand washes left today (S.WASH)
       now: now(),
     };
   }
@@ -954,6 +966,40 @@ export function createGame(db, opts = {}) {
   }
 
   // ---------- plates ----------
+  // ---------- car wash (S.WASH) ----------
+  // Cars in the garage or on the showcase can be washed (not while on the market or an auction).
+  const WASHABLE = ['garage', 'showcase'];
+  function handLeft(u) {
+    return Math.max(0, S.WASH.hand - (u.wash_day === dayOf(now()) ? u.wash_hand : 0));
+  }
+  function washDone(uid, cars) {
+    bank(uid); // income so far at the old dirt and shine
+    const until = now() + S.WASH.shineHours * 3600e3;
+    for (const c of cars) q('UPDATE cars SET dirt = 0, dirt_at = ?, shine_until = ? WHERE id = ?').run(now(), until, c.id);
+    track(uid, 'wash', cars.length);
+    return until;
+  }
+  // Hand wash: the rub-off mini-game runs in the app; the server only counts the day's free washes and checks the car.
+  function washHand(uid, { carId }) {
+    const c = ownCar(uid, carId, WASHABLE);
+    const u = userRow(uid);
+    const left = handLeft(u);
+    if (left < 1) fail(`Ручна мийка на сьогодні все — ${S.WASH.hand} з ${S.WASH.hand}. Завтра знову безкоштовно, а автомийка працює завжди`);
+    const day = dayOf(now());
+    q('UPDATE users SET wash_day = ?, wash_hand = ? WHERE id = ?').run(day, S.WASH.hand - left + 1, uid);
+    return { shineUntil: washDone(uid, [c]), handLeft: left - 1 };
+  }
+  // Car wash: one car or several («Помити всі»), each at its class price; free with VIP.
+  function washAuto(uid, { carIds }) {
+    const ids = idList(carIds, S.MAX_SLOTS + S.SHOWCASE_MAX);
+    if (!ids.length) fail('Обери машину');
+    const cars = ids.map((id) => ownCar(uid, id, WASHABLE));
+    const vip = vipOf(uid);
+    const paid = vip ? 0 : cars.reduce((s, c) => s + S.washPrice(c.model), 0);
+    pay(uid, paid);
+    return { shineUntil: washDone(uid, cars), paid, vip, count: cars.length };
+  }
+
   function makePlate(cls, region = null) {
     const L = S.PLATE_LETTERS;
     const letter = () => L[crypto.randomInt(L.length)];
@@ -1131,6 +1177,15 @@ export function createGame(db, opts = {}) {
     q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(f.fuel - 1, f.fuel >= S.FUEL_MAX ? now() : f.at, uid);
     q('UPDATE cars SET tank = ?, tank_at = ? WHERE id = ?').run(t.tank - 1, t.tank >= S.CAR_TANK ? now() : t.at, c.id);
   }
+  // A race gets the car dirty (S.WASH.race / .drift, random in the range); the owner's income so far is banked first, at
+  // the old dirt. Not from the game's random source (opts.random), so race rolls stay where they were.
+  function soil(c, kind = 'race') {
+    if (!c) return;
+    bank(c.owner_id);
+    const [lo, hi] = S.WASH[kind] || S.WASH.race;
+    const d = Math.min(100, S.dirtNow(c.dirt, c.dirt_at, now()) + lo + crypto.randomInt(hi - lo + 1));
+    q('UPDATE cars SET dirt = ?, dirt_at = ? WHERE id = ?').run(d, now(), c.id);
+  }
   // Anti-bot: at most this many starts a minute (an honest drag race takes ~10 s, a drift run ~30 s).
   const START_LIMIT = { races: 10, drift_runs: 4 };
   function startLimit(uid, table) {
@@ -1144,6 +1199,7 @@ export function createGame(db, opts = {}) {
     const c = carRow(car.id);
     useFuel(uid, c);
     pay(uid, r.entry);
+    soil(c, 'drift');
     q("UPDATE drift_runs SET status = 'expired' WHERE user_id = ? AND status = 'running'").run(uid);
     // The run token: the seed of the physics noise, the track and the model are fixed here; the finish replays the
     // gas log on them.
@@ -1241,6 +1297,7 @@ export function createGame(db, opts = {}) {
     pay(uid, r.entry);
     q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(f.fuel - 1, f.fuel >= S.FUEL_MAX ? now() : f.at, uid);
     q('UPDATE cars SET tank = ?, tank_at = ? WHERE id = ?').run(t.tank - 1, t.tank >= S.CAR_TANK ? now() : t.at, c.id);
+    soil(c);
     const rr = lcg(Math.floor(rnd() * 2 ** 31));
     const rivalTime = S.rivalRun(rr, r);
     // The car is fixed at the start: installing parts or selling it before the finish changes nothing.
@@ -1336,6 +1393,7 @@ export function createGame(db, opts = {}) {
     q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(f.fuel - 1, f.fuel >= S.FUEL_MAX ? now() : f.at, uid);
     q('UPDATE cars SET tank = ?, tank_at = ? WHERE id = ?').run(t.tank - 1, t.tank >= S.CAR_TANK ? now() : t.at, c.id);
     q('INSERT INTO boss_runs (user_id, boss, tries) VALUES (?, ?, 1) ON CONFLICT DO UPDATE SET tries = tries + 1').run(uid, b.id);
+    soil(c);
     const rivalTime = S.bossRun(lcg(Math.floor(rnd() * 2 ** 31)), b);
     const greenMs = S.RACE_GREEN[0] + Math.floor(rnd() * (S.RACE_GREEN[1] - S.RACE_GREEN[0]));
     const r = { id: 'boss', boss: b.id, label: "Бос", name: b.nick, model: b.model, hp: b.hp, base: b.base, shift: b.shift, et: b.et, ...money };
@@ -1663,6 +1721,8 @@ export function createGame(db, opts = {}) {
     const prize = Math.floor(p.bet * 2 * (1 - S.FEE));
     addMoney(winner, prize);
     const result = { creator: a, opponent: b, prize };
+    soil(cc);
+    soil(c);
     q("UPDATE pvp SET status = 'done', opponent_id = ?, opp_car_id = ?, opp_snapshot = ?, winner_id = ?, result = ?, finished_at = ? WHERE id = ?")
       .run(uid, c.id, JSON.stringify(carOut(c)), winner, JSON.stringify(result), now(), p.id);
     for (const who of [p.creator_id, uid]) {
@@ -1726,6 +1786,8 @@ export function createGame(db, opts = {}) {
       releasePvp(p);
       fail('Однієї з машин уже немає в гаражі');
     }
+    soil(cc);
+    soil(oc);
     const start = now() + PVP_LEAD_MS;
     // Same light sequence as a solo race: three ambers 0.6 s apart, then green at a random moment.
     const green = start + 2200 + Math.floor(rnd() * 1200);
@@ -1823,7 +1885,7 @@ export function createGame(db, opts = {}) {
       const model = pickModel(S.ALL_MODELS.filter((m) => m.cls === cls && !m.secret && !m.homeOnly), rnd());
       const [lo, hi] = rnd() < S.DEALER.dealChance ? S.DEALER.deal : S.DEALER.markup;
       const price = sig3(S.MODELS[model].price * (lo + rnd() * (hi - lo)));
-      const carId = Number(q("INSERT INTO cars (owner_id, model, status, tank, tank_at, created_at) VALUES (?, ?, 'market', ?, ?, ?)").run(DEALER_ID, model, S.CAR_TANK, now(), now()).lastInsertRowid);
+      const carId = Number(q("INSERT INTO cars (owner_id, model, status, tank, tank_at, created_at, dirt_at) VALUES (?, ?, 'market', ?, ?, ?, ?)").run(DEALER_ID, model, S.CAR_TANK, now(), now(), now()).lastInsertRowid);
       q('INSERT INTO listings (seller_id, car_id, price, created_at) VALUES (?, ?, ?, ?)').run(DEALER_ID, carId, price, now());
     }
     metaSet('dealer_batch', cur);
@@ -4084,6 +4146,7 @@ export function createGame(db, opts = {}) {
     me: (u) => me(u),
     collect, 'buy-slot': buySlot, 'upgrade-cap': upgradeCap, sell, showcase, 'buy-showcase': buyShowcaseSlot,
     'car/paint': paintCar, 'car/livery': liveryCar, 'car/paint-reset': paintReset,
+    'wash/hand': washHand, 'wash/auto': washAuto,
     'case/open': openCase, 'case/history': dropHistory,
     'fair/seed': setClientSeed, 'fair/rotate': rotateSeed, 'fair/revealed': revealedSeeds,
     'parts/open': openParts, 'parts/merge': merge, 'parts/sell': sellParts, 'parts/install': install, 'parts/uninstall': uninstall,

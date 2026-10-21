@@ -26,7 +26,7 @@ test('ladder: one constant, levels ascending, every gated key in it; casino and 
   assert.deepEqual(levels, [...levels].sort((a, b) => a - b));
   assert.ok(S.unlockLevel('casino') >= 10 && S.unlockLevel('upgrade') >= 8);
   assert.equal(S.unlockLevel('nothing'), 1);
-  assert.deepEqual(S.unlocksBetween(1, 3).map((u) => u.key), ['parts', 'drift', 'plates']);
+  assert.deepEqual(S.unlocksBetween(1, 3).map((u) => u.key), ['parts', 'wash', 'drift', 'plates']);
   for (const t of S.NEWBIE_TASKS) if (t.feature) assert.ok(S.UNLOCK_BY_KEY[t.feature]);
   // Newbie tasks follow the ladder: no task needs a feature that opens later than the step before it allows.
   const at = S.NEWBIE_TASKS.map((t) => (t.feature ? S.unlockLevel(t.feature) : t.key === 'level3' ? 3 : 1));
@@ -45,7 +45,7 @@ test('a level-1 player: core loop open, everything else refused by the API with 
   call(5, 'race/rivals', { carId: car.id });
   call(5, 'rewards/daily');
   const refused = [
-    ['parts/open', { caseId: 'scrap', count: 1 }, 2], ['drift/rivals', { carId: car.id }, 3], ['plate/generate', { gen: 'basic' }, 3],
+    ['parts/open', { caseId: 'scrap', count: 1 }, 2], ['wash/hand', { carId: car.id }, 2], ['wash/auto', { carIds: [car.id] }, 2], ['drift/rivals', { carId: car.id }, 3], ['plate/generate', { gen: 'basic' }, 3],
     ['car/paint', { carId: car.id, color: 'red' }, 4], ['dealer/tradein', { carIds: [car.id] }, 4], ['market/sell', { carId: car.id, price: 1e6 }, 4],
     ['pvp/create', { carId: car.id, bet: 1e5 }, 5], ['trade/create', { to: 1 }, 5], ['room/create', {}, 5], ['auction/create', { carId: car.id, startPrice: 1e5, hours: 1 }, 5],
     ['battle/create', { caseId: 'rust', count: 1 }, 6], ['upgrade', { carIds: [car.id], target: 'x' }, 8],
@@ -58,8 +58,9 @@ test('a level-1 player: core loop open, everything else refused by the API with 
   call(5, 'casino/mines/state');
   // The level opens them.
   setLevel(5, 2);
-  assert.deepEqual(call(5, 'me').unlocked, ['parts']);
+  assert.deepEqual(call(5, 'me').unlocked, ['parts', 'wash']);
   call(5, 'parts/open', { caseId: 'scrap', count: 1 });
+  call(5, 'wash/hand', { carId: car.id });
   setLevel(5, 10);
   assert.equal(call(5, 'me').unlocked.length, S.UNLOCKS.length);
   call(5, 'casino/slots', { amount: 10000 });
@@ -173,7 +174,8 @@ test('grandfathering: the feats backfill keeps what an existing player used; lev
     db = openDb(file);
     const feats = (id) => JSON.parse(db.prepare('SELECT feats FROM users WHERE id = ?').get(id).feats);
     assert.deepEqual(feats(21).sort(), ['casino', 'plates', 'pvp']);
-    assert.deepEqual(feats(22).sort(), S.UNLOCKS.map((u) => u.key).sort());
+    // The backfill lists the features of its day; later ones (the wash, level 2) open by level anyway.
+    assert.deepEqual(feats(22).sort(), S.UNLOCKS.map((u) => u.key).filter((k) => k !== 'wash').sort());
     assert.deepEqual(feats(23).sort(), ['casino', 'upgrade'], 'untraceable games stay open from level 3');
     assert.deepEqual(feats(24), []);
     // With the ladder on: 21 (level 1) keeps plates, PvP and the casino, nothing else.
