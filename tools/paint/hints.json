@@ -151,5 +151,8 @@
  "bmw-x5-m-e70-monte-carlo-blue": {
   "hue_tol": 50,
   "c_floor": 0.08
+ },
+ "haz-24-24-volha-v8": {
+  "off": "black + chrome photo: glass and roof come out patchy"
  }
 }
