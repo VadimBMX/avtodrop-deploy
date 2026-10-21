@@ -1381,7 +1381,7 @@ TABS.race = async () => {
       <div class="grow"><b class="ellipsis">${esc(r.name)}</b><div class="small muted rv-meta"><span class="ellipsis">${esc(M(r.model).name)}</span><span class="nw">· ${r.hp} к.с.</span></div>
         <div class="row mt" style="gap:6px"><span class="diff ${r.id}">${r.label}</span><span class="chip">шанс ${r.chance < 1 ? '<1' : r.chance}%</span></div></div>
       <div class="center"><b class="win">+${S.short(r.prize)}</b><div class="tiny muted">${r.entry ? `внесок ${S.short(r.entry)}` : 'без внеску'}</div>${r.et ? `<div class="tiny muted">${dec(r.et, 2)} с</div>` : ''}</div></button>`).join('')}</div>
-    <div class="tiny muted">Тисни на суперника, щоб почати. На світлофорі жми «ГАЗ» рівно на зелений: ідеальний старт дає +4% потужності, фальстарт — −8%. Під час заїзду перемикай передачі, коли стрілка в зеленій зоні. Програв — внесок згоряє. Шанс рахується за твоїми останніми заїздами; деталі на машині його піднімають.</div>`;
+    <details class="dr-how"><summary>${ic('info-circle')} Як їздити</summary><div class="tiny muted">Тисни на суперника, щоб почати. Три жовті — чекай; щойно загориться зелений, жми «ГАЗ». Натиснеш до зеленого — фальстарт (−8% потужності). Реакція 0,10–0,15 с — ідеальний старт (+4%). Під час заїзду перемикай передачі, коли стрілка тахометра в зеленій зоні; не встигнеш — передача перемкнеться сама на відсічці, але пізно. Програв — внесок згоряє. Шанс рахується за твоїми останніми заїздами; деталі на машині його піднімають.</div></details>`;
 };
 // Shared fuel: 15 slanted pips like the key fragments; the chosen car's own tank under it.
 function fuelCard(car, extra = '') {
@@ -1433,40 +1433,157 @@ H.startRace = async (d) => {
   renderHeader();
   hideClaimBanners();
   state.race = { phase: 'lights', id: r.raceId, car: r.car, rival: r.rival, greenMs: r.greenMs, reaction: null, shifts: [], gear: 1, result: null };
+  // Training and the very first race coach: a short "how to drive" card on this device's first one (the lights start
+  // when it's closed — the server only checks that a run didn't finish too soon), and the button lights up in the zone.
+  state.race.coach = r.rival.id === 'train' || !me.stats.races;
   await render();
+  if (state.race.coach && !drSeen()) return dragCoach(state.race);
   runRace();
 };
+// «Ще раз»: the same difficulty again (the rival list is drawn anew after every race, so it's a new car of that tier).
+H.raceRetry = async (d) => {
+  state.race = null;
+  await H.startRace(d);
+  if (!state.race) render();
+};
+
+// ---------- drag scene: a side view of a night strip ----------
+// Two lanes (the rival's further away, smaller), both cars' photos (yours in its paint) placed by the simulated
+// distance, a camera between them, parallax city / neon / lamps / grid road, start, distance boards and finish.
+// Everything moves with transforms from one rAF loop; with reduced motion the camera stands still and shows the
+// whole 402 m (no parallax, smoke or shake).
+const DR_PXM = 9; // px per metre of track
+const DR_RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const DR_COACH_KEY = 'av.dragCoach';
+const DR_MARKS = [[0, 'start', 'СТАРТ'], [100, 'num', '100 м'], [201, 'num', '201 м'], [300, 'num', '300 м'], [402, 'finish', 'ФІНІШ']];
+const drSeen = () => { try { return !!localStorage.getItem(DR_COACH_KEY); } catch { return true; } };
+const QLABEL = { perfect: 'Ідеально', good: 'Добре', early: 'Рано', late: 'Пізно', miss: 'Пропуск' };
+let drSkyline = '';
+function drCity() {
+  if (drSkyline) return drSkyline;
+  const rnd = S.seededRand(402);
+  let s = '', x = 0;
+  while (x < 480) {
+    const w = 16 + Math.floor(rnd() * 34), h = 24 + Math.floor(rnd() * 78), y = 110 - h;
+    s += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${rnd() < 0.5 ? '#141c2f' : '#0f1628'}"/>`;
+    for (let wy = y + 6; wy < 104; wy += 7) for (let wx = x + 3; wx < x + w - 4; wx += 5) {
+      if (rnd() < 0.15) s += `<rect x="${wx}" y="${wy}" width="2" height="3" fill="${rnd() < 0.72 ? '#ffd27a' : '#8fdcff'}" opacity="${(0.3 + rnd() * 0.55).toFixed(2)}"/>`;
+    }
+    if (h > 84 && rnd() < 0.7) s += `<rect x="${x + (w >> 1)}" y="${y - 9}" width="1" height="9" fill="#1b2438"/><circle cx="${x + (w >> 1) + 0.5}" cy="${y - 9}" r="1.5" fill="#ff4d5a"/>`;
+    x += w + Math.floor(rnd() * 5);
+  }
+  return (drSkyline = `<svg viewBox="0 0 480 110" width="480" height="110" aria-hidden="true">${s}</svg>`);
+}
+// Tachometer: 270° dial, the shift zones of S.tapQuality (good 0.70–0.82, perfect 0.82–0.94), the limiter from 0.94.
+const DR_ANG = (v) => -135 + 270 * Math.max(0, Math.min(1, v / 1.04));
+const DR_GAUGE = (() => {
+  const pt = (a, r) => [56 + r * Math.sin((a * Math.PI) / 180), 56 - r * Math.cos((a * Math.PI) / 180)].map((n) => n.toFixed(1)).join(' ');
+  const arc = (v0, v1, r) => `M${pt(DR_ANG(v0), r)}A${r} ${r} 0 ${DR_ANG(v1) - DR_ANG(v0) > 180 ? 1 : 0} 1 ${pt(DR_ANG(v1), r)}`;
+  let ticks = '';
+  for (let i = 0; i <= 10; i++) ticks += `<path d="M${pt(DR_ANG(i / 10), 36)}L${pt(DR_ANG(i / 10), i % 2 ? 40 : 42)}" class="g-tick"/>`;
+  return `<svg viewBox="0 0 112 112" aria-hidden="true"><path d="${arc(0, 1.04, 48)}" class="g-bg"/><path d="${arc(0.7, 0.82, 48)}" class="g-good"/><path d="${arc(0.82, 0.94, 48)}" class="g-perf"/><path d="${arc(0.94, 1.04, 48)}" class="g-red"/>${ticks}</svg>`;
+})();
 function raceScreen() {
   const R = state.race;
   if (R.phase === 'done') return raceResult();
-  const rm = M(R.rival.model);
-  return `<div class="racebox">
-    <div class="rb-board"><div><small>Час</small><b id="rTimer">0,000</b></div><div class="right"><small>Розрив</small><b id="rGap">—</b></div></div>
-    <div class="lane">${miniCar(R.car.model, '', R.car.look)}<span class="who">Ти</span><span class="hp">${R.car.hp} к.с.</span><div class="bar"><i id="pBar"></i></div></div>
-    <div class="lane rv">${miniCar(R.rival.model, '', R.rival.look)}<span class="who ellipsis">${esc(R.rival.name)} <span class="tiny muted">${esc(rm.name)}</span></span><span class="hp">${R.rival.hp} к.с.</span><div class="bar"><i id="rBar"></i></div></div>
-    <div class="marks"><span>0 м</span><span>201 м</span><span>402 м</span></div></div>
-  <div class="tree" id="tree"><i></i><i></i><i></i><i></i></div>
-  <div class="dash"><div class="speed"><span id="rSpeed">0</span><small> км/год</small></div><div class="tacho"><div class="zone"></div><div class="redz"></div><div class="needle" id="needle"></div></div><div class="gear"><span id="rGear">N</span><small>передача</small></div></div>
-  <div class="center small muted mt" id="rHint">Чекай зелений — тоді жми «Газ»</div>
-  <div style="position:relative"><button class="btn racebtn wait mt" id="raceBtn">Чекай зелений…</button></div>
-  <div class="row mt" id="rShifts" style="justify-content:center;gap:6px"></div>`;
+  const city = `<div class="dr-tile">${drCity()}</div>`;
+  const neon = '<div class="dr-ntile"><i class="dr-bb" style="left:24px;--c:#ff3ea5">ДРАГ 402</i><i class="dr-bb" style="left:206px;--c:#3ee0ff">АВТОДРОП</i></div>';
+  const car = (who, model, look, tag) => `<div class="dr-car ${who}" id="dr-${who}"><div class="dr-tag">${tag}</div><i class="dr-shd"></i>
+    <div class="dr-smoke"><i></i><i></i><i></i><i></i><i></i></div><div class="dr-bod"><i class="dr-beam"></i>${carArt(model, { look })}<i class="dr-flame"></i></div></div>`;
+  return `<div class="drag${DR_RM ? ' rm' : ''}" id="drag">
+  <div class="dr-scene" id="drScene">
+    <div class="dr-sky"></div>
+    <div class="dr-par dr-city">${city}${city}</div>
+    <div class="dr-par dr-neon">${neon}${neon}${neon}</div>
+    <div class="dr-road"><div class="dr-floor"><div class="dr-plane"><i class="dr-grid"></i></div></div><div class="dr-dashes"><i></i></div></div>
+    <div class="dr-lamps">${'<i class="dr-lamp"></i>'.repeat(4)}</div>
+    ${DR_MARKS.map(([m, k, t]) => `<div class="dr-mk ${k}" data-m="${m}"><b>${t}</b></div>`).join('')}
+    <div class="dr-streaks">${'<i></i>'.repeat(6)}</div>
+    ${car('rv', R.rival.model, R.rival.look, `<b class="ellipsis">${esc(R.rival.name)}</b><span>${R.rival.hp} к.с.</span>`)}
+    ${car('me', R.car.model, R.car.look, `<b>Ти</b><span>${R.car.hp} к.с.</span>`)}
+    <div class="dr-off l" id="drOffL"></div><div class="dr-off r" id="drOffR"></div>
+    <div class="dr-hud"><div><small>Час</small><b id="rTimer">0,000</b></div><div class="right"><small>Розрив</small><b id="rGap">—</b></div></div>
+    <div class="dr-tree" id="tree"><i></i><i></i><i></i><i></i></div>
+    <div class="dr-msg" id="drMsg"></div>
+    <div class="dr-pops" id="drPops"></div>
+  </div>
+  <div class="dr-panel">
+    <div class="dr-tacho" id="drTacho">${DR_GAUGE}<i class="dr-needle" id="needle"></i><b id="rGear">N</b><small>передача</small></div>
+    <div class="dr-read">
+      <div class="dr-spd"><b id="rSpeed">0</b><small>км/год</small></div>
+      <div class="dr-map" id="drMap"><i class="rv"></i><i class="me"></i></div>
+      <div class="dr-map-l"><span>0</span><span>201</span><span>402 м</span></div>
+      <div class="dr-slots" id="rShifts">${[1, 2, 3, 4].map((i) => `<span>${i}→${i + 1}</span>`).join('')}</div>
+    </div>
+  </div>
+  <div class="dr-hint" id="rHint">Чекай зелений — тоді жми «Газ»</div>
+  <button class="btn racebtn wait" id="raceBtn">Чекай зелений…</button>
+</div>`;
 }
-const QLABEL = { perfect: 'Ідеально', good: 'Добре', early: 'Рано', late: 'Пізно', miss: 'Пропуск' };
-function flashText(text, color) {
+// The first-race card over the whole race screen; «На старт» starts the lights.
+function dragCoach(R) {
+  $('#drag')?.insertAdjacentHTML('beforeend', `<div class="dr-coach" id="drCoach"><div class="dr-coach-in">
+    <b class="dr-coach-t">Як їхати драг</b>
+    <div class="dr-step"><span class="dr-ci lights"><i></i><i></i><i></i><i class="g"></i></span><span><b>Три жовті — чекай.</b> Загорівся зелений — одразу тисни «Газ». Натиснеш раніше — фальстарт, −8% потужності.</span></div>
+    <div class="dr-step"><span class="dr-ci zone"></span><span><b>Стрілка в зеленій зоні — «Передача».</b> Чотири перемикання за заїзд; яскраво-зелена смуга — ідеально.</span></div>
+    <div class="dr-step"><span class="dr-ci red"></span><span><b>Не встиг?</b> На червоній відсічці передача перемкнеться сама, але пізно — це втрачений час.</span></div>
+    <button class="btn yellow" id="drGo">Зрозуміло — на старт!</button></div></div>`);
+  $('#drGo')?.addEventListener('click', () => {
+    try { localStorage.setItem(DR_COACH_KEY, '1'); } catch {}
+    $('#drCoach')?.remove();
+    if (state.race === R && R.phase === 'lights') runRace();
+  }, { once: true });
+}
+const drEls = () => {
+  const s = $('#drScene');
+  if (!s) return null;
+  const q = (x) => s.querySelector(x);
+  return { drag: $('#drag'), scene: s, me: q('#dr-me'), rv: q('#dr-rv'), meB: q('#dr-me .dr-bod'), rvB: q('#dr-rv .dr-bod'), city: q('.dr-city'), neon: q('.dr-neon'),
+    grid: q('.dr-grid'), dashes: q('.dr-dashes i'), lamps: q('.dr-lamps'), marks: [...s.querySelectorAll('.dr-mk')], streaks: q('.dr-streaks'), streak: [...s.querySelectorAll('.dr-streaks i')],
+    offL: q('#drOffL'), offR: q('#drOffR'), timer: q('#rTimer'), gap: q('#rGap'), tree: q('#tree'), msg: q('#drMsg'), pops: q('#drPops'),
+    tacho: $('#drTacho'), needle: $('#needle'), gear: $('#rGear'), speed: $('#rSpeed'), map: $('#drMap'), mapMe: $('#drMap .me'), mapRv: $('#drMap .rv'),
+    slots: [...document.querySelectorAll('#rShifts span')], hint: $('#rHint'), btn: $('#raceBtn') };
+};
+// A short label floating up above the cars (never over the button).
+function drPop(E, title, sub, q) {
+  if (!E?.pops) return;
+  E.pops.replaceChildren();
   const el = document.createElement('div');
-  el.className = 'flash';
-  el.style.color = color;
-  el.textContent = text;
-  $('#raceBtn')?.parentElement.appendChild(el);
-  setTimeout(() => el.remove(), 800);
+  el.className = `dr-pop q-${q}`;
+  el.innerHTML = `<b>${title}</b>${sub ? `<small>${sub}</small>` : ''}`;
+  E.pops.appendChild(el);
+  setTimeout(() => el.remove(), 1300);
 }
+// A message panel in the sky (false start, "not yet", the finish); ms = 0 keeps it.
+function drMsg(E, title, sub, cls, ms = 1600) {
+  if (!E?.msg) return;
+  clearTimeout(E.msg._t);
+  E.msg.innerHTML = `<b>${title}</b>${sub ? `<small>${sub}</small>` : ''}`;
+  E.msg.className = `dr-msg on ${cls}`;
+  if (ms) E.msg._t = setTimeout(() => E.msg.classList.remove('on'), ms);
+}
+// What a reaction means, for the pop at the start and the result card. early = s before green for a false start.
+function drStart(reaction, early = 0) {
+  const r = (x) => dec(x, 3) + ' с';
+  if (reaction < 0) return { q: 'bad', t: 'Фальстарт', s: early > 0.0005 ? `«Газ» за ${dec(early, 2)} с до зеленого · −8% потужності` : '«Газ» до зеленого · −8% потужності' };
+  if (reaction >= 1.5) return { q: 'late', t: 'Пізній старт', s: 'машина рушила сама через 1,5 с після зеленого' };
+  if (S.perfectStartOf(reaction)) return { q: 'perfect', t: 'Ідеальний старт', s: `реакція ${r(reaction)} · +4% потужності` };
+  if (reaction < S.START.minReaction) return { q: 'good', t: 'Блискавичний старт', s: `${r(reaction)} · бонус +4% — за реакцію 0,10–0,15 с` };
+  if (reaction < 0.3) return { q: 'good', t: 'Добрий старт', s: `реакція ${r(reaction)}` };
+  return { q: 'late', t: 'Повільний старт', s: `реакція ${r(reaction)} · тисни, щойно загориться зелений` };
+}
+// Time a shift of this quality costs (+) or gains (−), as S.raceTime counts it for this car's gearbox.
+const drLoss = (q, car) => {
+  const l = S.SHIFT_LOSS[q] ?? S.SHIFT_LOSS.miss;
+  return l > 0 ? l * (1 - (car.shift || 0)) : l;
+};
 // Solo race against a bot, or a live PvP race (R.live): then the lights follow the server's shared start time, the
 // rival's bar follows the other player's real progress, and the result comes once both have finished.
 function runRace() {
   const R = state.race;
-  const K = S.RACE_SPEED; // playback speed
-  const lights = [...document.querySelectorAll('#tree i')];
-  const btn = $('#raceBtn');
+  let E = drEls();
+  const lights = [...E.tree.children];
+  const btn = E.btn;
   const sinceStart = R.live ? serverNow() - R.live.startAt : 0;
   // The server picks the green light; every tap is reported in ms from the start of the lights (t0) so the server can
   // recompute the reaction and the shifts. Times are rounded to 0.1 ms first so both sides compute the same numbers.
@@ -1475,10 +1592,17 @@ function runRace() {
   const greenAt = greenMs - sinceStart;
   const clock = (from) => Math.round((performance.now() - from) * 10) / 10;
   R.shiftAt = [];
-  let green = 0, runStart = 0, raf = 0;
+  let green = 0, runStart = 0, raf = 0, lastTap = 0;
   const lbs = R.car.kg * 2.2046;
   const vmax = 1.609 * 234 * Math.cbrt(R.car.hp / lbs);
-  const timers = [600, 1200, 1800].map((ms, i) => setTimeout(() => (lights[i].className = 'amber', haptic('light')), Math.max(0, ms - sinceStart)));
+  const timers = [600, 1200, 1800].map((ms, i) => setTimeout(() => {
+    lights[i].className = 'amber';
+    haptic('light');
+    SFX.tick(0.9 + i * 0.1);
+    if (i === 0) E.drag?.classList.add('rev');
+  }, Math.max(0, ms - sinceStart)));
+  const scene = drScene(E, R);
+  scene.draw(0, 0, 0, 0, 0.12, 0);
   // Taps before the first amber light (and in the first 0.8 s on screen) don't count: many players hit the button
   // right away thinking it starts the race. After that, jumping the green is a real false start.
   const guardUntil = performance.now() + Math.max(800, 600 - sinceStart);
@@ -1499,50 +1623,63 @@ function runRace() {
     lights.forEach((l) => (l.className = ''));
     lights[3].className = 'green';
     green = performance.now();
-    btn.className = 'btn racebtn gas mt';
+    btn.className = 'btn racebtn gas';
     btn.textContent = 'Газ!';
+    E.hint.textContent = 'Зелений — тисни «Газ»!';
     haptic('medium');
+    SFX.tick(1.8);
   }, greenAt));
   timers.push(setTimeout(() => !runStart && launch(), greenAt + S.RACE_LATE_START));
   let segStart = 0;
   const projected = () => S.raceTime(R.car, R.reaction, [...R.shifts, ...Array(S.SHIFTS - R.shifts.length).fill('good')]);
   function launch() {
     timers.forEach(clearTimeout);
-    R.launchMs = clock(t0);
+    let at = clock(t0);
+    // A tap once the green light is on screen is never a false start, whatever the timer rounding says.
+    if (green && at < greenMs) at = Math.ceil(greenMs * 10) / 10;
+    R.launchMs = at;
     const reaction = (R.reaction = S.reactionOf(R.launchMs, greenMs));
     R.phase = 'run';
     runStart = t0 + R.launchMs;
+    lastTap = performance.now();
+    E.drag?.classList.remove('rev');
+    const st = drStart(reaction, (greenMs - R.launchMs) / 1000);
     if (reaction < 0) {
+      R.jumpBy = (greenMs - R.launchMs) / 1000;
       lights.forEach((l) => (l.className = 'red'));
-      flashText('ФАЛЬСТАРТ −8%', '#f87171');
+      drMsg(E, 'Фальстарт!', `Ти натиснув за ${dec(R.jumpBy, 2)} с до зеленого. Штраф −8% потужності — тепер жени!`, 'bad', 2600);
       haptic('error');
-    } else if (S.perfectStartOf(reaction)) {
-      flashText('ІДЕАЛЬНИЙ СТАРТ +4%', '#4ade80');
-      haptic('success');
-    } else if (reaction < S.START.minReaction) flashText('ЗАРАНО — БЕЗ БОНУСУ', '#fbbf24');
-    else if (reaction >= 1.5) flashText('ПІЗНІЙ СТАРТ', '#fbbf24');
-    else flashText(`Реакція ${dec(reaction, 3)}`, '#eceef2');
-    btn.className = 'btn racebtn shift mt';
+    } else {
+      drPop(E, st.t, st.s, st.q);
+      haptic(st.q === 'perfect' ? 'success' : 'light');
+    }
+    setTimeout(() => E.tree?.classList.add('off'), reaction < 0 ? 1400 : 500);
+    scene.launch('me');
+    btn.className = 'btn racebtn shift';
     btn.textContent = 'Передача';
     R.gear = 1;
-    $('#rHint').textContent = 'Перемикай, коли стрілка в зеленій зоні';
+    E.hint.textContent = R.coach ? 'Стрілка в зеленій зоні — тисни «Передача»' : 'Перемикай, коли стрілка в зеленій зоні';
     raf = requestAnimationFrame(frame);
   }
   const rpmAt = (u) => S.shiftRpm(R.shifts.length, segStart, u);
   function doShift(q, u, ms) {
+    const i = R.shifts.length;
     R.shiftAt.push(ms);
     R.shifts.push(q);
     segStart = u;
     R.gear++;
-    $('#rShifts').insertAdjacentHTML('beforeend', `<span class="qchip q-${q}">${QLABEL[q]}</span>`);
-    flashText(QLABEL[q], q === 'perfect' ? '#4ade80' : q === 'good' ? '#eceef2' : '#fbbf24');
+    const slot = E.slots[i];
+    if (slot) (slot.className = `q-${q}`, slot.textContent = QLABEL[q]);
+    const l = drLoss(q, R.car);
+    drPop(E, QLABEL[q], `${i + 1}→${i + 2}${Math.abs(l) > 0.0005 ? ` · ${l > 0 ? '+' : '−'}${dec(Math.abs(l), 2)} с` : ''}${q === 'late' ? ' · відсічка' : ''}`, q);
+    scene.shift(q);
     haptic(q === 'perfect' ? 'success' : q === 'good' ? 'light' : 'warning');
+    SFX.land(i);
   }
-  let curU = 0;
   btn.addEventListener('pointerdown', () => {
     if (R.phase === 'lights') {
       if (!green && performance.now() < guardUntil) {
-        flashText('ЩЕ РАНО!', '#fbbf24');
+        drMsg(E, 'Ще рано!', 'Дочекайся зеленого світла', 'warn', 1100);
         btn.classList.remove('nudge');
         void btn.offsetWidth;
         btn.classList.add('nudge');
@@ -1557,43 +1694,81 @@ function runRace() {
     const ms = clock(runStart);
     const u = S.dragU(R.car, R.reaction, R.shifts, S.msToTau(ms));
     if (u >= 1) return;
+    // A second tap right after «Газ» or a shift with the needle still low is a double tap, not a gear change.
+    if (performance.now() - lastTap < 200 && rpmAt(u) < 0.6) return;
+    lastTap = performance.now();
     doShift(S.tapQuality(rpmAt(u)), u, ms);
   });
-  let shownRivalD = 0;
+  let shownRivalD = 0, myFin = null, rvFin = null, txt = {};
+  const coast = (t, v) => (DR_RM ? 0 : v * 1.1 * (1 - Math.exp(-t / 1.1))); // metres rolled past the line (t in race s)
+  const set = (k, el, v) => txt[k] !== v && el && (el.textContent = txt[k] = v);
   function frame() {
-    if (state.race !== R) return;
+    if (state.race !== R || R.phase === 'done') return;
+    if (!E.scene.isConnected) {
+      E = drEls();
+      if (!E) return;
+      scene.rebind(E);
+    }
     const ms = clock(runStart);
     const tau = S.msToTau(ms);
     const T = projected();
     const u = S.dragU(R.car, R.reaction, R.shifts, tau);
-    curU = u;
     if (!R.sent && u < 1 && R.shifts.length < S.SHIFTS && rpmAt(u) >= S.SHIFT_AUTO_RPM) doShift('late', u, ms);
     // Solo: my car crossed the line — send the run now; the exact rival time comes back with the result.
     if (!R.live && u >= 1 && !R.sent) submit();
     const pd = Math.pow(u, 1.6);
-    let ru, rd;
+    let ru, rd, rvGo;
     if (R.live) {
-      // The rival's real progress arrives a few times a second; glide towards it so the bar doesn't jump.
-      R.myD = pd;
+      // The rival's real progress arrives a few times a second; glide towards it so the car doesn't jump.
+      R.myD = Math.max(R.myD || 0, pd);
       shownRivalD += (R.rivalD - shownRivalD) * 0.18;
       rd = shownRivalD;
-      ru = 1; // my own finish ends the animation; the result waits for the rival
+      ru = 1; // my own finish ends my run; the result waits for the rival
+      rvGo = rd > 0.0005;
     } else {
       const rReact = 0.25;
       ru = Math.max(0, Math.min(1, (tau - rReact) / (R.rival.time - rReact)));
       rd = Math.pow(ru, 1.6);
+      rvGo = tau > rReact;
+      if (ru >= 1 && rvFin == null) rvFin = tau;
     }
-    $('#pBar').style.width = pd * 100 + '%';
-    $('#rBar').style.width = rd * 100 + '%';
-    $('#rTimer').textContent = Math.min(tau, R.live ? T : Math.max(T, R.rival.time)).toFixed(3).replace('.', ',');
+    if (rvGo) scene.launch('rv');
+    if (u >= 1 && myFin == null) myFin = tau;
+    const myV = (402 * 1.6) / S.dragDrive(R.car, R.reaction, R.shifts).drive;
+    const rvV = R.live ? myV : (402 * 1.6) / Math.max(0.5, R.rival.time - 0.25);
+    const myM = pd * 402 + (myFin != null ? coast(tau - myFin, myV) : 0);
+    const rvM = rd * 402 + (rvFin != null ? coast(tau - rvFin, rvV) : 0);
+    const rpm = R.phase === 'run' && u < 1 ? Math.max(0, Math.min(1.04, rpmAt(u))) : Math.max(0.12, 0.5 * Math.exp(-(tau - (myFin ?? tau)) * 2));
+    let kmh = Math.round(vmax * Math.pow(u, 0.62) * (0.92 + 0.08 * Math.min(1, rpmAt(u))));
+    if (myFin != null) kmh = Math.round(kmh * Math.exp(-(tau - myFin) / 1.6));
+    scene.draw(myM, rvM, kmh / Math.max(1, vmax), tau, rpm, u > 0 ? Math.min(R.gear, S.SHIFTS + 1) : 1);
+    const hot = R.phase === 'run' && u < 1 && R.shifts.length < S.SHIFTS && rpm >= 0.82 && rpm <= 0.94;
+    if (R.coach && btn.classList.contains('now') !== hot) btn.classList.toggle('now', hot);
+    set('t', E.timer, Math.min(tau, R.live ? T : Math.max(T, R.rival.time)).toFixed(3).replace('.', ','));
     const gap = Math.round((pd - rd) * 402);
-    $('#rGap').textContent = u >= 1 && ru >= 1 ? '—' : (gap > 0 ? '+' : '') + gap + ' м';
-    $('#rGap').className = gap >= 0 ? 'win' : 'lose';
-    $('#rSpeed').textContent = Math.round(vmax * Math.pow(u, 0.62) * (0.92 + 0.08 * Math.min(1, rpmAt(u))));
-    $('#rGear').textContent = u > 0 ? Math.min(R.gear, S.SHIFTS + 1) : 1;
-    const rpm = Math.max(0, Math.min(1, u > 0 ? rpmAt(u) : 0.2));
-    $('#needle').style.width = rpm * 100 + '%';
-    if (u >= 1 && ru >= 1 && (R.live || R.result)) return finish();
+    if (u >= 1 && ru >= 1 && R.result) {
+      set('g', E.gap, `${R.result.win ? '+' : '−'}${dec(R.result.diff, 3)} с`);
+      E.gap.className = R.result.win ? 'win' : 'lose';
+    } else if (!(u >= 1 && ru >= 1)) {
+      set('g', E.gap, (gap > 0 ? '+' : '') + gap + ' м');
+      E.gap.className = gap >= 0 ? 'win' : 'lose';
+    }
+    set('s', E.speed, String(kmh));
+    if (R.live) {
+      if (u >= 1 && !R.finSent) {
+        R.finSent = true;
+        finishLive();
+      }
+    } else if (u >= 1 && ru >= 1 && R.result && !R.endAt) {
+      // Both are over the line: the verdict in the sky while the cars roll out, then the result screen.
+      R.endAt = performance.now();
+      const w = R.result.win;
+      drMsg(E, w ? 'Перемога!' : 'Поразка', `${w ? 'швидше' : 'повільніше'} на ${dec(R.result.diff, 3)} с`, w ? 'win' : 'bad', 0);
+      haptic(w ? 'success' : 'error');
+      btn.disabled = true;
+      E.hint.textContent = 'Фініш!';
+    }
+    if (R.endAt && performance.now() - R.endAt > (DR_RM ? 700 : 1300)) return finish();
     raf = requestAnimationFrame(frame);
   }
   // Shifts never made before the line count as late (padded in the copy only: the animation keeps its own list).
@@ -1614,17 +1789,16 @@ function runRace() {
   async function finish() {
     cancelAnimationFrame(raf);
     while (R.shifts.length < S.SHIFTS) R.shifts.push('late');
-    if (R.live) return finishLive();
     R.phase = 'done';
-    haptic(R.result.win ? 'success' : 'error');
     state.resultFx = { win: !!R.result.win };
     await refresh();
   }
-  // Live: send my run, then keep the rival's bar moving until they finish too (the progress poll settles it).
+  // Live: send my run; the scene keeps running (my car rolls out, the rival's follows its real progress) until the
+  // progress poll settles the race.
   async function finishLive() {
     R.myD = 1;
     R.phase = 'wait';
-    $('#rHint').textContent = `Фініш! Чекаємо на ${R.rival.name}…`;
+    E.hint.textContent = `Фініш! Чекаємо на ${R.rival.name}…`;
     btn.disabled = true;
     try {
       const s = await api('pvp/finish', { id: R.live.id, ...payload() });
@@ -1632,14 +1806,97 @@ function runRace() {
     } catch (e) {
       toast(e.message, true);
     }
-    const glide = () => {
-      if (state.race !== R || R.phase !== 'wait') return;
-      shownRivalD += (R.rivalD - shownRivalD) * 0.18;
-      $('#rBar').style.width = shownRivalD * 100 + '%';
-      requestAnimationFrame(glide);
-    };
-    glide();
   }
+}
+// The scene's moving parts for one race: draw(myM, rivalM, speed 0..1, tau, rpm, gear) places the cars and the
+// world for the camera; launch / shift kick the body (squat, nose dip, exhaust flame, tyre smoke).
+function drScene(E0, R) {
+  let E = E0, W = 0, meW = 0, rvW = 0, mapW = 0, last = 0, cache = new Map();
+  const body = { me: { p: 0, v: 0, go: false }, rv: { p: 0, v: 0, go: false } };
+  const measure = () => {
+    W = E.scene.clientWidth;
+    meW = E.me.offsetWidth;
+    rvW = E.rv.offsetWidth;
+    mapW = E.map.clientWidth;
+  };
+  measure();
+  const tf = (el, v) => cache.get(el) !== v && (el.style.transform = v, cache.set(el, v));
+  const kick = (who, p) => {
+    if (DR_RM) return;
+    body[who].v += p * 14; // a velocity kick: the body swings there and settles
+  };
+  return {
+    rebind(e) {
+      E = e;
+      cache = new Map();
+      measure();
+    },
+    launch(who) {
+      if (body[who].go) return;
+      body[who].go = true;
+      const car = who === 'me' ? E.me : E.rv;
+      car.classList.add('burn');
+      kick(who, -3.2);
+    },
+    shift(q) {
+      E.me.classList.remove('fl');
+      void E.me.offsetWidth;
+      E.me.classList.add('fl');
+      kick('me', q === 'late' ? 2 : 1.3);
+    },
+    draw(myM, rvM, sp, tau, rpm, gear) {
+      const now = performance.now(), dt = Math.min(0.05, last ? (now - last) / 1000 : 0.016);
+      last = now;
+      // Camera: halfway between the cars, but never letting mine off the screen; reduced motion: the whole strip.
+      const A = W * 0.6;
+      let x;
+      let camPx = 0;
+      if (DR_RM) {
+        const x0 = meW + 6, k = (W - 12 - x0) / 402;
+        x = (m) => x0 + Math.min(402, m) * k;
+      } else {
+        let cam = (myM + rvM) / 2;
+        cam = Math.min(cam, myM - (meW + 6 - A) / DR_PXM);
+        cam = Math.max(cam, myM - (W - 10 - A) / DR_PXM);
+        camPx = cam * DR_PXM;
+        x = (m) => A + (m - cam) * DR_PXM;
+      }
+      const meX = x(myM), rvX = x(rvM);
+      for (const who of ['me', 'rv']) {
+        const b = body[who];
+        b.v += (-170 * b.p - 15 * b.v) * dt;
+        b.p += b.v * dt;
+        const bob = DR_RM || !b.go ? 0 : Math.sin(now / (who === 'me' ? 23 : 27)) * 0.5 * Math.min(1, sp);
+        tf(who === 'me' ? E.meB : E.rvB, `translate3d(0,${bob.toFixed(2)}px,0) rotate(${b.p.toFixed(2)}deg)`);
+      }
+      tf(E.me, `translate3d(${(meX - meW).toFixed(1)}px,0,0)`);
+      tf(E.rv, `translate3d(${(rvX - rvW).toFixed(1)}px,0,0)`);
+      for (const mk of E.marks) tf(mk, `translate3d(${x(+mk.dataset.m).toFixed(1)}px,0,0)`);
+      if (!DR_RM) {
+        tf(E.city, `translate3d(${(-(camPx * 0.05) % 480).toFixed(1)}px,0,0)`);
+        tf(E.neon, `translate3d(${(-(camPx * 0.22) % 360).toFixed(1)}px,0,0)`);
+        tf(E.lamps, `translate3d(${(-camPx % 225).toFixed(1)}px,0,0)`);
+        tf(E.grid, `translate3d(${(-camPx % 90).toFixed(1)}px,0,0)`);
+        tf(E.dashes, `translate3d(${(-camPx % 90).toFixed(1)}px,0,0)`);
+        const so = Math.max(0, Math.min(1, (sp - 0.3) * 1.8));
+        if (cache.get('so') !== so.toFixed(2)) (E.streaks.style.opacity = so.toFixed(2), cache.set('so', so.toFixed(2)));
+        if (so > 0) E.streak.forEach((s, i) => tf(s, `translate3d(${(W + 40 - ((camPx * 1.4 + i * 97) % (W + 180))).toFixed(1)}px,0,0)`));
+      }
+      // Off-screen rival: an arrow on that edge with the distance.
+      const d = Math.round(Math.abs(myM - rvM));
+      const offL = rvX < 6, offR = rvX - rvW > W - 6;
+      if (cache.get('offL') !== (offL && d)) (E.offL.classList.toggle('on', offL), offL && (E.offL.textContent = `◀ ${d} м`), cache.set('offL', offL && d));
+      if (cache.get('offR') !== (offR && d)) (E.offR.classList.toggle('on', offR), offR && (E.offR.textContent = `${d} м ▶`), cache.set('offR', offR && d));
+      // Dash: needle, shift zone glow, gear, the 402 m strip.
+      tf(E.needle, `rotate(${DR_ANG(rpm).toFixed(1)}deg)`);
+      const zone = rpm >= 0.94 ? 'red' : rpm >= 0.82 ? 'perf' : rpm >= 0.7 ? 'good' : '';
+      if (cache.get('zone') !== zone) (E.tacho.dataset.z = zone, cache.set('zone', zone));
+      const g = String(gear);
+      if (cache.get('gear') !== g && tau > 0) (E.gear.textContent = g, cache.set('gear', g));
+      tf(E.mapMe, `translate3d(${(Math.min(1, myM / 402) * mapW).toFixed(1)}px,0,0)`);
+      tf(E.mapRv, `translate3d(${(Math.min(1, rvM / 402) * mapW).toFixed(1)}px,0,0)`);
+    },
+  };
 }
 // Both runs are in: show the live result (once, whichever poll sees it first).
 async function settleLive(s) {
@@ -1682,13 +1939,41 @@ H.pvpExit = () => {
 function raceResult() {
   if (state.race.live) return liveResult();
   if (state.race.rival.boss) return bossResult();
-  const R = state.race, r = R.result;
-  const startTxt = r.jump ? 'Фальстарт −8%' : r.perfectStart ? 'Ідеальний старт +4%' : r.reaction >= 1.5 ? 'Пізній старт' : `Реакція ${dec(r.reaction, 3)} с`;
-  return raceSheetHtml({ win: r.win, diff: r.diff, amount: r.win ? '+' + S.fmt(r.prize) : r.entry ? '−' + S.fmt(r.entry) : 'Тренування',
-    note: r.win ? (r.entry ? `приз · внесок ${S.short(r.entry)} повернувся` : 'приз') : r.entry ? 'внесок згорів' : 'без внеску — нічого не втрачено',
-    rows: [{ who: 'Ти', model: R.car.model, look: R.car.look, time: r.time, won: r.win }, { who: R.rival.name, model: R.rival.model, time: r.rivalTime, won: !r.win }], start: startTxt, shifts: r.shifts })
-    + `<button class="btn yellow" data-act="raceAgain" ${me.fuel < 1 ? 'disabled' : ''}>Ще гонка · пальне ${me.fuel}/${S.FUEL_MAX}</button>
-    <button class="btn outline mt" data-act="raceExit">До суперників</button>`;
+  // Solo result: the verdict and the money, a photo finish (the loser behind by the real gap at the line), both
+  // times, then what decided it — the start, every shift with what it cost — and one tip.
+  const R = state.race, r = R.result, car = R.car;
+  const reaction = r.jump ? -1 : r.reaction;
+  const st = drStart(reaction, R.jumpBy || 0);
+  const lost = r.shifts.reduce((a, q) => a + drLoss(q, car), 0);
+  const v = (402 * 1.6) / S.dragDrive(car, reaction, r.shifts).drive; // m per race second at the line
+  const gapM = r.diff * v;
+  const n = (q) => r.shifts.filter((x) => x === q).length;
+  const tip = r.jump ? 'Три жовті — ще ні. Чекай зеленого і тільки тоді тисни «Газ».'
+    : n('late') >= 2 ? 'Перемикай, щойно стрілка в зеленій зоні, — не чекай червоної відсічки.'
+    : n('early') ? 'Не поспішай із передачею: дочекайся, поки стрілка зайде в зелену зону.'
+    : reaction >= 0.3 ? 'Тисни «Газ», щойно спалахне зелений: кожна десята секунди реакції — це час на фініші.'
+    : !r.win ? 'Ти проїхав чисто — суперник просто швидший. Деталі з Майстерні додають потужності.' : '';
+  const px = Math.min(120, gapM * 6);
+  const amount = r.win ? '+' + S.fmt(r.prize) : r.entry ? '−' + S.fmt(r.entry) : 'Тренування';
+  const note = r.win ? (r.entry ? `приз · внесок ${S.short(r.entry)} повернувся` : 'приз') : r.entry ? 'внесок згорів' : 'без внеску — нічого не втрачено';
+  const shiftsTxt = lost > 0.0005 ? `втрачено ${dec(lost, 2)} с` : lost < -0.0005 ? `виграно ${dec(-lost, 2)} с` : 'без втрат';
+  return `<div class="rhero ${r.win ? 'win' : 'lose'}"><div class="rhero-t">${r.win ? 'Перемога!' : 'Поразка'}</div>
+      <div class="rhero-sub">${r.win ? 'швидше' : 'повільніше'} на <b>${dec(r.diff, 3)} с</b> · ${gapM >= 0.5 ? `≈ ${Math.round(gapM)} м` : 'ніс у ніс'}</div>
+      <div class="rhero-amt">${amount}</div><div class="tiny muted">${note}</div></div>
+    <div class="dr-photo" aria-hidden="true"><span class="dr-photo-t">Фотофініш · 402 м</span><i class="dr-photo-line"></i>
+      <div class="dr-pcar rv" style="transform:translateX(${r.win ? -px : 0}px)">${carArt(R.rival.model, { look: R.rival.look })}</div>
+      <div class="dr-pcar me" style="transform:translateX(${r.win ? 0 : -px}px)">${carArt(car.model, { look: car.look })}</div></div>
+    <div class="dr-times">
+      <div class="${r.win ? 'won' : ''}"><small>Ти</small><b>${dec(r.time, 3)} с</b><span class="ellipsis">${esc(M(car.model).name)}</span></div>
+      <div class="${r.win ? '' : 'won'}"><small class="ellipsis">${esc(R.rival.name)}</small><b>${dec(r.rivalTime, 3)} с</b><span class="ellipsis">${esc(M(R.rival.model).name)}</span></div></div>
+    <div class="card dr-sum">
+      <div class="dr-row"><span class="dr-dot q-${st.q}"></span><div class="grow"><b>${st.t}</b><div class="small muted">${st.s}</div></div></div>
+      <div class="dr-row"><span class="dr-dot q-${lost > 0.0005 ? 'late' : lost < -0.0005 ? 'perfect' : 'good'}"></span><div class="grow"><b>Передачі: ${shiftsTxt}</b>
+        <div class="dr-chips">${r.shifts.map((q, i) => `<span class="qchip q-${q}">${i + 1}→${i + 2} ${QLABEL[q]}</span>`).join('')}</div></div></div>
+      ${tip ? `<div class="dr-tip">${ic('info-circle')}<span>${tip}</span></div>` : ''}</div>
+    <div class="dr-btns"><button class="btn yellow" data-act="raceRetry" data-rival="${esc(R.rival.id)}" ${me.fuel < 1 ? 'disabled' : ''}>${ic('refresh')} Ще раз</button>
+      <button class="btn outline" data-act="raceExit">Інший суперник</button></div>
+    <div class="tiny muted center mt">Пальне ${me.fuel}/${S.FUEL_MAX}${R.rival.label ? ` · «Ще раз» — новий суперник рівня «${esc(R.rival.label)}»` : ''}</div>`;
 }
 // ---------- drift («Дрифт 2.0») ----------
 const DRIFT_RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
