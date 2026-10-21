@@ -177,7 +177,13 @@ function toast(msg, err = false) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => (t.hidden = true), 2600);
 }
+// One request per action at a time: a double tap on «Забрати» used to send the claim twice — the first one paid, the
+// second came back «Завдання ще не виконано» while the screen still showed the old card.
+const acting = new Set();
 async function act(name, body, ok, { rerender = true } = {}) {
+  const lock = name + ':' + JSON.stringify(body || {});
+  if (acting.has(lock)) return null;
+  acting.add(lock);
   try {
     const r = await api(name, body);
     if (r?.stale) {
@@ -198,7 +204,11 @@ async function act(name, body, ok, { rerender = true } = {}) {
   } catch (e) {
     toast(e.message, true);
     haptic('error');
+    // The screen may be out of date (that is often why the action failed): bring it in line with the server.
+    refresh().catch(() => {});
     return null;
+  } finally {
+    acting.delete(lock);
   }
 }
 function confirmBox(text) {
