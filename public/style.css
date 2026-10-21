@@ -89,10 +89,12 @@ main { padding: 0 16px; }
 .btns { display: flex; gap: 8px; }
 .btns > * { flex: 1; }
 
-.seg { display: flex; border-bottom: 1px solid var(--line); margin-bottom: 14px; gap: 4px; }
-.seg button { flex: 1; padding: 10px 4px 11px; font: 600 13.5px var(--f-disp); letter-spacing: .7px; text-transform: uppercase; color: var(--muted); position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-.seg button.on { color: var(--text); }
-.seg button.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--accent); }
+/* Segmented control (the one definition; v1/v2/v3 copies merged here): a recessed track, the active segment raised
+   with a yellow underline. A second level under it (market) is plain underlined tabs — see «.mk-kinds + .seg». */
+.seg { display: flex; gap: 2px; margin-bottom: 12px; padding: 4px; border: 0; border-radius: 14px; background: #0e131b; box-shadow: inset 0 0 0 1px #ffffff0d, inset 0 2px 6px #0006; }
+.seg button { flex: 1; position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 4px 8px; border-radius: 10px;
+  font: 700 16px var(--f-disp); letter-spacing: .3px; color: var(--muted); }
+.seg button.on { background: linear-gradient(180deg, #2b3446, #222a39); color: var(--text); box-shadow: inset 0 1px 0 #ffffff1a, inset 0 -2px 0 var(--accent), 0 4px 10px -4px #000; }
 
 .progress { height: 4px; border-radius: 2px; background: var(--card2); overflow: hidden; }
 .progress > i { display: block; height: 100%; background: var(--accent); border-radius: 2px; transition: width .3s; }
@@ -105,8 +107,10 @@ main { padding: 0 16px; }
 .dots span::before { content: ''; width: 6px; height: 6px; border-radius: 1px; background: var(--c); }
 .chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 10px; scrollbar-width: none; }
 .chips::-webkit-scrollbar { display: none; }
-.chips button { flex: none; padding: 7px 12px; border-radius: 4px; background: var(--card); border: 1px solid var(--line); font: 600 13px var(--f-disp); letter-spacing: .4px; color: var(--muted); }
-.chips button.on { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+/* One filter chip everywhere (garage, market cars/parts/plates, collection, sorting): 32px, condensed, accent when on. */
+.chips button { flex: none; display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 11px; border: 0; border-radius: 9px; background: #0e131b;
+  box-shadow: inset 0 0 0 1px #ffffff10; font: 700 14px var(--f-disp); letter-spacing: .2px; color: #c3cad6; white-space: nowrap; }
+.chips button.on { color: var(--accent-ink); background: var(--accent); box-shadow: none; }
 
 /* car art */
 .art { display: flex; align-items: center; justify-content: center; }
@@ -555,12 +559,6 @@ input { background: var(--card); border: 1px solid transparent; border-radius: v
 input:focus { border-color: var(--line2); }
 
 /* iOS segmented control */
-.seg { background: var(--card); border: 0; border-radius: 10px; padding: 2px; gap: 0; margin-bottom: 12px; }
-.seg button { padding: 7px 4px; border-radius: 8px; font: 600 13px var(--f-body); letter-spacing: 0; text-transform: none; }
-.seg button.on { background: #636366; color: #fff; }
-.seg button.on::after { display: none; }
-.chips button { border: 0; border-radius: 999px; background: var(--card); font: 500 13px var(--f-body); letter-spacing: 0; }
-.chips button.on { background: #636366; color: #fff; }
 .chip { border: 0; border-radius: 6px; letter-spacing: 0; }
 .dots span { border-radius: 6px; }
 .dots span::before { border-radius: 50%; }
@@ -890,11 +888,6 @@ body { background: radial-gradient(120% 340px at 50% -60px, var(--bg-hi), var(--
 .btn.btn2 > small { font-family: var(--f-disp); font-size: 13.5px; }
 
 /* segmented control: dark track, the active segment raised with a yellow underline */
-.seg { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 3px; gap: 2px; }
-.seg button { font: 600 15px var(--f-disp); letter-spacing: .3px; border-radius: 9px; padding: 8px 4px 7px; color: var(--muted); }
-.seg button.on { background: var(--card3); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
-.chips button { background: var(--card); border: 1px solid var(--line); border-radius: 8px; font: 600 14px var(--f-disp); }
-.chips button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .toggle { background: var(--card3); }
 .toggle.on { background: var(--accent); }
 .toggle.on::after { background: var(--accent-ink); }
@@ -1320,9 +1313,6 @@ button.li:active { background-color: #ffffff08; }
 .multi.n6 .car .art { height: 52px; margin: 18px 0 3px; }
 
 /* ×N switch and the open button */
-.seg { padding: 4px; border-radius: 14px; background: #0e131b; border: 0; box-shadow: inset 0 0 0 1px #ffffff0d, inset 0 2px 6px #0006; }
-.seg button { font: 700 16px var(--f-disp); padding: 9px 4px 8px; border-radius: 10px; }
-.seg button.on { background: linear-gradient(180deg, #2b3446, #222a39); color: var(--text); box-shadow: inset 0 1px 0 #ffffff1a, inset 0 -2px 0 var(--accent), 0 4px 10px -4px #000; }
 .btn.opencase { position: relative; overflow: hidden; min-height: 58px; gap: 10px; font-size: 19px; border-radius: 14px; isolation: isolate;
   box-shadow: inset 0 1px 0 #fffb, inset 0 -3px 0 #0002, 0 10px 24px -12px #ffc400aa; }
 .opencase .oc-p { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 8px; background: #1a130014; box-shadow: inset 0 0 0 1px #1a130022; font-weight: 800; white-space: nowrap; }
@@ -1376,10 +1366,8 @@ button.li:active { background-color: #ffffff08; }
 .income .btn { min-height: 50px; }
 .garage-h b { color: var(--text); }
 .gfilter { margin: -2px -16px 8px; padding: 2px 16px; }
-.gfilter button { display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 11px; border-radius: 9px; font: 700 14px var(--f-disp); background: #0e131b; border: 0; box-shadow: inset 0 0 0 1px #ffffff10; color: #c3cad6; }
 .gfilter button i { width: 8px; height: 12px; border-radius: 1.5px; background: var(--c); transform: skewX(-14deg); }
 .gfilter button small { font-size: 11.5px; color: var(--muted); font-weight: 600; }
-.gfilter button.on { background: var(--accent); color: var(--accent-ink); box-shadow: none; }
 .gfilter button.on small { color: #1a130099; }
 .gfilter button.on i { box-shadow: 0 0 0 1.5px #1a1300; }
 .gsort { flex: none; display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 10px; border-radius: 9px; background: #0e131b; box-shadow: inset 0 0 0 1px #ffffff10; color: var(--muted); font: 700 13.5px var(--f-disp); white-space: nowrap; }
@@ -1705,7 +1693,6 @@ button.li:active { background-color: #ffffff08; }
 .chip.bidc { color: var(--text); }
 .chip.timec { color: var(--accent); }
 .chip.timec .i { width: 12px; height: 12px; }
-.sortchips button { height: 30px; padding: 0 11px; font-size: 13.5px; }
 .dealer-head { border: 0; background: radial-gradient(120% 90% at 0% 0%, #ffc40012, transparent 60%), var(--surf); box-shadow: inset 0 0 0 1px #4a3c1066, var(--edge), var(--drop); }
 .dealer-head .grow > .row b { font: 700 16.5px var(--f-disp); }
 .dealer-head .ic { width: 42px; height: 42px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center; font-size: 21px; flex: none; }
@@ -1939,7 +1926,7 @@ button.li:active { background-color: #ffffff08; }
 .ev-row:not(.on) .ev-ic { filter: saturate(.5); opacity: .75; }
 .ev-row.on .ev-ic { box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 55%, transparent), 0 0 14px color-mix(in srgb, var(--c) 35%, transparent); }
 .ev-t { flex: none; text-align: right; font: 700 13px var(--f-disp); font-variant-numeric: tabular-nums; }
-.ev-t small { display: block; font: 500 10.5px system-ui, sans-serif; color: var(--muted); }
+.ev-t small { display: block; font: 500 11px var(--f-body); color: var(--muted); }
 .ev-row.on .ev-t { color: var(--c); }
 .ev-sub { margin-top: 10px; text-transform: uppercase; letter-spacing: .6px; font-size: 10.5px; }
 
@@ -1987,3 +1974,72 @@ button.li:active { background-color: #ffffff08; }
 .set-rw-list { margin-top: 10px; display: grid; gap: 4px; font-size: 13.5px; }
 .set-rw-list .i { color: var(--accent); }
 @media (max-width: 360px) { .set-cars { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.ev-sub { margin-top: 10px; font: 600 12.5px var(--f-disp); letter-spacing: .2px; }
+.ev-card > .row:first-child + .ev-sub { margin-top: 6px; }
+
+/* ============================================================================================================
+   d3 «Один паддок»: a consistency pass from a fresh playthrough. No new look — the same paddock language made to
+   agree with itself: one chip, one segmented control, one empty state, numbers that never break mid-value,
+   nothing floating over the page, nothing that falls apart at 320 px.
+   ============================================================================================================ */
+.nw { white-space: nowrap; }
+
+/* banners: folded, the «+N» key sits inside the front banner instead of a pill hanging over the page */
+#banners .banner .bmore.in-banner { align-self: center; margin: 0; padding: 0 8px; min-width: 32px; height: 32px; justify-content: center; border-radius: 10px;
+  background: #0e131b; box-shadow: inset 0 0 0 1px #ffffff1c; font: 800 14px var(--f-disp); color: var(--text); }
+#banners.open > .bmore { margin-top: 2px; }
+
+/* NEW → «нова» with the same sparkle as «Нова в колекції» */
+.car .new { display: inline-flex; align-items: center; gap: 2px; text-transform: none; }
+.car .new .i { width: 11px; height: 11px; }
+
+/* plates · «Мої»: plate and value on top, where it hangs under it, two equal actions — fits 320 px */
+.plates-list .li.prow2 { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "plate val" "meta meta" "act act"; align-items: center; gap: 8px 12px; padding-top: 12px; padding-bottom: 12px; }
+.prow2 > .plate { grid-area: plate; }
+.prow2 .pr-val { grid-area: val; justify-self: end; display: inline-flex; align-items: center; gap: 7px; }
+.prow2 .pr-val b { font: 800 18px var(--f-disp); white-space: nowrap; }
+.prow2 .pr-meta { grid-area: meta; display: flex; gap: 6px; min-width: 0; }
+.prow2 .pr-meta > span { flex: none; }
+.prow2 .pr-meta > span + span { flex: 0 1 auto; min-width: 0; }
+.prow2 .pr-meta > span + span::before { content: '·'; margin-right: 6px; color: var(--muted); }
+.prow2 .pr-act { grid-area: act; display: flex; gap: 8px; }
+.prow2 .pr-act .btn { flex: 1; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; font-size: 14.5px; }
+
+/* rivals: model name gives way, the horsepower stays whole */
+.rv-meta { display: flex; gap: 4px; min-width: 0; }
+.rv-meta > .ellipsis { min-width: 0; flex: 0 1 auto; }
+.rival .grow > .small.rv-meta { display: flex; }
+
+/* car picker rail: runs to the screen edges and has room under the cards for an A/S card's glow (it was cut off) */
+#view .carpick { margin: 0 -16px; padding: 2px 16px 18px; scroll-padding: 0 16px; }
+#view .carpick + .fuelcard { margin-top: 0; }
+
+/* market: the second row of tabs is plain underlined tabs, so the two levels don't look like the same control twice */
+.mk-kinds + .seg { gap: 4px; margin-bottom: 12px; padding: 0; border-radius: 0; background: none; box-shadow: inset 0 -1px 0 var(--line); }
+.mk-kinds + .seg button { padding: 8px 4px 10px; border-radius: 0; font-size: 15px; }
+.mk-kinds + .seg button.on { background: none; box-shadow: inset 0 -2px 0 var(--accent); }
+.mk-search input, .mk-search select { height: 44px; border: 1px solid var(--line2); border-radius: var(--r-sm); background-color: #0e131b; }
+.mk-search input:focus, .mk-search select:focus { border-color: var(--accent); }
+
+/* first steps: same palette and sentence case as the rest; the ring on a tab follows a rounded shape */
+.guide { border-color: #ffc40055; }
+.guide-dots span { text-transform: none; letter-spacing: .2px; font: 600 12.5px var(--f-disp); }
+.guide-dots i.done { background: var(--green); }
+.tabs button.guide-hi { border-radius: 12px; }
+
+/* achievements: the tier pips are the progress bar (the next pip fills up) instead of pips plus a second bar */
+.ach-dots { gap: 3px; margin-top: 8px; }
+.ach-dots i { position: relative; flex: 1; max-width: 52px; overflow: hidden; }
+.ach-dots i > b { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #f0a800, var(--accent-hi)); }
+
+/* licence card buttons are two-line now: same height either way */
+.sheet .licence + .btns .btn.btn2 { min-height: 52px; padding-top: 7px; padding-bottom: 7px; }
+
+@media (max-width: 360px) {
+  .prow2 .pr-act .btn { font-size: 13.5px; padding-left: 8px; padding-right: 8px; }
+  .prow2 .pr-val b { font-size: 16px; }
+  /* rivals: the prize drops to its own line under the text, so the model name and the chips get the full width */
+  .rivals .rival { flex-wrap: wrap; row-gap: 6px; }
+  .rivals .rival > .center { flex: 1 0 100%; max-width: none; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-left: 72px; text-align: left; }
+  .rivals .rival .grow > .row { flex-wrap: nowrap; }
+}
