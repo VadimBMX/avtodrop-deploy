@@ -2189,6 +2189,7 @@ export function bossRewardText(rw) {
   if (rw.plate) out.push(`номер класу ${rw.plate}`);
   if (rw.badge) out.push(`значок «${rw.badge}»`);
   return out.filter(Boolean).join(' + ');
+}
 // ---------- dream car: the player's goal from the catalogue (any non-secret car) ----------
 // Which cases can drop the model and with what chance (base odds, no events/luck): [{ caseId, pct }] best first.
 export function dreamChances(modelId) {
