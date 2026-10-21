@@ -3619,6 +3619,48 @@ const passCell = (rw, state) => {
   const label = rw.seasonCar ? 'Машина сезону' : rewardText(rw);
   return `<div class="pcell ${state}">${state === 'lock' ? ic('lock') : ic(icon)}<span>${esc(label)}</span></div>`;
 };
+// Season car showroom: one 360x200 scene, scaled with the card. The left lamp + beam are drawn once and
+// mirrored with <use>, so both sides are identical; glows are stacked strokes (no SVG filters — cheap on phones).
+// Turntable top: ellipse c(180,150) r(150,24). The car box (CSS) is 262 wide with its bottom at y=149, so any
+// photo (bumpers reach the canvas edges, wheels on the bottom edge) stands fully on the top surface.
+const SHOWROOM_SVG = (() => {
+  const grid = [];
+  for (let k = -12; k <= 12; k++) grid.push(`M${(180 + k * 9.2).toFixed(1)} 104L${180 + k * 42} 200`);
+  for (const y of [106, 109, 113, 118, 124, 132, 142, 155, 171, 192]) grid.push(`M0 ${y}H360`);
+  const beam = (w0, w1, o) => `<path d="M${-w0} 11L${w0} 11L${w1} 190L${-w1} 190Z" fill="url(#srBeam)" opacity="${o}"/>`;
+  return `<svg class="sr-scene" viewBox="0 0 360 200" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><defs>
+<radialGradient id="srHaze" cx="180" cy="112" r="200" gradientTransform="translate(0 33.6) scale(1 .7)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#7a4cff" stop-opacity=".5"/><stop offset=".3" stop-color="#4b2fc4" stop-opacity=".28"/><stop offset=".65" stop-color="#1a1a5a" stop-opacity=".12"/><stop offset="1" stop-color="#05070c" stop-opacity="0"/></radialGradient>
+<radialGradient id="srContact" cx="180" cy="149.5" r="122" gradientTransform="translate(0 144) scale(1 .0369)" gradientUnits="userSpaceOnUse"><stop offset=".6" stop-color="#000" stop-opacity=".75"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+<radialGradient id="srPool" cx="180" cy="148" r="100" gradientTransform="translate(0 124.3) scale(1 .16)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff6dc" stop-opacity=".42"/><stop offset="1" stop-color="#fff6dc" stop-opacity="0"/></radialGradient>
+<linearGradient id="srRail" x1="0" y1="0" x2="0" y2="6" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3a4452"/><stop offset=".5" stop-color="#1a2029"/><stop offset="1" stop-color="#0b0e13"/></linearGradient>
+<radialGradient id="srGridFade" cx="180" cy="168" r="175" gradientTransform="translate(0 -168) scale(1 2)" gradientUnits="userSpaceOnUse"><stop offset=".35" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity=".15"/></radialGradient>
+<linearGradient id="srHorizon" x1="0" y1="104" x2="0" y2="200" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".35" stop-color="#fff"/><stop offset=".8" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<mask id="srGridMask" maskUnits="userSpaceOnUse" x="0" y="0" width="360" height="200"><rect y="104" width="360" height="96" fill="url(#srGridFade)"/></mask>
+<mask id="srHorizonMask" maskUnits="userSpaceOnUse" x="0" y="0" width="360" height="200"><rect width="360" height="200" fill="url(#srHorizon)"/></mask>
+<radialGradient id="srFloorGlow" cx="180" cy="186" r="180" gradientTransform="translate(0 155.6) scale(1 .1634)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ffc400" stop-opacity=".3"/><stop offset="1" stop-color="#ffc400" stop-opacity="0"/></radialGradient>
+<linearGradient id="srBeam" x1="0" y1="11" x2="0" y2="190" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff8e1" stop-opacity=".6"/><stop offset=".45" stop-color="#f1f4ff" stop-opacity=".26"/><stop offset=".85" stop-color="#f1f4ff" stop-opacity=".1"/><stop offset="1" stop-color="#f1f4ff" stop-opacity="0"/></linearGradient>
+<linearGradient id="srBody" x1="-8" y1="0" x2="8" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#11161d"/><stop offset=".45" stop-color="#4a5664"/><stop offset="1" stop-color="#151b23"/></linearGradient>
+<linearGradient id="srBand" x1="30" y1="0" x2="330" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#07090d"/><stop offset=".5" stop-color="#232d3a"/><stop offset="1" stop-color="#07090d"/></linearGradient>
+<radialGradient id="srTop" cx="180" cy="146" r="150" gradientTransform="translate(0 116.8) scale(1 .2)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4a5b70"/><stop offset=".6" stop-color="#1f2935"/><stop offset="1" stop-color="#121820"/></radialGradient>
+<linearGradient id="srRim" x1="0" y1="126" x2="0" y2="174" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ffc400" stop-opacity=".25"/><stop offset=".55" stop-color="#ffc400" stop-opacity=".8"/><stop offset="1" stop-color="#ffe27a"/></linearGradient>
+<g id="srLamp"><path d="M30 5V10" stroke="#2c3542" stroke-width="2.6"/><rect x="25" y="3" width="10" height="4" rx="1" fill="#2c3542"/><g transform="translate(30 15) rotate(-58)">${beam(13, 64, 0.18)}${beam(8, 42, 0.3)}${beam(4, 22, 0.4)}
+<path d="M-10 2V-6A10 6 0 0 1 10 -6V2" fill="none" stroke="#2c3542" stroke-width="2"/><circle cx="-10" cy="1" r="1.6" fill="#55606e"/><circle cx="10" cy="1" r="1.6" fill="#55606e"/><rect x="-7.5" y="-9" width="15" height="17" rx="3.5" fill="url(#srBody)"/><rect x="-9" y="6" width="18" height="4.5" rx="1.6" fill="#232b35"/>
+<circle cy="11" r="11" fill="#fff3c4" opacity=".1"/><circle cy="11" r="6" fill="#fff3c4" opacity=".22"/><ellipse cy="10.6" rx="7.4" ry="2.2" fill="#fffbea"/></g></g></defs>
+<rect width="360" height="200" fill="url(#srHaze)"/>
+<rect x="8" y="0" width="344" height="5" rx="2" fill="url(#srRail)"/><path d="M8 5.5H352" stroke="#7b8cff" stroke-opacity=".35" stroke-width=".6"/>
+<g mask="url(#srHorizonMask)"><path d="${grid.join('')}" stroke="#8494ff" stroke-opacity=".55" stroke-width=".7" fill="none" mask="url(#srGridMask)"/></g>
+<g class="sr-neon" fill="none" stroke-linecap="round"><path d="M44 150A136 122 0 0 1 316 150" stroke="#ffc400" stroke-width="14" stroke-opacity=".06"/><path d="M44 150A136 122 0 0 1 316 150" stroke="#ffc400" stroke-width="7" stroke-opacity=".14"/></g>
+<g fill="none"><path d="M44 150A136 122 0 0 1 316 150" stroke="#ffc400" stroke-width="2.4"/><path d="M44 150A136 122 0 0 1 316 150" stroke="#fff4c8" stroke-width=".9"/></g>
+<ellipse cx="180" cy="187" rx="180" ry="29" fill="url(#srFloorGlow)"/><ellipse cx="180" cy="176" rx="152" ry="14" fill="#000" opacity=".6"/>
+<use href="#srLamp"/><use href="#srLamp" transform="translate(360 0) scale(-1 1)"/>
+<path d="M30 150A150 24 0 0 0 330 150L330 162A150 24 0 0 1 30 162Z" fill="url(#srBand)"/>
+<path d="M30 162A150 24 0 0 0 330 162" fill="none" stroke="#8a7bff" stroke-width="6" stroke-opacity=".16"/><path d="M30 162A150 24 0 0 0 330 162" fill="none" stroke="#a99cff" stroke-width="1.1"/>
+<ellipse cx="180" cy="150" rx="150" ry="24" fill="url(#srTop)"/><ellipse cx="180" cy="148" rx="100" ry="16" fill="url(#srPool)"/><ellipse cx="180" cy="150" rx="124" ry="19.5" fill="none" stroke="#fff" stroke-opacity=".08" stroke-width=".8"/>
+<ellipse cx="180" cy="149.5" rx="122" ry="4.5" fill="url(#srContact)"/>
+<ellipse cx="180" cy="150" rx="150" ry="24" fill="none" stroke="#ffc400" stroke-width="5" stroke-opacity=".12"/><ellipse cx="180" cy="150" rx="150" ry="24" fill="none" stroke="url(#srRim)" stroke-width="1.4"/>
+<ellipse class="sr-spin" cx="180" cy="150" rx="150" ry="24" fill="none" stroke="#fffbea" stroke-width="1.6" stroke-linecap="round" pathLength="100" stroke-dasharray="5 95"/>
+</svg>`;
+})();
 PAGES.season = async () => {
   const s = await api('season');
   const car = s.car && M(s.car);
@@ -3632,7 +3674,7 @@ PAGES.season = async () => {
       <div class="progress gold mt"><i style="width:${s.need ? (s.levelXp / s.need) * 100 : 100}%"></i></div>
       <div class="tiny muted mt">Досвід сезону — той самий, що й завжди: гонки (перемоги більше), кейси, завдання, бонуси. Нічого не скидається, крім пропуску.</div>
       ${s.ready ? `<button class="btn yellow mt" data-act="passClaim">${ic('gift')} Забрати нагороди · ${s.ready}</button>` : ''}</div>
-    ${car ? `<div class="card center season-car"><div class="small muted">Рівень ${S.SEASON.levels} · преміум</div><div class="stage"><i class="beam l"></i><i class="beam r"></i><i class="lamp l"></i><i class="lamp r"></i><i class="podium"></i><div class="art">${carArt(car.id)}</div></div><b style="font-size:17px">${esc(car.name)}</b>
+    ${car ? `<div class="card center season-car"><div class="small muted">Рівень ${S.SEASON.levels} · преміум</div><div class="showroom">${SHOWROOM_SVG}<div class="sr-refl" aria-hidden="true">${carArt(car.id)}</div><div class="art">${carArt(car.id)}</div></div><b style="font-size:17px">${esc(car.name)}</b>
       <div class="small muted">${car.hp} к.с. · ${S.short(car.price)} · лише в цьому сезоні</div>
       ${s.premium ? `<div class="mt" style="color:var(--accent)">${ic('crown')} Преміум активний</div>` : `<button class="btn yellow mt" data-act="buyItem" data-id="pass">${ic('crown')} Преміум · ${ic('star')} ${S.SEASON.premiumStars}</button><div class="tiny muted mt">Нагороди правої доріжки за вже пройдені рівні — одразу після покупки</div>`}</div>` : ''}
     <div class="prow head"><span class="plvl">#</span><span>Безкоштовно</span><span>${ic('crown')} Преміум</span></div>

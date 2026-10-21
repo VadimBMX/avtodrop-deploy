@@ -2125,30 +2125,27 @@ button.li:active { background-color: #ffffff08; }
 .paint-reset { display: block; margin: 8px auto 0; }
 .paint-buy { margin-bottom: 12px; }
 
-/* ===== Season car: showroom — a round podium lit by two spotlights from the top corners ===== */
-.season-car { background: linear-gradient(180deg, #0b121b 0%, #0e1620 55%, var(--card) 100%); border-color: #22303f; overflow: hidden; position: relative; }
-.season-car .stage { position: relative; height: 178px; margin: 4px -14px 6px; isolation: isolate; overflow: hidden;
-  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 18px); mask-image: linear-gradient(180deg, transparent 0, #000 18px); }
-/* two light cones from the corners, crossing on the car */
-.season-car .beam { position: absolute; top: -6px; width: 62%; height: 190px; z-index: 0; pointer-events: none; filter: blur(6px); mix-blend-mode: screen; opacity: .9; }
-.season-car .beam.l { left: -4%; transform-origin: 8% 0; transform: rotate(-24deg);
-  background: linear-gradient(180deg, #e9f3ff38, #bcd8f514 55%, transparent 90%); clip-path: polygon(4% 0, 12% 0, 70% 100%, 0 100%); }
-.season-car .beam.r { right: -4%; transform-origin: 92% 0; transform: rotate(24deg);
-  background: linear-gradient(180deg, #e9f3ff38, #bcd8f514 55%, transparent 90%); clip-path: polygon(88% 0, 96% 0, 100% 100%, 30% 100%); }
-/* the lamp heads */
-.season-car .lamp { position: absolute; top: 2px; width: 22px; height: 10px; border-radius: 3px 3px 8px 8px; z-index: 2;
-  background: linear-gradient(180deg, #3a4654, #151b23); box-shadow: 0 4px 14px 2px #dcecff55, inset 0 -2px 0 #f4f9ff; }
-.season-car .lamp.l { left: 9%; transform: rotate(-24deg); }
-.season-car .lamp.r { right: 9%; transform: rotate(24deg); }
-/* round podium: lit top, dark rim, shadow on the floor */
-.season-car .podium { position: absolute; left: 50%; bottom: 10px; width: 84%; height: 40px; transform: translateX(-50%); z-index: 1; border-radius: 50%;
-  background: radial-gradient(48% 62% at 50% 42%, #5d7189, #2a3746 58%, #151d27 100%);
-  box-shadow: 0 8px 0 -1px #0b1118, 0 9px 0 0 #6f8399, 0 10px 12px -2px #9fc4ec40, 0 26px 30px #000d, inset 0 1px 0 #ffffff30; }
-.season-car .podium::after { content: ''; position: absolute; inset: 6px 14%; border-radius: 50%;
-  background: radial-gradient(50% 50% at 50% 50%, #e3f0ff55, transparent 75%); }
-.season-car .stage .art { position: absolute; left: 0; right: 0; bottom: 26px; height: 118px; z-index: 3; display: flex; align-items: flex-end; justify-content: center; }
-.season-car .stage .art img { width: 80%; height: 112px; object-fit: contain; object-position: 50% 100%; filter: drop-shadow(0 6px 4px #000e) contrast(1.05) brightness(1.04); }
-.season-car .stage + b { margin-top: 2px; }
+/* ===== Season car: showroom — night car reveal: violet haze, neon arc, grid floor, mirrored spotlights, turntable =====
+   The scene is one 360x200 SVG (SHOWROOM_SVG in app.js); the car and its reflection are HTML on top, placed in the
+   same 360x200 coordinates as percentages, so they scale together with the card. Car box: x 49..311, bottom y 149. */
+.season-car { background: radial-gradient(120% 70% at 50% 28%, #141433 0%, #0a0d16 60%, var(--card) 100%); border-color: #2a2f52; overflow: hidden; position: relative; }
+.season-car .showroom { position: relative; aspect-ratio: 360 / 200; margin: 2px -14px 4px; isolation: isolate; }
+.season-car .sr-scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
+.season-car .showroom .art, .season-car .sr-refl img { position: absolute; left: 50%; width: 72.78%; aspect-ratio: 5 / 2; transform: translateX(-50%); }
+.season-car .showroom .art { bottom: 25.5%; z-index: 2; height: auto; }
+.season-car .showroom .art img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: 50% 100%;
+  filter: drop-shadow(0 3px 3px #000c) brightness(1.05) contrast(1.04); }
+/* glossy turntable top: a flipped copy of the car, clipped to the top ellipse (x 30..330, y 126..174) */
+.season-car .sr-refl { position: absolute; left: 8.333%; width: 83.333%; top: 63%; height: 24%; border-radius: 50%; overflow: hidden; z-index: 1; pointer-events: none; }
+.season-car .sr-refl img { top: 47.9%; width: 87.33%; transform: translateX(-50%) scaleY(-1); opacity: .42;
+  object-fit: contain; object-position: 50% 100%;
+  -webkit-mask-image: linear-gradient(to top, #000 0, #0008 25%, transparent 60%); mask-image: linear-gradient(to top, #000 0, #0008 25%, transparent 60%); }
+.season-car .sr-neon { animation: sr-pulse 3.6s ease-in-out infinite; }
+.season-car .sr-spin { animation: sr-spin 7s linear infinite; }
+@keyframes sr-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@keyframes sr-spin { to { stroke-dashoffset: -100; } }
+@media (prefers-reduced-motion: reduce) { .season-car .sr-neon, .season-car .sr-spin { animation: none; } .season-car .sr-spin { opacity: 0; } }
+.season-car .showroom + b { margin-top: 2px; }
 
 /* ===== No money for a case: ways to get going again ===== */
 .card.broke { padding: 12px 12px 6px; border-color: #3a3216; background: linear-gradient(160deg, #221d0c, var(--card) 55%); }
