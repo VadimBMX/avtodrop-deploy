@@ -348,7 +348,7 @@ function renderHeader() {
   $('#avatar').innerHTML = `${ring(me.level, me.xp, me.xpNeed)}<span class="face${photo ? ' photo' : ''}">${photo ? `<img src="${esc(photo)}" alt="" referrerpolicy="no-referrer">` : esc(initials)}</span><span class="lvl">${me.level}</span>`;
   const giftReady = me.dailyReady || serverNow() >= me.rewardCaseAt;
   $('#giftBadge').hidden = !giftReady || (!!me.guide && me.guide !== 'daily'); // first steps: one thing at a time
-  $('#menuDot').hidden = !(me.incomingTrades || me.unread || claimableCollection() || me.newbie?.ready || me.achReady);
+  $('#menuDot').hidden = !(me.incomingTrades || me.unread || claimableCollection() || me.newbie?.ready || me.achReady || me.season?.ready || me.questReady);
   $('#title').textContent = state.page ? PAGE_TITLES[state.page] : TITLES[state.tab];
   $('#title').classList.toggle('long', $('#title').textContent.length > 8);
   for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('on', b.dataset.tab === state.tab && !state.page);
@@ -388,7 +388,10 @@ $('#avatar').addEventListener('click', () => openProfile());
 H.go = (d) => go(d.page);
 
 async function refresh(rerender = true) {
+  const qr = me?.questReady;
   me = await api('me');
+  me.questReady = qr; // quests aren't in `me`: kept from the last pulse / menu fetch
+  if (state.hub) state.hub.at = 0; // the menu's live numbers refetch on its next render
   clockOffset = me.now - Date.now();
   if (rerender) render();
   else renderHeader();
@@ -3055,53 +3058,154 @@ function claimableCollection() {
   if (setsReady() > 0) return true;
   return S.MAIN_COUNTRIES.some((c) => !me.claims.includes('c' + c) && S.countryModels(c).every((m) => owned.has(m.id)));
 }
+// The «Меню» hub: who I am on top, then what pays off today (pass, quests, events, collection, achievements, rating,
+// friends) as big tiles with live numbers, then trading and the risky games as small tiles, the shop, help and one
+// «Налаштування» row. Red badges only where something waits for a tap; «Нове» on a feature until its first visit.
+// Numbers that `me` doesn't carry (quests, achievements, my place, career, friends) come in AFTER.menu and are patched
+// into the tiles in place (cached for 30 s), so the screen never waits on the network.
+const HUB_SEEN = 'avtodrop-hub-seen';
+const HUB_FEATS = ['market', 'trades', 'tradein', 'plates', 'battles', 'upgrade'];
+function hubSeen() {
+  try {
+    const raw = localStorage.getItem(HUB_SEEN);
+    if (raw) return new Set(JSON.parse(raw));
+    // First run of the new menu: everything already open counts as seen, so only later unlocks say «Нове».
+    const s = new Set(HUB_FEATS.filter(isOpen));
+    localStorage.setItem(HUB_SEEN, JSON.stringify([...s]));
+    return s;
+  } catch {
+    return new Set(HUB_FEATS);
+  }
+}
+function hubMarkSeen(k) {
+  try {
+    const s = hubSeen();
+    if (s.has(k)) return;
+    s.add(k);
+    localStorage.setItem(HUB_SEEN, JSON.stringify([...s]));
+  } catch {}
+}
+H.hubGo = (d) => (hubMarkSeen(d.k), go(d.page));
+H.profileOpen = () => openProfile();
+const hubCnt = (n) => (n ? `<span class="hub-cnt">${n === true ? '!' : n > 99 ? '99+' : n}</span>` : '');
+// One tile: size 'tall' (2 per row, icon + title + live line), 'wide' (2 per row, icon left), 'mini' (4 per row,
+// icon + label). Locked → lock chip. (Not 'big': the global .big is the slanted display headline.)
+function hubTile({ page, k, icon, c, title, info = '', badge = 0, act = 'go', size = 'tall', id = '', extra = '' }) {
+  const lockedK = k && !isOpen(k) ? k : null;
+  if (lockedK) return `<button class="hub-t ${size} locked" data-act="locked" data-k="${lockedK}" style="--c:${c}"><span class="hub-ic">${ic(icon)}</span>
+    <span class="hub-tx"><b>${title}</b>${lockChip(lockedK)}</span></button>`;
+  const isNew = k && HUB_FEATS.includes(k) && !hubSeen().has(k);
+  const a = isNew ? `data-act="hubGo" data-k="${k}"` : `data-act="${act}"`;
+  return `<button class="hub-t ${size}" ${a} data-page="${page}" style="--c:${c}" ${id ? `id="${id}"` : ''}><span class="hub-ic">${ic(icon)}</span>
+    <span class="hub-tx"><b>${title}</b>${size === 'mini' && !info ? '' : `<span class="hub-i">${info}</span>`}${extra}</span>${isNew ? '<span class="hub-new">Нове</span>' : hubCnt(badge)}</button>`;
+}
 TABS.menu = () => {
-  // Grouped rows like iOS Settings: coloured square icon, name, a short value on the right, a red counter when needed.
-  const row = (page, icon, title, c, sub = '', count = 0, act = 'go') => {
-    const k = PAGE_FEATURE[page];
-    if (k && !isOpen(k)) return `<button class="li locked" data-act="locked" data-k="${k}">
-    <span class="mi" style="--c:${c}">${ic(icon)}</span><b>${title}</b>${lockChip(k)}<span class="chev">${ic('chevron-right')}</span></button>`;
-    return `<button class="li" data-act="${act}" data-page="${page}">
-    <span class="mi" style="--c:${c}">${ic(icon)}</span><b>${title}</b>${count ? `<span class="cnt" style="margin-left:auto">${count}</span>` : sub ? `<span class="sub">${sub}</span>` : '<span style="margin-left:auto"></span>'}<span class="chev">${ic('chevron-right')}</span></button>`;
-  };
-  const group = (title, rows) => `<div class="mgroup">${title}</div><div class="list menu-list">${rows.join('')}</div>`;
-  // Icon tiles take a tint from the game's own palette (class colours, timing-board yellow, steel), not iOS colours.
-  const Y = '#ffc400', BL = '#3b82f6', PU = '#a855f7', RD = '#ef4444', GR = '#2fd27a', AM = '#f59e0b', ST = '#8a94a7';
-  return seasonCard() + group('Грати', [
-      row('battles', 'flame', 'Кейс-батли', RD),
-      row('upgrade', 'arrow-big-up-lines', 'Апгрейд', PU),
-      row('quests', 'target-arrow', 'Завдання', Y, 'щодня й щотижня'),
-    ])
-    + group('Торгівля', [
-      row('market', 'building-store', 'Ринок', GR),
-      row('tradein', 'refresh', 'Трейд-ін', AM, '3 машини → клас вище'),
-      row('trades', 'arrows-exchange', 'Обміни', BL, 'трейд-зал', me.incomingTrades),
-      row('plates', 'license', 'Номери', Y, String(me.plates.length)),
-    ])
-    + group('Прогрес', [
-      row('leaderboard', 'trophy', 'Рейтинг', AM, 'призи в ⭐ за сезон'),
-      row('achievements', 'diamond', 'Досягнення', PU, 'бейджі й нагороди', me.achReady || 0),
-      row('collection', 'books', 'Колекція', BL, `${me.collection.filter((id) => !M(id)?.secret).length}/${S.ALL_MODELS.filter((m) => !m.secret).length}`, claimableCollection() ? '!' : 0),
-      row('events', 'bell', 'Сповіщення', ST, '', me.unread),
-    ])
-    + group('Спільнота', [
-      ...(config.community?.channel ? [row(config.community.channel, 'bell', 'Канал з анонсами', BL, 'новини й промокоди', 0, 'openLink')] : []),
-      ...(config.community?.chat ? [row(config.community.chat, 'users', 'Чат гравців', GR, 'спілкування й обміни', 0, 'openLink')] : []),
-      row('support', 'info-circle', 'Підтримка', ST, 'написати нам'),
-    ])
-    + group('Інше', [
-      row('store', 'star', 'Магазин', Y, me.vip ? 'VIP активний' : 'VIP, пропуск, набори'),
-      row('friends', 'users', 'Друзі', GR, `+${S.short(S.REF_REWARD)}`),
-      row('promo', 'ticket', 'Промокоди', AM),
-      ...(me.admin ? [row('', 'adjustments', 'Адмін-панель', ST, '', 0, 'openAdmin')] : []),
-    ])
-    + `<div class="mgroup">Налаштування</div><div class="list menu-list settings">
-      <div class="li"><span class="mi" style="--c:${GR}">${ic('volume')}</span><div class="grow"><b>Звук</b><div class="tiny muted">Тихі ефекти кейсів, нагород і гонок · на цьому пристрої</div></div><button class="toggle ${SFX.isOn() ? 'on' : ''}" data-act="toggleSound" aria-label="Звук" aria-pressed="${SFX.isOn()}"></button></div>
-      <div class="li"><span class="mi" style="--c:${Y}">${ic('target-arrow')}</span><div class="grow"><b>Підказки перших кроків</b><div class="tiny muted">Смужка «Крок N/5» угорі екрана, поки новачок проходить перші кроки</div></div><button class="toggle ${me.claims.includes('guide-off') ? '' : 'on'}" data-act="toggleGuide" aria-label="Підказки перших кроків"></button></div>
-      <div class="li"><span class="mi" style="--c:${ST}">${ic('bell')}</span><div class="grow"><b>Не турбувати</b><div class="tiny muted">Ніхто не зможе запросити тебе на обмін чи гонку</div></div><button class="toggle ${me.noInvites ? 'on' : ''}" data-act="toggleDnd" aria-label="Не турбувати"></button></div>
-      <div class="li"><span class="mi" style="--c:${BL}">${ic('clock')}</span><div class="grow"><b>Нагадування від бота</b><div class="tiny muted">${me.pushOn && me.pushBlocked ? 'Бот не може тобі написати — відкрий чат з ботом і натисни /start' : 'Повний бак, дохід гаража, бонус — не частіше 2 разів на день і не вночі'}</div></div><button class="toggle ${me.pushOn ? 'on' : ''}" data-act="togglePush" aria-label="Нагадування від бота"></button></div>
-      <div class="li"><span class="mi" style="--c:${Y}">${ic('copy')}</span><div class="grow"><div class="tiny muted">Твій ID для обмінів</div><b class="disp">${me.id}</b></div><button class="btn sm ghost" data-act="copyId">Копіювати</button></div></div>`;
+  const Y = '#ffc400', BL = '#3b82f6', PU = '#a855f7', RD = '#ef4444', GR = '#2fd27a', AM = '#f59e0b', ST = '#8a94a7', CY = '#22c3e6';
+  const C = state.hub || {};
+  const have = me.collection.filter((id) => !M(id)?.secret).length, total = S.ALL_MODELS.filter((m) => !m.secret).length;
+  const name = me.firstName || (me.username ? '@' + me.username : 'Гравець');
+  const photo = tg?.initDataUnsafe?.user?.photo_url;
+  const boss = (me.badges || []).find((b) => b.key === 'boss');
+  // ---- profile header: avatar in the level ring, name, level · career · VIP, garage value, XP to the next level
+  const head = `<div class="hub-me" data-act="profileOpen" role="button" tabindex="0" aria-label="Профіль">
+    <span class="hub-ava">${ring(me.level, me.xp, me.xpNeed, 58)}<span class="face${photo ? ' photo' : ''}">${photo ? `<img src="${esc(photo)}" alt="" referrerpolicy="no-referrer">` : esc(initialOf(name))}</span><span class="lvl">${me.level}</span></span>
+    <span class="hub-who"><b class="ellipsis">${esc(name)}</b>
+      <span class="hub-chips"><span class="hc career" id="hubCareer">${ic('crown')}${boss ? esc(boss.title) : C.career ? `Кар'єра ${C.career.beaten}/${C.career.total}` : "Кар'єра"}</span>${me.vip ? `<span class="hc vip">${ic('crown')}VIP</span>` : ''}</span>
+      <span class="hub-xp"><i style="width:${Math.min(100, (me.xp / me.xpNeed) * 100)}%"></i></span></span>
+    <span class="hub-val"><small>гараж</small><b>${S.short(me.stats.value)}</b></span>
+    <button class="hub-bell" data-act="go" data-page="events" aria-label="Сповіщення${me.unread ? `: ${me.unread} нових` : ''}">${ic('bell')}${hubCnt(me.unread)}</button></div>`;
+  // ---- season pass: the widest tile
+  const s = me.season;
+  const pass = s ? `<button class="hub-pass${s.ready ? ' ready' : ''}" data-act="go" data-page="season">
+    <span class="hub-pass-h"><span class="hub-ic">${ic('ticket')}</span><span class="grow"><b>Сезонний пропуск</b><span class="hub-i">Сезон ${s.id} · ${s.premium ? `<span class="acc">${ic('crown')}Преміум</span>` : 'безкоштовна доріжка'}</span></span>
+      <span class="hub-pass-lv"><b>${s.level}</b><small>/${S.SEASON.levels}</small></span></span>
+    <span class="progress gold"><i style="width:${s.need ? (s.levelXp / s.need) * 100 : 100}%"></i></span>
+    <span class="hub-pass-f">${s.ready ? `<span class="hub-claim">${ic('gift')} Забрати нагороди · ${s.ready}</span>` : `<span class="muted">${ic('clock')} до кінця ${untilSpan(s.endsAt)}</span>`}<span class="muted">${s.need ? `${s.levelXp}/${s.need} досвіду` : 'максимум'}</span></span></button>` : '';
+  // ---- live tiles
+  const act = evActive(), nextEv = (me.gameEvents?.next || []).filter((e) => e.start > serverNow())[0];
+  const evInfo = act.length ? `<span class="acc">${esc(act[0].title)}</span>${act.length > 1 ? ` +${act.length - 1}` : ''} · ${untilSpan(act[0].end)}` : nextEv ? `${esc(nextEv.title)} через ${untilSpan(nextEv.start)}` : 'за розкладом';
+  const qReady = C.quests ? C.quests.ready : me.questReady || 0;
+  const coll = claimableCollection();
+  const tiles = [
+    hubTile({ page: 'quests', icon: 'target-arrow', c: Y, title: 'Завдання', id: 'hubQuests', badge: qReady, info: C.quests ? `день ${C.quests.done}/${C.quests.total} · тиж. ${C.quests.wk}` : 'щоденні й тижневі' }),
+    `<button class="hub-t tall${act.length ? ' live' : ''}" data-act="eventsOpen" style="--c:${act[0]?.color || AM}"><span class="hub-ic">${ic(act[0]?.icon || 'calendar')}</span><span class="hub-tx"><b>Події</b><span class="hub-i">${evInfo}</span></span>${act.length ? '<span class="hub-live">наживо</span>' : ''}</button>`,
+    hubTile({ page: 'collection', icon: 'books', c: BL, title: 'Колекція', badge: coll, info: `${have}/${total} машин${setsReady() ? ` · <span class="acc">сет готовий</span>` : ''}`, extra: `<span class="hub-bar"><i style="width:${(have / total) * 100}%"></i></span>` }),
+    hubTile({ page: 'achievements', icon: 'diamond', c: PU, title: 'Досягнення', id: 'hubAch', badge: me.achReady || 0, info: C.ach ? `${C.ach.done}/${C.ach.total} рівнів` : 'рівні й бейджі' }),
+    hubTile({ page: 'leaderboard', icon: 'trophy', c: AM, title: 'Рейтинг', id: 'hubLb', info: C.place ? `#${C.place} у сезоні` : `топ-10 — ${ic('star')} зірки` }),
+    hubTile({ page: 'friends', icon: 'users', c: GR, title: 'Друзі', id: 'hubFr', info: C.friends != null ? `запрошено ${C.friends} · +${S.short(S.REF_REWARD)}` : `+${S.short(S.REF_REWARD)} за друга` }),
+  ];
+  const trade = [
+    hubTile({ page: 'market', k: 'market', icon: 'building-store', c: GR, title: 'Ринок', size: 'mini' }),
+    hubTile({ page: 'trades', k: 'trades', icon: 'arrows-exchange', c: BL, title: 'Обміни', size: 'mini', badge: me.incomingTrades }),
+    hubTile({ page: 'tradein', k: 'tradein', icon: 'refresh', c: AM, title: 'Трейд-ін', size: 'mini' }),
+    hubTile({ page: 'plates', k: 'plates', icon: 'license', c: Y, title: 'Номери', size: 'mini', info: me.plates.length ? String(me.plates.length) : '' }),
+  ];
+  const risk = [
+    hubTile({ page: 'battles', k: 'battles', icon: 'flame', c: RD, title: 'Кейс-батли', size: 'wide', info: 'кейси наввипередки' }),
+    hubTile({ page: 'upgrade', k: 'upgrade', icon: 'arrow-big-up-lines', c: PU, title: 'Апгрейд', size: 'wide', info: casinoOff() || !isOpen('casino') ? 'машини → дорожча' : 'і казино · 18+' }),
+  ];
+  const store = `<button class="hub-store" data-act="go" data-page="store"><span class="hub-ic">${ic('crown')}</span><span class="grow"><b>Магазин</b><span class="hub-i">${me.vip ? `VIP ще ${untilSpan(me.vipUntil)}` : 'VIP, преміум-пропуск, гривні'}</span></span>${me.stars ? `<span class="hc">${ic('star')} ${me.stars}</span>` : ''}<span class="chev">${ic('chevron-right')}</span></button>`;
+  const line = (act, page, icon, title, sub = '', count = 0) => `<button class="li" data-act="${act}" data-page="${page}"><span class="mi" style="--c:${ST}">${ic(icon)}</span><b>${title}</b>${count ? `<span class="cnt" style="margin-left:auto">${count}</span>` : `<span class="sub">${sub}</span>`}<span class="chev">${ic('chevron-right')}</span></button>`;
+  const help = [
+    line('go', 'promo', 'ticket', 'Промокод', 'коди — у каналі'),
+    ...(config.community?.channel ? [line('openLink', config.community.channel, 'share', 'Канал з анонсами', 'новини й коди')] : []),
+    ...(config.community?.chat ? [line('openLink', config.community.chat, 'users', 'Чат гравців')] : []),
+    line('go', 'support', 'info-circle', 'Підтримка', 'написати нам'),
+    line('howTo', '', 'player-play', 'Як грати', '5 слайдів'),
+    line('go', 'fair', 'shield-check', 'Чесна гра', 'перевір будь-який дроп'),
+    line('settingsOpen', '', 'settings', 'Налаштування', 'звук, підказки, бот'),
+    ...(me.admin ? [line('openAdmin', '', 'adjustments', 'Адмін-панель')] : []),
+  ];
+  const H2 = (t, r = '') => `<div class="hub-h"><span>${t}</span>${r ? `<span>${r}</span>` : ''}</div>`;
+  const nextLock = S.UNLOCKS.find((u) => !isOpen(u.key) && !(u.key === 'casino' && casinoOff()));
+  return `<div class="hub">${head}${pass}
+    ${H2('Нагороди й прогрес')}<div class="hub-grid g2">${tiles.join('')}</div>
+    ${H2('Торгівля', nextLock && ['market', 'trades', 'tradein', 'plates'].includes(nextLock.key) ? `${ic('lock')} далі: ${nextLock.name} · рів. ${nextLock.level}` : '')}<div class="hub-grid g4">${trade.join('')}</div>
+    ${H2('Ризикнути')}<div class="hub-grid g2">${risk.join('')}</div>
+    ${H2('Магазин')}${store}
+    ${H2('Допомога й налаштування')}<div class="list menu-list">${help.join('')}</div></div>`;
 };
+// Fills the live numbers of the hub without re-rendering it (and keeps them 30 s for the next visit).
+AFTER.menu = async () => {
+  tickUntil();
+  const C = state.hub;
+  if (C && Date.now() - C.at < 30e3) return;
+  const [q, w, a, lb, fr, car] = await Promise.allSettled([api('quests'), api('weekly'), api('achievements'), api('leaderboard', { type: 'season' }), api('ref'), api('boss/list')]);
+  const v = (r) => (r.status === 'fulfilled' ? r.value : null);
+  const n = { at: Date.now() };
+  if (v(q)) {
+    const l = v(q).list, wk = v(w);
+    n.quests = { done: l.filter((x) => x.claimed || x.progress >= x.target).length, total: l.length,
+      ready: l.filter((x) => !x.claimed && x.progress >= x.target).length + (wk ? wk.list.filter((x) => !x.claimed && x.progress >= x.target).length + wk.chests.filter((c) => c.ready && !c.claimed).length : 0),
+      wk: wk ? `${wk.list.filter((x) => x.claimed).length}/${wk.list.length}` : '—' };
+  }
+  if (v(a)) n.ach = { done: achDone(v(a).list), total: achTotal() };
+  if (v(lb)?.me?.place) n.place = v(lb).me.place;
+  if (v(fr)) n.friends = v(fr).invited;
+  if (v(car)) n.career = { beaten: v(car).beaten, total: v(car).total };
+  state.hub = n;
+  if (n.quests) me.questReady = n.quests.ready;
+  // Still on the menu: swap only the tiles (no scroll jump, no flicker).
+  if (state.tab !== 'menu' || state.page) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = TABS.menu();
+  for (const id of ['hubQuests', 'hubAch', 'hubLb', 'hubFr', 'hubCareer']) {
+    const el = $('#' + id), nw = tmp.querySelector('#' + id);
+    if (el && nw && el.innerHTML !== nw.innerHTML) (el.replaceWith(nw), nw.classList.add('upd'));
+  }
+  renderHeader();
+};
+function settingsSheet() {
+  const GR = '#2fd27a', Y = '#ffc400', ST = '#8a94a7', BL = '#3b82f6';
+  sheet('Налаштування', `<div class="list menu-list settings">
+      <div class="li"><span class="mi" style="--c:${GR}">${ic('volume')}</span><div class="grow"><b>Звук</b><div class="tiny muted">На цьому пристрої</div></div><button class="toggle ${SFX.isOn() ? 'on' : ''}" data-act="toggleSound" aria-label="Звук" aria-pressed="${SFX.isOn()}"></button></div>
+      <div class="li"><span class="mi" style="--c:${Y}">${ic('target-arrow')}</span><div class="grow"><b>Підказки перших кроків</b><div class="tiny muted">Смужка «Крок N/5» для новачка</div></div><button class="toggle ${me.claims.includes('guide-off') ? '' : 'on'}" data-act="toggleGuide" aria-label="Підказки перших кроків"></button></div>
+      <div class="li"><span class="mi" style="--c:${ST}">${ic('bell')}</span><div class="grow"><b>Не турбувати</b><div class="tiny muted">Без запрошень на обмін і гонку</div></div><button class="toggle ${me.noInvites ? 'on' : ''}" data-act="toggleDnd" aria-label="Не турбувати"></button></div>
+      <div class="li"><span class="mi" style="--c:${BL}">${ic('clock')}</span><div class="grow"><b>Нагадування від бота</b><div class="tiny muted">${me.pushOn && me.pushBlocked ? 'Бот не може написати — відкрий чат з ботом і натисни /start' : 'Бак, дохід, бонус — до 2 разів на день, не вночі'}</div></div><button class="toggle ${me.pushOn ? 'on' : ''}" data-act="togglePush" aria-label="Нагадування від бота"></button></div>
+      <div class="li"><span class="mi" style="--c:${Y}">${ic('copy')}</span><div class="grow"><div class="tiny muted">Твій ID для обмінів</div><b class="disp">${me.id}</b></div><button class="btn sm ghost" data-act="copyId">Копіювати</button></div></div>`);
+}
+H.settingsOpen = () => settingsSheet();
+H.howTo = () => playStory(S.INTRO_STORY);
 H.openAdmin = () => {
   // Remember the exact game address (with ?as=… in DEV) so the panel's "back" button returns here.
   try {
@@ -4127,15 +4231,6 @@ H.questClaim = (d) => act('quests/claim', { key: d.k }, (r) => `+${S.fmt(r.got)}
 const vipChip = () => `<span class="chip vipchip">${ic('crown')} VIP</span>`;
 const BADGE_COLORS = ['#8e8e93', '#5ac8fa', '#c4c9d2', '#f5b301'];
 const badgeChip = (b) => `<span class="chip" style="color:${BADGE_COLORS[b.tier] || '#8e8e93'};border-color:currentColor">${ic('trophy')} ${esc(b.title)}</span>`;
-function seasonCard() {
-  const s = me.season;
-  if (!s) return '';
-  const pct = s.need ? (s.levelXp / s.need) * 100 : 100;
-  return `<button class="card season-card" data-act="go" data-page="season">
-    <div class="row between"><b class="disp" style="font-size:17px">${ic('ticket')} Пропуск · Сезон ${s.id}</b><span class="chip">${s.level}/${S.SEASON.levels}</span></div>
-    <div class="progress gold mt"><i style="width:${pct}%"></i></div>
-    <div class="row between mt small"><span class="muted">${s.ready ? `<b style="color:var(--accent)">Можна забрати: ${s.ready}</b>` : `до кінця сезону <span data-until="${s.endsAt - clockOffset}"></span>`}</span>${s.premium ? `<span style="color:var(--accent)">${ic('crown')} Преміум</span>` : '<span class="muted">Преміум</span>'}</div></button>`;
-}
 const passCell = (rw, state) => {
   const icon = rw.seasonCar ? 'car-turbine' : rw.caseId ? 'gift' : rw.parts ? 'tool' : 'coin';
   const label = rw.seasonCar ? 'Машина сезону' : rewardText(rw);
@@ -5168,10 +5263,12 @@ async function pulse() {
     return;
   }
   clockOffset = p.now - Date.now();
-  if (p.balance !== me.balance || p.unread !== me.unread || p.achReady !== me.achReady) {
+  const qReady = p.claims.filter((c) => c.kind === 'quest' || c.kind === 'weekly' || c.kind === 'wchest').length;
+  if (p.balance !== me.balance || p.unread !== me.unread || p.achReady !== me.achReady || qReady !== (me.questReady || 0)) {
     me.balance = p.balance;
     me.unread = p.unread;
     me.achReady = p.achReady;
+    me.questReady = qReady;
     renderHeader();
   }
   // Invites: show new ones, drop banners whose invite is gone (accepted elsewhere, expired, withdrawn).
@@ -5297,6 +5394,14 @@ H.toggleDnd = async () => {
   const r = await act('settings/invites', { on: !me.noInvites }, null);
   if (r) toast(r.noInvites ? 'Не турбувати: ніхто не зможе тебе запросити' : 'Запрошення знову увімкнено');
 };
+// The switches live in the «Налаштування» sheet: after the server answers, redraw the sheet if it's still open.
+for (const k of ['toggleDnd', 'togglePush', 'toggleGuide']) {
+  const f = H[k];
+  H[k] = async (...a) => {
+    await f(...a);
+    if (!$('#modal').hidden && $('#sheet .settings')) settingsSheet();
+  };
+}
 
 (async function boot() {
   if (tg?.initData) {

@@ -2504,3 +2504,142 @@ button.li:active { background-color: #ffffff08; }
 .casino-warn { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0; padding: 10px 12px; border-radius: var(--r); background: #f5b3010f; border: 1px solid #f5b30140; color: var(--text); font-size: 13px; }
 .casino-warn > .i { color: var(--accent); font-size: 18px; flex: none; margin-top: 1px; }
 .casino-warn .tiny { color: var(--muted); margin-top: 2px; line-height: 1.35; }
+
+/* ============================================================================================================
+   «Меню» hub (TABS.menu): profile on top, the day's rewards as big lit tiles, trading as small ones, the shop,
+   then help and one «Налаштування» row. Same showroom language as the car bays: a dark surface, a thin lit top
+   edge, and a soft floor light in the tile's own colour. Transform/opacity only; no loops under reduced motion.
+   ============================================================================================================ */
+.hub { padding-bottom: 8px; }
+.hub-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 18px 2px 8px; font: 600 13px var(--f-disp); letter-spacing: 1.1px; text-transform: uppercase; color: var(--muted); }
+.hub-h > span + span { font: 600 11px var(--f-body); letter-spacing: 0; text-transform: none; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.hub .acc { color: var(--accent); }
+.hub .hub-ic { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 11px; font-size: 20px;
+  color: color-mix(in srgb, var(--c, #8a94a7) 72%, #fff); background: color-mix(in srgb, var(--c, #8a94a7) 15%, #0e131b);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c, #8a94a7) 38%, transparent), inset 0 1px 0 #ffffff14; }
+.hub-i { display: block; font-size: 12px; line-height: 1.3; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hub-i .i { width: 12px; height: 12px; vertical-align: -1px; color: var(--accent); }
+
+/* profile header: avatar in the level ring, name, chips, XP line, garage value, notifications bell */
+.hub-me { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 10px; border-radius: 16px; cursor: pointer;
+  background: radial-gradient(70% 120% at 0% 0%, #ffc4001c, transparent 60%), var(--surf); box-shadow: inset 0 0 0 1px #ffffff12, var(--edge), var(--drop);
+  transition: transform .14s var(--ease); }
+.hub-me:active { transform: scale(.985); }
+.hub-ava { position: relative; width: 58px; height: 58px; flex: none; color: var(--accent); }
+.hub-ava svg { position: absolute; inset: 0; }
+.hub-ava .face { position: absolute; inset: 7px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #1c2433; font: 700 20px var(--f-disp); color: var(--text); }
+.hub-ava .face img { width: 100%; height: 100%; object-fit: cover; }
+.hub-ava .lvl { position: absolute; right: -4px; bottom: -2px; min-width: 22px; height: 20px; padding: 0 5px; border-radius: 6px; background: var(--accent); color: var(--accent-ink); border: 2px solid #121823; font: 800 12px/16px var(--f-disp); text-align: center; }
+.hub-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.hub-who > b { font: 700 19px/1.1 var(--f-disp); letter-spacing: .2px; }
+.hub-chips { display: flex; gap: 4px; flex-wrap: nowrap; overflow: hidden; }
+.hc { display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 6px; background: #ffffff0d; color: #c3cad6; font: 600 11px/1.35 var(--f-body); white-space: nowrap; flex: none; }
+.hc .i { width: 11px; height: 11px; }
+.hc.career { color: #ffd84d; background: #ffc40014; box-shadow: inset 0 0 0 1px #ffc40033; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.hc.vip { color: var(--accent-ink); background: var(--accent); }
+.hub-xp { display: block; height: 4px; border-radius: 2px; background: #0b0f16; box-shadow: inset 0 0 0 1px #ffffff0a; overflow: hidden; max-width: 170px; }
+.hub-xp > i { display: block; height: 100%; border-radius: 2px; background: linear-gradient(90deg, #f0a800, #ffd84d); }
+.hub-val { flex: none; display: flex; flex-direction: column; align-items: flex-end; margin-right: 38px; }
+.hub-val small { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
+.hub-val b { font: 700 17px var(--f-disp); color: var(--text); white-space: nowrap; }
+.hub-bell { position: absolute; top: 50%; right: 10px; translate: 0 -50%; width: 34px; height: 34px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 18px; color: #c3cad6; background: #0e131b; box-shadow: inset 0 0 0 1px #ffffff14; }
+.hub-bell .hub-cnt { position: absolute; top: -6px; right: -6px; margin: 0; }
+
+/* red counter: only where something waits for a tap */
+.hub-cnt { flex: none; margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--red); color: #fff; font: 800 12.5px var(--f-disp); transform: skewX(-8deg); box-shadow: 0 0 0 2px #121823, 0 4px 10px -3px #e5484d99; }
+.hub-new { flex: none; margin-left: auto; padding: 2px 6px; border-radius: 6px; background: var(--accent); color: var(--accent-ink); font: 800 10.5px var(--f-disp); letter-spacing: .5px; text-transform: uppercase; }
+
+/* season pass: the gold showroom stripe */
+.hub-pass { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 10px; padding: 13px 14px 12px; border-radius: 16px; text-align: left; position: relative; overflow: hidden;
+  --c: #ffc400; background: radial-gradient(60% 90% at 100% 0%, #ffc40026, transparent 65%), linear-gradient(120deg, #2a2209, #151a24 62%);
+  box-shadow: inset 0 0 0 1px #ffc40040, var(--edge), var(--drop); transition: transform .14s var(--ease); }
+.hub-pass:active { transform: scale(.985); }
+.hub-pass-h { display: flex; align-items: center; gap: 11px; }
+.hub-pass-h b { display: block; font: 700 18px/1.15 var(--f-disp); }
+.hub-pass-lv { flex: none; font-family: var(--f-disp); color: var(--accent); }
+.hub-pass-lv b { font-size: 26px; font-weight: 800; }
+.hub-pass-lv small { font-size: 14px; color: #c9a646; }
+.hub-pass .progress { display: block; height: 6px; }
+.hub-pass-f { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; }
+.hub-pass-f .i { width: 13px; height: 13px; vertical-align: -2px; }
+.hub-claim { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 8px; background: var(--accent); color: var(--accent-ink); font: 800 13.5px var(--f-disp); letter-spacing: .3px; }
+.hub-claim { position: relative; }
+.hub-pass.ready .hub-claim::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: 0 0 0 2px var(--accent); pointer-events: none; animation: hubGlow 2.2s ease-out infinite; }
+@keyframes hubGlow { 0% { opacity: .8; transform: scale(1); } 70%, 100% { opacity: 0; transform: scale(1.12, 1.4); } }
+
+/* tile grids */
+.hub-grid { display: grid; gap: 8px; }
+.hub-grid.g2 { grid-template-columns: 1fr 1fr; }
+.hub-grid.g4 { grid-template-columns: repeat(4, 1fr); }
+.hub-t { position: relative; display: flex; text-align: left; border-radius: 14px; isolation: isolate; overflow: hidden;
+  background: var(--surf); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 22%, #ffffff0a), var(--edge), var(--drop); transition: transform .14s var(--ease); }
+.hub-t::after { content: ''; position: absolute; z-index: -1; left: 10%; right: 10%; bottom: -30%; height: 60%; pointer-events: none;
+  background: radial-gradient(50% 50% at 50% 50%, color-mix(in srgb, var(--c) 30%, transparent), transparent 70%); }
+.hub-t:active { transform: scale(.965); }
+.hub-tx { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.hub-tx > b { font: 700 16px/1.15 var(--f-disp); letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* tall: icon on top, title, one live line (2 per row) */
+.hub-t.tall { flex-direction: column; gap: 9px; padding: 12px 12px 11px; min-height: 104px; }
+.hub-t.tall .hub-cnt, .hub-t.tall .hub-new, .hub-live { position: absolute; top: 10px; right: 10px; margin: 0; }
+.hub-bar { display: block; height: 3px; margin-top: 4px; border-radius: 2px; background: #0b0f16; overflow: hidden; }
+.hub-bar > i { display: block; height: 100%; background: color-mix(in srgb, var(--c) 80%, #fff); border-radius: 2px; }
+.hub-live { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px 2px 5px; border-radius: 6px; font: 700 10px var(--f-body); text-transform: uppercase; letter-spacing: .5px;
+  color: color-mix(in srgb, var(--c) 70%, #fff); background: color-mix(in srgb, var(--c) 18%, #0e131b); }
+.hub-live::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: hubBlink 1.6s ease-in-out infinite; }
+@keyframes hubBlink { 50% { opacity: .25; } }
+.hub-t.live { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent), var(--edge), var(--drop); }
+/* wide: icon left, two lines (2 per row) */
+.hub-t.wide { align-items: center; gap: 10px; padding: 10px 10px; }
+.hub-t.wide .hub-ic { width: 34px; height: 34px; font-size: 18px; border-radius: 10px; }
+.hub-t.wide .hub-tx > b { font-size: 15px; }
+.hub-t.wide .hub-new, .hub-t.wide .hub-cnt { position: absolute; bottom: 3px; left: 27px; translate: -50% 0; right: auto; margin: 0; }
+.hub-t.wide .hub-new { padding: 1px 4px; font-size: 9.5px; }
+/* mini: an app-shortcut (4 per row) */
+.hub-t.mini { flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 11px 4px 9px; }
+.hub-t.mini .hub-tx { align-items: center; width: 100%; }
+.hub-t.mini .hub-tx > b { font: 600 13px/1.15 var(--f-disp); max-width: 100%; }
+.hub-t.mini .hub-i { font-size: 11px; }
+.hub-t.mini .hub-cnt, .hub-t.mini .hub-new { position: absolute; top: 5px; right: 5px; margin: 0; }
+.hub-t.mini .lockchip { margin: 1px 0 0; padding: 1px 5px; font-size: 10.5px; }
+/* locked: steel, no colour, lock chip says the level */
+.hub-t.locked { box-shadow: inset 0 0 0 1px #ffffff0a, var(--edge); background: #121721; }
+.hub-t.locked::after { display: none; }
+.hub-t.locked .hub-ic { filter: grayscale(1); opacity: .55; }
+.hub-t.locked .hub-tx > b { color: #8b93a1; }
+.hub-t.wide.locked .lockchip, .hub-t.tall.locked .lockchip { margin: 3px 0 0; align-self: flex-start; }
+
+/* shop: one wide row with the VIP crown */
+.hub-store { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 12px; border-radius: 14px; text-align: left; --c: #ffc400;
+  background: linear-gradient(100deg, #ffc40014, transparent 55%), var(--surf); box-shadow: inset 0 0 0 1px #ffc40030, var(--edge), var(--drop); transition: transform .14s var(--ease); }
+.hub-store:active { transform: scale(.985); }
+.hub-store b { display: block; font: 700 16px var(--f-disp); }
+.hub-store .hc { color: var(--accent); }
+.hub-store .chev { color: #4a5568; display: inline-flex; }
+.hub .menu-list .li > b { font-size: 15.5px; }
+.hub .menu-list .li { padding: 9px 12px; }
+.hub .menu-list .mi { width: 30px; height: 30px; font-size: 16px; border-radius: 9px; }
+
+/* entrance: tiles rise in a short stagger; updated tiles flash once */
+.hub-me, .hub-pass, .hub-grid > *, .hub-store { animation: hubIn .32s var(--ease) both; }
+.hub-pass { animation-delay: .03s; }
+.hub-grid > :nth-child(2) { animation-delay: .04s; } .hub-grid > :nth-child(3) { animation-delay: .07s; } .hub-grid > :nth-child(4) { animation-delay: .09s; }
+.hub-grid > :nth-child(5) { animation-delay: .11s; } .hub-grid > :nth-child(6) { animation-delay: .13s; }
+@keyframes hubIn { from { opacity: 0; transform: translateY(8px); } }
+.hub .upd { animation: none; }
+.hub .upd .hub-i { animation: hubUpd .5s var(--ease); }
+@keyframes hubUpd { from { opacity: .3; } }
+@media (max-width: 370px) {
+  .hub-t.tall { min-height: 98px; padding: 11px 10px 10px; }
+  .hub-tx > b { font-size: 15px; }
+  .hub-val b { font-size: 15.5px; }
+  .hub-who > b { font-size: 17.5px; }
+  .hub-t.mini .hub-tx > b { font-size: 12.5px; }
+  .hub-t.wide .hub-i { font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hub-me, .hub-pass, .hub-grid > *, .hub-store, .hub .upd .hub-i { animation: none !important; }
+  .hub-pass.ready .hub-claim::after { animation: none; opacity: .35; }
+  .hub-live::before { animation: none; }
+}
