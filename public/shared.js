@@ -511,27 +511,28 @@ export const CASES = [
   // Rarity cases: a ladder of prices, each about 2.5× the one before, so there is always a next step.
   // Old prices (owner decision, eco3) with the odds of eco2; `hi` keeps the dear cars (Bolide 300M, AMG One …) in the
   // pools now that the corridor is relative to a lower price.
-  { id: 'rust', name: 'Іржавий гараж', icon: 'tool', group: 'rarity', price: 60000, weights: { D: 96.4, C: 3.4, B: 0.18, A: 0.02 }, pity2: false, hi: 2000 },
-  { id: 'city', name: 'Міський', icon: 'building-skyscraper', group: 'rarity', price: 300000, weights: { C: 95.5, B: 4.3, A: 0.18, S: 0.02 }, hi: 1000 },
-  { id: 'tuning', name: 'Тюнінг-ательє', icon: 'tool', group: 'rarity', price: 900000, weights: { C: 80, B: 19, A: 0.95, S: 0.05 }, hi: 340 },
-  { id: 'sport', name: 'Спорткар', icon: 'flag-3', group: 'rarity', price: 2000000, weights: { B: 93, A: 6.8, S: 0.2 }, hi: 150 },
-  { id: 'premium', name: 'Преміум', icon: 'diamond', group: 'rarity', price: 5000000, weights: { B: 58, A: 40.5, S: 1.5 }, hi: 61 },
-  { id: 'elite', name: 'Еліта', icon: 'crown', group: 'rarity', price: 10000000, weights: { A: 94, S: 6 }, hi: 31 },
+  // pity: the guarantee steps [class, n] (see pitySteps; tuned per case in reports/pity.md / tools/sim-cases.mjs).
+  { id: 'rust', name: 'Іржавий гараж', icon: 'tool', group: 'rarity', price: 60000, weights: { D: 96.4, C: 3.4, B: 0.18, A: 0.02 }, pity: [['C', 25]], hi: 2000 },
+  { id: 'city', name: 'Міський', icon: 'building-skyscraper', group: 'rarity', price: 300000, weights: { C: 95.5, B: 4.3, A: 0.18, S: 0.02 }, pity: [['B', 30]], hi: 1000 },
+  { id: 'tuning', name: 'Тюнінг-ательє', icon: 'tool', group: 'rarity', price: 900000, weights: { C: 80, B: 19, A: 0.95, S: 0.05 }, pity: [['A', 200]], hi: 340 },
+  { id: 'sport', name: 'Спорткар', icon: 'flag-3', group: 'rarity', price: 2000000, weights: { B: 93, A: 6.8, S: 0.2 }, pity: [['A', 30]], hi: 150 },
+  { id: 'premium', name: 'Преміум', icon: 'diamond', group: 'rarity', price: 5000000, weights: { B: 58, A: 40.5, S: 1.5 }, pity: [['S', 130]], hi: 61 },
+  { id: 'elite', name: 'Еліта', icon: 'crown', group: 'rarity', price: 10000000, weights: { A: 94, S: 6 }, pity: [['S', 30]], hi: 31 },
 ];
 // Country cases start cheap and have a wider ceiling (hi), so the country's dear cars — the ones its collection needs —
 // can still drop from its own case, rarely. Ukraine's gold Soviet rarities drop only from here (homeOnly).
 const COUNTRY_CASES = {
-  UA: { price: 55000, weights: { D: 98.2, C: 1.746, A: 0.054 }, hi: 460 },
-  JP: { price: 450000, weights: { C: 96.76, B: 3.06, A: 0.162, S: 0.018 }, hi: 400 },
-  DE: { price: 400000, weights: { C: 98.32, B: 1.554, A: 0.118, S: 0.008 }, hi: 570 },
-  CN: { price: 480000, weights: { C: 97.776, B: 2.08, A: 0.108, S: 0.036 }, hi: 400 },
-  US: { price: 2400000, weights: { B: 85.6, A: 14, S: 0.4 }, hi: 130 },
-  GB: { price: 3100000, weights: { B: 79.3, A: 20, S: 0.7 }, hi: 91 },
-  IT: { price: 3200000, weights: { B: 79.3, A: 20, S: 0.7 }, hi: 58 },
+  UA: { price: 55000, weights: { D: 98.2, C: 1.746, A: 0.054 }, pity: [['C', 35]], hi: 460 },
+  JP: { price: 450000, weights: { C: 96.76, B: 3.06, A: 0.162, S: 0.018 }, pity: [['B', 30]], hi: 400 },
+  DE: { price: 400000, weights: { C: 98.32, B: 1.554, A: 0.118, S: 0.008 }, pity: [['B', 30]], hi: 570 },
+  CN: { price: 480000, weights: { C: 97.776, B: 2.08, A: 0.108, S: 0.036 }, pity: [['B', 30]], hi: 400 },
+  US: { price: 2400000, weights: { B: 85.6, A: 14, S: 0.4 }, pity: [['S', 300]], hi: 130 },
+  GB: { price: 3100000, weights: { B: 79.3, A: 20, S: 0.7 }, pity: [['S', 250]], hi: 91 },
+  IT: { price: 3200000, weights: { B: 79.3, A: 20, S: 0.7 }, pity: [['S', 250]], hi: 58 },
 };
 for (const c of MAIN_COUNTRIES) {
   const cc = COUNTRY_CASES[c];
-  CASES.push({ id: 'c-' + c.toLowerCase(), name: COUNTRIES[c].name, icon: 'world', group: 'country', country: c, price: cc.price, weights: { ...cc.weights }, hi: cc.hi });
+  CASES.push({ id: 'c-' + c.toLowerCase(), name: COUNTRIES[c].name, icon: 'world', group: 'country', country: c, price: cc.price, weights: { ...cc.weights }, pity: cc.pity, hi: cc.hi });
 }
 // Luck: a real run of bad luck builds up luck. The game keeps fading totals (over ~20 opens) of what the opened cases
 // should have given on average (their expected value) and what the drops were actually worth; when drops come to
@@ -557,25 +558,26 @@ export function luckChance(expected, got, broke = false) {
   return Math.round(l * 100) / 100;
 }
 
-// Pity: guaranteed at least the case's second class after PITY opens without it, and a purple (B) car after PITY2
-// when B is the case's third class (Міський). Never a gold/red jackpot: that would be too pricey.
-export const PITY = 30;
-export const PITY2 = 40;
-export const pityClasses = (cs) => {
-  const cl = CLASS_ORDER.filter((c) => cs.weights[c]);
-  return { first: cl[1] || null, second: cs.pity2 !== false && cl[2] === 'B' ? 'B' : null };
-};
+// Guarantee (pity), per case: steps [class, n] — a car of `class` or better comes at the latest on the n-th open in
+// a row without one (the n-th roll is lifted to `class` if it would be lower). Each step has its own counter
+// (table pity, key "<case>:<class>"); any car of that class or better resets it, whether it came by luck or by the
+// guarantee. Tuned per case (reports/pity.md, tools/sim-cases.mjs): the step is the first class with a natural chance
+// of a few %, n ≈ 1.2–2 × the average wait, so it ends 10–55 % of the runs for the unlucky and its bar visibly moves
+// (test/pity.test.js keeps every step in 5–60 %). Where the next class drops every few opens anyway (Преміум, США …)
+// the step is the jackpot class with a long n instead. A second step (a dearer class after more opens) is supported
+// but costs too much here. Priced in: effectiveWeights folds the steps into the class shares (cs.ev, cs.sellEv).
+export const pitySteps = (cs) => (cs.pity || []).filter(([c]) => cs.weights[c]).map(([cls, n]) => ({ cls, n, key: `${cs.id}:${cls}` }));
 // Class shares with the guarantees folded in (they lift the real chance of the guaranteed class), so prices
 // are based on what actually drops. A guarantee after n opens turns chance q of "this class or better" into
 // q / (1 − (1 − q)^n); the extra goes to the guaranteed class and comes out of the classes below it.
-export function effectiveWeights(cs) {
+// The highest step is folded in first (its lift also counts towards the lower step's "or better").
+export function effectiveWeights(cs, steps = pitySteps(cs)) {
   const tw = Object.values(cs.weights).reduce((a, b) => a + b, 0);
   const sh = Object.fromEntries(Object.entries(cs.weights).map(([c, w]) => [c, w / tw]));
-  const { first, second } = pityClasses(cs);
-  for (const [g, n] of [[second, PITY2], [first, PITY]]) {
-    if (!g) continue;
+  for (const { cls: g, n } of [...steps].sort((a, b) => rankOf(b.cls) - rankOf(a.cls))) {
     const above = Object.keys(sh).filter((c) => rankOf(c) >= rankOf(g)), below = Object.keys(sh).filter((c) => rankOf(c) < rankOf(g));
     const q = above.reduce((s, c) => s + sh[c], 0), qb = 1 - q;
+    if (q <= 0 || qb <= 0) continue;
     const extra = q / (1 - Math.pow(1 - q, n)) - q;
     for (const c of below) sh[c] -= (extra * sh[c]) / qb;
     sh[g] += extra;

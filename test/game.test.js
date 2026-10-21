@@ -59,13 +59,13 @@ test('cases open as x1, x3 or x6 only', () => {
   assert.throws(() => call(1, 'case/open', { caseId: 'rust', count: 5 }), /1, 3 або 6/);
 });
 
-test('pity guarantees the second class after PITY opens', () => {
+test('pity guarantees the first rare class of the case after its n opens', () => {
   const { mk, call, rich, g } = setup();
   mk(1);
   rich(1);
   g.giveCar(1, 'vaz-2106');
   let saw = false;
-  for (let i = 0; i < S.PITY && !saw; i++) {
+  for (let i = 0; i < S.pitySteps(S.CASE_BY_ID.rust)[0].n && !saw; i++) {
     const { results } = call(1, 'case/open', { caseId: 'rust' });
     if (S.MODELS[results[0].car.model].cls !== 'D') saw = true;
     call(1, 'sell', { carIds: [results[0].car.id] });
