@@ -184,7 +184,9 @@ export function createGame(db, opts = {}) {
   const garageCount = (uid) => q("SELECT COUNT(*) n FROM cars WHERE owner_id = ? AND status <> 'showcase'").get(uid).n;
   function needSlots(uid, n) {
     const u = q('SELECT slots FROM users WHERE id = ?').get(uid);
-    if (garageCount(uid) + n > u.slots) fail(n > 1 ? `Потрібно ${n} вільних місць у гаражі` : 'Гараж заповнений — продай авто або купи місце');
+    const free = u.slots - garageCount(uid);
+    // "Full" only when it really is: 4/6 and ×3 is "no room for ×3 — 2 free", not "garage full".
+    if (free < n) fail(free > 0 ? `Не вистачає місця для ×${n} — вільно ${free}` : 'Гараж заповнений — продай авто або купи місце');
   }
   function giveCar(uid, model) {
     const isNew = !q('SELECT 1 FROM collection WHERE user_id = ? AND model = ?').get(uid, model);
@@ -486,7 +488,7 @@ export function createGame(db, opts = {}) {
     // First minutes: the "how to play" stories for a player who has never opened a case, then the guided first steps.
     const intro = !claims.includes('intro') && u.cases_opened === 0;
     const guide = S.guideStep({
-      introSeen: claims.includes('intro'), off: claims.includes('guide-off'), keys,
+      introSeen: claims.includes('intro'), off: claims.includes('guide-off'), keys, opened: u.cases_opened, level: u.level,
       garage: cars.filter((c) => c.status === 'garage').length, flags: JSON.parse(u.newbie_flags),
       races: u.races, streak: u.streak, dailyReady: u.streak_day !== day,
     });
@@ -771,11 +773,13 @@ export function createGame(db, opts = {}) {
     const price = Math.round(pc.price * (type ? 1 + S.PICK_PART_EXTRA : 1) / 100) * 100;
     pay(uid, price * n);
     const tiers = Object.entries(pc.weights);
+    const pool = partPool(uid);
     const results = [];
     for (let i = 0; i < n; i++) {
       const f = nextNonce(uid);
       const tier = pickWeighted(tiers, f.roll(0));
-      const t = type || S.PART_KEYS[Math.floor(f.roll(1) * S.PART_KEYS.length)];
+      // A random part is one the player's cars can take (no battery for a petrol-only garage — S.partPoolFor).
+      const t = type || pool[Math.floor(f.roll(1) * pool.length)];
       addPart(uid, t, tier);
       q('INSERT INTO drops (user_id, case_id, item, cls, seed_hash, client_seed, nonce, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
         .run(uid, caseId, `${t}:${tier}`, S.TIER_BY_ID[tier].cls, sha256(f.server_seed), f.client_seed, f.nonce, now());
@@ -2432,7 +2436,8 @@ export function createGame(db, opts = {}) {
   // ---------- case battles ----------
   // The creator pays for N cases and waits; whoever joins pays the same. Both open N cases at once (each with their own
   // provably fair seed); the higher total model value takes every car, the other gets a cheap consolation car.
-  // Prizes may push the garage over its limit: the player then picks which cars to sell (the result screen offers it),
+  // The loser's consolation car never goes over the limit (sold at once instead). The winner's prizes may push the
+  // garage over its limit: the player then picks which cars to sell (the result screen offers it),
   // and until then no new cases can be opened and only the best cars within the limit earn income.
   const BATTLE_COUNTS = [1, 3, 6, 10];
   const CONSOLATION = S.ALL_MODELS.filter((m) => m.cls === 'D' && !m.secret);
@@ -2488,7 +2493,15 @@ export function createGame(db, opts = {}) {
       // Ids line up with creator drops first, then opponent drops, so the result screen can offer "sell" per card.
       prize = giveCars(winner.id, [...a.drops, ...o.drops].map((d) => d.model));
       const model = CONSOLATION[Math.floor(rnd() * CONSOLATION.length)].id;
-      consolation = { model, ...giveCars(loser.id, [model])[0] };
+      // The consolation car never pushes the loser's garage over its limit: with no free slot it is sold at once
+      // (the result screen says "Гараж повний — продано за …").
+      const lu = q('SELECT slots FROM users WHERE id = ?').get(loser.id);
+      if (garageCount(loser.id) < lu.slots) consolation = { model, ...giveCars(loser.id, [model])[0] };
+      else {
+        const soldFor = S.sellPriceOf(model);
+        addMoney(loser.id, soldFor);
+        consolation = { model, soldFor };
+      }
     } else {
       // A dead heat: everyone keeps what they opened.
       a.cars = giveCars(a.id, a.drops.map((d) => d.model));
@@ -2501,7 +2514,7 @@ export function createGame(db, opts = {}) {
     const total = a.total + o.total;
     event(b.creator_id, !winner ? `⚔️ Батл з ${name(uid)} — нічия, кожен забрав свої авто`
       : winner.id === b.creator_id ? `⚔️ Ти виграв батл у ${name(uid)}! Усі ${b.count * 2} авто на ${S.fmt(total)} — твої`
-        : `⚔️ ${name(uid)} виграв твій батл (${S.short(o.total)} проти ${S.short(a.total)}). Тобі — утішна машина`);
+        : `⚔️ ${name(uid)} виграв твій батл (${S.short(o.total)} проти ${S.short(a.total)}). ${consolation.soldFor ? `Утішну машину продано за ${S.short(consolation.soldFor)} — гараж повний` : 'Тобі — утішна машина'}`);
     return battleOut(q('SELECT * FROM battles WHERE id = ?').get(b.id), uid);
   }
   function battleGet(uid, { id }) {
@@ -2519,15 +2532,17 @@ export function createGame(db, opts = {}) {
     const len = S.DAILY_BONUS.length;
     return { streak: u.streak, ready: u.streak_day !== day, nextDay: ((next - 1) % len) + 1, todayIndex: ((u.streak_day === day ? u.streak : next) - 1) % len, rewardCaseAt: u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3, days: S.DAILY_BONUS, vip: (u.vip_until || 0) > now(), vipDaily: S.VIP.daily };
   }
-  function randomPartOf(tier) {
-    return { type: S.PART_KEYS[Math.floor(rnd() * S.PART_KEYS.length)], tier };
+  const partPool = (uid) => S.partPoolFor(q('SELECT DISTINCT model FROM cars WHERE owner_id = ?').all(uid).map((r) => r.model));
+  function randomPartOf(tier, uid) {
+    const pool = uid ? partPool(uid) : S.PART_KEYS;
+    return { type: pool[Math.floor(rnd() * pool.length)], tier };
   }
   function grant(uid, rw) {
     const got = { ...rw };
     if (rw.car || rw.seasonCar || rw.slots) bank(uid); // a new car (or slot) earns from now on, not for the hours before
     if (rw.money) addMoney(uid, rw.money);
     if (rw.parts) {
-      got.items = Array.from({ length: rw.parts }, () => randomPartOf(rw.tier));
+      got.items = Array.from({ length: rw.parts }, () => randomPartOf(rw.tier, uid));
       for (const p of got.items) addPart(uid, p.type, p.tier);
     }
     if (rw.car) {
@@ -2713,7 +2728,7 @@ export function createGame(db, opts = {}) {
       }
     }
     const si = seasonInfo(u);
-    if (si.ready) claims.push({ key: `pass:${si.id}:${si.level}:${si.premium ? 1 : 0}:${si.ready}`, kind: 'pass', title: `Рівень ${si.level} сезонного пропуску!`, sub: `Нагород до забору: ${si.ready}` });
+    if (si.ready) claims.push({ key: `pass:${si.id}:${si.level}:${si.premium ? 1 : 0}:${si.ready}`, kind: 'pass', title: `Сезонний пропуск: рівень ${si.level}`, sub: `Можна забрати: ${si.ready}` });
     if (rescueReady(u)) claims.push({ key: 'rescue:' + u.rescue_at, kind: 'rescue', title: 'Не здавайся!', sub: 'Тримай безкоштовний «Іржавий гараж»' });
     const inc = incomeState(u);
     if (inc.rate > 0 && inc.pending >= inc.rate * inc.capH * 0.999) claims.push({ key: 'income:' + u.income_at, kind: 'income', title: 'Гараж набрав максимум', sub: 'Дохід зупинився — забери, щоб він знову йшов', money: inc.pending });
@@ -2738,6 +2753,11 @@ export function createGame(db, opts = {}) {
   // "Не підказувати": the player turned the first-steps hints off.
   function guideOff(uid) {
     q('INSERT OR IGNORE INTO claims (user_id, key) VALUES (?, ?)').run(uid, 'guide-off');
+    return {};
+  }
+  // Menu → Налаштування → "Підказки перших кроків": the hints come back (if any step is still left).
+  function guideOn(uid) {
+    q("DELETE FROM claims WHERE user_id = ? AND key = 'guide-off'").run(uid);
     return {};
   }
   function quests(uid) {
@@ -3943,7 +3963,7 @@ export function createGame(db, opts = {}) {
     'room/offer': roomOffer, 'room/ready': roomReady, 'room/leave': roomLeave,
     'room/chat': (u, b) => postChat(u, roomLive(u, b.id).id, b.text),
     'battle/list': battleList, 'battle/create': battleCreate, 'battle/join': battleJoin, 'battle/cancel': battleCancel, 'battle/get': battleGet,
-    rewards, 'rewards/daily': dailyClaim, 'rewards/case': rewardCase, 'newbie/claim': newbieClaim, 'level/seen': levelSeen, 'intro/seen': introSeen, 'guide/off': guideOff,
+    rewards, 'rewards/daily': dailyClaim, 'rewards/case': rewardCase, 'newbie/claim': newbieClaim, 'level/seen': levelSeen, 'intro/seen': introSeen, 'guide/off': guideOff, 'guide/on': guideOn,
     quests, 'quests/claim': questClaim, 'collection/claim': collectionClaim, sets, 'sets/claim': setClaim,
     weekly, 'weekly/claim': weeklyClaim, 'weekly/chest': weeklyChest,
     leaderboard, promo: redeemPromo, events,

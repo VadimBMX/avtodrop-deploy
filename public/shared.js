@@ -561,8 +561,8 @@ export const PARTS = {
   turbo: { name: 'Турбіна', icon: 'tornado', stat: 'hp', fx: [0.02, 0.05, 0.09, 0.14, 0.2], hint: 'потужність' },
   exhaust: { name: 'Вихлоп', icon: 'wind', stat: 'hp', fx: [0.01, 0.02, 0.04, 0.06, 0.09], hint: 'потужність' },
   gearbox: { name: 'КПП', icon: 'manual-gearbox', stat: 'shift', fx: [0.1, 0.2, 0.35, 0.5, 0.65], hint: 'швидші перемикання' },
-  suspension: { name: 'Підвіска', icon: 'arrow-autofit-height', stat: 'grip', fx: [0.02, 0.04, 0.07, 0.1, 0.14], hint: 'зчеплення на старті' },
-  wheels: { name: 'Диски і шини', icon: 'circle-dot', stat: 'grip', fx: [0.03, 0.06, 0.1, 0.15, 0.2], hint: 'зчеплення на старті' },
+  suspension: { name: 'Підвіска', icon: 'arrow-autofit-height', stat: 'grip', fx: [0.02, 0.04, 0.07, 0.1, 0.14], hint: 'краще зчеплення на старті' },
+  wheels: { name: 'Диски і шини', icon: 'circle-dot', stat: 'grip', fx: [0.03, 0.06, 0.1, 0.15, 0.2], hint: 'краще зчеплення на старті' },
   brakes: { name: 'Гальма', icon: 'disc', stat: 'et', fx: [0.003, 0.006, 0.01, 0.015, 0.02], hint: 'стабільність' },
   body: { name: 'Обвіс', icon: 'feather', stat: 'kg', fx: [0.01, 0.02, 0.03, 0.05, 0.07], hint: 'легша вага' },
   // Electric cars take these instead of engine, turbo, exhaust and gearbox (PETROL_ONLY / EV_ONLY).
@@ -576,6 +576,12 @@ const EV_ONLY = PART_KEYS.filter((k) => PARTS[k].ev);
 // The part slots of a car: 8 for a petrol car, 7 for an electric one.
 export const partKeysOf = (model) => PART_KEYS.filter((k) => (MODELS[model]?.ev ? !PETROL_ONLY.includes(k) : !EV_ONLY.includes(k)));
 export const partFits = (model, type) => partKeysOf(model).includes(type);
+// Part types any of these cars can take: a petrol-only garage gets no motor/battery/reducer, an all-electric one no
+// engine/turbo/exhaust/gearbox. No cars (or an unknown garage) — every type.
+export function partPoolFor(models) {
+  const fit = new Set(models.flatMap((m) => (MODELS[m] ? partKeysOf(m) : [])));
+  return fit.size ? PART_KEYS.filter((k) => fit.has(k)) : PART_KEYS;
+}
 export function partLabel(type, tier) {
   return `${PARTS[type].name} ${TIER_BY_ID[tier].name}`;
 }
@@ -584,13 +590,13 @@ export function partEffect(type, tier) {
   const p = PARTS[type];
   if (p.stat === 'hp') return `+${Math.round(v * 100)}% к.с.`;
   if (p.stat === 'kg') return `−${Math.round(v * 100)}% ваги`;
-  if (p.stat === 'grip') return `+${Math.round(v * 100)} зчеплення`;
+  if (p.stat === 'grip') return `+${Math.round(v * 100)} до зчеплення`;
   if (p.stat === 'shift') return `−${Math.round(v * 100)}% втрат на перемиканні`;
   return `−${(v * 100).toFixed(1)}% часу`;
 }
 export const PART_CASES = [
   { id: 'scrap', name: 'Розбірка', icon: 'tool', weights: { stock: 85, street: 14, sport: 1 } },
-  { id: 'atelier', name: 'Тюнінг-ательє', icon: 'tools', weights: { stock: 30, street: 50, sport: 18, pro: 2 } },
+  { id: 'atelier', name: 'Ательє запчастин', icon: 'tools', weights: { stock: 30, street: 50, sport: 18, pro: 2 } },
   { id: 'racing', name: 'Гоночний цех', icon: 'bolt', weights: { street: 30, sport: 50, pro: 18, race: 2 } },
   { id: 'factory', name: 'Заводський тюнінг', icon: 'building-factory-2', weights: { sport: 40, pro: 50, race: 10 }, randomOnly: true },
 ];
@@ -1772,7 +1778,7 @@ export const INTRO_STORY = {
   id: 'intro-1',
   last: 'Відкрити кейс!',
   slides: [
-    { icon: 'car-turbine', title: 'Вітаю в АВТОДРОП', text: `Збирай гараж мрії: ${ALL_MODELS.filter((m) => !m.secret).length} справжні авто — від «Запорожця» до Bugatti. Відкривай кейси, ганяй, торгуй.` },
+    { icon: 'car-turbine', title: 'Вітаємо в АВТОДРОПі', text: `Збирай гараж мрії: ${ALL_MODELS.filter((m) => !m.secret).length} справжні авто — від «Запорожця» до Bugatti. Відкривай кейси, ганяй, торгуй.` },
     { icon: 'gift', title: 'Перший кейс — безкоштовно', text: 'Стартовий кейс уже чекає: усередині українська класика. Відкрий його одразу після цих слайдів.' },
     { icon: 'diamond', title: 'Кейси і класи', text: 'Кожен кейс — шанс на рідкісне авто. Класи: D → C → B → A → S, від звичайних до міфічних. Скільки лишилось до гарантії — видно під кейсом.' },
     { icon: 'coin', title: 'Гараж заробляє', text: 'Кожна машина приносить дохід щогодини, навіть коли гра закрита. Заходь і тисни «Забрати». Непотрібне авто продай одразу з кейсу.' },
@@ -1792,18 +1798,25 @@ export function storyFor(me, localSeen = false) {
 export const GUIDE_PATH = ['starter', 'keep', 'collect', 'race', 'daily']; // the dots on the hint card
 export const GUIDE_STEPS = [
   { key: 'starter', tab: 'cases', target: '[data-act="openCase"]', title: 'Відкрий стартовий кейс', text: 'Він безкоштовний — тисни кнопку й дивись, що випаде.' },
-  { key: 'keep', tab: 'cases', target: '[data-act="toGarage"]', title: 'Залиш або продай', text: '«У гараж» — машина заробляє й їздить у гонках. «Продати» — гроші одразу.' },
+  // The starter car is the player's only car, so it can't be sold (server: «Останню машину продати не можна») — the
+  // drop screen doesn't offer «Продати» for it, and this step only asks to keep it.
+  { key: 'keep', tab: 'cases', target: '[data-act="toGarage"]', title: 'Постав машину в гараж', text: 'Тисни «У гараж» — машина почне заробляти й зможе їздити в гонках.' },
   // Only when the garage is empty (the starter car was sold): a car is needed for income and races.
   { key: 'case', tab: 'cases', target: '[data-act="openCase"]', title: 'Відкрий кейс з машиною', text: '«Іржавий гараж» — найдешевший. Машина в гаражі заробляє гроші й їздить у гонках.', extra: true },
   { key: 'collect', tab: 'garage', target: '[data-act="collect"]', title: 'Забери дохід гаража', text: 'Машина вже заробила кілька гривень. Тисни «Забрати» — і так щоразу, як заходиш.' },
   { key: 'race', tab: 'race', target: '.rival', title: 'Проїдь перший заїзд', text: 'Обери суперника. На світлофорі жми «ГАЗ» на зелений, передачі — у зеленій зоні.' },
   { key: 'daily', tab: null, target: '#gift', title: 'Забери щоденний бонус', text: 'Подарунок угорі екрана. Заходь щодня — на 7-й день машина зі «Спорткара».' },
 ];
-// p: { introSeen (the player came through the intro stories), off (hints turned off), keys, garage (cars in the garage), flags (newbie flags), races, streak, dailyReady }.
+// p: { introSeen (the player came through the intro stories), off (hints turned off), keys, garage (cars in the garage), flags (newbie flags), races, streak, dailyReady,
+//   opened (cases opened), level }.
+// Stale steps are skipped: a step done "out of order" (raced before collecting) moves the guide on, and a player who is
+// clearly past the first minutes (GUIDE_PAST) never sees the hints again, so the card can't hang around forever.
+export const GUIDE_PAST = { opened: 15, level: 5 };
 export function guideStep(p) {
   if (!p.introSeen || p.off) return null;
   if (p.keys?.starter) return 'starter';
-  const needCollect = !p.flags.includes('collect'), needRace = !p.races;
+  if ((p.opened || 0) >= GUIDE_PAST.opened || (p.level || 1) >= GUIDE_PAST.level) return null;
+  const needCollect = !p.flags.includes('collect') && !p.races, needRace = !p.races;
   if (!p.garage && (needCollect || needRace)) return 'case';
   if (needCollect) return 'collect';
   if (needRace) return 'race';

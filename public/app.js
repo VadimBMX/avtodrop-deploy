@@ -293,7 +293,7 @@ function oddsBar(weights) {
 }
 const partCount = (c) =>S.partKeysOf(c.model).filter((k) => c.parts?.[k]).length;
 const partSlots = (c) => S.partKeysOf(c.model).length;
-function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false } = {}) {
+function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false, sellLine = false } = {}) {
   const m = M(c.model);
   return `<button class="car r${S.rankOf(m.cls)} ${sel ? 'sel' : ''} ${c.status === 'market' || c.status === 'auction' ? 'listed' : ''}" data-act="${act}" data-id="${c.id}" style="--c:${S.CLASSES[m.cls].color}">
     ${clsBadge(m.cls, 'tl')}<span class="tr">${isNew ? `<span class="new">${ic('sparkles')}нова</span>` : ''}<span class="chip">${ic('tool')}${partCount(c)}/${partSlots(c)}</span></span>
@@ -301,6 +301,7 @@ function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false 
     <div class="nm clamp2" title="${esc(m.name)}">${esc(m.name)}</div>
     ${c.plate ? `<div class="meta">${plate(c.plate.text, 'sm')}</div>` : ''}
     <div class="meta row between" style="gap:4px"><span>${c.hp} к.с.</span><b class="disp" style="color:var(--text);font-size:14px;font-weight:600">${S.short(c.value)}</b></div>
+    ${sellLine && c.sell != null && !m.secret && c.status === 'garage' && act !== 'none' ? `<div class="meta sellp">продаж ${S.short(c.sell)}</div>` : ''}
     ${showTank ? `<div class="tank">${Array.from({ length: S.CAR_TANK }, (_, i) => `<i class="${i < c.tank ? 'on' : ''}"></i>`).join('')}</div>` : ''}
     ${c.status === 'market' ? `<div class="status">${ic('building-store')}На ринку</div>` : c.status === 'auction' ? `<div class="status">${ic('hammer')}На аукціоні</div>` : ''}
   </button>`;
@@ -337,8 +338,13 @@ function renderHeader() {
   if (shownBalance !== null && me.balance > shownBalance) FX.tween(bal, shownBalance, me.balance, 750, S.short, Math.max(0, coinsLandAt - performance.now()));
   else if (!bal.dataset.tweening || me.balance < shownBalance) (FX.stopTween(bal), bal.textContent = S.short(me.balance));
   shownBalance = me.balance;
-  const initial = (me.firstName || me.username || '?').trim()[0]?.toUpperCase() || '?';
-  $('#avatar').innerHTML = `${ring(me.level, me.xp, me.xpNeed)}<span class="face">${esc(initial)}</span><span class="lvl">${me.level}</span>`;
+  // The player's Telegram photo; without one the initial in the body font, and two letters ("Ве", "ОК") when the first
+  // one looks like a class (В/B, А/A, С/C, Х/X, D, S), so the header can't be read as a class badge.
+  const photo = tg?.initDataUnsafe?.user?.photo_url;
+  const words = String(me.firstName || me.username || '?').replace(/^@/, '').trim().split(/\s+/);
+  const first = (words[0][0] || '?').toUpperCase();
+  const initials = !/[ВАСХBACDSX]/.test(first) ? first : words.length > 1 ? first + (words[1][0] || '').toUpperCase() : first + (words[0][1] || '').toLowerCase();
+  $('#avatar').innerHTML = `${ring(me.level, me.xp, me.xpNeed)}<span class="face${photo ? ' photo' : ''}">${photo ? `<img src="${esc(photo)}" alt="" referrerpolicy="no-referrer">` : esc(initials)}</span><span class="lvl">${me.level}</span>`;
   const giftReady = me.dailyReady || serverNow() >= me.rewardCaseAt;
   $('#giftBadge').hidden = !giftReady || (!!me.guide && me.guide !== 'daily'); // first steps: one thing at a time
   $('#menuDot').hidden = !(me.incomingTrades || me.unread || claimableCollection() || me.newbie?.ready || me.achReady);
@@ -702,13 +708,13 @@ TABS.garage = () => {
     <div class="progress cap mt"><i id="capBar" style="width:${fill}%"></i></div>
     <button class="btn mt" data-act="collect" ${pending < 1 ? 'disabled' : ''}>Забрати</button>
     ${i.comebackUntil ? `<div class="tiny center mt" style="color:#30d158">${ic('gift')} Подарунок повернення: +${S.COMEBACK.capHours} год сховища ще <span data-until="${i.comebackUntil - clockOffset}"></span></div>` : ''}
-    <div class="tiny muted center mt">Копиться до ${i.capH} год, потім зупиняється${nextCap ? ` · <a data-act="upgradeCap" style="color:#f5b301">сховище до ${nextCap.hours} год за ${S.short(nextCap.cost)}</a>` : ''}</div>
+    <div class="tiny muted center mt">Каса заповнюється за ${i.capH} год${nextCap ? ` · <a data-act="upgradeCap" style="color:#f5b301">збільшити до ${nextCap.hours} год — ${S.short(nextCap.cost)}</a>` : ''}</div>
   </div>
-  <div class="h2 garage-h"><span>Машини <b>${all.length}</b>/${me.slots}</span><span>${S.short(total)}</span></div>
+  <div class="h2 garage-h"><span>Машини <b>${all.length}</b>/${me.slots}</span><span>${S.short(total)}${all.length ? `<small class="sellp"> · продаж ~${S.short(sellTotal(all.filter((c) => !M(c.model).secret)))}</small>` : ''}</span></div>
   ${all.length > 1 ? `${present.length > 1 ? `<div class="chips gfilter"><button class="${state.garageCls ? '' : 'on'}" data-act="gFilter" data-k="">Усі</button>${present.map((k) => `<button class="${state.garageCls === k ? 'on' : ''}" data-act="gFilter" data-k="${k}" style="--c:${S.CLASSES[k].color}"><i></i>${k}<small>${all.filter((c) => M(c.model).cls === k).length}</small></button>`).join('')}</div>` : ''}
     <div class="row between sellbar">${sel ? `<span class="small muted">${sel.size ? `Обрано ${sel.size} · ${S.fmt(selTotal)}` : `Обери машини. Продаж: ${Math.round(Math.min(...Object.values(S.SELL_RATES)) * 100)}–${Math.round(Math.max(...Object.values(S.SELL_RATES)) * 100)}% ціни моделі, деталі й номер повертаються`}</span>` : `<button class="gsort" data-act="gSort">${ic('adjustments')}${SORT_NAMES[sort]}</button>`}
     <span class="row">${sel ? `<button class="btn sm red" data-act="sellSel" ${sel.size ? '' : 'disabled'}>Продати</button>` : ''}<button class="btn sm ghost" data-act="sellMode">${sel ? 'Скасувати' : `${ic('cash')} Продати кілька`}</button></span></div>` : ''}
-  <div class="grid">${cars.map((c) => carTile(c, { sel: sel?.has(c.id), act: sel ? 'selToggle' : 'car' })).join('')}
+  <div class="grid">${cars.map((c) => carTile(c, { sel: sel?.has(c.id), act: sel ? 'selToggle' : 'car', sellLine: true })).join('')}
     ${free && !state.garageCls ? `<button class="slot free" data-act="toCases"><span class="slot-plus">${ic('plus')}</span><b>${free} ${plural(free, ['вільне місце', 'вільні місця', 'вільних місць'])}</b><span class="tiny">Відкрити кейс ${ic('arrow-right')}</span></button>` : ''}
     ${me.slots < S.MAX_SLOTS && !state.garageCls ? `<button class="slot buy" data-act="buySlot"><span class="slot-plus">${ic('building-warehouse')}</span><span>Місце в гаражі</span><b>${S.short(S.slotCost(me.slots))}</b></button>` : ''}</div>`;
 };
@@ -774,7 +780,7 @@ function carSheet(id) {
   sheet(esc(m.name), `
     <div class="rarity-row sheet-tags"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span><span class="chip">${S.COUNTRIES[m.country].flag} ${S.COUNTRIES[m.country].name}</span><span class="chip">${m.year}</span></div>
     <div class="hero r${rank}" style="--c:${color}"><div class="art">${carArt(c.model, { glow: rank >= 3, look: c.look })}</div>${c.plate ? `<div class="plate-on">${plate(c.plate.text)}</div>` : ''}</div>
-    <div class="stat four"><div><b>${c.hp}${c.hp > m.hp ? `<em class="win">+${c.hp - m.hp}</em>` : ''}</b><span>к.с.</span></div><div><b>${dec(c.et, 2)}</b><span>0–402 м, с</span></div><div class="val"><b>${S.short(c.value)}</b><span>вартість</span></div><div><b>${S.short(c.income)}</b><span>дохід / год</span></div></div>
+    <div class="stat four"><div><b>${c.hp}${c.hp > m.hp ? `<em class="win">+${c.hp - m.hp}</em>` : ''}</b><span>к.с.</span></div><div><b>${dec(c.et, 2)}</b><span>с на 402 м</span></div><div class="val"><b>${S.short(c.value)}</b><span>вартість</span>${m.secret ? '' : `<span class="sellp">продаж ${S.short(sellPrice(c))}</span>`}</div><div><b>${S.short(c.income)}</b><span>дохід / год</span></div></div>
     ${locked ? `<div class="card mt center muted">Авто виставлено на ${c.status === 'market' ? 'ринок' : 'аукціон'} — керуй ним у «Меню → Ринок → Мої лоти».</div>` : `
     <div class="list mt">
       <button class="li" data-act="carShowcase" data-id="${c.id}"><span class="ic">${ic('building-arch')}</span><div class="grow"><b>${c.status === 'showcase' ? 'Повернути в гараж' : 'Виставити на вітрину'}</b><div class="small muted">${c.status === 'showcase' ? 'знову приноситиме дохід' : `вільно місць: ${me.showcaseSlots - me.cars.filter((x) => x.status === 'showcase').length}`}</div></div><span class="chev">›</span></button>
@@ -985,14 +991,17 @@ TABS.cases = () => {
     const m = M(car.model);
     const rank = S.rankOf(m.cls), color = S.CLASSES[m.cls].color;
     const fresh = state.fx?.type === 'case';
-    // Value against the price of the case it came from: ×2,4 reads instantly as "won", ×0,3 as "try again".
+    // What selling gives against the price of the case it came from (the honest "won / lost" number: the value of the
+    // model is not what a sale pays — S.SELL_RATES); ×1,2 reads as "won", ×0,4 as "try again".
     const from = S.CASE_BY_ID[state.dropCase] || cs;
-    const mult = from.price ? car.value / from.price : 0;
+    const sp = sellPrice(car);
+    const mult = from.price ? sp / from.price : 0;
     stage = `<div class="reveal-wrap r${rank}" id="revealWrap" style="--c:${color}"><div class="art ${fresh ? 'reveal' : ''}" id="dropArt">${carArt(car.model, { glow: rank >= 2 })}</div></div>
       ${isNew ? `<div class="newtag ${fresh ? 'pop' : ''}">${ic('sparkles')} Нова в колекції</div>` : ''}
       <div class="result-name r${rank} ${fresh ? 'pop' : ''} ${rank >= 3 ? 'shimmer' : ''}" style="--c:${color}">${esc(m.name)}</div>
       <div class="rarity-row ${fresh ? 'pop2' : ''}"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span><span class="chip">${flag(car.model)} ${S.COUNTRIES[m.country].name}</span>${forced ? ' <span class="chip">гарантія</span>' : ''}${d[0].fragment ? ` <span class="chip frag">${ic('key')} +фрагмент</span>` : ''}</div>
-      <div class="drop-value ${fresh ? 'pop2' : ''}"><span>Вартість</span><b id="dropValue">${S.fmt(car.value)}</b>${mult ? `<span class="xmult ${mult >= 1 ? 'up' : ''}">×${dec(mult, mult >= 10 ? 0 : 1)}</span>` : ''}</div>
+      <div class="drop-value ${fresh ? 'pop2' : ''}"><span>Вартість</span><b id="dropValue">${S.fmt(car.value)}</b></div>
+      <div class="drop-sell ${fresh ? 'pop2' : ''}"><span>${ic('cash')} продаж <b>${S.short(sp)}</b></span>${mult ? `<span class="xmult ${mult >= 1 ? 'up' : ''}">×${dec(mult, mult >= 10 ? 0 : 1)} до ціни кейса</span>` : ''}</div>
       ${d[0].sold ? `<div class="small win center">Продано за ${S.fmt(sellPrice(car))}</div>` : ''}`;
   } else if (d?.length) {
     const fresh = state.fx?.type === 'case';
@@ -1004,7 +1013,7 @@ TABS.cases = () => {
         : r.sold ? '<div class="dropsell done">Продано</div>' : '';
       return `<div class="dcell r${rk} ${fresh ? 'flip-in' : ''} ${rk >= 1 ? 'rare' : ''} ${rk === best && best >= 2 ? 'best' : ''} ${r.sold ? 'sold' : ''}" style="--c:${c};animation-delay:${i * 180}ms">${r.sold ? carTile(r.car, { act: 'none' }) : carTile(r.car, { act: 'car', isNew: r.isNew })}${sell}</div>`;
     }).join('')}</div>
-    <div class="multi-sum ${fresh ? 'pop2' : ''}"><span>${d.length} ${plural(d.length, ['машина', 'машини', 'машин'])}${d.some((r) => r.isNew) ? ` · <span class="newc">${ic('sparkles')} ${(() => { const k = d.filter((r) => r.isNew).length; return `${k} ${plural(k, ['нова', 'нові', 'нових'])}`; })()}</span>` : ''}</span><b>Разом ${S.short(d.reduce((s, r) => s + r.car.value, 0))}</b></div>`;
+    <div class="multi-sum ${fresh ? 'pop2' : ''}"><span>${d.length} ${plural(d.length, ['машина', 'машини', 'машин'])}${d.some((r) => r.isNew) ? ` · <span class="newc">${ic('sparkles')} ${(() => { const k = d.filter((r) => r.isNew).length; return `${k} ${plural(k, ['нова', 'нові', 'нових'])}`; })()}</span>` : ''}</span><b>Разом ${S.short(d.reduce((s, r) => s + r.car.value, 0))}<small> · продаж ${S.short(sellTotal(d.map((r) => r.car)))}</small></b></div>`;
   } else {
     stage = `<div class="reel-wrap" id="reelWrap"><div class="reel" id="reel">${Array.from({ length: 6 }, () => reelCard(weightedModel(cs))).join('')}</div></div>`;
   }
@@ -1021,19 +1030,20 @@ TABS.cases = () => {
     ${cs.starter ? '' : `<div class="seg">${[1, 3, 6].map((k) => `<button class="${k === n ? 'on' : ''}" data-act="pickCount" data-n="${k}">×${k}</button>`).join('')}</div>`}
     ${(() => {
       const short = price * paid - me.balance;
-      if (free < n) return '<button class="btn" disabled>Гараж заповнений</button>';
+      if (free < n) return noRoomHtml(n, free);
       // Not enough money: say so on the button, with how much is missing.
       if (paid && short > 0) return `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(short)}</button>`;
       return `<button class="btn opencase ${deal.off ? 'yellow' : ''}" data-act="openCase">${paid ? `<span class="oc-l">${d && state.dropCase === cs.id ? 'Відкрити ще' : 'Відкрити'}</span><span class="oc-p">${S.fmt(price * paid)}${deal.off ? ` <s>${S.short(cs.price * paid)}</s>` : ''}${keys ? ` + ${ic('key')}${Math.min(keys, n)}` : ''}</span>` : cs.starter ? 'Відкрити безкоштовно' : `Відкрити ключем ${ic('key')} ${n}`}</button>`;
     })()}
     ${cs.starter ? '<div class="tiny muted center mt">Подарунок новачку</div>' : ''}
     ${cs.starter ? '' : brokeCard()}
-    ${free < n ? '<div class="tiny muted center mt">Продай авто або купи місце в гаражі</div>' : ''}
     ${d ? (() => {
       const alive = d.filter(dropAlive);
       const sum = sellTotal(alive.map((r) => r.car));
-      const sellBtn = alive.length ? `<button class="btn ghost btn2" data-act="sellDrops"><span>${ic('cash')} ${alive.length > 1 ? 'Продати все' : 'Продати'}</span><small>${S.short(sum)}</small></button>` : '';
-      return `<div class="btns mt"><button class="btn outline" data-act="toGarage">У гараж</button>${sellBtn}</div>`;
+      // The only car can't be sold (the server says «Останню машину продати не можна»), so it isn't offered.
+      const last = alive.length && me.cars.length - alive.length < 1;
+      const sellBtn = alive.length && !last ? `<button class="btn ghost btn2" data-act="sellDrops"><span>${ic('cash')} ${alive.length > 1 ? 'Продати все' : 'Продати'}</span><small>${S.short(sum)}</small></button>` : '';
+      return `<div class="btns mt"><button class="btn outline" data-act="toGarage">У гараж</button>${sellBtn}</div>${last ? '<div class="tiny muted center mt">Це твоя єдина машина: на ній ганяєш і заробляєш, тому продати її не можна</div>' : ''}`;
     })() : ''}
     ${cs.starter ? '' : (() => {
       const fr = me.fragments?.[cs.id] || 0, need = S.FRAGMENTS_PER_KEY;
@@ -1045,6 +1055,26 @@ TABS.cases = () => {
     })()}
     <div class="fastrow"><span>${ic('bolt')} Швидке відкриття <small>без рулетки</small></span><button class="toggle ${state.fast ? 'on' : ''}" data-act="toggleFast" aria-label="Швидке відкриття"></button></div>
     ${eventsCard(true, ['luck', 'country', 'plates'])}`;
+};
+// Not enough garage slots for this opening: how many are free, plus a way out right here — ×1 (if one fits) or the
+// garage with the cheapest cars already picked for sale.
+function noRoomHtml(n, free) {
+  const need = n - free; // over the limit (a battle prize) free is negative: sell enough to open again
+  return `<button class="btn" disabled>${free > 0 ? `Не вистачає місця для ×${n} — вільно ${free}` : `Гараж заповнений · ${me.used}/${me.slots}`}</button>
+    <div class="btns mt">${free > 0 ? '<button class="btn outline" data-act="pickCount" data-n="1">Відкрити ×1</button>' : ''}<button class="btn ghost" data-act="sellCheap" data-n="${need}">${ic('cash')} Продати ${need === 1 ? 'найдешевшу' : `${need} ${plural(need, ['найдешевшу', 'найдешевші', 'найдешевших'])}`}</button></div>
+    <div class="tiny muted center mt">або купи місце в гаражі</div>`;
+}
+H.sellCheap = (d) => {
+  const ids = me.cars.filter((c) => c.status === 'garage' && !M(c.model).secret).sort((a, b) => a.value - b.value).slice(0, Number(d.n)).map((c) => c.id);
+  state.drop = null;
+  state.tab = 'garage';
+  state.page = null;
+  state.garageView = 'cars';
+  state.garageCls = null;
+  state.selling = new Set(ids);
+  window.scrollTo(0, 0);
+  render();
+  toast('Обрано найдешевші — перевір і тисни «Продати»');
 };
 H.toGarage = () => {
   state.drop = null;
@@ -1921,7 +1951,9 @@ function runDrift() {
   let hold = false, last = 0, t0 = 0, raf = 0, dir = segs[1].dir;
   // The physics is the shared fixed-step simulation seeded by the server, which replays the gas log at the finish.
   const sim = S.driftSim(M2, track, D.seed);
-  const scene = driftScene(el('dCanvas'), S.CLASSES[M(D.car.model).cls].color, track);
+  // The car on the track wears the player's paint (the class colour only for a factory car).
+  const look = D.car.look || me.cars.find((c) => c.id === D.car.id)?.look;
+  const scene = driftScene(el('dCanvas'), S.PAINT_BY_ID[look?.paint]?.hex || S.CLASSES[M(D.car.model).cls].color, track);
   const dots = [...el('dDots').children];
   // Text and style writes only when the value changes (cheap frames on slow phones).
   const shown = {};
@@ -2324,10 +2356,16 @@ async function pvpAutopilot(id, carId) {
   try {
     const r = await api('pvp/accept', { id, carId });
     haptic(r.win ? 'success' : 'error');
-    sheet('PvP', `<div class="center"><div class="big ${r.win ? 'win' : 'lose'}">${r.win ? 'Перемога!' : 'Поразка'}</div>${r.win ? `<div class="win" style="font-weight:900">+${S.fmt(r.prize)}</div>` : ''}
+    const show = () => sheet('PvP · автопілот', `<div class="center"><div class="big ${r.win ? 'win' : 'lose'}">${r.win ? 'Перемога!' : 'Поразка'}</div>${r.win ? `<div class="win" style="font-weight:900">+${S.fmt(r.prize)}</div>` : ''}
       <div class="mt">Ти: ${dec(r.result.opponent.time, 3)} с</div><div>${esc(r.rival.name)} (${esc(M(r.rival.car.model).name)}): ${dec(r.result.creator.time, 3)} с</div>
       <button class="btn mt" data-act="closeModal">Готово</button></div>`);
+    // The result comes a moment after "Так": if the player has already moved to another screen (or opened a sheet),
+    // it doesn't jump over it — a banner under the header says what happened, "Дивитись" opens the details.
+    const here = state.tab === 'race' && !state.page && $('#modal').hidden;
+    if (here) show();
     await refresh();
+    // After the refresh, so the reward banners it brings don't push this one out of the stack.
+    if (!here) showBanner({ key: `pvpres:${id}`, kind: 'pvp', title: `PvP: ${r.win ? 'перемога' : 'поразка'}`, sub: `${r.win ? `<b class="win">+${S.short(r.prize)}</b>` : 'ставку програно'} · автопілот ${esc(r.rival.name)}`, ttl: 12000, open: show, buttons: [{ label: 'Дивитись', act: 'bannerOpen' }] });
   } catch (e) {
     toast(e.message, true);
   }
@@ -2349,16 +2387,18 @@ TABS.shop = () => {
       const t = S.TIER_BY_ID[p.tier];
       const sell = p.sold ? '<div class="dropsell done">Продано</div>' : `<button class="dropsell" data-act="sellDropPart" data-i="${i}">${ic('cash')}${S.short(t.price * S.PART_SELL_RATE)}</button>`;
       return `<div class="${fresh ? 'flip-in' : ''} ${p.sold ? 'sold' : ''}" style="animation-delay:${i * 140}ms"><div class="car pcard r${t.index}" style="--c:${S.CLASSES[t.cls].color}">${clsBadge(t.cls, 'tl')}
-        <div class="art">${partArt(p.type, p.tier, 'lg')}</div><div class="nm ellipsis">${S.PARTS[p.type].name}</div><div class="meta">${t.name} · ${S.partEffect(p.type, p.tier)}</div></div>${sell}</div>`;
+        <div class="art">${partArt(p.type, p.tier, 'lg')}</div><div class="nm ellipsis">${S.PARTS[p.type].name}</div><div class="meta">${t.name} · ${S.partEffect(p.type, p.tier)}</div>${S.partPoolFor(me.cars.map((c) => c.model)).includes(p.type) ? '' : `<div class="meta ptype-tag">${S.PARTS[p.type].ev ? 'для електро' : 'для бензинових'}</div>`}</div>${sell}</div>`;
     }).join('')}</div>`;
   } else {
     stage = `<div class="reel-wrap" id="reelWrap"><div class="reel" id="reel">${Array.from({ length: 6 }, () => partReelCard(randomPartFor(pc))).join('')}</div></div>`;
   }
   const alive = d ? d.filter((p) => !p.sold) : [];
   const sum = alive.reduce((s, p) => s + Math.floor(S.TIER_BY_ID[p.tier].price * S.PART_SELL_RATE), 0);
+  const myPool = S.partPoolFor(me.cars.map((c) => c.model)); // what fits the player's cars (the server's random pool)
+  const fitTag = (k) => (myPool.includes(k) ? '' : `<small class="ptype-tag">${S.PARTS[k].ev ? 'для електро' : 'для бензинових'}</small>`);
   return seg + `
     <div class="ptypes">${[[null, 'Будь-яка'], ...S.PART_KEYS.map((k) => [k, S.PARTS[k].name])].map(([k, n]) => `<button class="ptype ${state.partType === k ? 'on' : ''}" data-act="pickPartType" data-k="${k ?? ''}">
-      ${k ? partArt(k, null, 'sm') : `<span class="part sm">${ic('adjustments')}</span>`}<span>${n}</span></button>`).join('')}</div>
+      ${k ? partArt(k, null, 'sm') : `<span class="part sm">${ic('adjustments')}</span>`}<span>${n}</span>${k ? fitTag(k) : ''}</button>`).join('')}</div>
     <div class="pcases">${S.PART_CASES.map((c) => {
       const off = c.randomOnly && state.partType;
       return `<button class="pcase ${c.id === state.partCase ? 'on' : ''}" data-act="pickPartCase" data-id="${c.id}" ${off ? 'disabled' : ''}>
@@ -2374,7 +2414,7 @@ TABS.shop = () => {
         : `<button class="btn" data-act="openParts" ${state.opening ? 'disabled' : ''}>${d ? 'Відкрити ще' : 'Відкрити'}${state.partCount > 1 ? ' ×' + state.partCount : ''} · ${S.fmt(price * state.partCount)}</button>`}
     ${d ? `<div class="btns mt"><button class="btn outline" data-act="shopView" data-k="stock">На склад</button>${alive.length ? `<button class="btn ghost btn2" data-act="sellDropParts"><span>${ic('cash')} Продати все</span><small>${S.short(sum)}</small></button>` : ''}</div>` : ''}
     <div class="card row between mt"><span>Швидке відкриття</span><button class="toggle ${state.fast ? 'on' : ''}" data-act="toggleFast"></button></div>
-    <div class="tiny muted center">${state.partType ? `Випадає лише «${S.PARTS[state.partType].name}», кейс на ${S.PICK_PART_EXTRA * 100}% дорожчий.` : 'Деталь випадає випадкова — обери конкретну вгорі, щоб збирати лише її.'} Три однакові деталі зливаються в одну рівнем вище на складі.</div>`;
+    <div class="tiny muted center">${state.partType ? `Випадає лише «${S.PARTS[state.partType].name}», кейс на ${S.PICK_PART_EXTRA * 100}% дорожчий.` : 'Випадає випадкова деталь з тих, що підходять твоїм машинам. Обери конкретну вгорі, щоб збирати лише її.'} Три однакові деталі зливаються в одну рівнем вище на складі.</div>`;
 };
 const partCasePrice = (id) => Math.round(S.PART_CASE_BY_ID[id].price * (state.partType ? 1 + S.PICK_PART_EXTRA : 1) / 100) * 100;
 function randomPartFor(pc) {
@@ -2385,7 +2425,8 @@ function randomPartFor(pc) {
     tier = t;
     break;
   }
-  return { type: state.partType || S.PART_KEYS[Math.floor(Math.random() * S.PART_KEYS.length)], tier };
+  const pool = S.partPoolFor(me.cars.map((c) => c.model));
+  return { type: state.partType || pool[Math.floor(Math.random() * pool.length)], tier };
 }
 const partReelCard = (p) => {
   const t = S.TIER_BY_ID[p.tier];
@@ -2709,6 +2750,7 @@ TABS.menu = () => {
     ])
     + `<div class="mgroup">Налаштування</div><div class="list menu-list settings">
       <div class="li"><span class="mi" style="--c:${GR}">${ic('volume')}</span><div class="grow"><b>Звук</b><div class="tiny muted">Тихі ефекти кейсів, нагород і гонок · на цьому пристрої</div></div><button class="toggle ${SFX.isOn() ? 'on' : ''}" data-act="toggleSound" aria-label="Звук" aria-pressed="${SFX.isOn()}"></button></div>
+      <div class="li"><span class="mi" style="--c:${Y}">${ic('target-arrow')}</span><div class="grow"><b>Підказки перших кроків</b><div class="tiny muted">Смужка «Крок N/5» угорі екрана, поки новачок проходить перші кроки</div></div><button class="toggle ${me.claims.includes('guide-off') ? '' : 'on'}" data-act="toggleGuide" aria-label="Підказки перших кроків"></button></div>
       <div class="li"><span class="mi" style="--c:${ST}">${ic('bell')}</span><div class="grow"><b>Не турбувати</b><div class="tiny muted">Ніхто не зможе запросити тебе на обмін чи гонку</div></div><button class="toggle ${me.noInvites ? 'on' : ''}" data-act="toggleDnd" aria-label="Не турбувати"></button></div>
       <div class="li"><span class="mi" style="--c:${BL}">${ic('clock')}</span><div class="grow"><b>Нагадування від бота</b><div class="tiny muted">${me.pushOn && me.pushBlocked ? 'Бот не може тобі написати — відкрий чат з ботом і натисни /start' : 'Повний бак, дохід гаража, бонус — не частіше 2 разів на день і не вночі'}</div></div><button class="toggle ${me.pushOn ? 'on' : ''}" data-act="togglePush" aria-label="Нагадування від бота"></button></div>
       <div class="li"><span class="mi" style="--c:${Y}">${ic('copy')}</span><div class="grow"><div class="tiny muted">Твій ID для обмінів</div><b class="disp">${me.id}</b></div><button class="btn sm ghost" data-act="copyId">Копіювати</button></div></div>`;
@@ -3555,8 +3597,8 @@ function overfullHtml() {
   const cheapest = me.cars.filter((c) => c.status === 'garage' && !M(c.model).secret).sort((a, b) => a.value - b.value).slice(0, extra);
   const sum = cheapest.reduce((s, c) => s + sellPrice(c), 0);
   return `<div class="card warnbox mt"><b>${ic('info-circle')} Гараж переповнений: ${used}/${me.slots}</b>
-    <div class="small">Продай ${extra} ${extra === 1 ? 'машину' : extra < 5 ? 'машини' : 'машин'} або купи місце. Поки що дохід приносять лише ${me.slots} найкращих, а нові кейси відкрити не можна.</div>
-    ${cheapest.length === extra ? `<button class="btn sm ghost mt" data-act="sellExtras" data-ids="${cheapest.map((c) => c.id).join(',')}">${ic('cash')} Продати ${extra} найдешевших · ${S.short(sum)}</button>` : ''}</div>`;
+    <div class="small">Продай ${extra} ${plural(extra, ['машину', 'машини', 'машин'])} або купи місце. Поки що дохід приносять лише ${me.slots} найкращих, а нові кейси відкрити не можна.</div>
+    ${cheapest.length === extra ? `<button class="btn sm ghost mt" data-act="sellExtras" data-ids="${cheapest.map((c) => c.id).join(',')}">${ic('cash')} Продати ${extra === 1 ? 'найдешевшу' : `${extra} ${plural(extra, ['найдешевшу', 'найдешевші', 'найдешевших'])}`} · ${S.short(sum)}</button>` : ''}</div>`;
 }
 H.battleSell = async (d, el) => {
   if (!armed(el, 'Точно?')) return;
@@ -3690,7 +3732,8 @@ PAGES.quests = async () => {
 H.questTab = (d) => (state.questTab = d.k, render());
 // ---------- weekly route: 4 tasks for fragments + chests for active days ----------
 const WD = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
-const chestText = (c, w) => [c.key ? `Ключ «${S.CASE_BY_ID[w.caseId].name}»` : '', c.frag ? `${c.frag} фрагменти ключа` : '', c.parts ? `${c.parts} деталей ${S.TIER_BY_ID[w.partTier].name}` : '', c.fuel ? 'повний бак' : ''].filter(Boolean).join(' + ');
+const fragWord = (n) => plural(n, ['фрагмент', 'фрагменти', 'фрагментів']);
+const chestText = (c, w) => [c.key ? `Ключ «${S.CASE_BY_ID[w.caseId].name}»` : '', c.frag ? `${c.frag} ${fragWord(c.frag)} ключа` : '', c.parts ? `${c.parts} ${plural(c.parts, ['деталь', 'деталі', 'деталей'])} ${S.TIER_BY_ID[w.partTier].name}` : '', c.fuel ? 'повний бак' : ''].filter(Boolean).join(' + ');
 async function weeklyPage() {
   const w = await api('weekly');
   const cs = S.CASE_BY_ID[w.caseId];
@@ -3702,10 +3745,10 @@ async function weeklyPage() {
       ${w.chests.map((c) => `<span class="wk-mark" style="left:${(c.days / max) * 100}%">${c.days}</span>`).join('')}</div></div>
     <div class="h2"><span>Скрині тижня</span><span>${w.active}/${max} днів</span></div>
     ${w.chests.map((c) => `<div class="card row wk-chest${c.ready && !c.claimed ? ' ready' : ''}"><div class="wk-ic">${ic(c.claimed ? 'check' : c.ready ? 'gift' : 'lock')}</div>
-      <div class="grow"><b>${c.days} активних ${c.days > 4 ? 'днів' : 'дні'}</b><div class="small muted">${esc(chestText(c, w))}</div></div>
+      <div class="grow"><b>${c.days} ${plural(c.days, ['активний день', 'активні дні', 'активних днів'])}</b><div class="small muted">${esc(chestText(c, w))}</div></div>
       ${c.claimed ? '<span class="chip">Відкрито</span>' : `<button class="btn sm" data-act="wkChest" data-d="${c.days}" ${c.ready ? '' : 'disabled'}>${c.ready ? 'Відкрити' : `${w.active}/${c.days}`}</button>`}</div>`).join('')}
     <div class="h2"><span>Завдання тижня</span><span>${caseIcon(cs)} фрагменти: ${w.fragments}/${S.FRAGMENTS_PER_KEY}</span></div>
-    ${w.list.map((x) => questCard({ text: x.text, progress: x.progress, target: x.target, claimed: x.claimed, reward: `${ic('key')} ${x.frag} фрагменти «${esc(cs.name)}» · +${S.XP.quest} досвіду`,
+    ${w.list.map((x) => questCard({ text: countFix(x.text), progress: x.progress, target: x.target, claimed: x.claimed, reward: `${ic('key')} ${x.frag} ${fragWord(x.frag)} «${esc(cs.name)}» · +${S.XP.quest} досвіду`,
       btn: x.progress < x.target ? '' : `<button class="btn sm" data-act="wkClaim" data-k="${x.key}">Забрати</button>` })).join('')}
     <div class="tiny muted center mt">${S.FRAGMENTS_PER_KEY} фрагментів = ключ. Ключ залежить від рівня. Новий маршрут — щопонеділка о 00:00 за Києвом</div>`;
 }
@@ -3718,9 +3761,9 @@ function questCard({ text, progress, target, claimed, reward, btn }) {
       <div class="progress"><i style="width:${Math.min(100, (progress / target) * 100)}%"></i></div>
       <div class="row between"><span class="small q-rw">${reward}</span>${claimed ? '<span class="chip">Отримано</span>' : btn || '<span class="chip">у процесі</span>'}</div></div></div>`;
 }
-const wkClaimText = (r) => `+${r.frag} фрагменти «${S.CASE_BY_ID[r.caseId].name}»${r.newKeys ? ' — зібрано ключ!' : ''}`;
+const wkClaimText = (r) => `+${r.frag} ${fragWord(r.frag)} «${S.CASE_BY_ID[r.caseId].name}»${r.newKeys ? ' — зібрано ключ!' : ''}`;
 H.wkClaim = (d) => act('weekly/claim', { key: d.k }, wkClaimText);
-H.wkChest = (d) => act('weekly/chest', { days: Number(d.d) }, (r) => 'Скриня: ' + [r.keys ? `ключ «${S.CASE_BY_ID[r.caseId].name}»` : '', r.frag ? `+${r.frag} фрагменти${r.newKeys ? ' (ключ зібрано!)' : ''}` : '', r.items ? `${r.items.length} деталей` : '', r.fuel ? 'повний бак' : ''].filter(Boolean).join(', '));
+H.wkChest = (d) => act('weekly/chest', { days: Number(d.d) }, (r) => 'Скриня: ' + [r.keys ? `ключ «${S.CASE_BY_ID[r.caseId].name}»` : '', r.frag ? `+${r.frag} ${fragWord(r.frag)}${r.newKeys ? ' (ключ зібрано!)' : ''}` : '', r.items ? `${r.items.length} ${plural(r.items.length, ['деталь', 'деталі', 'деталей'])}` : '', r.fuel ? 'повний бак' : ''].filter(Boolean).join(', '));
 async function dailyQuests() {
   const { list } = await api('quests');
   const n = me.newbie;
@@ -3744,7 +3787,7 @@ function seasonCard() {
   return `<button class="card season-card" data-act="go" data-page="season">
     <div class="row between"><b class="disp" style="font-size:17px">${ic('ticket')} Пропуск · Сезон ${s.id}</b><span class="chip">${s.level}/${S.SEASON.levels}</span></div>
     <div class="progress gold mt"><i style="width:${pct}%"></i></div>
-    <div class="row between mt small"><span class="muted">${s.ready ? `<b style="color:var(--accent)">Нагород до забору: ${s.ready}</b>` : `до кінця сезону <span data-until="${s.endsAt - clockOffset}"></span>`}</span>${s.premium ? `<span style="color:var(--accent)">${ic('crown')} Преміум</span>` : '<span class="muted">Преміум</span>'}</div></button>`;
+    <div class="row between mt small"><span class="muted">${s.ready ? `<b style="color:var(--accent)">Можна забрати: ${s.ready}</b>` : `до кінця сезону <span data-until="${s.endsAt - clockOffset}"></span>`}</span>${s.premium ? `<span style="color:var(--accent)">${ic('crown')} Преміум</span>` : '<span class="muted">Преміум</span>'}</div></button>`;
 }
 const passCell = (rw, state) => {
   const icon = rw.seasonCar ? 'car-turbine' : rw.caseId ? 'gift' : rw.parts ? 'tool' : 'coin';
@@ -3882,18 +3925,24 @@ function paintGuide() {
   document.querySelectorAll('.guide-hi').forEach((el) => el.classList.remove('guide-hi'));
   $('#guide')?.remove();
   const key = guideKey();
-  if (!key || state.race || state.drift || state.opening) return;
+  // Only on the five main tabs (not over Магазин, Підтримка…), and never over a race, a drift run or a spinning case.
+  if (!key || state.page || state.race || state.drift || state.opening) return;
   const st = S.GUIDE_STEPS.find((s) => s.key === key);
-  const here = !st.tab || (st.tab === state.tab && !state.page);
+  const here = !st.tab || st.tab === state.tab;
   const n = S.GUIDE_PATH.indexOf(key === 'case' ? 'keep' : key);
   const nb = me.newbie?.ready ? me.newbie : null;
+  const open = here && guideOpen;
+  // A slim progress pill (~36 px): on the step's own tab it says what to do and expands on tap (the hint text, hide);
+  // on another tab it says where to go and takes you there.
   const el = document.createElement('div');
   el.id = 'guide';
-  el.className = 'guide';
-  el.innerHTML = `<div class="guide-dots">${S.GUIDE_PATH.map((_, i) => `<i class="${i < n ? 'done' : i === n ? 'on' : ''}"></i>`).join('')}<span>Перші кроки · ${n + 1}/${S.GUIDE_PATH.length}</span><button class="guide-x" data-act="guideOff" aria-label="Не підказувати">${ic('x')}</button></div>
-    <div class="guide-row" ${here ? '' : `data-act="guideGo"`}><span class="guide-ic">${ic(here ? 'arrow-right' : 'chevron-right')}</span>
-      <div class="grow"><b>${esc(st.title)}</b><div class="small">${here ? esc(st.text) : `Перейди у вкладку «${TITLES[st.tab]}» внизу`}</div></div></div>
-    ${nb ? `<button class="btn sm outline guide-claim" data-act="newbieQuest">${ic('gift')} Забрати +${S.short(nb.money)} за завдання</button>` : ''}`;
+  el.className = `guide pill${open ? ' open' : ''}`;
+  el.innerHTML = `<div class="guide-bar"><button class="guide-main" data-act="${here ? 'guideToggle' : 'guideGo'}" aria-expanded="${open}">
+      <span class="guide-dots">${S.GUIDE_PATH.map((_, i) => `<i class="${i < n ? 'done' : i === n ? 'on' : ''}"></i>`).join('')}</span>
+      <span class="guide-t"><b>${n + 1}/${S.GUIDE_PATH.length}</b> ${here ? '' : `<span class="guide-to">${ic('arrow-right')}${TITLES[st.tab]}:</span> `}${esc(st.title)}</span>
+      <span class="guide-chev">${ic('chevron-right')}</span></button>
+    ${nb ? `<button class="guide-gift" data-act="newbieQuest" aria-label="Забрати нагороду за завдання">${ic('gift')}+${S.short(nb.money).replace(' ₴', '')}</button>` : ''}</div>
+    ${open ? `<div class="guide-more"><div class="small">${esc(st.text)}</div><button class="guide-off" data-act="guideOff">Сховати підказки (повернути: Меню → Налаштування)</button></div>` : ''}`;
   $('#view').prepend(el);
   const target = here ? $(st.target) : $(`#tabs button[data-tab="${st.tab}"]`);
   if (!target) return;
@@ -3907,6 +3956,11 @@ function paintGuide() {
   }
 }
 let guideScrolled = null;
+let guideOpen = false;
+H.guideToggle = () => {
+  guideOpen = !guideOpen;
+  paintGuide();
+};
 H.guideGo = () => {
   const st = S.GUIDE_STEPS.find((s) => s.key === guideKey());
   if (!st?.tab) return;
@@ -3918,7 +3972,12 @@ H.guideGo = () => {
 };
 H.guideOff = async () => {
   if (!(await confirmBox('Сховати підказки перших кроків?'))) return;
-  await act('guide/off', {}, 'Підказки сховано');
+  await act('guide/off', {}, 'Підказки сховано — увімкнути знову можна в Меню → Налаштування');
+};
+H.toggleGuide = async () => {
+  const off = me.claims.includes('guide-off');
+  if (!off) return H.guideOff();
+  if (await act('guide/on', {}, null)) toast(me.guide ? 'Підказки перших кроків увімкнено' : 'Підказки увімкнено, але перші кроки вже пройдено');
 };
 let guideWas = null;
 // Called after every refresh: the last step done → a small celebration.
@@ -4030,7 +4089,7 @@ PAGES.upgrade = () => {
       <div class="side">${t ? `<div class="art">${carArt(t.id)}</div><div class="tiny ellipsis">${esc(t.name)}</div><b class="small">${S.short(t.price)}</b>` : '<div class="small muted" style="padding-top:28px">Ціль</div>'}</div></div>
     ${stake ? `<div class="chips mt">${[1.5, 2, 3, 5, 10, 20].map((k) => `<button data-act="upMult" data-k="${k}">×${k}</button>`).join('')}</div>` : ''}
     <button class="btn yellow" data-act="doUpgrade" ${stake && t && !U.spinning ? '' : 'disabled'}>${t && stake ? `Апгрейд · шанс ${pct(chance * 100)}` : 'Апгрейд'}</button>
-    <div class="tiny muted center mt">Ставиш до ${S.UPGRADE.maxCars} авто (рахується ціна моделей), кожне наступне після першого знімає ${S.UPGRADE.perExtraCar * 100}% шансу. Виграв — отримуєш ціль, програв — авто згорають. Деталі й номери з них повертаються на склад у будь-якому разі.</div>
+    <div class="tiny muted center mt">До ${S.UPGRADE.maxCars} машин (рахується ціна моделей). Кожна додаткова −${S.UPGRADE.perExtraCar * 100}% шансу. Виграв — отримуєш ціль, програв — авто згорають. Деталі й номери з них повертаються на склад у будь-якому разі.</div>
     <div class="h2"><span>Твої авто · ${U.cars.size}/${S.UPGRADE.maxCars}</span><span>${S.short(stake)}</span></div>
     <div class="grid">${garage.map((c) => carTile(c, { act: 'upCar', sel: U.cars.has(c.id) })).join('')}</div>
     ${list.length ? `<div class="h2"><span>Ціль</span><span>${list.length}</span></div>
@@ -4853,6 +4912,7 @@ H.bannerClaim = async (d) => {
 H.bannerOpen = (d) => {
   const b = banners.get(d.key);
   if (!b) return;
+  if (b.data.open) return (hideBanner(d.key), b.data.open());
   const k = b.data.kind;
   if (b.data.invite) return;
   hideBanner(d.key);

@@ -82,7 +82,7 @@ test('bot texts: description limits and the /start message', () => {
   assert.match(BOT_DESCRIPTION, /безкоштовн/);
 
   const fresh = startText({ name: 'Оля', created: true });
-  assert.match(fresh, /^🏁 Привіт, Оля! Вітаю в АВТОДРОП/);
+  assert.match(fresh, /^🏁 Привіт, Оля! Вітаємо в АВТОДРОПі/);
   assert.equal(fresh.split('\n').filter((l) => /^(🎁|🚗|🏎) /.test(l)).length, 3, 'three hooks');
   assert.match(fresh, /Стартовий кейс уже твій/);
   assert.match(fresh, /Тисни «Грати» 👇$/);

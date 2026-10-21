@@ -22,7 +22,7 @@ export function startText({ name, created = false, ref = false, pushBack = false
   const hi = name ? `Привіт, ${name}!` : 'Привіт!';
   const lines = [];
   if (pushBack) lines.push('🔔 Нагадування знову увімкнено.', '');
-  lines.push(created ? `🏁 ${hi} Вітаю в АВТОДРОП — тут збирають гараж мрії.` : `🏁 ${hi} Гараж чекає на тебе.`, '');
+  lines.push(created ? `🏁 ${hi} Вітаємо в АВТОДРОПі — тут збирають гараж мрії.` : `🏁 ${hi} Гараж чекає на тебе.`, '');
   lines.push(
     created ? '🎁 Стартовий кейс уже твій — відкрий безкоштовно' : '🎁 Щоденний бонус і кейс нагород — забирай щодня',
     `🚗 ${CARS} справжні авто: від «Запорожця» до Bugatti`,
