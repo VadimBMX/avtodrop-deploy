@@ -9,12 +9,14 @@ import { createGame, GameError } from './src/game.js';
 import { verifyInitData } from './src/auth.js';
 import { createBot } from './src/bot.js';
 import { createSender, createReminders } from './src/reminders.js';
+import { createStatic, compressSmall } from './src/static.js';
 import { PACKS, REF_REWARD } from './public/shared.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.ico': 'image/x-icon', '.webp': 'image/webp', '.woff2': 'font/woff2', '.json': 'application/json; charset=utf-8' };
 const CSP = "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'self' https://web.telegram.org https://*.telegram.org";
+const SECURITY = { 'x-content-type-options': 'nosniff', 'content-security-policy': CSP, 'referrer-policy': 'no-referrer' };
 
 export function createApp({ dbFile, token = '', dev = false, webappUrl = '', admins = [], adminKey = '', log = console.error } = {}) {
   const db = openDb(dbFile);
@@ -32,7 +34,11 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     reminders = createReminders({ game, sender, markup: () => bot.playButton('🎁 Відкрити гру'), log });
   }
 
+  // Static files: gzip/brotli once per file version, ?v=<hash> URLs cached for a year, the rest revalidated (src/static.js).
+  const statics = createStatic({ root: PUBLIC, mime: MIME, headers: SECURITY });
+
   // Photos dropped into public/cars/<model-id>.(webp|png|jpg) and public/parts/<part-type>.(…) are picked up automatically.
+  // Their URLs carry ?v=<content hash>, so the browser keeps them for good and a replaced photo gets a new URL at once.
   const imagesCache = {};
   function folderImages(dir) {
     const c = imagesCache[dir];
@@ -41,7 +47,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     try {
       for (const f of fs.readdirSync(path.join(PUBLIC, dir))) {
         const m = /^([a-z0-9-]+)\.(webp|png|jpe?g)$/i.exec(f);
-        if (m) map[m[1]] = `${dir}/${f}`;
+        if (m) map[m[1]] = statics.version(`${dir}/${f}`);
       }
     } catch {}
     imagesCache[dir] = { map, until: Date.now() + 30e3 };
@@ -136,8 +142,12 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
   }
 
   function send(res, code, body, type = 'application/json; charset=utf-8') {
-    res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'content-security-policy': CSP, 'referrer-policy': 'no-referrer' });
-    res.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
+    const h = { 'content-type': type, 'cache-control': 'no-store', ...SECURITY };
+    const raw = Buffer.isBuffer(body) ? body : Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));
+    const z = type.startsWith('application/json') ? compressSmall(raw, res.req?.headers['accept-encoding']) : null;
+    if (z) Object.assign(h, { 'content-encoding': z.kind, vary: 'Accept-Encoding' });
+    res.writeHead(code, h);
+    res.end(z ? z.body : raw);
   }
   function readBody(req) {
     return new Promise((resolve, reject) => {
@@ -191,15 +201,12 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     return send(res, 200, out);
   }
 
-  function serveStatic(req, res, pathname) {
+  async function serveStatic(req, res, pathname, v) {
     let rel = decodeURIComponent(pathname);
     if (rel === '/') rel = '/index.html';
     const file = path.normalize(path.join(PUBLIC, rel));
     if (!file.startsWith(PUBLIC + path.sep)) return send(res, 403, 'Forbidden', 'text/plain');
-    fs.readFile(file, (err, data) => {
-      if (err) return send(res, 404, 'Not found', 'text/plain');
-      send(res, 200, data, MIME[path.extname(file)] || 'application/octet-stream');
-    });
+    if (!(await statics.serve(req, res, path.relative(PUBLIC, file).split(path.sep).join('/'), v))) send(res, 404, 'Not found', 'text/plain');
   }
 
   function devRailway(res, args) {
@@ -243,7 +250,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
   }
 
   const server = http.createServer(async (req, res) => {
-    const { pathname } = new URL(req.url, 'http://x');
+    const { pathname, searchParams } = new URL(req.url, 'http://x');
     try {
       if (pathname === '/healthz') return send(res, 200, 'ok', 'text/plain');
       // DEV only, from this computer: process new photos in raw-cars (`npm run cars`) or re-fit all photos to one canvas.
@@ -254,7 +261,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
       if (pathname.startsWith('/api/admin/')) return await handleAdmin(req, res, pathname.slice(11));
       if (pathname.startsWith('/api/')) return await handleApi(req, res, pathname.slice(5));
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed', 'text/plain');
-      return serveStatic(req, res, pathname);
+      return await serveStatic(req, res, pathname, searchParams.get('v'));
     } catch (e) {
       if (e instanceof GameError) return send(res, 400, { error: e.message });
       log('server error:', e);
@@ -272,7 +279,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
   sweeper.unref();
 
   return {
-    server, game, db, bot, sender, reminders,
+    server, game, db, bot, sender, reminders, statics,
     async start(port) {
       if (bot) {
         try {
@@ -315,6 +322,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     adminKey: process.env.ADMIN_KEY || '',
   });
   const port = await app.start(Number(process.env.PORT) || 3100);
+  // Hash and compress the static files right away so the first player after a deploy doesn't wait for brotli.
+  app.statics.warm().catch((e) => console.error('static warm-up:', e));
   console.log(`АВТОДРОП: http://localhost:${port}${dev ? '  (DEV-режим: вхід без Telegram)' : ''}`);
   console.log(`Адмін-панель: http://localhost:${port}/admin.html`);
   if (process.env.ADMIN_KEY && process.env.ADMIN_KEY.length < 16) console.warn('Увага: ADMIN_KEY коротший за 16 символів — зроби його довгим і випадковим.');

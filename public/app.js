@@ -4763,6 +4763,7 @@ H.toggleDnd = async () => {
     } catch {}
     tg.BackButton?.onClick(back);
   }
+  PAINT.loadPaintMeta(); // in parallel with /api/config: one round trip less before the first screen
   try {
     config = await (await fetch('/api/config')).json();
   } catch {}
