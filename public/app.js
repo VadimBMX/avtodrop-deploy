@@ -577,6 +577,7 @@ TABS.garage = () => {
     <div class="big" id="pending">${S.fmt(pending)}</div>
     <div class="progress mt"><i id="capBar" style="width:${fill}%"></i></div>
     <button class="btn mt" data-act="collect" ${pending < 1 ? 'disabled' : ''}>Забрати</button>
+    ${i.comebackUntil ? `<div class="tiny center mt" style="color:#30d158">${ic('gift')} Подарунок повернення: +${S.COMEBACK.capHours} год сховища ще <span data-until="${i.comebackUntil - clockOffset}"></span></div>` : ''}
     <div class="tiny muted center mt">Копиться до ${i.capH} год, потім зупиняється${nextCap ? ` · <a data-act="upgradeCap" style="color:#f5b301">сховище до ${nextCap.hours} год за ${S.short(nextCap.cost)}</a>` : ''}</div>
   </div>
   <div class="h2"><span>Машини ${cars.length}/${me.slots}</span><span>${S.short(total)}</span></div>
@@ -1919,7 +1920,7 @@ TABS.menu = () => {
   return seasonCard() + group('Грати', [
       row('battles', 'flame', 'Кейс-батли', '#ff9500'),
       row('upgrade', 'arrow-big-up-lines', 'Апгрейд', '#af52de'),
-      row('quests', 'target-arrow', 'Завдання', '#ff3b30', 'щодня нові'),
+      row('quests', 'target-arrow', 'Завдання', '#ff3b30', 'щодня й щотижня'),
     ])
     + group('Торгівля', [
       row('market', 'building-store', 'Ринок', '#34c759'),
@@ -2693,6 +2694,35 @@ H.sendTrade = async () => {
 
 // ---------- quests ----------
 PAGES.quests = async () => {
+  const seg = `<div class="seg">${[['day', 'Сьогодні'], ['week', 'Тиждень']].map(([k, t]) => `<button class="${(state.questTab || 'day') === k ? 'on' : ''}" data-act="questTab" data-k="${k}">${t}</button>`).join('')}</div>`;
+  return seg + (state.questTab === 'week' ? await weeklyPage() : await dailyQuests());
+};
+H.questTab = (d) => (state.questTab = d.k, render());
+// ---------- weekly route: 4 tasks for fragments + chests for active days ----------
+const WD = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
+const chestText = (c, w) => [c.key ? `Ключ «${S.CASE_BY_ID[w.caseId].name}»` : '', c.frag ? `${c.frag} фрагменти ключа` : '', c.parts ? `${c.parts} деталей ${S.TIER_BY_ID[w.partTier].name}` : '', c.fuel ? 'повний бак' : ''].filter(Boolean).join(' + ');
+async function weeklyPage() {
+  const w = await api('weekly');
+  const cs = S.CASE_BY_ID[w.caseId];
+  const max = S.WEEK_CHEST[S.WEEK_CHEST.length - 1].days;
+  return `<div class="card wk-head"><div class="row between"><b class="disp" style="font-size:17px">${ic('calendar')} Тижневий маршрут</b><span class="chip">до понеділка <span data-until="${w.endsAt - clockOffset}"></span></span></div>
+    <div class="small muted mt">Активний день — забрано ${S.WEEK_ACTIVE_QUESTS} з 3 щоденних завдань</div>
+    <div class="wk-days mt">${w.days.map((d, i) => `<span class="wk-day${d.active ? ' on' : ''}${d.day === w.today ? ' today' : ''}">${d.active ? ic('check') : WD[i]}</span>`).join('')}</div>
+    <div class="wk-track mt"><div class="progress gold"><i style="width:${Math.min(100, (w.active / max) * 100)}%"></i></div>
+      ${w.chests.map((c) => `<span class="wk-mark" style="left:${(c.days / max) * 100}%">${c.days}</span>`).join('')}</div></div>
+    <div class="h2"><span>Скрині тижня</span><span>${w.active}/${max} днів</span></div>
+    ${w.chests.map((c) => `<div class="card row wk-chest${c.ready && !c.claimed ? ' ready' : ''}"><div class="wk-ic">${ic(c.claimed ? 'check' : c.ready ? 'gift' : 'lock')}</div>
+      <div class="grow"><b>${c.days} активних ${c.days > 4 ? 'днів' : 'дні'}</b><div class="small muted">${esc(chestText(c, w))}</div></div>
+      ${c.claimed ? '<span class="chip">Відкрито</span>' : `<button class="btn sm" data-act="wkChest" data-d="${c.days}" ${c.ready ? '' : 'disabled'}>${c.ready ? 'Відкрити' : `${w.active}/${c.days}`}</button>`}</div>`).join('')}
+    <div class="h2"><span>Завдання тижня</span><span>${caseIcon(cs)} фрагменти: ${w.fragments}/${S.FRAGMENTS_PER_KEY}</span></div>
+    ${w.list.map((x) => `<div class="card"><div class="row between"><b>${esc(x.text)}</b><span class="small muted">${x.progress}/${x.target}</span></div><div class="progress mt"><i style="width:${(x.progress / x.target) * 100}%"></i></div>
+      <div class="row between mt"><span class="small">${ic('key')} ${x.frag} фрагменти «${esc(cs.name)}» · +${S.XP.quest} досвіду</span>${x.claimed ? '<span class="chip">Отримано</span>' : `<button class="btn sm" data-act="wkClaim" data-k="${x.key}" ${x.progress < x.target ? 'disabled' : ''}>Забрати</button>`}</div></div>`).join('')}
+    <div class="tiny muted center mt">${S.FRAGMENTS_PER_KEY} фрагментів = ключ. Ключ залежить від рівня. Новий маршрут — щопонеділка о 00:00 за Києвом</div>`;
+}
+const wkClaimText = (r) => `+${r.frag} фрагменти «${S.CASE_BY_ID[r.caseId].name}»${r.newKeys ? ' — зібрано ключ!' : ''}`;
+H.wkClaim = (d) => act('weekly/claim', { key: d.k }, wkClaimText);
+H.wkChest = (d) => act('weekly/chest', { days: Number(d.d) }, (r) => 'Скриня: ' + [r.keys ? `ключ «${S.CASE_BY_ID[r.caseId].name}»` : '', r.frag ? `+${r.frag} фрагменти${r.newKeys ? ' (ключ зібрано!)' : ''}` : '', r.items ? `${r.items.length} деталей` : '', r.fuel ? 'повний бак' : ''].filter(Boolean).join(', '));
+async function dailyQuests() {
   const { list } = await api('quests');
   const n = me.newbie;
   return `${n ? `<div class="h2"><span>Завдання новачка</span><span>${n.step + 1}/${n.total}</span></div>
@@ -2700,7 +2730,7 @@ PAGES.quests = async () => {
     <div class="h2"><span>На сьогодні</span><span>оновлюються опівночі</span></div>
     ${list.map((x) => `<div class="card"><div class="row between"><b>${esc(countFix(x.text))}</b><span class="small muted">${x.progress}/${x.target}</span></div><div class="progress mt"><i style="width:${(x.progress / x.target) * 100}%"></i></div>
       <div class="row between mt"><span class="small">${ic('gift')} ${S.fmt(x.reward)} · +${S.XP.quest} досвіду</span>${x.claimed ? '<span class="chip">Отримано</span>' : x.progress < x.target ? '<span class="chip">у процесі</span>' : `<button class="btn sm" data-act="questClaim" data-k="${x.key}">Забрати</button>`}</div></div>`).join('')}`;
-};
+}
 H.newbieQuest = () => act('newbie/claim', {}, (r) => `+${S.fmt(r.got)}`);
 H.questClaim = (d) => act('quests/claim', { key: d.k }, (r) => `+${S.fmt(r.got)}`);
 
@@ -3552,6 +3582,15 @@ function showGift() {
     art = `<div class="gift-part pop">${partArt(d.type, d.tier, 'lg')}</div><b class="mt">${esc(S.partLabel(d.type, d.tier))} × ${d.count}</b>`;
   } else if (g.kind === 'keys') {
     art = `<div class="gift-ic">${caseIcon(S.CASE_BY_ID[d.caseId])}</div><b>${esc(S.CASE_BY_ID[d.caseId].name)} × ${d.count}</b><div class="small muted">ключі — відкрий кейс безкоштовно</div>`;
+  } else if (g.kind === 'comeback') {
+    // Welcome back (S.COMEBACK): granted on the server already, this window only shows what came.
+    title = 'З поверненням!';
+    color = '#30d158';
+    const lines = [`${ic('gas-station')} Повний бак і всі баки машин`, ...d.keys.map((k) => `${ic('key')} Ключ «${esc(S.CASE_BY_ID[k.caseId].name)}»${k.count > 1 ? ` ×${k.count}` : ''}`)];
+    if (d.capHours) lines.push(`${ic('clock')} Дохід копиться на ${d.capHours} год довше — ${d.capFor} год`);
+    art = `<div class="gift-ic" style="--c:${color}">${ic('car')}</div><div class="gift-sum" style="color:${color};font-size:26px">Гараж скучив за тобою</div>
+      <div class="small muted">тебе не було ${d.days} ${d.days % 10 >= 2 && d.days % 10 <= 4 && (d.days % 100 < 12 || d.days % 100 > 14) ? 'дні' : 'днів'}</div>
+      <div class="cb-list mt">${lines.map((l) => `<div>${l}</div>`).join('')}</div>`;
   } else if (g.kind === 'thanks') {
     title = 'Дякуємо! 💛';
     color = '#ffd60a';
@@ -3563,8 +3602,8 @@ function showGift() {
   }
   sheet(title, `<div class="center gift">${art}
     ${g.note ? `<div class="gift-note">${esc(g.note)}</div>` : ''}
-    <div class="tiny muted mt">від адміністрації АВТОДРОП</div>
-    <button class="btn yellow mt2" data-act="giftOk">${g.kind === 'message' ? 'Зрозуміло' : g.kind === 'thanks' ? 'Дякую! 💛' : 'Забрати'}</button></div>`);
+    ${g.kind === 'comeback' ? '' : '<div class="tiny muted mt">від адміністрації АВТОДРОП</div>'}
+    <button class="btn yellow mt2" data-act="giftOk">${g.kind === 'message' ? 'Зрозуміло' : g.kind === 'thanks' ? 'Дякую! 💛' : g.kind === 'comeback' ? 'Погнали!' : 'Забрати'}</button></div>`);
   haptic('success');
   if (g.kind !== 'message') setTimeout(() => {
     const r = $('#sheet')?.getBoundingClientRect();
@@ -3661,6 +3700,8 @@ H.bannerClaim = async (d) => {
   if (c.kind === 'income') return H.collect();
   if (c.kind === 'newbie') return act('newbie/claim', {}, (r) => `+${S.fmt(r.got)}`);
   if (c.kind === 'quest') return act('quests/claim', { key: c.id }, (r) => `+${S.fmt(r.got)}`);
+  if (c.kind === 'weekly') return H.wkClaim({ k: c.id });
+  if (c.kind === 'wchest') return H.wkChest({ d: c.id });
   if (c.kind === 'coll') return act('collection/claim', { key: c.id }, (r) => `Отримано: ${S.short(r.reward.money)}${r.reward.secret ? ' + секретна машина!' : ''}`);
   if (c.kind === 'ach') return act('ach/claim', { key: c.id }, (r) => `Досягнення: ${r.text}`);
   if (c.kind === 'achAll') return act('ach/claim', {}, (r) => `${r.tiers} досягнень: ${r.text}`);
@@ -3685,6 +3726,8 @@ H.bannerOpen = (d) => {
   if (k === 'newbie') return openProfile();
   state.tab = 'menu';
   if (k === 'pass') return go('season');
+  if (k === 'weekly' || k === 'wchest') return (state.questTab = 'week', go('quests'));
+  if (k === 'quest') state.questTab = 'day';
   go(k === 'quest' ? 'quests' : k === 'ach' || k === 'achAll' ? 'achievements' : 'collection');
 };
 H.togglePush = async () => {

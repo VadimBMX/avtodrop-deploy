@@ -184,6 +184,12 @@ CREATE TABLE IF NOT EXISTS badges (
   user_id INTEGER NOT NULL, key TEXT NOT NULL, title TEXT NOT NULL, tier INTEGER NOT NULL DEFAULT 0, season INTEGER, place INTEGER,
   created_at INTEGER NOT NULL, PRIMARY KEY (user_id, key)
 );
+-- Weekly route (S.WEEKLY_QUESTS): four tasks per player and Kyiv week (Monday date). Chest claims live in claims
+-- under "wk:<week>:<days>".
+CREATE TABLE IF NOT EXISTS weekly_quests (
+  user_id INTEGER, week TEXT, key TEXT, target INTEGER NOT NULL, progress INTEGER NOT NULL DEFAULT 0,
+  claimed INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, week, key)
+);
 CREATE TABLE IF NOT EXISTS admin_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT, admin TEXT NOT NULL, action TEXT NOT NULL, target INTEGER, details TEXT, created_at INTEGER NOT NULL
 );
@@ -252,6 +258,9 @@ const MIGRATIONS = [
   'ALTER TABLE users ADD COLUMN push_count INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE users ADD COLUMN push_last INTEGER NOT NULL DEFAULT 0',
   "ALTER TABLE users ADD COLUMN push_sent TEXT NOT NULL DEFAULT '{}'",
+  // Comeback gift (S.COMEBACK): when it was last given, and until when the longer income cap lasts.
+  'ALTER TABLE users ADD COLUMN comeback_at INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE users ADD COLUMN comeback_cap_until INTEGER NOT NULL DEFAULT 0',
 ];
 
 export function openDb(file) {

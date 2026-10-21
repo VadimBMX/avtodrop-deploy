@@ -893,6 +893,45 @@ export const QUESTS = {
   market: { text: 'Купи або продай авто на ринку', range: [1, 1] },
 };
 
+// ---------- weekly route ----------
+// Four weekly tasks (Kyiv week, Monday 00:00), picked per player and week from this pool. Only solo actions: nothing
+// here is faster with a second account (no PvP, battles or market deals). Each pays WEEKLY_FRAG fragments of the
+// player's level key (FRAGMENTS_PER_KEY of them make a key, so all four ≈ one key) + XP.quest.
+export const WEEKLY_QUESTS = {
+  open: { text: 'Відкрий {n} кейсів з машинами', range: [20, 30] },
+  win: { text: 'Виграй {n} заїздів', range: [12, 20] },
+  collect: { text: 'Забери дохід гаража {n} раз', range: [8, 12] },
+  merge: { text: 'Злий деталі {n} раз', range: [4, 6] },
+  country: { text: 'Відкрий {n} кейсів країн', range: [3, 5] },
+  perfect: { text: 'Зроби {n} ідеальних перемикань', range: [25, 40] },
+  drift: { text: 'Проїдь {n} дрифт-заїздів', range: [4, 6] },
+  parts: { text: 'Відкрий {n} кейсів з деталями', range: [8, 12] },
+};
+export const WEEKLY_COUNT = 4;
+export const WEEKLY_FRAG = 2;
+// A day of the week is active when at least this many of its three daily tasks were claimed (real play, not a login).
+export const WEEK_ACTIVE_QUESTS = 2;
+// Chests for active days. key: level keys; frag: fragments of the level key; parts: parts of the level's tier;
+// fuel: a full shared tank. A 7/7 week gives at most ≈2¼ level keys (tasks 1, chests 1¼) + 5 parts — no money;
+// test/weekly.test.js keeps it under 20% (in instant-sale value) of what the week's daily tasks pay.
+export const WEEK_CHEST = [
+  { days: 3, parts: 5 },
+  { days: 5, frag: 2, fuel: true },
+  { days: 7, key: 1 },
+];
+// The key that fits a level; low levels get cheap keys so fresh second accounts can't farm dear cars to pass on.
+// Steps are set so a 7/7 week stays at 6–20% of the week's daily-task money on every level (premium only from 30).
+export const levelKey = (lvl) => (lvl < 5 ? 'rust' : lvl < 10 ? 'city' : lvl < 16 ? 'tuning' : lvl < 30 ? 'sport' : 'premium');
+export const levelPartTier = (lvl) => (lvl < 10 ? 'stock' : lvl < 20 ? 'street' : 'sport');
+
+// ---------- comeback ----------
+// Away minDays+ (level minLevel+, account older than minAgeDays, at most once per cooldownDays): full shared tank and
+// every car's tank + one small key. Away bigDays+: also the level key and, for capFor hours, an income cap longer by
+// capHours (like VIP; the two don't add up — the larger one counts). No money: the longer cap only lets income keep
+// coming while the player is away less often.
+export const COMEBACK = { minDays: 3, bigDays: 7, minLevel: 5, minAgeDays: 7, cooldownDays: 14, capHours: 4, capFor: 24 };
+export const comebackKey = (lvl) => (lvl < 10 ? 'rust' : 'city');
+
 export const COLLECTION_MILESTONES = [
   { n: 5, money: 20000 },
   { n: 10, money: 60000, slots: 1 },

@@ -509,8 +509,7 @@ a.armed { color: #ff8f93 !important; }
 .countdown.go { animation: countdown .9s ease-out forwards; }
 @keyframes countdown { 0% { transform: translate(-50%, -50%) scale(1.8); opacity: 0; } 20% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 80% { opacity: 1; } 100% { transform: translate(-50%, -50%) scale(.7); opacity: 0; } }
 
-/* ============================================================================================================
-   Minimal theme (v2): pure black, iOS-style grey cards, system font, no caps, one amber button per screen,
+/* =====================================================================================================   Minimal theme (v2): pure black, iOS-style grey cards, system font, no caps, one amber button per screen,
    floating pill tab bar. It only overrides the rules above, so deleting this block brings back the v1 look
    (full v1 copy: design-backup/v1-amber).
    ============================================================================================================ */
@@ -1139,3 +1138,19 @@ select { -webkit-appearance: none; appearance: none; width: 100%; font: inherit;
 @keyframes guideNudge { 0%, 100% { translate: 0 0; } 50% { translate: 0 3px; } }
 @keyframes guideIn { from { opacity: 0; transform: translateY(-6px); } }
 @media (prefers-reduced-motion: reduce) { .guide, .guide-ic, .guide-hi { animation: none; } }
+/* ---------- weekly route (Завдання → Тиждень) and the comeback window ---------- */
+.wk-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.wk-day { aspect-ratio: 1; max-width: 40px; margin: 0 auto; width: 100%; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: var(--card2); border: 1px solid var(--line); font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.wk-day.on { background: var(--accent); border-color: var(--accent); color: #111; font-size: 16px; }
+.wk-day.today { box-shadow: 0 0 0 2px var(--accent-soft); border-color: var(--accent); }
+.wk-track { position: relative; padding-bottom: 18px; }
+.wk-track .progress { height: 6px; border-radius: 3px; }
+.wk-mark { position: absolute; top: 9px; transform: translateX(-50%); font-size: 10.5px; font-weight: 700; color: var(--muted); }
+.wk-mark:last-child { transform: translateX(-100%); }
+.wk-chest { align-items: center; gap: 12px; }
+.wk-chest .wk-ic { width: 40px; height: 40px; flex: none; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 21px; background: var(--card2); color: var(--muted); }
+.wk-chest.ready { border-color: var(--accent); }
+.wk-chest.ready .wk-ic { background: var(--accent); color: #111; }
+.cb-list { display: grid; gap: 8px; text-align: left; max-width: 300px; margin-left: auto; margin-right: auto; }
+.cb-list > div { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 10px; background: var(--card2); font-size: 14px; }

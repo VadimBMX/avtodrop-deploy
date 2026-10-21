@@ -205,7 +205,10 @@ export function createGame(db, opts = {}) {
   }
   function incomeState(u) {
     const rate = incomeRate(u.id);
-    const capH = S.CAP_LEVELS[u.cap_level].hours + ((u.vip_until || 0) > now() ? S.VIP.extraHours : 0);
+    // VIP and the comeback gift both lengthen the cap; they don't add up. The comeback cap covers every stretch of
+    // income that began before it ran out (it was banked when given, so the hours before it never count).
+    const extra = Math.max((u.vip_until || 0) > now() ? S.VIP.extraHours : 0, u.income_at < (u.comeback_cap_until || 0) ? S.COMEBACK.capHours : 0);
+    const capH = S.CAP_LEVELS[u.cap_level].hours + extra;
     const elapsed = Math.max(0, now() - u.income_at) / 3600e3;
     const cap = rate * capH;
     // Income already banked is never lost, even if the cap shrinks after selling a car.
@@ -214,7 +217,7 @@ export function createGame(db, opts = {}) {
   }
   // Freeze income earned so far before the set or value of cars changes.
   function bank(uid) {
-    const u = q('SELECT id, banked, income_at, cap_level, vip_until FROM users WHERE id = ?').get(uid);
+    const u = q('SELECT id, banked, income_at, cap_level, vip_until, comeback_cap_until FROM users WHERE id = ?').get(uid);
     q('UPDATE users SET banked = ?, income_at = ? WHERE id = ?').run(incomeState(u).pending, now(), uid);
   }
 
@@ -288,6 +291,29 @@ export function createGame(db, opts = {}) {
   function track(uid, key, n = 1) {
     const day = ensureQuests(uid);
     q('UPDATE quests SET progress = MIN(target, progress + ?) WHERE user_id = ? AND day = ? AND key = ?').run(n, uid, day, key);
+    if (S.WEEKLY_QUESTS[key]) {
+      const week = ensureWeekly(uid);
+      q('UPDATE weekly_quests SET progress = MIN(target, progress + ?) WHERE user_id = ? AND week = ? AND key = ?').run(n, uid, week, key);
+    }
+  }
+  // Four weekly tasks, picked from sha256(uid:week) like the daily ones; made on first use in the week.
+  function ensureWeekly(uid) {
+    const week = weekOf(now());
+    if (q('SELECT COUNT(*) n FROM weekly_quests WHERE user_id = ? AND week = ?').get(uid, week).n) return week;
+    const h = sha256(`${uid}:w:${week}`);
+    const keys = Object.keys(S.WEEKLY_QUESTS);
+    const picked = [];
+    for (let i = 0; picked.length < S.WEEKLY_COUNT && i < 30; i++) {
+      const k = keys[parseInt(h.slice(i * 2, i * 2 + 2), 16) % keys.length];
+      if (!picked.includes(k)) picked.push(k);
+    }
+    for (const k of keys) if (picked.length < S.WEEKLY_COUNT && !picked.includes(k)) picked.push(k);
+    picked.forEach((k, j) => {
+      const [lo, hi] = S.WEEKLY_QUESTS[k].range;
+      const target = lo + (parseInt(h.slice(40 + j * 2, 42 + j * 2), 16) % (hi - lo + 1));
+      q('INSERT OR IGNORE INTO weekly_quests (user_id, week, key, target) VALUES (?, ?, ?, ?)').run(uid, week, k, target);
+    });
+    return week;
   }
 
   // ---------- weekly race & totals ----------
@@ -330,6 +356,7 @@ export function createGame(db, opts = {}) {
       const first = typeof tg.first_name === 'string' ? tg.first_name.slice(0, 64) : null;
       if (uname) q('UPDATE users SET username = NULL WHERE lower(username) = lower(?) AND id <> ?').run(uname, uid);
       if (q('SELECT id FROM users WHERE id = ?').get(uid)) {
+        checkComeback(uid); // before last_seen moves: it measures how long the player was away
         q('UPDATE users SET username = ?, first_name = COALESCE(?, first_name), last_seen = ? WHERE id = ?').run(uname, first, now(), uid);
         legacyWelcome(uid);
         return { created: false };
@@ -440,7 +467,7 @@ export function createGame(db, opts = {}) {
     return {
       id: u.id, username: u.username, firstName: u.first_name, balance: u.balance, intro, guide,
       slots: u.slots, used: cars.filter((c) => c.status !== 'showcase').length, showcaseSlots: u.showcase_slots, capLevel: u.cap_level, fragments,
-      income: { rate: Math.round(inc.rate), pending: inc.pending, capH: inc.capH, since: u.income_at, banked: u.banked },
+      income: { rate: Math.round(inc.rate), pending: inc.pending, capH: inc.capH, since: u.income_at, banked: u.banked, comebackUntil: u.comeback_cap_until > now() ? u.comeback_cap_until : 0 },
       fuel: fuel.fuel, fuelNext: fuel.next, cars, keys, collection, pity, plates, parts: inventory(uid),
       level: u.level, levelSeen: u.level_seen, xp: u.xp, xpNeed: S.xpForLevel(u.level),
       xpToday: u.xp_day === day ? u.xp_day_capped : 0, newbie: newbieState(u),
@@ -593,6 +620,7 @@ export function createGame(db, opts = {}) {
       results.push({ car: carOut(carRow(id)), isNew, forced: !!forced, lucky: !!lucky, fragment });
     }
     countOpens(uid, n);
+    if (cs.group === 'country') track(uid, 'country', n);
     const fragmentsNow = q('SELECT count FROM fragments WHERE user_id = ? AND case_id = ?').get(uid, cs.id)?.count || 0;
     flag(uid, cs.starter ? 'open_starter' : 'open_case');
     return { results, fragments, newKeys, fragmentsNow, keysNow: q('SELECT count FROM keys WHERE user_id = ? AND case_id = ?').get(uid, cs.id)?.count || 0 };
@@ -2295,6 +2323,16 @@ export function createGame(db, opts = {}) {
     for (const r of q('SELECT key, target, progress, reward FROM quests WHERE user_id = ? AND day = ? AND claimed = 0 AND progress >= target').all(uid, day)) {
       claims.push({ key: `quest:${day}:${r.key}`, kind: 'quest', id: r.key, title: 'Завдання виконано', sub: S.QUESTS[r.key].text.replace('{n}', r.target), money: r.reward });
     }
+    // Weekly route: finished tasks and chests that can be opened (rows are made by ensureWeekly, never here).
+    const week = weekOf(t);
+    for (const r of q('SELECT key, target FROM weekly_quests WHERE user_id = ? AND week = ? AND claimed = 0 AND progress >= target').all(uid, week)) {
+      claims.push({ key: `weekly:${week}:${r.key}`, kind: 'weekly', id: r.key, title: 'Тижневе завдання виконано', sub: `${S.WEEKLY_QUESTS[r.key].text.replace('{n}', r.target)} · +${S.WEEKLY_FRAG} фрагменти ключа` });
+    }
+    const wkActive = activeDays(uid, week).length;
+    const wkClaimed = new Set(q('SELECT key FROM claims WHERE user_id = ? AND key LIKE ?').all(uid, `wk:${week}:%`).map((r) => r.key));
+    for (const c of S.WEEK_CHEST) if (wkActive >= c.days && !wkClaimed.has(chestKey(week, c.days))) {
+      claims.push({ key: chestKey(week, c.days), kind: 'wchest', id: c.days, title: `Скриня тижня: ${c.days} активних дні${c.days > 4 ? 'в' : ''}`, sub: 'Відкрий скриню тижневого маршруту' });
+    }
     const owned = new Set(q('SELECT model FROM collection WHERE user_id = ?').all(uid).map((r) => r.model));
     const have = new Set(q('SELECT key FROM claims WHERE user_id = ?').all(uid).map((r) => r.key));
     const regular = [...owned].filter((id) => !S.MODELS[id]?.secret).length;
@@ -2354,6 +2392,105 @@ export function createGame(db, opts = {}) {
     addMoney(uid, r.reward);
     xp(uid, 'quest');
     return { got: r.reward };
+  }
+
+  // ---------- weekly route (S.WEEKLY_QUESTS, S.WEEK_CHEST) ----------
+  const addDays = (date, n) => {
+    const d = new Date(date + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+  // Kyiv midnight that starts this date (UTC+3 in summer, UTC+2 in winter).
+  const kyivMidnight = (date) => {
+    const t = Date.parse(date + 'T00:00:00Z') - 3 * 3600e3;
+    return dayOf(t) === date ? t : t + 3600e3;
+  };
+  // Days of the week (Kyiv dates) with at least S.WEEK_ACTIVE_QUESTS daily tasks claimed.
+  function activeDays(uid, week) {
+    return q('SELECT day FROM quests WHERE user_id = ? AND day >= ? AND day <= ? GROUP BY day HAVING SUM(claimed) >= ? ORDER BY day')
+      .all(uid, week, addDays(week, 6), S.WEEK_ACTIVE_QUESTS).map((r) => r.day);
+  }
+  // Fragments of a key; every full set becomes a key at once (as with case drops). Returns the new keys.
+  function addFragments(uid, caseId, n) {
+    const fr = q('INSERT INTO fragments (user_id, case_id, count) VALUES (?, ?, ?) ON CONFLICT DO UPDATE SET count = count + excluded.count RETURNING count').get(uid, caseId, n).count;
+    const keys = Math.floor(fr / S.FRAGMENTS_PER_KEY);
+    if (keys) {
+      q('UPDATE fragments SET count = count - ? WHERE user_id = ? AND case_id = ?').run(keys * S.FRAGMENTS_PER_KEY, uid, caseId);
+      addKeys(uid, caseId, keys);
+    }
+    return keys;
+  }
+  const chestKey = (week, days) => `wk:${week}:${days}`;
+  function weekly(uid) {
+    const week = ensureWeekly(uid);
+    const lvl = userRow(uid).level;
+    const days = activeDays(uid, week);
+    const claimed = new Set(q("SELECT key FROM claims WHERE user_id = ? AND key LIKE ?").all(uid, `wk:${week}:%`).map((r) => r.key));
+    const caseId = S.levelKey(lvl);
+    return {
+      week, endsAt: kyivMidnight(addDays(week, 7)), today: dayOf(now()), caseId, partTier: S.levelPartTier(lvl),
+      fragments: q('SELECT count FROM fragments WHERE user_id = ? AND case_id = ?').get(uid, caseId)?.count || 0,
+      list: q('SELECT key, target, progress, claimed FROM weekly_quests WHERE user_id = ? AND week = ? ORDER BY rowid').all(uid, week)
+        .map((r) => ({ ...r, claimed: !!r.claimed, text: S.WEEKLY_QUESTS[r.key].text.replace('{n}', r.target), frag: S.WEEKLY_FRAG })),
+      days: Array.from({ length: 7 }, (_, i) => addDays(week, i)).map((d) => ({ day: d, active: days.includes(d) })),
+      active: days.length,
+      chests: S.WEEK_CHEST.map((c) => ({ ...c, ready: days.length >= c.days, claimed: claimed.has(chestKey(week, c.days)) })),
+    };
+  }
+  function weeklyClaim(uid, { key }) {
+    const week = ensureWeekly(uid);
+    const r = q('SELECT * FROM weekly_quests WHERE user_id = ? AND week = ? AND key = ?').get(uid, week, String(key));
+    if (!r) fail('Завдання не знайдено');
+    if (r.claimed) fail('Нагороду вже отримано');
+    if (r.progress < r.target) fail('Завдання ще не виконано');
+    if (!q('UPDATE weekly_quests SET claimed = 1 WHERE user_id = ? AND week = ? AND key = ? AND claimed = 0').run(uid, week, r.key).changes) fail('Нагороду вже отримано');
+    const caseId = S.levelKey(userRow(uid).level);
+    const newKeys = addFragments(uid, caseId, S.WEEKLY_FRAG);
+    xp(uid, 'quest');
+    return { caseId, frag: S.WEEKLY_FRAG, newKeys };
+  }
+  function weeklyChest(uid, { days }) {
+    const n = int(days, 1, 7, 'Днів');
+    const chest = S.WEEK_CHEST.find((c) => c.days === n);
+    if (!chest) fail('Немає такої скрині');
+    const week = weekOf(now());
+    if (activeDays(uid, week).length < n) fail(`Потрібно ${n} активних днів цього тижня`);
+    if (q('INSERT OR IGNORE INTO claims (user_id, key) VALUES (?, ?)').run(uid, chestKey(week, n)).changes === 0) fail('Скриню вже відкрито');
+    const lvl = userRow(uid).level;
+    const caseId = S.levelKey(lvl);
+    const got = { caseId };
+    if (chest.key) addKeys(uid, caseId, (got.keys = chest.key));
+    if (chest.frag) got.newKeys = addFragments(uid, caseId, (got.frag = chest.frag));
+    if (chest.parts) got.items = grant(uid, { parts: chest.parts, tier: S.levelPartTier(lvl) }).items;
+    if (chest.fuel) {
+      grant(uid, { fuel: true });
+      got.fuel = true;
+    }
+    return got;
+  }
+
+  // ---------- comeback gift (S.COMEBACK) ----------
+  // Called before last_seen is updated. Gates: level, account age, cooldown — a fresh second account gets nothing.
+  function checkComeback(uid) {
+    const u = q('SELECT id, level, created_at, last_seen, comeback_at, banned FROM users WHERE id = ?').get(uid);
+    const t = now(), C = S.COMEBACK, D = 86400e3;
+    if (!u || !u.last_seen || u.banned) return null;
+    const away = t - u.last_seen;
+    if (away < C.minDays * D || u.level < C.minLevel || t - u.created_at < C.minAgeDays * D || t - u.comeback_at < C.cooldownDays * D) return null;
+    const big = away >= C.bigDays * D;
+    // Freeze income at the normal cap first, so the longer cap never pays for the hours spent away.
+    bank(uid);
+    q('UPDATE users SET fuel = ?, fuel_at = ?, comeback_at = ? WHERE id = ?').run(S.FUEL_MAX, t, t, uid);
+    q('UPDATE cars SET tank = ?, tank_at = ? WHERE owner_id = ?').run(S.CAR_TANK, t, uid);
+    const keys = [{ caseId: S.comebackKey(u.level), count: 1 }];
+    if (big && S.levelKey(u.level) === keys[0].caseId) keys[0].count++;
+    else if (big) keys.push({ caseId: S.levelKey(u.level), count: 1 });
+    for (const k of keys) addKeys(uid, k.caseId, k.count);
+    const capUntil = big ? t + C.capFor * 3600e3 : 0;
+    if (big) q('UPDATE users SET comeback_cap_until = ? WHERE id = ?').run(capUntil, uid);
+    const data = { days: Math.floor(away / D), fuel: true, keys, capHours: big ? C.capHours : 0, capFor: big ? C.capFor : 0, capUntil };
+    gift(uid, 'comeback', data, null);
+    return data;
   }
   function collectionClaim(uid, { key }) {
     const k = String(key);
@@ -3318,12 +3455,14 @@ export function createGame(db, opts = {}) {
     'battle/list': battleList, 'battle/create': battleCreate, 'battle/join': battleJoin, 'battle/cancel': battleCancel, 'battle/get': battleGet,
     rewards, 'rewards/daily': dailyClaim, 'rewards/case': rewardCase, 'newbie/claim': newbieClaim, 'level/seen': levelSeen, 'intro/seen': introSeen, 'guide/off': guideOff,
     quests, 'quests/claim': questClaim, 'collection/claim': collectionClaim,
+    weekly, 'weekly/claim': weeklyClaim, 'weekly/chest': weeklyChest,
     leaderboard, promo: redeemPromo, events,
     season, 'season/claim': passClaim, shop, 'shop/stars': buyWithStars, feed: dropFeed,
   };
   // Every call runs in one transaction, settles the weekly race and refreshes the caller's garage value — except the
   // frequent polls below (every few seconds, or several times a second in a live race), which change no cars.
   const LIGHT = new Set(['pulse', 'pvp/progress', 'pvp/state']);
+  const WEEKLY_AFTER = { 'drift/finish': 'drift' };
   const api = Object.fromEntries(Object.entries(handlers).map(([k, fn]) => [k, (uid, body = {}) => db.tx(() => {
     const light = LIGHT.has(k);
     if (!light) {
@@ -3332,9 +3471,12 @@ export function createGame(db, opts = {}) {
       settleSeason();
       rollSeason(uid);
     }
+    checkComeback(uid); // normally done at sign-in (ensureUser); here too for callers that skip it
     // Presence for "online" (trade hall, live PvP): written at most every 15 s so plain reads don't hit the disk.
     if (q('UPDATE users SET last_seen = ? WHERE id = ? AND (last_seen IS NULL OR last_seen < ?)').run(now(), uid, now() - 15e3).changes) markDay(uid);
     const r = fn(uid, body || {});
+    // Weekly tasks counted per finished call (kept out of the handlers themselves).
+    if (WEEKLY_AFTER[k]) track(uid, WEEKLY_AFTER[k]);
     if (!light) recalc(uid);
     return r;
   })]));
