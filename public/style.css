@@ -1072,3 +1072,46 @@ body { background: radial-gradient(120% 340px at 50% -60px, var(--bg-hi), var(--
 .hero::after { bottom: 16px; }
 /* a main action that is only busy (case spinning) goes neutral instead of a muddy yellow */
 #view > .btn[disabled][data-act] { opacity: 1; background: var(--card2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line2); }
+
+/* ---------- UX pass (audit 2-ux): names, inputs, disabled states, narrow screens ---------- */
+/* car names: up to two lines instead of «Lamborghini Ave…» */
+.clamp2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; white-space: normal; overflow-wrap: break-word; }
+.li > .grow { min-width: 0; }
+.car .nm.clamp2 { line-height: 1.12; min-height: 2.24em; display: -webkit-box; align-content: end; }
+.multi .car .nm.clamp2, .reel .car .nm.clamp2 { min-height: 0; }
+/* inputs inside cards were the same colour as the card: give them a well and a border */
+.card input, .card select, .sheet input, .sheet select { background: var(--bg); border: 1px solid var(--line2); }
+.card input:focus, .sheet input:focus, .card select:focus { border-color: var(--accent); }
+select { -webkit-appearance: none; appearance: none; width: 100%; font: inherit; color: var(--text); border-radius: var(--r-sm); padding: 12px 36px 12px 12px;
+  background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%238c96a8' stroke-width='2'/%3E%3C/svg%3E") no-repeat right 14px center; border: 1px solid var(--line2); }
+.fld { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 6px; }
+.fld + input { margin-top: 0; }
+/* disabled = grey, never a muddy yellow that reads as tappable */
+.btn[disabled], .btn.yellow[disabled], .btn.red[disabled] { opacity: 1; background: var(--card2) !important; color: var(--muted) !important; box-shadow: inset 0 0 0 1px var(--line2) !important; text-shadow: none; }
+/* garage: one tile for all free places instead of a wall of empty ones */
+.slot.free { min-height: 0; padding: 18px 10px; gap: 2px; }
+.slot.free b { font-size: 22px; color: var(--text); }
+.slot.free .tiny { color: var(--accent); margin-top: 4px; }
+/* rivals: text column may shrink and wrap, the prize column keeps its size */
+.rival .grow { min-width: 0; }
+.rival .grow > .small.ellipsis { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.rival .grow > .row { flex-wrap: wrap; row-gap: 4px; }
+.rival > .center { flex: none; max-width: 40%; text-align: right; }
+/* space between the case stage / result and the ×N switch */
+.stage + .seg, .multi + .seg, .pstage { margin-top: 14px; }
+@media (max-width: 360px) {
+  .top { gap: 8px; padding-left: 12px; padding-right: 12px; }
+  .top h1 { font-size: 22px; }
+  .top h1.long { font-size: 18px; }
+  .balance { font-size: 14.5px; padding: 6px 8px; }
+  .iconbtn { width: 34px; height: 34px; }
+  .rival { gap: 8px; padding: 12px 10px; }
+  .rival .mini { width: 64px; height: 34px; }
+  .li { gap: 10px; padding-left: 12px; padding-right: 12px; }
+  .li .mini { width: 60px; height: 32px; }
+  /* a car row inside a card next to a button (PvP «Змінити»): no room for the picture, keep the name readable */
+  .card .list .li:has(> .btn) > .mini { display: none; }
+  .rival .center b.win { font-size: 15px; }
+  .multi .car .meta > span:first-child { display: none; }
+  .multi .car .meta { justify-content: flex-end; }
+}
