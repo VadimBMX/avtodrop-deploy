@@ -12,10 +12,16 @@ export function createBot({ token, webappUrl, admins = [], game, log = console.e
   async function call(method, params = {}) {
     const res = await fetch(base + method, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(params) });
     const j = await res.json();
-    if (!j.ok) throw new Error(`${method}: ${j.description}`);
+    if (!j.ok) {
+      // error_code 403 = the player blocked the bot (or never started it); 429 = too many requests, wait retry_after s.
+      const e = new Error(`${method}: ${j.description}`);
+      e.code = j.error_code;
+      e.retryAfter = j.parameters?.retry_after;
+      throw e;
+    }
     return j.result;
   }
-  const playButton = () => (canButton ? { inline_keyboard: [[{ text: '🏎 Грати', web_app: { url: webappUrl } }]] } : undefined);
+  const playButton = (text = '🏎 Грати') => (canButton ? { inline_keyboard: [[{ text, web_app: { url: webappUrl } }]] } : undefined);
   const send = (chatId, text, extra = {}) => call('sendMessage', { chat_id: chatId, text, reply_markup: playButton(), ...extra });
 
   async function handle(u) {
@@ -55,9 +61,16 @@ export function createBot({ token, webappUrl, admins = [], game, log = console.e
     const text = m.text || '';
     const [cmd, ...args] = text.trim().split(/\s+/);
     const isAdmin = admins.includes(m.from.id);
-    if (cmd === '/start') {
+    // The player wrote to the bot, so it can write to them again (a 403 earlier marked them blocked).
+    if (m.chat.type === 'private') game.push?.unblock(m.from.id);
+    if (cmd === '/stop') {
+      game.push?.set(m.from.id, false);
+      await send(m.chat.id, '🔕 Нагадування вимкнено. Повідомлення про обміни, PvP і аукціони приходитимуть і далі.\n\nУвімкнути знову: /start або «Меню → Нагадування від бота» в грі.');
+    } else if (cmd === '/start') {
       game.ensureUser(m.from, args[0]);
-      await send(m.chat.id, '🏎 Вітаю в АВТОДРОП!\n\nВідкривай кейси зі справжніми авто, тюнінгуй, ганяй дрег проти інших гравців, торгуй на ринку та обмінюйся машинами.\n\nТисни «Грати» 👇' +
+      const wasOff = !!game.push?.isOff(m.from.id);
+      if (wasOff) game.push.set(m.from.id, true);
+      await send(m.chat.id, (wasOff ? '🔔 Нагадування знову увімкнено.\n\n' : '') + '🏎 Вітаю в АВТОДРОП!\n\nВідкривай кейси зі справжніми авто, тюнінгуй, ганяй дрег проти інших гравців, торгуй на ринку та обмінюйся машинами.\n\nТисни «Грати» 👇' +
         (canButton ? '' : '\n\n(WEBAPP_URL ще не налаштовано — кнопка гри з’явиться після деплою на https)'));
     } else if (cmd === '/help') {
       await send(m.chat.id, 'Питання по оплаті — /paysupport\nПромокоди шукай у нашому каналі.');
@@ -117,13 +130,16 @@ export function createBot({ token, webappUrl, admins = [], game, log = console.e
       username = me.username;
       await call('deleteWebhook').catch(() => {});
       if (canButton) await call('setChatMenuButton', { menu_button: { type: 'web_app', text: 'Грати', web_app: { url: webappUrl } } }).catch((e) => log(e.message));
-      await call('setMyCommands', { commands: [{ command: 'start', description: 'Відкрити гру' }, { command: 'help', description: 'Допомога' }, { command: 'paysupport', description: 'Питання по оплаті' }] }).catch(() => {});
+      await call('setMyCommands', { commands: [{ command: 'start', description: 'Відкрити гру' }, { command: 'help', description: 'Допомога' }, { command: 'paysupport', description: 'Питання по оплаті' }, { command: 'stop', description: 'Вимкнути нагадування' }] }).catch(() => {});
       loop();
       return username;
     },
     stop() {
       stopped = true;
     },
+    playButton,
+    // Used by the send queue (src/reminders.js); rejects with e.code 403 / 429 so the queue can react.
+    sendMessage: (chatId, text, extra) => send(chatId, text, extra || {}),
     notify(uid, text) {
       send(uid, text).catch(() => {});
     },

@@ -236,6 +236,14 @@ const MIGRATIONS = [
   ['ALTER TABLE users ADD COLUMN plate_best INTEGER NOT NULL DEFAULT 0',
     `UPDATE users SET plate_best = COALESCE((SELECT MAX(CASE cls WHEN 'C' THEN 1 WHEN 'B' THEN 2 WHEN 'A' THEN 3 WHEN 'S' THEN 4 ELSE 0 END)
        FROM plates WHERE owner_id = users.id), 0)`],
+  // Bot reminders (src/reminders.js): switched off by the player (settings or /stop); Telegram answered 403 (bot blocked or
+  // never started); the Kyiv day and how many reminders went out that day; when each kind was last sent ({kind: ms}).
+  'ALTER TABLE users ADD COLUMN push_off INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE users ADD COLUMN push_blocked INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE users ADD COLUMN push_day TEXT',
+  'ALTER TABLE users ADD COLUMN push_count INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE users ADD COLUMN push_last INTEGER NOT NULL DEFAULT 0',
+  "ALTER TABLE users ADD COLUMN push_sent TEXT NOT NULL DEFAULT '{}'",
 ];
 
 export function openDb(file) {

@@ -1902,6 +1902,7 @@ TABS.menu = () => {
       ...(me.admin ? [row('', 'adjustments', 'Адмін-панель', '#636366', '', 0, 'openAdmin')] : []),
     ])
     + `<div class="card row between mt2"><div><b>Не турбувати</b><div class="tiny muted">Ніхто не зможе запросити тебе на обмін чи гонку</div></div><button class="toggle ${me.noInvites ? 'on' : ''}" data-act="toggleDnd"></button></div>`
+    + `<div class="card row between"><div><b>Нагадування від бота</b><div class="tiny muted">${me.pushOn && me.pushBlocked ? 'Бот не може тобі написати — відкрий чат з ботом і натисни /start' : 'Повний бак, дохід гаража, бонус — не частіше 2 разів на день і не вночі'}</div></div><button class="toggle ${me.pushOn ? 'on' : ''}" data-act="togglePush"></button></div>`
     + `<div class="card row between"><div><div class="small muted">Твій ID для обмінів</div><b>${me.id}</b></div><button class="btn sm ghost" data-act="copyId">Копіювати</button></div>`;
 };
 H.openAdmin = () => {
@@ -3554,6 +3555,10 @@ H.bannerOpen = (d) => {
   state.tab = 'menu';
   if (k === 'pass') return go('season');
   go(k === 'quest' ? 'quests' : k === 'ach' || k === 'achAll' ? 'achievements' : 'collection');
+};
+H.togglePush = async () => {
+  const r = await act('settings/push', { on: !me.pushOn }, null);
+  if (r) toast(r.pushOn ? 'Нагадування від бота увімкнено' : 'Нагадування вимкнено — повідомлення про обміни й PvP приходитимуть і далі');
 };
 H.toggleDnd = async () => {
   const r = await act('settings/invites', { on: !me.noInvites }, null);

@@ -431,7 +431,7 @@ export function createGame(db, opts = {}) {
       unread: q('SELECT COUNT(*) n FROM events WHERE user_id = ? AND seen = 0').get(uid).n,
       incomingTrades: q("SELECT COUNT(*) n FROM trades WHERE to_id = ? AND status = 'open'").get(uid).n
         + q("SELECT COUNT(*) n FROM trade_rooms WHERE invited_id = ? AND status = 'open' AND host_seen > ?").get(uid, now() - 45e3).n,
-      noInvites: !!u.no_invites,
+      noInvites: !!u.no_invites, pushOn: !u.push_off, pushBlocked: !!u.push_blocked,
       luck: luckOf(u.id),
       stars: u.stars, vipUntil: u.vip_until, vip: u.vip_until > now(), starterBought: !!u.starter_bought,
       season: (({ claimed, ...s }) => s)(seasonInfo(u)), badges: badgesOf(uid),
@@ -1770,6 +1770,69 @@ export function createGame(db, opts = {}) {
     if (on) q("UPDATE trade_rooms SET invited_id = NULL WHERE invited_id = ? AND status = 'open'").run(uid);
     return { noInvites: !!on };
   }
+  // ---------- bot reminders (src/reminders.js applies the limits) ----------
+  function setPushOn(uid, { on }) {
+    q('UPDATE users SET push_off = ? WHERE id = ?').run(on ? 0 : 1, uid);
+    return { pushOn: !!on };
+  }
+  // Players who may get a reminder now, each with what is ready and when it became ready.
+  function pushCandidates(rules) {
+    const t = now(), day = dayOf(t);
+    const rows = q(`SELECT * FROM users WHERE push_off = 0 AND push_blocked = 0 AND banned = 0 AND last_seen BETWEEN ? AND ?
+      AND NOT (push_day = ? AND push_count >= ?)`).all(t - rules.inactiveDays * 86400e3, t - rules.idleMin * 60e3, day, rules.maxPerDay);
+    return rows.map((u) => {
+      const ready = [];
+      if (u.streak_day !== day) {
+        const next = ((u.streak % S.DAILY_BONUS.length) + 1);
+        ready.push({ kind: 'daily', at: t, text: `🎁 Щоденний бонус чекає — день ${next}` });
+      }
+      const inc = incomeState(u);
+      const cap = inc.rate * inc.capH;
+      if (inc.rate > 0 && inc.pending >= Math.floor(cap) - 1) {
+        const at = u.income_at + Math.max(0, (cap - u.banked) / inc.rate) * 3600e3;
+        ready.push({ kind: 'income', at, text: `💰 Гараж заповнений: ${S.short(inc.pending)} чекає, далі дохід не росте` });
+      }
+      const rcAt = u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3;
+      if (rcAt <= t) ready.push({ kind: 'rcase', at: rcAt, text: '📦 Кейс нагород готовий' });
+      if (fuelState(u).fuel >= S.FUEL_MAX) {
+        const at = u.fuel >= S.FUEL_MAX ? u.fuel_at : u.fuel_at + (S.FUEL_MAX - u.fuel) * regenMs((u.vip_until || 0) > t);
+        ready.push({ kind: 'fuel', at, text: '⛽ Бак повний — час на заїзд' });
+      }
+      const si = seasonInfo(u);
+      if (si.xp > 0 && si.endsAt > t && si.endsAt - t <= rules.seasonWarnH * 3600e3) {
+        const h = Math.max(1, Math.round((si.endsAt - t) / 3600e3));
+        ready.push({ kind: 'season', at: si.endsAt - rules.seasonWarnH * 3600e3, text: `🏁 Сезон закінчується за ${h} год${si.ready ? ` — забери нагороди пропуску (${si.ready})` : ''}` });
+      }
+      let sent = {};
+      try {
+        sent = JSON.parse(u.push_sent || '{}') || {};
+      } catch {}
+      return { uid: u.id, lastSeen: u.last_seen, pushOff: !!u.push_off, blocked: !!u.push_blocked, pushDay: u.push_day, pushCount: u.push_count, pushLast: u.push_last, sent, ready };
+    }).filter((c) => c.ready.length);
+  }
+  function pushMark(uid, kinds, t) {
+    const u = q('SELECT push_day, push_count, push_sent FROM users WHERE id = ?').get(uid);
+    if (!u) return;
+    let sent = {};
+    try {
+      sent = JSON.parse(u.push_sent || '{}') || {};
+    } catch {}
+    for (const k of kinds) sent[k] = t;
+    const day = dayOf(t);
+    q('UPDATE users SET push_day = ?, push_count = ?, push_last = ?, push_sent = ? WHERE id = ?').run(day, (u.push_day === day ? u.push_count : 0) + 1, t, JSON.stringify(sent), uid);
+  }
+  const push = {
+    candidates: (rules) => pushCandidates(rules),
+    mark: (uid, kinds, t) => db.tx(() => pushMark(uid, kinds, t)),
+    // Telegram answered 403: the bot is blocked (or the chat was never started) — nothing more goes to this player.
+    block: (uid) => q('UPDATE users SET push_blocked = 1 WHERE id = ?').run(uid),
+    isBlocked: (uid) => !!q('SELECT push_blocked FROM users WHERE id = ?').get(uid)?.push_blocked,
+    isOff: (uid) => !!q('SELECT push_off FROM users WHERE id = ?').get(uid)?.push_off,
+    // The player wrote to the bot, so it can write back.
+    unblock: (uid) => q('UPDATE users SET push_blocked = 0 WHERE id = ? AND push_blocked = 1').run(uid),
+    // /stop and /start in the bot. Returns false when the player is unknown.
+    set: (uid, on) => q('UPDATE users SET push_off = ?, push_blocked = 0 WHERE id = ?').run(on ? 0 : 1, uid).changes > 0,
+  };
   function roomInvite(uid, { to }) {
     const toId = int(to, 1, Number.MAX_SAFE_INTEGER, 'ID');
     if (toId === uid) fail('Не можна запросити себе');
@@ -2986,7 +3049,7 @@ export function createGame(db, opts = {}) {
     'pvp/list': pvpList, 'pvp/create': pvpCreate, 'pvp/accept': pvpAccept, 'pvp/cancel': pvpCancel,
     'pvp/request': pvpRequest, 'pvp/withdraw': pvpWithdraw, 'pvp/answer': pvpAnswer, 'pvp/state': pvpState, 'pvp/progress': pvpProgress, 'pvp/finish': pvpFinish,
     achievements, 'ach/claim': achievementClaim, 'support/send': supportSend, 'support/mine': supportMine,
-    pulse, 'settings/invites': setNoInvites, 'room/decline': roomDecline, 'gifts/seen': giftsSeen, 'rescue/claim': rescueClaim,
+    pulse, 'settings/invites': setNoInvites, 'settings/push': setPushOn,'room/decline': roomDecline, 'gifts/seen': giftsSeen, 'rescue/claim': rescueClaim,
     'market/list': marketList, 'market/sell': marketSell, 'market/buy': marketBuy, 'market/cancel': marketCancel,
     'auction/list': auctionList, 'auction/create': auctionCreate, 'auction/bid': auctionBid, 'auction/cancel': auctionCancel,
     player, 'trade/list': tradeList, 'trade/create': tradeCreate, 'trade/accept': tradeAccept,
@@ -3033,5 +3096,5 @@ export function createGame(db, opts = {}) {
   }
 
   importLegacy();
-  return { api, admin, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, createPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)) };
+  return { api, admin, push, pushCandidates: push.candidates, pushMark: push.mark, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, createPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)) };
 }

@@ -8,6 +8,7 @@ import { openDb } from './src/db.js';
 import { createGame, GameError } from './src/game.js';
 import { verifyInitData } from './src/auth.js';
 import { createBot } from './src/bot.js';
+import { createSender, createReminders } from './src/reminders.js';
 import { PACKS, REF_REWARD } from './public/shared.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -17,9 +18,14 @@ const CSP = "default-src 'self'; script-src 'self' https://telegram.org; style-s
 
 export function createApp({ dbFile, token = '', dev = false, webappUrl = '', admins = [], adminKey = '', log = console.error } = {}) {
   const db = openDb(dbFile);
-  let bot = null;
-  const game = createGame(db, { notify: (uid, text) => bot?.notify(uid, text), admins });
-  if (token) bot = createBot({ token, webappUrl, admins, game, log });
+  let bot = null, sender = null, reminders = null;
+  // Instant events (trades, PvP, auctions, support) go first in the same rate-limited queue as the reminders.
+  const game = createGame(db, { notify: (uid, text) => sender?.enqueue(uid, text, { urgent: true }), admins });
+  if (token) {
+    bot = createBot({ token, webappUrl, admins, game, log });
+    sender = createSender({ send: bot.sendMessage, onBlocked: game.push.block, isBlocked: game.push.isBlocked, log });
+    reminders = createReminders({ game, sender, markup: () => bot.playButton('🎁 Відкрити гру'), log });
+  }
 
   // Photos dropped into public/cars/<model-id>.(webp|png|jpg) and public/parts/<part-type>.(…) are picked up automatically.
   const imagesCache = {};
@@ -223,11 +229,12 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
   sweeper.unref();
 
   return {
-    server, game, db, bot,
+    server, game, db, bot, sender, reminders,
     async start(port) {
       if (bot) {
         try {
           log(`Bot @${await bot.start()} connected`);
+          reminders.start();
         } catch (e) {
           log('Bot failed to start:', e.message);
         }
@@ -237,6 +244,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     },
     close() {
       clearInterval(sweeper);
+      reminders?.stop();
       bot?.stop();
       server.close();
       db.close();
