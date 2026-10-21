@@ -507,7 +507,7 @@ const lockedView = (key) => `<div class="card">${lockBody(key)}</div>`;
 // ---------- trade-in (S.TRADE_IN) ----------
 PAGES.tradein = () => {
   const T = (state.tradein ||= { cars: new Set(), result: null });
-  const garage = me.cars.filter((c) => c.status === 'garage' && !M(c.model).secret).sort((a, b) => b.value - a.value || b.id - a.id);
+  const garage = me.cars.filter((c) => c.status === 'garage' && !M(c.model).secret && !S.isCollector(c.model)).sort((a, b) => b.value - a.value || b.id - a.id);
   for (const id of [...T.cars]) if (!garage.some((c) => c.id === id)) T.cars.delete(id);
   const picked = [...T.cars].map((id) => garage.find((c) => c.id === id));
   const cls = picked[0] ? M(picked[0].model).cls : null;
@@ -1157,7 +1157,7 @@ TABS.cases = () => {
 // made without it, and what resets it. left = 1: the very next open brings the class or better.
 function pityHook(st) {
   const left = Math.max(1, st.n - (me.pity[st.key] || 0));
-  return `<div class="hook pityhook" style="--c:${S.CLASSES[st.cls].color}"><div class="row between"><span class="hook-t">${ic('shield-check')} Гарантія ${clsBadge(st.cls)} або краще</span><b>${left === 1 ? 'наступне' : `ще ${left}`}</b></div><div class="frag-bar pity"><i style="width:${((st.n - left) / st.n) * 100}%"></i></div>
+  return `<div class="hook pityhook" style="--c:${S.CLASSES[st.cls].color}"><div class="row between"><span class="hook-t">${ic('shield-check')} Гарантія ${clsBadge(st.cls)}${st.missing ? ' · нова в колекцію' : ' або краще'}</span><b>${left === 1 ? 'наступне' : `ще ${left}`}</b></div><div class="frag-bar pity"><i style="width:${((st.n - left) / st.n) * 100}%"></i></div>
     <div class="tiny muted">${left === 1 ? `Наступне відкриття — гарантовано ${st.cls} або краще` : `Не більше ${st.n} відкриттів поспіль без ${st.cls}: ${st.n}-те дасть ${st.cls} або краще`}</div></div>`;
 }
 // Not enough garage slots for this opening: how many are free, plus a way out right here — ×1 (if one fits) or the
@@ -1245,7 +1245,7 @@ H.odds = () => {
   const total = Object.values(W).reduce((a, b) => a + b, 0);
   sheet('Що всередині', `<div class="row"><span style="font-size:24px">${caseIcon(cs)}</span><b>${esc(cs.name)}</b></div>
     <div class="small muted mt">Спочатку випадає клас, потім машина. Чим дорожча машина, тим рідше вона випадає. Вказано мінімальні шанси — з удачею випадає й краще. ✓ — уже є в колекції.</div>
-    ${S.pitySteps(cs).map((st) => `<div class="small mt">${ic('shield-check')} Гарантія: якщо ${st.n} відкриттів поспіль цього кейса без ${clsBadge(st.cls)} або кращого, ${st.n}-те дає ${clsBadge(st.cls)} або краще. Ключі теж рахуються.</div>`).join('')}
+    ${S.pitySteps(cs).map((st) => `<div class="small mt">${ic('shield-check')} Гарантія: якщо ${st.n} відкриттів поспіль цього кейса без ${clsBadge(st.cls)} або кращого, ${st.n}-те дає ${clsBadge(st.cls)} або краще. Ключі теж рахуються.${st.missing ? ` Гарантована — машина, якої ще немає в колекції; поки колекція неповна, лічильник скидає лише нова. Це колекційні машини: дилер викуповує їх за ${S.HOME_SELL_RATE * 100}% вартості, в апгрейд і трейд-ін вони не йдуть.` : ''}</div>`).join('')}
     ${Object.keys(W).map((cls) => {
       const list = cs.pool(cls);
       const w = S.modelWeights(list), sw = w.reduce((a, b) => a + b, 0);
@@ -4847,7 +4847,7 @@ PAGES.upgrade = () => {
   const U = state.up;
   // Most expensive first, both for your cars and for the targets.
   // Sorted by the value shown on the card (model + parts + plate), so the order always matches what you see.
-  const garage = me.cars.filter((c) => c.status === 'garage').sort((a, b) => b.value - a.value || b.id - a.id);
+  const garage = me.cars.filter((c) => c.status === 'garage' && !S.isCollector(c.model)).sort((a, b) => b.value - a.value || b.id - a.id);
   for (const id of [...U.cars]) if (!garage.some((c) => c.id === id)) U.cars.delete(id);
   const stake = upStake();
   const list = upCandidates(stake);
@@ -5397,10 +5397,13 @@ H.verify = async (d) => {
   let item, ok;
   if (S.CASE_BY_ID[d.case]) {
     const cs = S.CASE_BY_ID[d.case];
-    const cls = d.forced === '1' ? d.cls : pickW(S.CLASS_ORDER.filter((c) => cs.weights[c]).map((c) => [c, cs.weights[c]]), r0);
+    const cls = d.forced === '1' || d.forced === '4' ? d.cls : pickW(S.CLASS_ORDER.filter((c) => cs.weights[c]).map((c) => [c, cs.weights[c]]), r0);
     const list = cs.pool(cls), w = S.modelWeights(list);
     item = pickW(list.map((m, i) => [m.id, w[i]]), r1);
     ok = hashOk && cls === d.cls && item === d.item;
+    // The gold step draws among the cars missing from the collection at that moment: the car is checked to be one of
+    // that class in this case.
+    if (d.forced === '4' && list.some((m) => m.id === d.item)) [item, ok] = [d.item, hashOk && cls === d.cls];
   } else {
     const pc = S.PART_CASE_BY_ID[d.case];
     const tier = pickW(Object.entries(pc.weights), r0);

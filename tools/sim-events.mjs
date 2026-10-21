@@ -33,6 +33,7 @@ export function runCase(cs, t0, n, prep = null, seed = 'sim') {
   const deal = S.caseDeal(cs, S.kyivDateOf(t), S.effectsAt(t, JSON.parse(db.prepare("SELECT value FROM meta WHERE key = 'events_override'").get()?.value || 'null')));
   const bal = db.prepare('SELECT balance FROM users WHERE id = 1');
   let paid = 0, sell = 0, value = 0, below = 0, opens = 0, keyOpens = 0;
+  const classes = {}; // drops per class (paid and free opens)
   while (opens < n) {
     const b0 = bal.get().balance;
     const r = g.api['case/open'](1, { caseId: cs.id });
@@ -41,6 +42,7 @@ export function runCase(cs, t0, n, prep = null, seed = 'sim') {
     paid += spent;
     sell += S.sellPriceOf(m.id);
     value += m.price;
+    classes[m.cls] = (classes[m.cls] || 0) + 1;
     if (spent) {
       opens++;
       if (m.price < spent) below++;
@@ -48,7 +50,7 @@ export function runCase(cs, t0, n, prep = null, seed = 'sim') {
     g.api.sell(1, { carIds: [r.results[0].car.id] });
     t += 1000;
   }
-  return { paid, sell, value, below, opens, keyOpens, price: deal.price, deal };
+  return { paid, sell, value, below, opens, keyOpens, classes, price: deal.price, deal };
 }
 const T = {
   none: (cs) => findTime((fx, date) => fx.topMult === 1 && !fx.countries.includes(cs.country) && S.caseOfDay(date) !== cs.id),

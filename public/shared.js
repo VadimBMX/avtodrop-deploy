@@ -455,7 +455,9 @@ for (const c of SEASON_CARS) {
   c.id = id;
 }
 // Home-case exclusives: the gold Soviet rarities drop only from the «Україна/СРСР» case (not from Міський or Еліта,
-// not from the dealer), so finishing the Ukrainian collection is a real hunt.
+// not from the dealer), so finishing the Ukrainian collection is a real hunt. They are collector cars: worth their full
+// value in the garage (income, collection, garage value) but the dealer buys them back for HOME_SELL_RATE only and they
+// can't go into an upgrade or a trade-in — that is what pays for the gold guarantee of the case (see COUNTRY_CASES.UA).
 for (const n of ['ГАЗ-24-95 «Волга» 4x4', 'ВАЗ-2108 Group B', 'ГАЗ-13 «Чайка»', 'ЗІЛ-41047']) MODELS[slug(n)].homeOnly = true;
 export const ALL_MODELS = Object.values(MODELS);
 export const SECRET_BY_COUNTRY = Object.fromEntries(ALL_MODELS.filter((m) => m.secret && !m.season).map((m) => [m.country, m.id]));
@@ -475,12 +477,16 @@ export const FRAGMENTS_PER_KEY = 8;
 // the losing-streak save and key fragments counted, open-and-sell is ~0.8 for the cheap cases and ×1.5–2.8 for the dear
 // ones (owner decision, tools/sim-events.mjs; tools/sim-loop.mjs shows how fast a loop grows money).
 export const SELL_RATES = { D: 0.6, C: 0.55, B: 0.5, A: 0.45, S: 0.4, X: 0.4 };
+// Collector cars (homeOnly: the gold Soviet rarities) sell instantly for this share of their value instead (1,2–2,3 M,
+// still 22–41× the 55k case), so a gold car every ~230 opens keeps the case's open-and-sell at ~1.00 (tools/sim-ua.mjs).
+export const HOME_SELL_RATE = 0.1;
+export const isCollector = (model) => !!MODELS[model]?.homeOnly;
 // Safety valve 1 (off: rate 1). A car obtained less than `hours` ago sells instantly at `rate` × its usual price, so
 // «open and sell at once» can be cooled down without touching players who sell older cars. E.g. { rate: 0.6, hours: 24 }.
 export const FRESH_SELL = { rate: 1, hours: 24 };
 // ageMs: how long ago the car was obtained (unknown = an old car, the full rate).
 export const sellPriceOf = (model, ageMs = Infinity) =>
-  Math.floor(MODELS[model].price * SELL_RATES[MODELS[model].cls] * (ageMs < FRESH_SELL.hours * 3600e3 ? FRESH_SELL.rate : 1));
+  Math.floor(MODELS[model].price * (MODELS[model].homeOnly ? HOME_SELL_RATE : SELL_RATES[MODELS[model].cls]) * (ageMs < FRESH_SELL.hours * 3600e3 ? FRESH_SELL.rate : 1));
 
 // Inside a class, cheaper cars drop more often (weight ∝ 1/√price), like in the original.
 export function modelWeights(list) {
@@ -522,7 +528,11 @@ export const CASES = [
 // Country cases start cheap and have a wider ceiling (hi), so the country's dear cars — the ones its collection needs —
 // can still drop from its own case, rarely. Ukraine's gold Soviet rarities drop only from here (homeOnly).
 const COUNTRY_CASES = {
-  UA: { price: 55000, weights: { D: 98.2, C: 1.746, A: 0.054 }, pity: [['C', 35]], hi: 460 },
+  // UA (owner: «золоті майже не вибити»): gold (A) was 1 per ~1600 opens, the whole collection ~13.7k opens. Now A
+  // 0.054% → 0.15% plus a gold step after 300 that gives a car still missing from the collection ({ missing }): 1 gold
+  // per ~230 opens (~40% before the step) and ≤ 4 × 300 opens for all four. Paid for by the collector sell rate
+  // (HOME_SELL_RATE) and a smaller blue share (C 1.746 → 1.3; 1 would make the blue step fire in >60% of runs).
+  UA: { price: 55000, weights: { D: 98.55, C: 1.3, A: 0.15 }, pity: [['C', 35], ['A', 300, { missing: true }]], hi: 460 },
   JP: { price: 450000, weights: { C: 96.76, B: 3.06, A: 0.162, S: 0.018 }, pity: [['B', 30]], hi: 400 },
   DE: { price: 400000, weights: { C: 98.32, B: 1.554, A: 0.118, S: 0.008 }, pity: [['B', 30]], hi: 570 },
   CN: { price: 480000, weights: { C: 97.776, B: 2.08, A: 0.108, S: 0.036 }, pity: [['B', 30]], hi: 400 },
@@ -566,7 +576,9 @@ export function luckChance(expected, got, broke = false) {
 // (test/pity.test.js keeps every step in 5–60 %). Where the next class drops every few opens anyway (Преміум, США …)
 // the step is the jackpot class with a long n instead. A second step (a dearer class after more opens) is supported
 // but costs too much here. Priced in: effectiveWeights folds the steps into the class shares (cs.ev, cs.sellEv).
-export const pitySteps = (cs) => (cs.pity || []).filter(([c]) => cs.weights[c]).map(([cls, n]) => ({ cls, n, key: `${cs.id}:${cls}` }));
+// A step may carry { missing: true } (UA gold): the guaranteed car is one still missing from the player's collection,
+// and until the class is complete in the collection only a new car of it resets that step (a double doesn't).
+export const pitySteps = (cs) => (cs.pity || []).filter(([c]) => cs.weights[c]).map(([cls, n, o]) => ({ cls, n, key: `${cs.id}:${cls}`, ...(o?.missing ? { missing: true } : {}) }));
 // Class shares with the guarantees folded in (they lift the real chance of the guaranteed class), so prices
 // are based on what actually drops. A guarantee after n opens turns chance q of "this class or better" into
 // q / (1 − (1 − q)^n); the extra goes to the guaranteed class and comes out of the classes below it.

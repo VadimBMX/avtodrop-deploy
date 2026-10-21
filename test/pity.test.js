@@ -4,6 +4,7 @@ import { openDb } from '../src/db.js';
 import { createGame } from '../src/game.js';
 import * as S from '../public/shared.js';
 import { simCase, oldSteps, natural } from '../tools/sim-cases.mjs';
+import { uaOdds, uaSell } from '../tools/sim-ua.mjs';
 
 function setup(db = openDb(':memory:')) {
   const g = createGame(db, { now: () => Date.parse('2026-10-19T10:00:00Z'), notify: () => {} });
@@ -17,7 +18,7 @@ const steps = (id) => S.pitySteps(S.CASE_BY_ID[id]).map((s) => [s.cls, s.n]);
 test('guarantee steps per case', () => {
   const want = {
     rust: [['C', 25]], city: [['B', 30]], tuning: [['A', 200]], sport: [['A', 30]], premium: [['S', 130]], elite: [['S', 30]],
-    'c-ua': [['C', 35]], 'c-jp': [['B', 30]], 'c-de': [['B', 30]], 'c-cn': [['B', 30]], 'c-us': [['S', 300]], 'c-gb': [['S', 250]], 'c-it': [['S', 250]],
+    'c-ua': [['C', 35], ['A', 300]], 'c-jp': [['B', 30]], 'c-de': [['B', 30]], 'c-cn': [['B', 30]], 'c-us': [['S', 300]], 'c-gb': [['S', 250]], 'c-it': [['S', 250]],
   };
   for (const cs of S.CASES) assert.deepEqual(steps(cs.id), want[cs.id] || [], cs.id);
   assert.deepEqual(S.pitySteps(S.CASE_BY_ID.rust)[0].key, 'rust:C', 'one counter per case and class');
@@ -88,10 +89,11 @@ test('city case: a purple car at least every n opens, at least the priced share'
 });
 
 // Open-and-sell (tools/sim-cases.mjs, same seed for both rules, so only the guarantee differs): a case under 1 stays
-// under 1, and no case gains more than 3 points of its price from the new steps.
+// under 1, and no case gains more than 3 points of its price from the new steps. A { missing } step (UA gold) is a
+// priced change of its own (collector sell rate, smaller blue share): left out here, pinned by the UA test below.
 test('economy: the guarantee change keeps open-and-sell in check for every case', () => {
   for (const cs of S.CASES.filter((c) => !c.starter)) {
-    const before = simCase(cs, oldSteps(cs), 1e5, 3).sell, after = simCase(cs, S.pitySteps(cs), 1e5, 3).sell;
+    const before = simCase(cs, oldSteps(cs), 1e5, 3).sell, after = simCase(cs, S.pitySteps(cs).filter((s) => !s.missing), 1e5, 3).sell;
     assert.ok(after - before < 0.03, `${cs.id}: ${before.toFixed(3)} → ${after.toFixed(3)}`);
     if (before < 1.01) assert.ok(after < 0.99, `${cs.id}: open-and-sell under the price (${after.toFixed(3)})`);
   }
@@ -115,4 +117,62 @@ test('old counters move to the per-class keys once: same class keeps the count, 
   assert.equal(p['c-ua:C'], S.pitySteps(S.CASE_BY_ID['c-ua'])[0].n - 1);
   assert.equal(p.rust, undefined, 'old rows removed');
   assert.equal(p.tuning, undefined);
+});
+
+// Owner: «в UA кейсі дуже важко вибити золоті». The gold (A) Soviet rarities: shown odds 0.15% plus a step after 300
+// opens that gives a gold car still missing from the collection — ~1 gold per 230 opens, the whole UA collection in
+// ≤ 1200 opens — paid for by the collector sell rate (10%) and a smaller blue share, so open-and-sell stays ≤ ~1.00
+// (reports/ua.md, tools/sim-ua.mjs).
+test('UA case: pinned odds, gold step and open-and-sell ~1.00', () => {
+  const cs = S.CASE_BY_ID['c-ua'];
+  assert.equal(cs.price, 55000);
+  assert.deepEqual(cs.weights, { D: 98.55, C: 1.3, A: 0.15 });
+  assert.deepEqual(S.pitySteps(cs), [{ cls: 'C', n: 35, key: 'c-ua:C' }, { cls: 'A', n: 300, key: 'c-ua:A', missing: true }]);
+  for (const c of S.CASES) if (c.id !== 'c-ua') assert.ok(S.pitySteps(c).every((s) => !s.missing), c.id);
+  assert.deepEqual(cs.pool('A').map((m) => m.id).sort(), ['haz-13-chaika', 'haz-24-95-volha-4x4', 'vaz-2108-group-b', 'zil-41047']);
+  assert.equal(S.HOME_SELL_RATE, 0.1);
+  for (const m of cs.pool('A')) {
+    assert.ok(m.homeOnly && S.isCollector(m.id), m.id);
+    assert.equal(S.sellPriceOf(m.id), Math.floor(m.price * S.HOME_SELL_RATE));
+  }
+  assert.equal(S.sellPriceOf('nissan-gt-r-r35'), Math.floor(S.MODELS['nissan-gt-r-r35'].price * S.SELL_RATES.A), 'other gold cars keep 45%');
+  const gold = uaOdds().A;
+  assert.ok(gold > 1 / 260 && gold < 1 / 210, `gold 1 in ${(1 / gold).toFixed(0)}`);
+  const exact = uaSell(), sim = simCase(cs, S.pitySteps(cs), 2e5, 3).sell;
+  assert.ok(exact > 0.96 && exact < 1.01, `open-and-sell exact ${exact.toFixed(3)}`);
+  assert.ok(sim > 0.96 && sim < 1.01, `open-and-sell sim ${sim.toFixed(3)}`);
+});
+
+test('UA case: a missing gold car at least every 300 opens; collector cars stay out of upgrade and trade-in', () => {
+  const { db, g } = setup();
+  const [, st] = S.pitySteps(S.CASE_BY_ID['c-ua']);
+  g.giveCar(1, 'vaz-2107'); // a car that stays, so every drop can be sold
+  const modelOf = db.prepare('SELECT model FROM cars WHERE id = ?');
+  for (let i = 0; i < 200; i++) {
+    const r = g.api['case/open'](1, { caseId: 'c-ua', count: 6 });
+    g.api.sell(1, { carIds: r.results.map((x) => x.car.id).filter((id) => !S.isCollector(modelOf.get(id).model)) });
+  }
+  const drops = db.prepare("SELECT item, cls, forced FROM drops WHERE case_id = 'c-ua' ORDER BY id").all();
+  assert.ok(drops.length >= 1200);
+  let since = 0;
+  const seen = new Set();
+  for (const d of drops) {
+    if (d.forced === 4) {
+      assert.equal(d.cls, 'A');
+      assert.equal(since, st.n - 1, 'the gold step comes exactly on the 300th open without a new gold car');
+      assert.ok(!seen.has(d.item), `guaranteed ${d.item} was missing`);
+    }
+    // Until all four are found only a new gold car resets the step.
+    since = d.cls === 'A' && (!seen.has(d.item) || seen.size === 4) ? 0 : since + 1;
+    if (d.cls === 'A') seen.add(d.item);
+    assert.ok(since < st.n, 'no 300-open run without a new gold car');
+  }
+  assert.equal(seen.size, 4, 'all four gold rarities within 1200 opens');
+  const golds = db.prepare("SELECT id, model FROM cars WHERE owner_id = 1 AND model IN (SELECT item FROM drops WHERE cls = 'A')").all();
+  assert.throws(() => g.api.upgrade(1, { carIds: [golds[0].id], target: 'lexus-lfa' }), /Колекційну/);
+  assert.throws(() => g.api['dealer/tradein'](1, { carIds: golds.slice(0, 3).map((c) => c.id) }), /Колекційну/);
+  const bal = db.prepare('SELECT balance FROM users WHERE id = 1');
+  const before = bal.get().balance;
+  g.api.sell(1, { carIds: [golds[0].id] });
+  assert.equal(bal.get().balance - before, S.sellPriceOf(golds[0].model));
 });

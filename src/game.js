@@ -182,6 +182,12 @@ export function createGame(db, opts = {}) {
     if (S.MODELS[c.model]?.secret) fail('Секретну машину не можна продати, обміняти чи поставити в апгрейд — це нагорода за колекцію');
     return c;
   }
+  // Collector cars (the UA gold rarities) sell for S.HOME_SELL_RATE only, so they can't be turned into money at the full
+  // rate through an upgrade or a trade-in either.
+  function noCollector(c) {
+    if (S.isCollector(c.model)) fail('Колекційну машину не можна поставити в апгрейд чи трейд-ін');
+    return c;
+  }
   const garageCount = (uid) => q("SELECT COUNT(*) n FROM cars WHERE owner_id = ? AND status <> 'showcase'").get(uid).n;
   function needSlots(uid, n) {
     const u = q('SELECT slots FROM users WHERE id = ?').get(uid);
@@ -791,16 +797,20 @@ export function createGame(db, opts = {}) {
     // resets on a car of its class or better, or goes up by one.
     const steps = S.pitySteps(cs);
     const counts = steps.map((s) => q('SELECT count FROM pity WHERE user_id = ? AND case_id = ?').get(uid, s.key)?.count || 0);
+    // A { missing } step: the cars of its class this case drops that the player has never had.
+    const miss = steps.map((s) => (s.missing ? cs.pool(s.cls).filter((m) => !q('SELECT 1 FROM collection WHERE user_id = ? AND model = ?').get(uid, m.id)) : []));
+    let due = -1;
     for (let i = steps.length - 1; i >= 0; i--) {
       if (S.rankOf(cls) < S.rankOf(steps[i].cls) && counts[i] + 1 >= steps[i].n) {
         cls = steps[i].cls;
-        forced = 1;
+        forced = steps[i].missing && miss[i].length ? 4 : 1; // 4: a car missing from the collection (verify knows)
+        due = i;
         break;
       }
     }
     const savePity = q('INSERT INTO pity (user_id, case_id, count) VALUES (?, ?, ?) ON CONFLICT DO UPDATE SET count = excluded.count');
-    steps.forEach((s, i) => savePity.run(uid, s.key, S.rankOf(cls) >= S.rankOf(s.cls) ? 0 : counts[i] + 1));
-    let model = pickModel(cs.pool(cls), f.roll(1));
+    steps.forEach((s, i) => s.missing || savePity.run(uid, s.key, S.rankOf(cls) >= S.rankOf(s.cls) ? 0 : counts[i] + 1));
+    let model = pickModel(forced === 4 ? miss[due] : cs.pool(cls), f.roll(1));
     // Losing-streak protection: throw again (up to LUCK.tries) for a car worth the case; when forced, give the
     // cheapest car of this case that is.
     if (save && S.MODELS[model].price < save.need) {
@@ -822,6 +832,10 @@ export function createGame(db, opts = {}) {
         }
       }
     }
+    // A { missing } step looks at the final drop (a streak-save re-roll counts too); while cars of its class are missing
+    // only a new one resets it.
+    steps.forEach((s, i) => s.missing && savePity.run(uid, s.key,
+      S.rankOf(cls) >= S.rankOf(s.cls) && (!miss[i].length || miss[i].some((m) => m.id === model)) ? 0 : counts[i] + 1));
     q('INSERT INTO drops (user_id, case_id, item, cls, seed_hash, client_seed, nonce, forced, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(uid, cs.id, model, cls, sha256(f.server_seed), f.client_seed, f.nonce, forced || (lucky ? 2 : 0), now());
     return { model, cls, forced, lucky };
@@ -1458,7 +1472,7 @@ export function createGame(db, opts = {}) {
   function upgrade(uid, { carIds, target }) {
     const ids = idList(carIds, S.UPGRADE.maxCars);
     if (!ids.length) fail('Обери хоча б одну машину');
-    const cars = ids.map((id) => noSecret(ownCar(uid, id)));
+    const cars = ids.map((id) => noCollector(noSecret(ownCar(uid, id))));
     if (q("SELECT COUNT(*) n FROM cars WHERE owner_id = ? AND status = 'garage'").get(uid).n - ids.length < 1) fail('У гаражі має залишитися хоча б одна машина');
     const t = S.MODELS[target];
     if (!t || t.secret) fail('Обери машину-ціль');
@@ -1490,7 +1504,7 @@ export function createGame(db, opts = {}) {
   function tradeIn(uid, { carIds }) {
     const ids = idList(carIds, S.TRADE_IN.cars);
     if (ids.length !== S.TRADE_IN.cars) fail(`Потрібно рівно ${S.TRADE_IN.cars} машини`);
-    const cars = ids.map((id) => noSecret(ownCar(uid, id)));
+    const cars = ids.map((id) => noCollector(noSecret(ownCar(uid, id))));
     const cls = S.MODELS[cars[0].model].cls;
     if (cars.some((c) => S.MODELS[c.model].cls !== cls)) fail('Усі три машини мають бути одного класу');
     const up = S.CLASS_ORDER[S.rankOf(cls) + 1];
