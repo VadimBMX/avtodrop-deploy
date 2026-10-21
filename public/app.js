@@ -2,6 +2,7 @@ import * as S from './shared.js';
 import { carArt, setImages } from './car.js';
 // Painted cars get their recoloured photo once the picture is in the page.
 import * as FX from './fx.js';
+import * as SFX from './sfx.js';
 
 const tg = window.Telegram?.WebApp;
 const $ = (s, el = document) => el.querySelector(s);
@@ -109,6 +110,30 @@ function haptic(kind) {
     else tg?.HapticFeedback?.impactOccurred(kind || 'light');
   } catch {}
 }
+// Haptics for fast repeated events (reel cards, plate symbols): at most one per `gap` ms.
+let lastHaptic = 0;
+function hapticTick(kind = 'soft', gap = 70) {
+  const now = performance.now();
+  if (now - lastHaptic < gap) return;
+  lastHaptic = now;
+  haptic(kind);
+}
+// Where the last tap was: coins fly from there when a reward lands.
+let lastTap = null;
+const tapPoint = () => (lastTap && performance.now() - lastTap.t < 4000 ? [lastTap.x, lastTap.y] : [innerWidth / 2, innerHeight * 0.55]);
+// Money gained by an action (collect, claims, sales): coins fly to the balance chip, which then counts up.
+let coinsLandAt = 0;
+function moneyFx(amount) {
+  if (!(amount > 0)) return;
+  const chip = $('#balance');
+  coinsLandAt = performance.now() + 700;
+  SFX.coin();
+  FX.coinFly(tapPoint(), chip, { count: Math.min(14, 6 + Math.round(Math.log10(amount))), onEach: (i) => (i % 3 === 0 && SFX.tick(1.6), i === 0 && FX.popEl(chip, 1.15, 300)), onDone: () => (FX.popEl(chip, 1.18, 380), SFX.coin()) });
+  setTimeout(() => FX.gainLabel(chip, amount, S.short), 550);
+}
+const gainOf = (r) => [r?.got, r?.reward?.money, r?.money].find((v) => typeof v === 'number' && v > 0) || 0;
+// Endpoints whose success is a moment worth celebrating (beyond the coins).
+const CELEBRATE = new Set(['ach/claim', 'collection/claim', 'quests/claim', 'weekly/claim', 'newbie/claim', 'pass/claim']);
 let toastTimer;
 function toast(msg, err = false) {
   const t = $('#toast');
@@ -132,6 +157,12 @@ async function act(name, body, ok, { rerender = true } = {}) {
     }
     if (ok) toast(typeof ok === 'function' ? ok(r) : ok);
     haptic('success');
+    moneyFx(gainOf(r));
+    if (CELEBRATE.has(name)) {
+      const [x, y] = tapPoint();
+      FX.burst(x, y, ['#ffd500', '#ffffff', '#34c759'], { count: 36, power: 6, shape: 'mix' });
+      SFX.win();
+    }
     await refresh(rerender);
     return r;
   } catch (e) {
@@ -196,6 +227,8 @@ document.addEventListener('click', (e) => {
   const fn = H[el.dataset.act];
   if (fn) {
     haptic('light');
+    lastTap = { x: e.clientX || FX.centerOf(el)[0], y: e.clientY || FX.centerOf(el)[1], t: performance.now() };
+    if (/claim|collect|Claim|Chest|openCase|genPlate/.test(el.dataset.act)) FX.press(el), SFX.press();
     fn(el.dataset, el, e);
   }
 });
@@ -296,8 +329,13 @@ function ring(level, xp, need, size = 40) {
   const r = size / 2 - 2, c = 2 * Math.PI * r, f = Math.min(1, xp / need);
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#252c39" stroke-width="3"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="${c * f} ${c}" transform="rotate(-90 ${size / 2} ${size / 2})"/></svg>`;
 }
+let shownBalance = null;
 function renderHeader() {
-  $('#balance').textContent = S.short(me.balance);
+  // A gain counts up (after any flying coins have landed); spending just changes the number.
+  const bal = $('#balance');
+  if (shownBalance !== null && me.balance > shownBalance) FX.tween(bal, shownBalance, me.balance, 750, S.short, Math.max(0, coinsLandAt - performance.now()));
+  else if (!bal.dataset.tweening || me.balance < shownBalance) (FX.stopTween(bal), bal.textContent = S.short(me.balance));
+  shownBalance = me.balance;
   const initial = (me.firstName || me.username || '?').trim()[0]?.toUpperCase() || '?';
   $('#avatar').innerHTML = `${ring(me.level, me.xp, me.xpNeed)}<span class="face">${esc(initial)}</span><span class="lvl">${me.level}</span>`;
   const giftReady = me.dailyReady || serverNow() >= me.rewardCaseAt;
@@ -447,8 +485,21 @@ function showLevelUp() {
     <div class="card mt"><b class="win">${esc(rewardText(rw))}</b></div>
     <button class="btn" data-act="levelOk">Чудово</button></div>`);
   haptic('success');
+  celebrateSheet($('#sheet .ring'), ['#f5b301', '#ffd500', '#ffffff', '#34c759']);
 }
 H.levelOk = () => closeModal();
+// A celebratory moment for a sheet that just opened (level-up, set done, reward): the hero element pops with a
+// burst of stars and a little confetti, plus a fanfare.
+function celebrateSheet(el, colors, { confetti = 0.6 } = {}) {
+  requestAnimationFrame(() => {
+    if (!el?.isConnected) return;
+    FX.popEl(el, 1.18, 520);
+    FX.burst(...FX.centerOf(el), colors, { count: 50, power: 8, shape: 'mix' });
+    if (confetti) FX.confetti(colors, confetti);
+    SFX.fanfare();
+    haptic('heavy');
+  });
+}
 // ---------- achievements ----------
 const ROMAN = ['I', 'II', 'III', 'IV'];
 // Round badge in the colour of the highest tier claimed (grey while none is); a red dot when a tier waits.
@@ -590,6 +641,13 @@ async function openRewards(result) {
     <div class="h2"><span>Колекція</span></div>
     <div class="list"><button class="li" data-act="go" data-page="collection"><span class="ic">${ic('books')}</span><div class="grow"><b>Нагороди за колекцію</b><div class="small muted">Збирай машини й цілі країни</div></div>${claimableCollection() ? '<span class="badge" style="position:static">!</span>' : `<span class="chev">${ic('chevron-right')}</span>`}</button></div>`);
   tickUntil();
+  if (result) {
+    const res = $('#sheet .reward-res');
+    if (result.car) {
+      const rk = S.rankOf(M(result.car.model).cls);
+      setTimeout(() => (FX.dropShow(rk, rc, { host: res?.querySelector('.reveal-wrap'), target: res?.querySelector('.art') }), SFX.pop(rk), rk >= 3 && SFX.rare(rk)), 300);
+    } else setTimeout(() => (FX.sparkle(res, ['#ffd500', '#ffffff', '#34c759'], 12), FX.popEl(res?.querySelector('.rr-ic'), 1.25, 450), SFX.win()), 300);
+  }
 }
 H.claimDaily = async () => {
   const r = await act('rewards/daily', {}, null, { rerender: false });
@@ -1084,9 +1142,14 @@ AFTER.cases = () => {
   const best = state.drop.reduce((a, r) => Math.max(a, S.rankOf(M(r.car.model).cls)), 0);
   const color = S.CLASS_ORDER.map((c) => S.CLASSES[c].color)[best];
   haptic(best >= 3 ? 'heavy' : best >= 1 ? 'medium' : 'success');
+  if (best >= 4) setTimeout(() => haptic('success'), 420);
+  if (best >= 3) setTimeout(() => SFX.rare(best), 120);
   if (state.drop.length === 1) {
     const car = state.drop[0].car;
-    setTimeout(() => FX.reveal(best, color, { host: $('#revealWrap'), target: $('#dropArt') }), 150);
+    setTimeout(() => {
+      FX.dropShow(best, color, { host: $('#revealWrap'), target: $('#dropArt'), newEl: $('.newtag') });
+      if (state.drop?.[0]?.isNew) setTimeout(() => SFX.coin(), 480);
+    }, 150);
     FX.countUp($('#dropValue'), car.value, 900, S.fmt);
   } else {
     // Cards flip in one by one with a few sparkles in their colour.
@@ -1095,8 +1158,12 @@ AFTER.cases = () => {
       setTimeout(() => {
         const el = document.querySelectorAll('.multi > div')[i];
         if (!el) return;
-        FX.sparkle(el, [S.CLASSES[M(r.car.model).cls].color, '#fff'], 3 + rank * 2);
+        const c = S.CLASSES[M(r.car.model).cls].color;
+        FX.sparkle(el, [c, '#fff'], 3 + rank * 2);
+        if (rank >= 3) FX.burst(...FX.centerOf(el), [c, '#fff'], { count: rank >= 4 ? 70 : 40, power: rank >= 4 ? 9 : 6, shape: rank >= 4 ? 'mix' : 'spark' });
+        if (rank >= 4) FX.shake(undefined, 320);
         haptic(rank >= 2 ? 'medium' : 'light');
+        SFX.tick(1.2 + rank * 0.1);
       }, i * 180 + 300);
     });
   }
@@ -1126,35 +1193,97 @@ function spinReel({ cardAt, color, rank, lean = 0, wrap = $('#reelWrap'), reel =
     const card = reel.children[1].offsetLeft - reel.children[0].offsetLeft; // card width + gap, big or mini reel
     const cardW = reel.children[0].offsetWidth;
     const target = W * card + cardW / 2 - wrap.clientWidth / 2 + (lean ? lean * (0.3 + Math.random() * 0.12) : (Math.random() - 0.5) * 0.6) * cardW;
-    const dur = (rank >= 2 ? 6000 : 5000) + extra; // rare drops spin a little longer for suspense
-    let last = -1;
+    // Motion is driven from JS (transform only, no layout reads per frame) in up to three parts:
+    //  1. spin: a quick ramp-up, then a long ease-out (velocity ∝ (1-u)^2.4) to the stop;
+    //  2. B+ only — tease: the spin ends one card short, the reel hangs there for a beat and then creeps over;
+    //  3. settle: it overshoots the stop by a fraction of a card and springs back.
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const teaseOn = rank >= 2 && !reduce;
+    const over = reduce ? 0 : cardW * (0.1 + Math.random() * 0.06);
+    const teaseD = teaseOn ? card * 0.92 : 0;
+    const spinMs = (reduce ? 1200 : 4300) + extra, teaseMs = teaseOn ? 1050 : 0, settleMs = reduce ? 0 : 380;
+    const spinTo = target + (teaseOn ? -teaseD : over);
+    // Ease table for part 1 (numerically integrated velocity profile, normalised to 0…1).
+    const N_E = 240, A = 0.07, prof = [0];
+    for (let i = 1; i <= N_E; i++) {
+      const u = (i - 0.5) / N_E;
+      prof.push(prof[i - 1] + Math.min(1, u / A) * Math.pow(1 - u, 2.4));
+    }
+    const ease = (u) => {
+      const f = Math.min(N_E, Math.max(0, u * N_E)), i = Math.floor(f);
+      const v = i >= N_E ? prof[N_E] : prof[i] + (prof[i + 1] - prof[i]) * (f - i);
+      return v / prof[N_E];
+    };
+    const smooth = (u) => u * u * (3 - 2 * u);
+    const posAt = (t) => {
+      if (t < spinMs) return spinTo * ease(t / spinMs);
+      t -= spinMs;
+      if (teaseOn) {
+        if (t < teaseMs) {
+          const u = Math.max(0, (t - 260) / (teaseMs - 260)); // hang for 260 ms, then creep (and overshoot)
+          return spinTo + (teaseD + over) * smooth(u);
+        }
+        t -= teaseMs;
+      }
+      if (t < settleMs) return target + over * (1 - smooth(t / settleMs));
+      return target;
+    };
+    const total = spinMs + teaseMs + settleMs;
+    let last = -1, teased = false, slowed = false;
+    const half = wrap.clientWidth / 2;
     wrap.classList.add('spinning');
-    const tick = () => {
-      const x = -new DOMMatrix(getComputedStyle(reel).transform).m41;
-      const idx = Math.floor((x + wrap.clientWidth / 2) / card);
+    reel.style.transition = 'none';
+    // The curve is baked into WAAPI keyframes (one every ~16 ms) so the compositor plays it even when the main
+    // thread is busy; the rAF loop below only reads the animation clock for ticks and state changes.
+    const K = Math.max(2, Math.round(total / 16));
+    const anim = reel.animate(Array.from({ length: K + 1 }, (_, i) => ({ transform: `translate3d(${-posAt((total * i) / K).toFixed(1)}px,0,0)`, offset: i / K })), { duration: total, easing: 'linear', fill: 'forwards' });
+    let ended = false;
+    // rAF pauses in a background tab while the animation still finishes: settle from a timer then.
+    const onEnd = () => ((ended = true), setTimeout(() => !stopped && frame(), 120));
+    anim.finished.then(onEnd, onEnd);
+    let stopped = false;
+    const frame = () => {
+      const t = Math.min(total, Number(anim.currentTime) || 0);
+      const x = posAt(t);
+      const idx = Math.floor((x + half) / card);
       if (idx !== last) {
+        if (last >= 0 && !quiet) {
+          // A soft click per card through the gate; pitch drops a little as the reel slows.
+          SFX.tick(t < spinMs * 0.5 ? 1 : 0.85);
+          hapticTick('soft', t < spinMs * 0.6 ? 90 : 40);
+        }
         last = idx;
-        if (!quiet) haptic('soft');
         reel.children[idx]?.animate([{ transform: 'scale(1.06)' }, { transform: 'scale(1)' }], { duration: 160 });
       }
-      if (state.opening) requestAnimationFrame(tick);
+      if (!slowed && t > spinMs * 0.55) (slowed = true, wrap.classList.replace('spinning', 'slowing'));
+      if (teaseOn && !teased && t >= spinMs) {
+        teased = true;
+        wrap.classList.add('tease');
+        wrap.style.setProperty('--c', color);
+        if (!quiet) (SFX.tease(teaseMs), haptic('light'));
+      }
+      if (!ended && t < total) return requestAnimationFrame(frame);
+      reel.style.transform = `translate3d(${-target}px,0,0)`;
+      stop();
     };
-    requestAnimationFrame(() => {
-      reel.style.transition = `transform ${dur}ms cubic-bezier(.08,.75,.12,1)`;
-      reel.style.transform = `translateX(${-target}px)`;
-      requestAnimationFrame(tick);
-    });
-    setTimeout(() => wrap.classList.replace('spinning', 'slowing'), dur * 0.55);
-    setTimeout(() => {
+    requestAnimationFrame(frame);
+    function stop() {
+      if (stopped) return;
+      stopped = true;
       const w = reel.children[W];
       w.style.setProperty('--c', color);
       w.classList.add('winner');
+      wrap.classList.remove('tease');
       wrap.style.setProperty('--c', color);
       wrap.classList.add('stopped', `r${rank}`); // the rest of the strip dims, the gate takes the winner's colour
-      haptic(rank >= 2 ? 'heavy' : quiet ? 'light' : 'medium');
-      if (rank >= 4 && !quiet) FX.flash(color, 0.12, 400);
-    }, dur + 100);
-    setTimeout(resolve, dur + 800);
+      haptic(rank >= 3 ? 'heavy' : rank >= 2 || !quiet ? 'medium' : 'light');
+      if (!quiet) {
+        SFX.pop(rank);
+        FX.flash(color, rank >= 4 ? 0.3 : rank >= 2 ? 0.18 : 0.1, 420);
+        if (rank >= 3) FX.burst(...FX.centerOf(w), [color, '#ffffff'], { count: rank >= 4 ? 40 : 24, power: 6 });
+      } else if (rank >= 2) FX.sparkle(w, [color, '#ffffff'], 4 + rank);
+      setTimeout(resolve, 650);
+    }
   });
 }
 // Builds one small reel per result in `host` and spins them together; spinOne(i, wrap, reel, extra, quiet) starts reel i.
@@ -1196,7 +1325,29 @@ function fuelCard(car, extra = '') {
     ${extra || `<div class="tiny muted mt">Загальний бак — на всі машини, і в кожної машини свій бак на ${S.CAR_TANK} гонок${car.tankNext ? ` (+1 через <span data-until="${car.tankNext - clockOffset}"></span>)` : ''} · ${car.hp} к.с. · ${dec(car.et, 2)} с на 402 м</div>`}</div>`;
 }
 // The car picker rail: the chosen car is always in view (it may be the 20th of 30), without moving the page.
+// Race / drift / PvP verdict, once it is on screen: a win throws yellow confetti and counts the prize up,
+// a loss gives the verdict a small shake.
+function resultFx() {
+  const fx = state.resultFx;
+  if (!fx) return;
+  const hero = $('.rhero') || $('#view .big.win, #view .big.lose')?.parentElement;
+  if (!hero) return;
+  state.resultFx = null;
+  if (fx.win) {
+    FX.confetti(['#f5b301', '#ffd500', '#fff3b0', '#ffffff'], 1);
+    FX.popEl(hero.querySelector('.rhero-t, .big'), 1.15, 480);
+    SFX.win();
+    // The prize readout counts up from zero (keeps its "+" and currency format).
+    const amt = hero.querySelector('.rhero-amt') || hero.querySelector('.win[style*="font-size"]');
+    const m = amt?.textContent.match(/^\+\s*([\d\s ]+)\s*₴/);
+    if (m) FX.countUp(amt, num(m[1]), 800, (v) => '+' + S.fmt(v));
+  } else {
+    FX.shake(hero, 360);
+    SFX.lose();
+  }
+}
 AFTER.race = () => {
+  resultFx();
   const pick = $('.carpick'), cur = pick?.querySelector('.car.sel');
   if (!cur) return;
   const dx = cur.getBoundingClientRect().left - pick.getBoundingClientRect().left;
@@ -1400,6 +1551,7 @@ function runRace() {
     if (R.live) return finishLive();
     R.phase = 'done';
     haptic(R.result.win ? 'success' : 'error');
+    state.resultFx = { win: !!R.result.win };
     await refresh();
   }
   // Live: send my run, then keep the rival's bar moving until they finish too (the progress poll settles it).
@@ -1432,6 +1584,7 @@ async function settleLive(s) {
   R.result = s;
   haptic(s.win ? 'success' : 'error');
   if (s.win) FX.flash('#4ade80', 0.25, 500);
+  state.resultFx = { win: !!s.win };
   await refresh();
 }
 // Race result as a timing sheet: the verdict under a light in green/red, the money as a readout, then both runs
@@ -1886,6 +2039,7 @@ function runDrift() {
     D.phase = 'done';
     haptic(D.result.win ? 'success' : 'error');
     if (D.result.win) FX.flash('#4ade80', 0.25, 500);
+    state.resultFx = { win: !!D.result.win };
     await refresh();
   }
 }
@@ -2248,6 +2402,7 @@ TABS.menu = () => {
       ...(me.admin ? [row('', 'adjustments', 'Адмін-панель', ST, '', 0, 'openAdmin')] : []),
     ])
     + `<div class="mgroup">Налаштування</div><div class="list menu-list settings">
+      <div class="li"><span class="mi" style="--c:${GR}">${ic('volume')}</span><div class="grow"><b>Звук</b><div class="tiny muted">Тихі ефекти кейсів, нагород і гонок · на цьому пристрої</div></div><button class="toggle ${SFX.isOn() ? 'on' : ''}" data-act="toggleSound" aria-label="Звук" aria-pressed="${SFX.isOn()}"></button></div>
       <div class="li"><span class="mi" style="--c:${ST}">${ic('bell')}</span><div class="grow"><b>Не турбувати</b><div class="tiny muted">Ніхто не зможе запросити тебе на обмін чи гонку</div></div><button class="toggle ${me.noInvites ? 'on' : ''}" data-act="toggleDnd" aria-label="Не турбувати"></button></div>
       <div class="li"><span class="mi" style="--c:${BL}">${ic('clock')}</span><div class="grow"><b>Нагадування від бота</b><div class="tiny muted">${me.pushOn && me.pushBlocked ? 'Бот не може тобі написати — відкрий чат з ботом і натисни /start' : 'Повний бак, дохід гаража, бонус — не частіше 2 разів на день і не вночі'}</div></div><button class="toggle ${me.pushOn ? 'on' : ''}" data-act="togglePush" aria-label="Нагадування від бота"></button></div>
       <div class="li"><span class="mi" style="--c:${Y}">${ic('copy')}</span><div class="grow"><div class="tiny muted">Твій ID для обмінів</div><b class="disp">${me.id}</b></div><button class="btn sm ghost" data-act="copyId">Копіювати</button></div></div>`;
@@ -2398,6 +2553,7 @@ H.setClaim = async (d) => {
       <span class="lstamp" style="--bc:${SET_TIER_COLORS[s.tier]}">${ic('trophy')}${esc(rw.badge)}</span>
       <div class="set-rw-list">${list.map((x) => `<div>${x}</div>`).join('')}</div>
       <div class="tiny muted mt">Значок уже у твоїй ліцензії пілота</div></div>`);
+  celebrateSheet($('#sheet .set-medal'), [SET_TIER_COLORS[s.tier] || '#ffd500', '#ffd500', '#ffffff'], { confetti: 0.9 });
 };
 
 // ---------- plates ----------
@@ -2495,7 +2651,7 @@ function spinPlate(p) {
       // Later cells run longer; on rare plates the last two drag out for suspense.
       const extra = rank >= 2 && i >= cells.length - 2 ? 700 * (i - cells.length + 3) : 0;
       const dur = 900 + i * 220 + extra;
-      if (rank >= 2 && i === cells.length - 2) setTimeout(() => plateEl.classList.add('tension'), 900 + i * 220 - 200);
+      if (rank >= 2 && i === cells.length - 2) setTimeout(() => (plateEl.classList.add('tension'), SFX.tease(extra + 1400), haptic('light')), 900 + i * 220 - 200);
       const flip = (ch) => {
         c.textContent = ch;
         c.classList.remove('flip');
@@ -2508,6 +2664,7 @@ function spinPlate(p) {
           flip(finals[i]);
           c.classList.add('landed');
           haptic(i === cells.length - 1 ? 'heavy' : 'light');
+          SFX.land(i);
           if (++done === cells.length) {
             plateEl.classList.remove('tension');
             resolve();
@@ -2533,9 +2690,12 @@ AFTER.plates = () => {
   const plateEl = $('#plateStage .plate');
   plateEl.style.setProperty('--c', color);
   if (rank >= 1) plateEl.classList.add('lit');
+  else FX.popEl(plateEl, 1.08, 380);
   FX.celebrate(rank, color, { target: plateEl });
   FX.countUp($('#plateValue'), p.value, 900, S.fmt);
   haptic(rank >= 3 ? 'heavy' : 'success');
+  SFX.pop(rank);
+  if (rank >= 3) setTimeout(() => SFX.rare(rank), 100);
 };
 H.plateToCar = (d) => pickCar('На яку машину?', (carId) => act('plate/attach', { plateId: Number(d.pid), carId }, 'Номер встановлено').then(() => (state.plateDrop = null)), (c) => c.status === 'garage' || c.status === 'showcase');
 H.plateSell = async (d) => {
@@ -4356,6 +4516,13 @@ H.bannerOpen = (d) => {
 H.togglePush = async () => {
   const r = await act('settings/push', { on: !me.pushOn }, null);
   if (r) toast(r.pushOn ? 'Нагадування від бота увімкнено' : 'Нагадування вимкнено — повідомлення про обміни й PvP приходитимуть і далі');
+};
+H.toggleSound = (d, el) => {
+  SFX.setOn(!SFX.isOn());
+  el.classList.toggle('on', SFX.isOn());
+  el.setAttribute('aria-pressed', SFX.isOn());
+  if (SFX.isOn()) SFX.coin();
+  toast(SFX.isOn() ? 'Звук увімкнено' : 'Звук вимкнено');
 };
 H.toggleDnd = async () => {
   const r = await act('settings/invites', { on: !me.noInvites }, null);
