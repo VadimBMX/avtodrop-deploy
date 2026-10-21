@@ -205,32 +205,61 @@ function driftSetup() {
   const car = ctx.mk(1);
   return { ...ctx, car, start: (rival = 'hard') => ctx.call(1, 'drift/start', { carId: car, rival }) };
 }
-test('drift: an honest run gets exactly the score the player saw (replayed from the gas log)', () => {
+test('drift: an honest run gets exactly the score and corner breakdown the player saw (replayed from the gas log)', () => {
   const { call, clock, start } = driftSetup();
-  for (const fps of [30, 60, 120]) {
+  for (const [fps, skill] of [[30, 0.4], [60, 0.8], [120, 0.6], [144, 1]]) {
     const st = start('easy');
-    assert.ok(Number.isSafeInteger(st.seed) && st.step === S.DRIFT_STEP);
-    const run = clientDrift(st.model, st.seed, { fps });
-    clock.add(S.DRIFT_COUNT_MS + S.DRIFT_MS + 50);
+    assert.ok(Number.isSafeInteger(st.seed) && Number.isSafeInteger(st.track) && st.step === S.DRIFT_STEP);
+    const run = clientDrift(st, { fps, skill });
+    clock.add(S.DRIFT_COUNT_MS + run.ms + 50);
     const r = call(1, 'drift/finish', { runId: st.runId, ...run });
     assert.equal(r.score, run.score);
     assert.equal(r.clean, run.clean);
     assert.equal(r.spins, run.spins);
     assert.equal(r.check, 'ok');
+    assert.equal(r.corners.length, S.DRIFT.corners);
+    assert.equal(r.corners.reduce((a, c) => a + c.pts, 0), r.score);
     assert.equal(r.rival.seed, undefined);
     clock.add(60e3);
   }
 });
-test('drift: the audit script (score 1e9 at 86% of the run) no longer wins against the hard rival', () => {
+test('drift: same seed → same run on the client and the server, at any frame rate and skill', () => {
+  const rnd = lcg(7);
+  for (let i = 0; i < 120; i++) {
+    const model = S.driftModel({ hp: 50 + rnd() * 1500, kg: 900 + rnd() * 1200, grip: 0.35 + rnd() * 0.5 });
+    // The model goes through JSON on its way to the client and into the run row, as in the app.
+    const st = { model: JSON.parse(JSON.stringify(model)), seed: Math.floor(rnd() * 2 ** 31), track: Math.floor(rnd() * 2 ** 32) };
+    const fps = [24, 30, 60, 90, 120, 144][i % 6];
+    const run = clientDrift(st, { fps, skill: rnd(), rs: i + 1 });
+    const rep = S.driftReplay(model, S.driftTrack(st.track), st.seed, run.log);
+    assert.equal(rep.score, run.score);
+    assert.equal(rep.clean, run.clean);
+    assert.equal(rep.spins, run.spins);
+    assert.equal(rep.ms, run.ms);
+    // A second replay is identical too (no hidden state between runs).
+    assert.deepEqual(S.driftReplay(model, S.driftTrack(st.track), st.seed, run.log), rep);
+  }
+});
+test('drift: the finish must wait for the countdown and the replayed run (less 300 ms of network)', () => {
+  const { call, clock, start } = driftSetup();
+  const st = start('easy');
+  const run = clientDrift(st);
+  clock.add(S.DRIFT_COUNT_MS + run.ms - S.DRAG_TOL.wall - 100);
+  assert.throws(() => call(1, 'drift/finish', { runId: st.runId, ...run }), /ще не закінчився/);
+  clock.add(100);
+  assert.equal(call(1, 'drift/finish', { runId: st.runId, ...run }).check, 'ok');
+});
+test('drift: the audit script (score 1e9, no log) never wins; it must still wait out a run', () => {
   const { call, clock, start } = driftSetup();
   let wins = 0;
-  for (let i = 0; i < 5; i++) {
-    const st = start('hard');
-    clock.add(S.DRIFT_MS * 0.86);
+  for (const rival of ['easy', 'mid', 'hard', 'easy', 'hard']) {
+    const st = start(rival);
+    clock.add(15000);
     assert.throws(() => call(1, 'drift/finish', { runId: st.runId, score: 1e9 }), /ще не закінчився/);
-    clock.add(S.DRIFT_COUNT_MS + S.DRIFT_MS * 0.14);
+    clock.add(S.DRIFT_COUNT_MS + 6000);
     const r = call(1, 'drift/finish', { runId: st.runId, score: 1e9 });
-    assert.ok(r.score <= S.driftCap(st.model) * 0.6);
+    assert.equal(r.check, 'legacy');
+    assert.ok(r.score <= st.rival.target * 0.6);
     wins += r.win;
     clock.add(60e3);
   }
@@ -239,30 +268,58 @@ test('drift: the audit script (score 1e9 at 86% of the run) no longer wins again
 test('drift: a forged score with a gas log is replaced by the replayed one; a broken log is rejected', () => {
   const { call, clock, start } = driftSetup();
   const st = start('hard');
-  const run = clientDrift(st.model, st.seed, { target: 5 }); // barely sliding: a low score
+  const run = clientDrift(st, { target: 5 }); // barely sliding: a low score
   clock.add(S.DRIFT_COUNT_MS + S.DRIFT_MS);
-  for (const log of [[5, 3], [-1], [1.5], [S.DRIFT_MS], 'x']) assert.throws(() => call(1, 'drift/finish', { runId: st.runId, score: 1e9, log }), /Некоректні/);
-  const r = call(1, 'drift/finish', { runId: st.runId, ...run, score: 1e9, clean: 6 });
+  const bad = [[5, 3], [-1], [1.5], [S.DRIFT_MS / S.DRIFT_STEP + 1], 'x', { 0: 1 }, Array(20001).fill(0)];
+  for (const log of bad) assert.throws(() => call(1, 'drift/finish', { runId: st.runId, score: 1e9, log }), /Некоректні/);
+  const r = call(1, 'drift/finish', { runId: st.runId, ...run, score: 1e9, clean: 7 });
   assert.equal(r.score, run.score);
   assert.equal(r.clean, run.clean);
   assert.equal(r.check, 'replayed');
   assert.equal(r.win, false);
 });
-test('drift: no replayed run beats the car\'s cap; the cap is below a perfect run', () => {
+test('drift: forged logs gain nothing — random taps score low, a great run on another seed or track is replayed as what it does here', () => {
+  const rnd = lcg(99);
+  const st = { model: S.driftModel({ hp: 72, kg: 1030, grip: 0.35 }), seed: 1234, track: 777 };
+  const track = S.driftTrack(st.track), par = S.driftPar(st.model, track);
+  for (let i = 0; i < 40; i++) {
+    let t = 0;
+    const log = Array.from({ length: 50 + Math.floor(rnd() * 400) }, () => (t += 1 + Math.floor(rnd() * 60)));
+    assert.ok(S.driftReplay(st.model, track, st.seed, log.filter((x) => x <= S.DRIFT_MS / S.DRIFT_STEP)).score < par * 0.75, 'random taps lose to the easy rival');
+  }
+  // The log of a near-perfect run, sent for a run with another noise seed or another track, is just a worse run there.
+  const best = clientDrift(st, { skill: 1 });
+  const other = S.driftReplay(st.model, track, st.seed + 1, best.log), otherTrack = S.driftReplay(st.model, S.driftTrack(778), st.seed, best.log);
+  assert.ok(other.score < best.score && otherTrack.score < best.score);
+});
+test('drift: no replayed run beats the car\'s cap on its track; the cap is below the global maximum', () => {
+  const rnd = lcg(5);
   for (const stats of [{ hp: 80, kg: 1000, grip: 0.35 }, { hp: 400, kg: 1400, grip: 0.6 }, { hp: 1600, kg: 1500, grip: 0.95 }]) {
-    const m = S.driftModel(stats), cap = S.driftCap(m);
-    assert.ok(cap < S.DRIFT_MAX);
-    for (let seed = 1; seed <= 25; seed++) {
-      for (const target of [m.ideal[0], (m.ideal[0] + m.ideal[1]) / 2, m.ideal[1], m.zone[1]]) {
-        assert.ok(S.driftReplay(m, seed * 977, clientDrift(m, seed * 977, { target }).log).score <= cap);
+    const m = S.driftModel(stats);
+    for (let k = 1; k <= 8; k++) {
+      const st = { model: m, seed: k * 977, track: k * 31337 }, cap = S.driftCap(m, S.driftTrack(st.track));
+      assert.ok(cap < S.DRIFT_MAX);
+      for (const opt of [{ skill: 1 }, { skill: 0.9, fps: 144 }, { skill: rnd() }, { target: 30 }, { target: 40 }, { target: 50 }]) {
+        assert.ok(clientDrift(st, opt).score <= cap);
       }
     }
   }
 });
+test('drift: a run started before «Дрифт 2.0» (no track in the run) is finished as a legacy run', () => {
+  const { call, clock, start, db } = driftSetup();
+  const st = start('easy');
+  const row = db.prepare('SELECT rival FROM drift_runs WHERE id = ?').get(st.runId);
+  const { track, ...old } = JSON.parse(row.rival);
+  db.prepare('UPDATE drift_runs SET rival = ? WHERE id = ?').run(JSON.stringify({ ...old, model: { turn: 50, recover: 70, zone: [23, 47], ideal: [31, 39], spin: 70 } }), st.runId);
+  clock.add(S.DRIFT_COUNT_MS + 30000);
+  const r = call(1, 'drift/finish', { runId: st.runId, ...clientDrift(st) });
+  assert.equal(r.check, 'legacy');
+  assert.equal(r.win, false);
+});
 test('drift: a run left for minutes scores nothing; at most 4 drift starts a minute', () => {
   const { call, clock, start, g } = driftSetup();
   const st = start('easy');
-  const run = clientDrift(st.model, st.seed);
+  const run = clientDrift(st);
   clock.add(4 * 60e3);
   const r = call(1, 'drift/finish', { runId: st.runId, ...run });
   assert.equal(r.score, 0);

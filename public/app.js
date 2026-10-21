@@ -1375,22 +1375,79 @@ function raceResult() {
     <button class="btn yellow" data-act="raceAgain" ${me.fuel < 1 ? 'disabled' : ''}>Ще гонка · пальне ${me.fuel}/${S.FUEL_MAX}</button>
     <button class="btn outline mt" data-act="raceExit">До суперників</button>`;
 }
-// ---------- drift ----------
+// ---------- drift («Дрифт 2.0») ----------
+const DRIFT_RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const DKIND = { fast: 'Швидкий', mid: 'Середній', hair: 'Шпилька' };
+const DGRADE = { perfect: ['Ідеально!', '#facc15'], clean: ['Чисто!', '#4ade80'], weak: ['Слабкий занос', '#fbbf24'], spin: ['Розворот!', '#f87171'], wide: ['Знесло!', '#fb923c'] };
+const dArrow = (dir) => (dir > 0 ? '↱' : '↰');
+const dMult = (m) => '×' + String(m).replace('.', ',');
+const dPts = (n) => S.fmt(Math.floor(n)).replace(' ₴', '');
+// The track's centre line sampled every `step` px at `px` px per metre: x, y, heading (0 = up, clockwise), the
+// corner direction (0 on straights); start[i] / cnt[i] — the samples of segment i.
+function driftGeom(segs, px, step) {
+  const xs = [], ys = [], hs = [], kd = [], start = [], cnt = [];
+  let x = 0, y = 0, h = 0;
+  for (const g of segs) {
+    const n = Math.max(1, Math.round((g.len * px) / step)), corner = g.kind !== 'straight';
+    const dh = corner ? (g.dir * g.deg * Math.PI) / 180 / n : 0;
+    start.push(xs.length);
+    cnt.push(n);
+    for (let i = 0; i < n; i++) {
+      xs.push(x); ys.push(y); hs.push(h); kd.push(corner ? g.dir : 0);
+      h += dh;
+      x += Math.sin(h) * step;
+      y -= Math.cos(h) * step;
+    }
+  }
+  xs.push(x); ys.push(y); hs.push(h); kd.push(0);
+  return { xs, ys, hs, kd, start, cnt };
+}
+// A small map of the day's track: the road, corners in their kind's colour with numbers, start and finish.
+function driftMap(track) {
+  const G = driftGeom(track.segs, 1, 2), W = 320, Hh = 120, pad = 14;
+  // A track taller than wide is drawn turned a quarter, to fill the wide card.
+  if (Math.max(...G.ys) - Math.min(...G.ys) > Math.max(...G.xs) - Math.min(...G.xs)) {
+    [G.xs, G.ys] = [G.ys.map((v) => -v), G.xs];
+    G.hs = G.hs.map((h) => h + Math.PI / 2);
+  }
+  const x0 = Math.min(...G.xs), x1 = Math.max(...G.xs), y0 = Math.min(...G.ys), y1 = Math.max(...G.ys);
+  const k = Math.min((W - pad * 2) / Math.max(1, x1 - x0), (Hh - pad * 2) / Math.max(1, y1 - y0));
+  const ox = (W - (x1 - x0) * k) / 2, oy = (Hh - (y1 - y0) * k) / 2;
+  const P = (i) => `${(ox + (G.xs[i] - x0) * k).toFixed(1)},${(oy + (G.ys[i] - y0) * k).toFixed(1)}`;
+  const line = (a, b) => Array.from({ length: b - a + 1 }, (_, j) => P(a + j)).join(' ');
+  const last = G.xs.length - 1;
+  let out = `<polyline class="dm-road" points="${line(0, last)}"/>`;
+  track.segs.forEach((g, i) => {
+    if (g.kind === 'straight') return;
+    const a = G.start[i], b = a + G.cnt[i], m = a + (G.cnt[i] >> 1);
+    const [mx, my] = P(m).split(',').map(Number);
+    const out2 = [Math.cos(G.hs[m]) * -g.dir * 11, Math.sin(G.hs[m]) * -g.dir * 11];
+    out += `<polyline class="dm-c ${g.kind}" points="${line(a, b)}"/><text x="${(mx + out2[0]).toFixed(1)}" y="${(my + out2[1] + 3.5).toFixed(1)}">${g.corner + 1}</text>`;
+  });
+  const [sx, sy] = P(0).split(','), [fx, fy] = P(last).split(',');
+  return `<svg class="dmap" viewBox="0 0 ${W} ${Hh}" aria-hidden="true">${out}<circle class="dm-s" cx="${sx}" cy="${sy}" r="4"/><rect class="dm-f" x="${fx - 4}" y="${fy - 4}" width="8" height="8" rx="1"/></svg>`;
+}
 async function driftView(car, garage) {
-  const { list, model } = await api('drift/rivals', { carId: car.id });
-  const zone = Math.round(model.zone[1] - model.zone[0]);
+  const { list, model, track: tseed } = await api('drift/rivals', { carId: car.id });
+  const track = S.driftTrack(tseed), corners = track.segs.filter((g) => g.kind !== 'straight');
   return `<div class="h2"><span>Твоя машина</span><span>${garage.length}</span></div>
     <div class="carpick">${garage.map((c) => carTile(c, { act: 'pickRaceCar', sel: c.id === car.id, showTank: true })).join('')}</div>
     <div class="card mt"><div class="row between"><b class="disp" style="font-size:16px">${ic('gas-station')} Пальне ${me.fuel}/${S.FUEL_MAX}</b><span class="small muted">бак машини ${car.tank}/${S.CAR_TANK}</span></div>
-      <div class="row mt" style="gap:8px;flex-wrap:wrap"><span class="chip">зелена зона ${zone}°</span><span class="chip">занос ${model.turn}°/с</span><span class="chip">вирівнювання ${model.recover}°/с</span></div>
-      <div class="tiny muted mt">Ширша зелена зона — легше тримати занос (підвіска й диски). Більше потужності — різкіший занос.</div></div>
+      <div class="row mt" style="gap:8px;flex-wrap:wrap"><span class="chip">зелена зона ±${String(model.half).replace('.', ',')}°</span><span class="chip">занос ${model.turn}°/с</span><span class="chip">вирівнювання ${model.recover}°/с</span><span class="chip">до ${Math.round(model.vmax * 3.6)} км/год</span></div>
+      <div class="tiny muted mt">Підвіска й диски розширюють зелену зону і менше виносять машину. Потужність — більше швидкості й різкіший занос.</div></div>
+    <div class="card mt dtcard"><div class="row between"><b class="disp" style="font-size:15px">Траса дня</b><span class="small muted">${track.length} м · ${corners.length} поворотів</span></div>
+      ${driftMap(track)}
+      <div class="dlegend">${corners.map((g) => `<span class="dk ${g.kind}"><b>${g.corner + 1}</b> ${dArrow(g.dir)} ${DKIND[g.kind]} · ${g.center}°</span>`).join('')}</div></div>
     <div class="h2"><span>Суперники в дрифті</span><span>${S.DRIFT.corners} поворотів</span></div>
     <div class="list">${list.map((r) => `<button class="rival" data-act="startDrift" data-rival="${r.id}">
       <div class="mini art">${carArt(r.model)}</div>
       <div class="grow"><b class="ellipsis">${esc(r.name)}</b><div class="small muted ellipsis">${esc(M(r.model).name)}</div>
         <div class="row mt" style="gap:6px"><span class="diff ${r.id}">${r.label}</span><span class="chip">ціль ${S.fmt(r.target).replace(' ₴', '')} очок</span></div></div>
       <div class="center"><b class="win">+${S.short(r.prize)}</b><div class="tiny muted">${r.entry ? `внесок ${S.short(r.entry)}` : 'без внеску'}</div></div></button>`).join('')}</div>
-    <div class="tiny muted">Тримай «ГАЗ» — машину заносить сильніше, відпусти — вирівнюється. Тримай стрілку в зеленій зоні: там капають очки, а в самому центрі — у 1,5 раза швидше. За червоною лінією — розворот і комбо згорає. Чистий поворот піднімає комбо до ×${S.DRIFT.comboMax}. Набери більше очок, ніж суперник.</div>`;
+    <div class="card dhow"><b>Як їздити</b>
+      <p>Одна кнопка — «ГАЗ». <b>На прямій</b> тримай — розганяєшся, відпусти — гальмуєш. <b>У повороті</b> тримай — заносить сильніше, відпусти — вирівнюєшся.</p>
+      <p>Тримай стрілку в зеленій зоні повороту — у кожного свій кут: швидкий 28°, середній 36°, шпилька 44°. Очки капають за кожен метр у зоні: ×1,5 у самому центрі, більше на швидкості, менше, коли машину виносить з траєкторії.</p>
+      <p>Залетиш у поворот надто швидко або з малим кутом — <b>«Знесло!»</b>. Перебереш кут — <b>«Розворот!»</b> і половина очок повороту згорає. Чисті повороти поспіль множать очки: комбо ×1,5 → ×2 → … ×3.</p></div>`;
 }
 H.startDrift = async (d) => {
   let r;
@@ -1401,71 +1458,91 @@ H.startDrift = async (d) => {
   }
   me.fuel--;
   renderHeader();
-  state.drift = { phase: 'count', ...r, score: 0, combo: 1, clean: 0, spins: 0, result: null };
+  state.drift = { phase: 'count', ...r, trackObj: S.driftTrack(r.track), result: null };
   await render();
   runDrift();
 };
 function driftScreen() {
   const D = state.drift;
   if (D.phase === 'done') return driftResult();
-  const m = D.model, pct = (a) => `${(a / 90) * 100}%`;
-  return `<div class="drift">
-    <div class="dhud"><div><small>ОЧКИ</small><b id="dScore">0</b></div><div class="center"><small>КОМБО</small><b id="dCombo">×1</b></div><div style="text-align:right"><small>${esc(D.rival.name)}</small><b>${S.fmt(D.rival.target).replace(' ₴', '')}</b></div></div>
+  const pct = (a) => `${(a / 90) * 100}%`;
+  const corners = D.trackObj.segs.filter((g) => g.kind !== 'straight');
+  return `<div class="drift d2">
+    <div class="dhud"><div><small>ОЧКИ</small><b id="dScore">0</b><em id="dPend"></em></div><div class="center"><small>КОМБО</small><b id="dCombo">×1</b></div><div style="text-align:right"><small>${esc(D.rival.name)}</small><b>${dPts(D.rival.target)}</b></div></div>
     <div class="progress gold"><i id="dBar"></i></div>
+    <div class="ddots" id="dDots">${corners.map((g) => `<i class="k-${g.kind}" title="${DKIND[g.kind]}">${dArrow(g.dir)}</i>`).join('')}</div>
     <div class="dtrack" id="dTrack"><canvas id="dCanvas"></canvas>
-      <div class="dsign" id="dSign">ГОТУЙСЯ</div><div class="dmsg" id="dMsg"></div></div>
-    <div class="dgauge"><span class="dz" style="left:${pct(m.zone[0])};width:${pct(m.zone[1] - m.zone[0])}"></span><span class="di" style="left:${pct(m.ideal[0])};width:${pct(m.ideal[1] - m.ideal[0])}"></span>
-      <span class="dr" style="left:${pct(m.spin)}"></span><i id="dNeedle"></i></div>
+      <div class="dsign" id="dSign">ГОТУЙСЯ</div><div class="dmsg" id="dMsg"><b></b><small></small></div><div class="dspd" id="dSpd"></div></div>
+    <div class="dgauge"><span class="dz" id="dZone"></span><span class="di" id="dIdeal"></span><span class="dr" style="left:${pct(D.model.spin)}"></span><i id="dNeedle"></i></div>
     <div class="row between tiny muted mt"><span>0°</span><span id="dAngle">кут 0°</span><span>90°</span></div>
-    <div class="center small muted mt" id="dHint">Тримай «ГАЗ», щоб увійти в занос</div>
+    <div class="center small muted mt" id="dHint">Тримай «ГАЗ», щоб розігнатись</div>
     <button class="btn racebtn gas mt" id="dGas">ГАЗ</button></div>`;
 }
-// Top-down drift scene on a canvas: a winding road (90° corners alternating sides, with kerbs), the car sliding
-// through them at the drift angle, black tyre marks and smoke; the camera follows and turns with the car.
-function driftScene(canvas, color) {
+// Top-down drift scene on a canvas: the day's track (corners with red-white kerbs, start and finish lines) on a
+// grass pattern, the car sliding at the drift angle and pushed across the road by the line, black tyre marks and
+// smoke puffs (a pre-rendered sprite, no per-frame gradients); the camera follows and turns with the road.
+function driftScene(canvas, color, track) {
   const ctx = canvas.getContext('2d');
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   const W = canvas.clientWidth, H = canvas.clientHeight;
-  canvas.width = W * dpr;
-  canvas.height = H * dpr;
-  ctx.scale(dpr, dpr);
-  const v = 150, STEP = 4; // px per second along the road, px between track samples
-  const lead = 220, cornerLen = v * (S.DRIFT.cornerMs / 1000), straightLen = v * (S.DRIFT.straightMs / 1000);
-  const dirs = Array.from({ length: S.DRIFT.corners }, (_, i) => (i % 2 ? -1 : 1) * (Math.random() < 0.25 ? -1 : 1));
-  const segs = [{ len: lead, turn: 0 }];
-  dirs.forEach((d, i) => {
-    segs.push({ len: cornerLen, turn: d, corner: i });
-    if (i < dirs.length - 1) segs.push({ len: straightLen, turn: 0 });
-  });
-  segs.push({ len: 900, turn: 0 });
-  // Sample the centre line: x, y, heading (0 = up), and whether it is a corner.
-  const xs = [], ys = [], hs = [], kc = [];
-  let x = 0, y = 0, h = 0;
-  for (const sg of segs) {
-    const n = Math.round(sg.len / STEP), dh = sg.turn ? (sg.turn * Math.PI) / 2 / n : 0;
-    for (let i = 0; i < n; i++) {
-      xs.push(x); ys.push(y); hs.push(h); kc.push(sg.turn ? sg.turn : 0);
-      h += dh;
-      x += Math.sin(h) * STEP;
-      y -= Math.cos(h) * STEP;
-    }
+  canvas.width = Math.round(W * dpr);
+  canvas.height = Math.round(H * dpr);
+  const PX = 5, STEP = 4, HALF = 42; // px per metre, px between samples, half the road width
+  const segs = [...track.segs, { kind: 'straight', len: 140, from: track.length, to: track.length + 140 }];
+  const G = driftGeom(segs, PX, STEP), { xs, ys, hs, kd } = G, last = xs.length - 1;
+  const finishAt = G.start[segs.length - 1];
+  // Fractional sample index of a point `pos` metres along the track, in segment `seg`.
+  const idx = (seg, pos) => {
+    const g = segs[Math.min(seg, segs.length - 1)];
+    return Math.min(last - 1, G.start[seg] + Math.max(0, Math.min(0.9999, (pos - g.from) / g.len)) * G.cnt[seg]);
+  };
+  const lerp = (a, i, f) => a[i] + (a[i + 1] - a[i]) * f;
+  // Sprites made once: a smoke puff and a grass tile.
+  const puff = document.createElement('canvas');
+  puff.width = puff.height = 64;
+  const pg = puff.getContext('2d'), gr = pg.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(236,237,241,.85)');
+  gr.addColorStop(1, 'rgba(236,237,241,0)');
+  pg.fillStyle = gr;
+  pg.fillRect(0, 0, 64, 64);
+  const tile = document.createElement('canvas');
+  tile.width = tile.height = 48;
+  const tg2 = tile.getContext('2d');
+  tg2.fillStyle = '#17241b';
+  tg2.fillRect(0, 0, 48, 48);
+  for (let i = 0; i < 26; i++) {
+    tg2.fillStyle = i % 2 ? '#1c2c20' : '#132017';
+    tg2.fillRect((i * 37) % 48, (i * 23 + (i >> 2) * 7) % 48, 2, 2);
   }
-  const at = (s) => Math.max(0, Math.min(xs.length - 1, Math.round(s / STEP)));
+  const grass = ctx.createPattern(tile, 'repeat');
+  const MAXM = 520, MAXP = DRIFT_RM ? 24 : 80;
   const marks = [], smoke = [];
-  let camH = 0, lastRear = null, lastPuff = 0;
+  let camH = 0, lastRear = null, lastPuff = 0, shake = 0;
   function road(from, to, width, style, dash = null, onlyCorners = false) {
     ctx.lineWidth = width;
     ctx.strokeStyle = style;
     ctx.setLineDash(dash || []);
-    ctx.lineCap = 'round';
+    ctx.lineCap = onlyCorners ? 'butt' : 'round';
     ctx.lineJoin = 'round';
     ctx.beginPath();
     let open = false;
     for (let i = from; i <= to; i++) {
-      if (onlyCorners && !kc[i]) { open = false; continue; }
+      if (onlyCorners && !kd[i]) { open = false; continue; }
       if (!open) { ctx.moveTo(xs[i], ys[i]); open = true; } else ctx.lineTo(xs[i], ys[i]);
     }
     ctx.stroke();
+  }
+  // A chequered band across the road at sample i.
+  function checker(i) {
+    ctx.save();
+    ctx.translate(xs[i], ys[i]);
+    ctx.rotate(hs[i]);
+    const n = 8, w = (HALF * 2) / n;
+    for (let r = 0; r < 2; r++) for (let c = 0; c < n; c++) {
+      ctx.fillStyle = (r + c) % 2 ? '#f4f4f5' : '#111';
+      ctx.fillRect(-HALF + c * w, -r * 5, w, 5);
+    }
+    ctx.restore();
   }
   function car(body) {
     const L = 40, Wd = 20;
@@ -1485,78 +1562,108 @@ function driftScene(canvas, color) {
     ctx.fillRect(-Wd / 2 + 2, L / 2 - 2, 4, 2); ctx.fillRect(Wd / 2 - 6, L / 2 - 2, 4, 2);
   }
   return {
-    lead, dirs,
-    // s: distance along the road; angle: drift angle in degrees; spin: 0..1 progress of a spin-out.
-    draw(s, angle, spin, dt, now) {
-      const i = at(s), cx = xs[i], cy = ys[i], heading = hs[i];
-      const dir = kc[i] || kc[Math.max(0, i - Math.round(straightLen / STEP))] || 1;
+    // seg/pos: where the car is (segment, metres); lat: the line (−1 inside … 1 outside edge of the corner `dir`);
+    // angle: drift angle in degrees; spin: 0..1 progress of a spin-out.
+    draw(seg, pos, lat, angle, spin, dt, now, dir) {
+      const k = idx(seg, pos), i = Math.floor(k), fr = k - i;
+      const heading = lerp(hs, i, fr), off = lat * (HALF - 13);
+      const cx = lerp(xs, i, fr) - dir * Math.cos(heading) * off, cy = lerp(ys, i, fr) - dir * Math.sin(heading) * off;
       const body = heading + dir * (angle * Math.PI) / 180 + spin * Math.PI * 2;
-      camH += (heading - camH) * Math.min(1, dt * 4);
+      camH += (heading - camH) * Math.min(1, dt * 3.5);
       // Tyre marks and smoke while the car is sideways.
-      const f = [Math.sin(body), -Math.cos(body)], r = [Math.cos(body), Math.sin(body)];
-      const rear = [-1, 1].map((k) => [cx - f[0] * 13 + r[0] * 8 * k, cy - f[1] * 13 + r[1] * 8 * k]);
-      if (angle > 12 && lastRear) {
-        marks.push([lastRear, rear, Math.min(0.55, angle / 70)]);
-        if (marks.length > 700) marks.shift();
-        if (now - lastPuff > 45) {
+      const f0 = Math.sin(body), f1 = -Math.cos(body), r0 = Math.cos(body), r1 = Math.sin(body);
+      const rear = [cx - f0 * 13 - r0 * 8, cy - f1 * 13 - r1 * 8, cx - f0 * 13 + r0 * 8, cy - f1 * 13 + r1 * 8];
+      if ((angle > 10 || spin > 0) && lastRear) {
+        marks.push(lastRear[0], lastRear[1], rear[0], rear[1], lastRear[2], lastRear[3], rear[2], rear[3]);
+        if (marks.length > MAXM * 8) marks.splice(0, 8);
+        if (now - lastPuff > (DRIFT_RM ? 140 : 50)) {
           lastPuff = now;
-          for (const p of rear) smoke.push({ x: p[0], y: p[1], r: 5, a: Math.min(0.55, angle / 60), vx: (Math.random() - 0.5) * 20, vy: (Math.random() - 0.5) * 20 });
-          if (smoke.length > 140) smoke.splice(0, smoke.length - 140);
+          const a = Math.min(0.6, (spin ? 60 : angle) / 70);
+          smoke.push({ x: rear[0], y: rear[1], r: 6, a, vx: (Math.random() - 0.5) * 24, vy: (Math.random() - 0.5) * 24 }, { x: rear[2], y: rear[3], r: 6, a, vx: (Math.random() - 0.5) * 24, vy: (Math.random() - 0.5) * 24 });
+          if (smoke.length > MAXP) smoke.splice(0, smoke.length - MAXP);
         }
       }
       lastRear = rear;
-      for (const p of smoke) { p.r += dt * 34; p.a -= dt * 0.55; p.x += p.vx * dt; p.y += p.vy * dt; }
+      for (const p of smoke) { p.r += dt * 30; p.a -= dt * 0.6; p.x += p.vx * dt; p.y += p.vy * dt; }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = '#18241c';
-      ctx.fillRect(0, 0, W, H);
       ctx.save();
-      ctx.translate(W / 2, H * 0.64);
+      if (shake > 0) {
+        ctx.translate((Math.random() - 0.5) * 10 * shake, (Math.random() - 0.5) * 10 * shake);
+        shake = Math.max(0, shake - dt);
+      }
+      ctx.translate(W / 2, H * 0.66);
       ctx.rotate(-camH);
       ctx.translate(-cx, -cy);
-      const from = Math.max(0, i - 90), to = Math.min(xs.length - 1, i + 160);
-      road(from, to, 108, '#e5e7eb', null, true); // kerbs on corners: white…
-      road(from, to, 108, '#dc2626', [10, 10], true); // …and red
-      road(from, to, 94, '#f4f4f5');
-      road(from, to, 88, '#34373e');
-      road(from, to, 2, '#ffffff88', [14, 14]);
+      ctx.fillStyle = grass;
+      ctx.fillRect(cx - 700, cy - 700, 1400, 1400);
+      const from = Math.max(0, i - 80), to = Math.min(last, i + 170);
+      road(from, to, HALF * 2 + 20, '#e5e7eb', null, true); // kerbs on corners: white…
+      road(from, to, HALF * 2 + 20, '#dc2626', [10, 10], true); // …and red
+      road(from, to, HALF * 2 + 6, '#f4f4f5');
+      road(from, to, HALF * 2, '#34373e');
+      road(from, to, 2, '#ffffff66', [14, 14]);
       ctx.setLineDash([]);
+      if (from <= 2) checker(1);
+      if (finishAt >= from && finishAt <= to) checker(finishAt);
+      // All tyre marks in one path.
+      ctx.strokeStyle = 'rgba(8,8,10,.42)';
+      ctx.lineWidth = 3.5;
       ctx.lineCap = 'round';
-      for (const [a, b, al] of marks) {
-        ctx.strokeStyle = `rgba(8,8,10,${al})`;
-        ctx.lineWidth = 3.5;
-        ctx.beginPath();
-        ctx.moveTo(a[0][0], a[0][1]); ctx.lineTo(b[0][0], b[0][1]);
-        ctx.moveTo(a[1][0], a[1][1]); ctx.lineTo(b[1][0], b[1][1]);
-        ctx.stroke();
-      }
-      for (const p of smoke) {
-        if (p.a <= 0) continue;
-        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
-        g.addColorStop(0, `rgba(235,236,240,${p.a})`);
-        g.addColorStop(1, 'rgba(235,236,240,0)');
-        ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
-      }
+      ctx.beginPath();
+      for (let m = 0; m < marks.length; m += 4) { ctx.moveTo(marks[m], marks[m + 1]); ctx.lineTo(marks[m + 2], marks[m + 3]); }
+      ctx.stroke();
+      ctx.save();
       ctx.translate(cx, cy);
       car(body);
       ctx.restore();
+      for (const p of smoke) {
+        if (p.a <= 0) continue;
+        ctx.globalAlpha = p.a;
+        ctx.drawImage(puff, p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    },
+    bump(v = 0.4) {
+      if (!DRIFT_RM) shake = v;
     },
   };
 }
 function runDrift() {
-  const D = state.drift, M2 = D.model, C = S.DRIFT.cornerMs, ST = S.DRIFT.straightMs;
+  const D = state.drift, M2 = D.model, track = D.trackObj, segs = track.segs, N = S.DRIFT.corners;
   const el = (id) => document.getElementById(id);
   const btn = el('dGas');
-  let hold = false, last = 0, t0 = 0, raf = 0;
+  let hold = false, last = 0, t0 = 0, raf = 0, dir = segs[1].dir;
   // The physics is the shared fixed-step simulation seeded by the server, which replays the gas log at the finish.
-  const sim = S.driftSim(M2, D.seed ?? Math.floor(Math.random() * 2 ** 31));
-  const scene = driftScene(el('dCanvas'), S.CLASSES[M(D.car.model).cls].color);
-  const SPEED = 150; // must match driftScene's road speed
-  // While the lights count down the car waits at the end of the lead-in straight.
+  const sim = S.driftSim(M2, track, D.seed);
+  const scene = driftScene(el('dCanvas'), S.CLASSES[M(D.car.model).cls].color, track);
+  const dots = [...el('dDots').children];
+  // Text and style writes only when the value changes (cheap frames on slow phones).
+  const shown = {};
+  const put = (id, v, prop = 'textContent') => {
+    const key = id + prop;
+    if (shown[key] === v) return;
+    shown[key] = v;
+    const e = el(id);
+    if (!e) return;
+    if (prop === 'textContent') e.textContent = v;
+    else e.style[prop] = v;
+  };
+  const pct = (a) => `${(Math.max(0, Math.min(90, a)) / 90) * 100}%`;
+  const gauge = (g) => {
+    if (!g || g.kind === 'straight') return;
+    put('dZone', pct(g.center - M2.half), 'left');
+    put('dZone', pct(2 * M2.half), 'width');
+    put('dIdeal', pct(g.center - M2.half / 3), 'left');
+    put('dIdeal', pct((2 * M2.half) / 3), 'width');
+  };
+  gauge(segs[1]);
+  put('dSign', `ДАЛІ ${dArrow(segs[1].dir)} ${DKIND[segs[1].kind].toUpperCase()} · ${segs[1].center}°`);
+  // While the lights count down the car waits on the start line.
   let idle = performance.now();
   const wait = (now) => {
     if (state.drift !== D || D.phase !== 'count') return;
-    scene.draw(scene.lead - 60, 0, 0, Math.min(0.05, (now - idle) / 1000), now);
+    scene.draw(0, 0, 0, 0, 0, Math.min(0.05, (now - idle) / 1000), now, dir);
     idle = now;
     requestAnimationFrame(wait);
   };
@@ -1570,10 +1677,22 @@ function runDrift() {
   btn.addEventListener('pointerup', press(false));
   btn.addEventListener('pointercancel', press(false));
   btn.addEventListener('pointerleave', press(false));
-  const msg = (text, color) => {
+  btn.addEventListener('contextmenu', (e) => e.preventDefault());
+  // On a computer the space bar is the gas too.
+  const key = (v) => (e) => {
+    if (e.code !== 'Space' || state.drift !== D) return;
+    e.preventDefault();
+    hold = v;
+    btn.classList.toggle('on', v);
+  };
+  const kd = key(true), ku = key(false);
+  addEventListener('keydown', kd);
+  addEventListener('keyup', ku);
+  const msg = (text, color, sub = '') => {
     const m = el('dMsg');
     if (!m) return;
-    m.textContent = text;
+    m.firstChild.textContent = text;
+    m.lastChild.textContent = sub;
     m.style.color = color;
     m.classList.remove('pop');
     void m.offsetWidth;
@@ -1592,20 +1711,35 @@ function runDrift() {
     t0 = last = performance.now();
     raf = requestAnimationFrame(frame);
   }, 700);
-  // Messages for what happened in the steps just simulated.
+  // Feedback for what happened in the steps just simulated.
   function events() {
     for (const e of sim.events.splice(0)) {
-      if (e === 'clean') (msg(`ЧИСТО! ×${sim.combo}`, '#4ade80'), haptic('success'));
-      else if (e === 'weak') msg('Слабкий занос', '#fbbf24');
-      else if (e === 'spin') (msg('РОЗВОРОТ!', '#f87171'), haptic('error'));
-      else if (e === 'zone') haptic('light');
-      else if (e === 'corner') el('dSign').textContent = `${scene.dirs[sim.corner] > 0 ? '↱' : '↰'} ПОВОРОТ ${sim.corner + 1}/${S.DRIFT.corners}`;
-      else if (e === 'straight') el('dSign').textContent = 'ПРЯМА';
+      if (e.k === 'corner') {
+        const g = segs[sim.seg];
+        put('dSign', `${dArrow(g.dir)} ${DKIND[g.kind].toUpperCase()} ${e.i + 1}/${N}`);
+        gauge(g);
+        dots[e.i]?.classList.add('now');
+      } else if (e.k === 'straight') {
+        const g = segs[sim.seg + 1];
+        put('dSign', g ? `ДАЛІ ${dArrow(g.dir)} ${DKIND[g.kind].toUpperCase()} · ${g.center}°` : 'ФІНІШ!');
+        gauge(g);
+      } else if (e.k === 'zone') haptic('light');
+      else if (e.k === 'spin') (msg('Розворот!', DGRADE.spin[1], 'комбо згоріло'), haptic('error'), scene.bump(0.5));
+      else if (e.k === 'wide') (msg('Знесло!', DGRADE.wide[1], 'замало кута на такій швидкості'), haptic('warning'), scene.bump(0.25));
+      else if (e.k === 'end') {
+        const [t, c] = DGRADE[e.grade];
+        msg(t, c, `+${dPts(e.pts)}${e.mult > 1 ? ` · Комбо ${dMult(e.mult)}` : ''}`);
+        if (e.grade === 'perfect' || e.grade === 'clean') haptic(e.grade === 'perfect' ? 'success' : 'medium');
+        const d = dots[e.i];
+        if (d) d.className = `k-${e.kind} g-${e.grade}`;
+        if (e.mult > 1) {
+          const cb = el('dCombo');
+          cb?.classList.remove('pop');
+          void cb?.offsetWidth;
+          cb?.classList.add('pop');
+        }
+      }
     }
-    D.score = sim.score;
-    D.combo = sim.combo;
-    D.clean = sim.clean;
-    D.spins = sim.spins;
   }
   function frame(now) {
     if (state.drift !== D) return;
@@ -1615,22 +1749,40 @@ function runDrift() {
     sim.advance(now - t0);
     events();
     if (sim.done) return finish();
-    const t = sim.t, ang = sim.ang, inCorner = sim.inCorner, spinUntil = sim.spinUntil;
-    // The car moves along the road at a steady speed; a spin-out turns it a full circle.
-    scene.draw(scene.lead + (SPEED * t) / 1000, ang, t < spinUntil ? 1 - (spinUntil - t) / 700 : 0, dt, now);
-    el('dNeedle').style.left = `${(Math.min(90, ang) / 90) * 100}%`;
-    el('dAngle').textContent = `кут ${Math.round(ang)}°`;
-    el('dScore').textContent = S.fmt(Math.floor(D.score)).replace(' ₴', '');
-    el('dCombo').textContent = '×' + D.combo;
-    el('dBar').style.width = Math.min(100, (D.score / D.rival.target) * 100) + '%';
-    el('dHint').textContent = !inCorner ? 'Пряма — готуйся до повороту' : ang < M2.zone[0] ? 'Більше газу — заносу мало' : ang > M2.zone[1] ? 'Відпусти — зараз розверне!' : 'Тримай занос!';
+    const g = segs[sim.seg], ang = sim.ang, t = sim.t;
+    if (g.kind !== 'straight') dir = g.dir;
+    // A spin-out turns the car a full circle.
+    scene.draw(sim.seg, sim.pos, sim.y, ang, t < sim.spinUntil ? 1 - (sim.spinUntil - t) / 700 : 0, dt, now, dir);
+    el('dNeedle').style.left = pct(ang);
+    put('dAngle', `кут ${Math.round(ang)}°`);
+    put('dSpd', `${Math.round(sim.v * 3.6)} км/год`);
+    const pend = sim.cur ? Math.floor(sim.cur.base) : 0;
+    put('dScore', dPts(sim.score));
+    put('dPend', pend ? `+${pend}` : '');
+    put('dCombo', dMult(sim.combo));
+    put('dBar', Math.min(100, ((sim.score + pend) / D.rival.target) * 100).toFixed(1) + '%', 'width');
+    let hint;
+    if (g.kind === 'straight') {
+      const nx = segs[sim.seg + 1];
+      hint = !nx ? 'Фініш — тисни газ!' : sim.v > nx.vref * 1.15 ? `Відпусти — гальмуй перед поворотом (${DKIND[nx.kind].toLowerCase()})` : sim.v < nx.vref * 0.85 ? 'Тримай газ — розганяйся' : 'Швидкість якраз — заходь у поворот';
+    } else if (t < sim.spinUntil) hint = 'Розворот…';
+    else if (ang > g.center + M2.half) hint = 'Відпусти — зараз розверне!';
+    else if (sim.y > 0.55) hint = 'Виносить! Додай кута';
+    else if (sim.y < -0.75) hint = 'Притискає всередину — трохи менше кута';
+    else if (ang < g.center - M2.half) hint = 'Більше газу — заносу мало';
+    else hint = 'Тримай занос!';
+    put('dHint', hint);
     raf = requestAnimationFrame(frame);
   }
   async function finish() {
     cancelAnimationFrame(raf);
+    removeEventListener('keydown', kd);
+    removeEventListener('keyup', ku);
     D.phase = 'wait';
+    D.local = sim.corners;
+    put('dSign', 'ФІНІШ!');
     try {
-      D.result = await api('drift/finish', { runId: D.runId, score: Math.floor(sim.score), clean: sim.clean, spins: sim.spins, log: sim.log });
+      D.result = await api('drift/finish', { runId: D.runId, score: sim.score, clean: sim.clean, spins: sim.spins, log: sim.log });
     } catch (e) {
       toast(e.message, true);
       state.drift = null;
@@ -1642,15 +1794,24 @@ function runDrift() {
     await refresh();
   }
 }
+// The final score breakdown: per corner its grade, time in the zone / ideal band / on the line, speed, and points
+// (base × combo), from the server's replay of the run.
 function driftResult() {
-  const r = state.drift.result;
+  const D = state.drift, r = D.result, cs = r.corners || D.local || [];
+  const best = Math.max(1, ...cs.map((c) => c.pts));
   return `<div class="center mt2"><div class="tiny muted">Дрифт</div><div class="big ${r.win ? 'win' : 'lose'}">${r.win ? 'Перемога!' : 'Поразка'}</div>
-    <div style="font-size:30px;font-weight:900" class="mt">${S.fmt(r.score).replace(' ₴', '')} <span class="muted small">очок</span></div>
-    <div class="muted">ціль ${esc(r.rival.name)}: ${S.fmt(r.target).replace(' ₴', '')}</div>
+    <div class="dfinal mt">${dPts(r.score)} <span class="muted small">очок</span></div>
+    <div class="muted">ціль ${esc(r.rival.name)}: ${dPts(r.target)}</div>
     <div style="font-size:24px;font-weight:900" class="mt ${r.win ? 'win' : 'lose'}">${r.win ? '+' + S.fmt(r.prize) : '−' + S.fmt(r.entry)}</div></div>
-    <div class="card row between mt"><span>Чистих поворотів</span><b>${r.clean}/${S.DRIFT.corners}</b></div>
-    <div class="card row between"><span>Розворотів</span><b>${r.spins}</b></div>
-    <button class="btn yellow" data-act="driftAgain" ${me.fuel < 1 ? 'disabled' : ''}>Ще дрифт · пальне ${me.fuel}/${S.FUEL_MAX}</button>
+    <div class="dsum mt"><div><b>${r.clean}/${S.DRIFT.corners}</b><small>чистих</small></div><div><b>${dMult(r.maxCombo || 1)}</b><small>макс. комбо</small></div>
+      <div><b>${r.spins}</b><small>розворотів</small></div><div><b>${r.wides ?? 0}</b><small>знесло</small></div></div>
+    ${cs.length ? `<div class="h2"><span>Повороти</span><span>бали × комбо</span></div>
+    <div class="dbreak">${cs.map((c) => `<div class="drow g-${c.grade}" style="--w:${Math.round((c.pts / best) * 100)}%">
+      <span class="dn k-${c.kind}">${c.i + 1}</span>
+      <div class="grow"><b>${dArrow(c.dir)} ${DKIND[c.kind]} <em>${DGRADE[c.grade][0]}</em></b>
+        <div class="tiny muted">у зоні ${c.zone}% · центр ${c.ideal}% · лінія ${c.line}% · ${c.kmh} км/год</div></div>
+      <div class="dp"><b>${dPts(c.pts)}</b><small>${c.base}${c.mult > 1 ? ' ' + dMult(c.mult) : ''}</small></div></div>`).join('')}</div>` : ''}
+    <button class="btn yellow mt" data-act="driftAgain" ${me.fuel < 1 ? 'disabled' : ''}>Ще дрифт · пальне ${me.fuel}/${S.FUEL_MAX}</button>
     <button class="btn outline mt" data-act="driftExit">До суперників</button>`;
 }
 H.driftAgain = H.driftExit = () => {

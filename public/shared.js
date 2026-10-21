@@ -673,36 +673,59 @@ export function raceMoney(op, value) {
   const prize = Math.max(1000, Math.round((top * op.prize) / hard / 1000) * 1000);
   return { prize, entry: Math.round((prize * op.entry) / op.prize / 1000) * 1000 };
 }
-// ---------- drift ----------
-// A run is `corners` corners of cornerMs with straights of straightMs between them. Holding the gas swings the car
-// wider (angle grows at `turn` °/s), letting go straightens it (`recover` °/s). In the green zone points come at
-// `pps` a second × combo (×1.5 in the ideal middle band); past `spin` degrees the car spins out and the combo resets.
-// A corner spent mostly in the zone without a spin is clean and raises the combo (up to comboMax).
-// The car decides how hard that is: power makes the slide sharper, grip (suspension, tyres) widens the green zone.
-export const DRIFT = { corners: 6, cornerMs: 3200, straightMs: 900, pps: 100, comboMax: 5, center: 35, spin: 70, clean: 0.6, idealBonus: 1.5 };
+// ---------- drift («Дрифт 2.0») ----------
+// A run is a track of DRIFT.corners corners (fast sweepers, medium corners, hairpins; left and right) with straights
+// between them, laid out from a track seed. One control: the gas. On a straight holding it accelerates, letting go
+// brakes. In a corner holding it swings the car wider (angle grows at `turn` °/s) and keeps the speed up, letting go
+// straightens it (`recover` °/s) and scrubs speed. Every corner has its own ideal angle (`center`): the faster the
+// car goes compared with the corner's `vref`, the more it is pushed out to the edge and the more angle it needs to
+// hold the line — too little angle and it runs wide («Знесло!»), past `spin` degrees it spins out («Розворот!»).
+// Points come per metre while the angle is in the corner's green zone: ×1.5 in the ideal middle band, ×0.7 off the
+// racing line, × speed (0.6…1.3 of vref). A corner spent mostly in the zone without a spin or running wide is clean;
+// consecutive clean corners multiply that corner's points by the combo (×1, ×1,5, ×2 … up to ×3 from the 5th clean
+// corner in a row); a dirty one resets it and a spin halves the corner. The car decides how hard that is: power
+// gives speed and a sharper slide, grip (suspension, tyres) widens the green zone, straightens faster and pushes the
+// car out less.
+export const DRIFT = { corners: 7, comboMax: 5, comboStep: 0.5, center: 36, spin: 70, clean: 0.6, idealBonus: 1.5, offLine: 0.7, ppm: 12, lead: 34, tail: 34, vStart: 16 };
+export const DRIFT_CORNERS = {
+  fast: { name: 'Швидкий', len: 62, center: 28, vref: 32, deg: 70 },
+  mid: { name: 'Середній', len: 50, center: 36, vref: 26, deg: 100 },
+  hair: { name: 'Шпилька', len: 40, center: 44, vref: 20, deg: 160 },
+};
+// The combo multiplier after `streak` clean corners in a row.
+export const driftMult = (streak) => (streak < 1 ? 1 : 1 + DRIFT.comboStep * (Math.min(DRIFT.comboMax, streak) - 1));
+// Rival targets are a share of the track's par: what an average driver (driftBot at skill 0.5) scores on that day's
+// track in the car's stock form, so parts still help. Tuned with tools/sim-drift.mjs so an average player beats the
+// easy rival ~90% of the time, the medium ~55%, the hard ~20%.
 export const DRIFT_RIVALS = [
-  { id: 'easy', name: 'Легкий', share: 0.42 },
-  { id: 'mid', name: 'Середній', share: 0.6 },
-  { id: 'hard', name: 'Складний', share: 0.75 },
+  { id: 'easy', name: 'Легкий', share: 0.73 },
+  { id: 'mid', name: 'Середній', share: 0.9 },
+  { id: 'hard', name: 'Складний', share: 1.12 },
 ];
 export function driftModel(stats) {
   const pw = Math.min(1, stats.hp / stats.kg);
   const g = Math.max(0, Math.min(1, (stats.grip - 0.35) / 0.45));
-  const half = 12 + 10 * g;
+  const half = Math.round((12 + 6 * g) * 10) / 10;
   return {
-    turn: Math.round(35 + 60 * Math.pow(pw, 0.6)), recover: Math.round(45 + 70 * stats.grip),
+    turn: Math.round(35 + 60 * Math.pow(pw, 0.6)), recover: Math.round(45 + 70 * stats.grip), half,
     zone: [DRIFT.center - half, DRIFT.center + half], ideal: [DRIFT.center - half / 3, DRIFT.center + half / 3], spin: DRIFT.spin,
+    vmax: Math.round((24 + 20 * Math.sqrt(pw)) * 10) / 10, acc: Math.round((5 + 8 * Math.pow(pw, 0.6)) * 10) / 10,
+    lat: Math.round((1.15 - 0.25 * g) * 100) / 100,
   };
 }
-// The best possible score: every corner clean and in the ideal band.
-export const DRIFT_MAX = Math.round(DRIFT.pps * (DRIFT.cornerMs / 1000) * DRIFT.idealBonus
-  * Array.from({ length: DRIFT.corners }, (_, i) => Math.min(DRIFT.comboMax, i + 1)).reduce((a, b) => a + b, 0));
-export const DRIFT_MS = DRIFT.corners * DRIFT.cornerMs + (DRIFT.corners - 1) * DRIFT.straightMs;
+// A ceiling for any track: every corner the longest, in the ideal band, on the line, at top speed factor, full combo.
+const DRIFT_CMAX = Math.max(...Object.values(DRIFT_CORNERS).map((c) => c.len));
+export const DRIFT_MAX = Math.round(DRIFT.ppm * DRIFT_CMAX * DRIFT.idealBonus * 1.3
+  * Array.from({ length: DRIFT.corners }, (_, i) => driftMult(i + 1)).reduce((a, b) => a + b, 0));
 // The drift physics runs in fixed DRIFT_STEP-ms steps with noise from the server's seed, so the server replays the
-// player's gas log step for step and gets exactly the score the player saw.
+// player's gas log step for step and gets exactly the score the player saw. The step uses only + − × / and
+// comparisons (no Math.sin/pow), which IEEE-754 makes bit-identical in every JS engine (V8 on the server and Android,
+// JavaScriptCore on iOS).
 export const DRIFT_STEP = 5;
 export const DRIFT_COUNT_MS = 2100; // the 3 · 2 · 1 countdown before the run
-export const DRIFT_NOISE = 55; // °/s of random wobble per step (≈ the old ±15 °/s per 60 Hz frame)
+export const DRIFT_NOISE = 55; // °/s of random wobble per step
+export const DRIFT_MS = 60000; // hard time limit of a run (an honest one takes ~25–35 s)
+export const DRIFT_VMIN = 10, DRIFT_BRAKE = 10; // m/s the car never drops below; m/s² of braking on a straight
 function mulberry32(a) {
   return () => {
     a = (a + 0x6d2b79f5) | 0;
@@ -711,19 +734,56 @@ function mulberry32(a) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-export function driftSim(model, seed) {
-  const C = DRIFT.cornerMs, ST = DRIFT.straightMs, dt = DRIFT_STEP / 1000;
-  const rand = mulberry32(seed >>> 0), phase = ((seed >>> 0) % 10000) / 1000;
-  const s = { t: 0, hold: false, ang: 0, score: 0, combo: 1, clean: 0, spins: 0, corner: -1, straight: -1, zoneMs: 0, spun: false, spinUntil: -1, inZone: false, inCorner: false, done: false, log: [], events: [] };
-  const endCorner = () => {
-    if (!s.spun && s.zoneMs >= C * DRIFT.clean) {
-      s.clean++;
-      s.combo = Math.min(DRIFT.comboMax, s.combo + 1);
-      s.events.push('clean');
-    } else if (!s.spun) {
-      s.combo = 1;
-      s.events.push('weak');
-    }
+// The day's track from its seed: a lead-in straight, DRIFT.corners corners (2 fast sweepers, 3 medium, 2 hairpins in
+// a shuffled order) with 22–46 m straights between them, and a run-out to the finish. The direction of each corner
+// mostly turns the road back towards its start heading, so the drawn track never wanders off in a spiral.
+export function driftTrack(seed) {
+  const rand = mulberry32((seed ^ 0x5bd1e995) >>> 0), N = DRIFT.corners;
+  const ks = ['fast', 'fast', 'mid', 'mid', 'mid', 'hair', 'hair'];
+  for (let i = N - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [ks[i], ks[j]] = [ks[j], ks[i]];
+  }
+  const segs = [{ kind: 'straight', len: DRIFT.lead }];
+  let heading = 0;
+  ks.forEach((k, i) => {
+    const c = DRIFT_CORNERS[k];
+    let dir = heading > 0 ? -1 : heading < 0 ? 1 : rand() < 0.5 ? -1 : 1;
+    if (rand() < 0.3 && Math.abs(heading) < 120) dir = -dir;
+    heading += dir * c.deg;
+    segs.push({ kind: k, corner: i, dir, len: c.len, center: c.center, vref: c.vref, deg: c.deg });
+    if (i < N - 1) segs.push({ kind: 'straight', len: 22 + Math.floor(rand() * 25) });
+  });
+  segs.push({ kind: 'straight', len: DRIFT.tail });
+  let at = 0;
+  for (const g of segs) (g.from = at, at += g.len, g.to = at);
+  return { seed, segs, length: at };
+}
+export function driftSim(model, track, seed) {
+  const dt = DRIFT_STEP / 1000, segs = track.segs, rand = mulberry32(seed >>> 0), half = model.half, h3 = half / 3;
+  const s = { t: 0, hold: false, ang: 0, v: DRIFT.vStart, y: 0, pos: 0, seg: 0, wob: 0, score: 0, streak: 0, combo: 1, maxCombo: 0,
+    clean: 0, spins: 0, wides: 0, spinUntil: -1, inZone: false, done: false, cur: null, corners: [], log: [], events: [] };
+  const beginCorner = (g) => {
+    s.cur = { i: g.corner, kind: g.kind, dir: g.dir, base: 0, zone: 0, ideal: 0, line: 0, vs: 0, dist: 0, spun: false, wide: false };
+    s.events.push({ k: 'corner', i: g.corner });
+  };
+  const endCorner = (g) => {
+    const c = s.cur, len = g.len;
+    const clean = !c.spun && !c.wide && c.zone >= len * DRIFT.clean;
+    if (clean) (s.streak++, s.clean++);
+    else s.streak = 0;
+    const mult = clean ? driftMult(s.streak) : 1;
+    const base = Math.floor(c.spun ? c.base / 2 : c.base);
+    const pts = Math.floor(base * mult);
+    const grade = c.spun ? 'spin' : c.wide ? 'wide' : !clean ? 'weak' : c.ideal >= len * 0.35 && c.line >= c.zone * 0.8 ? 'perfect' : 'clean';
+    s.score += pts;
+    s.combo = driftMult(s.streak);
+    if (mult > s.maxCombo) s.maxCombo = mult;
+    const rec = { i: c.i, kind: c.kind, dir: c.dir, base, mult, pts, grade, zone: Math.round((c.zone / len) * 100), ideal: Math.round((c.ideal / len) * 100),
+      line: c.zone ? Math.round((c.line / c.zone) * 100) : 0, kmh: c.dist ? Math.round((c.vs / c.dist) * 3.6) : 0 };
+    s.corners.push(rec);
+    s.events.push({ k: 'end', ...rec });
+    s.cur = null;
   };
   // Gas pressed / released: applies from the next step and is logged by step index.
   s.input = (hold) => {
@@ -732,47 +792,88 @@ export function driftSim(model, seed) {
     s.log.push(s.t / DRIFT_STEP);
   };
   s.step = () => {
-    const t = s.t + DRIFT_STEP;
-    s.t = t;
-    if (t >= DRIFT_MS) {
-      if (s.corner === DRIFT.corners - 1) endCorner();
-      s.done = true;
-      return;
-    }
-    const i = Math.floor(t / (C + ST)), inCorner = t - i * (C + ST) < C;
-    if (inCorner && i !== s.corner) {
-      s.corner = i;
-      s.zoneMs = 0;
-      s.spun = false;
-      s.events.push('corner');
-    }
-    if (!inCorner && s.straight !== i) {
-      s.straight = i;
-      if (s.corner === i) endCorner();
-      s.events.push('straight');
-    }
-    if (inCorner && t > s.spinUntil) {
-      s.ang += (s.hold ? model.turn : -model.recover) * dt;
-      s.ang += (Math.sin(t / 230 + phase) * 22 + (rand() - 0.5) * DRIFT_NOISE) * dt; // the car never sits still
-      s.ang = Math.max(0, s.ang);
-      if (s.ang >= model.spin) {
-        s.spins++;
-        s.combo = 1;
-        s.spun = true;
-        s.spinUntil = t + 700;
-        s.ang = 0;
-        s.events.push('spin');
+    if (s.done) return;
+    s.t += DRIFT_STEP;
+    const g = segs[s.seg];
+    // Wobble: a slowly wandering push plus a fast jitter, both from the seed; the car never sits still.
+    s.wob = (s.wob + (rand() - 0.5) * 0.5) * 0.985;
+    if (s.wob > 1.5) s.wob = 1.5;
+    else if (s.wob < -1.5) s.wob = -1.5;
+    const jit = rand() - 0.5;
+    let ds;
+    if (g.kind !== 'straight') {
+      if (!s.cur) beginCorner(g);
+      const c = s.cur, spinning = s.t <= s.spinUntil;
+      if (!spinning) {
+        s.ang += ((s.hold ? model.turn : -model.recover) + s.wob * 22 + jit * DRIFT_NOISE) * dt;
+        if (s.ang < 0) s.ang = 0;
+        const scrub = s.ang * 0.07;
+        s.v += (s.hold ? model.acc * 0.8 * (1 - s.v / model.vmax) - scrub : -2.5 - scrub) * dt;
+        if (s.ang >= model.spin) {
+          s.spins++;
+          s.streak = 0;
+          s.combo = 1;
+          c.spun = true;
+          s.spinUntil = s.t + 700;
+          s.ang = 0;
+          s.v *= 0.6;
+          s.events.push({ k: 'spin' });
+        }
+      } else s.v -= 6 * dt;
+      if (s.v < DRIFT_VMIN) s.v = DRIFT_VMIN;
+      // The line: speed pushes the car out (more on weak grip), the drift angle pulls it in.
+      const r = s.v / g.vref;
+      s.y += (r * r * model.lat - s.ang / g.center) * 0.9 * dt;
+      if (s.y < -1) s.y = -1;
+      if (s.y >= 1) {
+        if (!c.wide) {
+          c.wide = true;
+          s.wides++;
+          s.streak = 0;
+          s.combo = 1;
+          s.v *= 0.8;
+          s.y = 0.85;
+          s.events.push({ k: 'wide' });
+        } else s.y = 1;
       }
-      const inZone = s.ang >= model.zone[0] && s.ang <= model.zone[1];
-      if (inZone) {
-        const ideal = s.ang >= model.ideal[0] && s.ang <= model.ideal[1];
-        s.score += DRIFT.pps * s.combo * (ideal ? DRIFT.idealBonus : 1) * dt;
-        s.zoneMs += DRIFT_STEP;
-        if (!s.inZone) s.events.push('zone');
+      ds = s.v * dt;
+      let inZone = false;
+      if (!spinning) {
+        const d = s.ang - g.center;
+        inZone = d >= -half && d <= half;
+        if (inZone) {
+          const ideal = d >= -h3 && d <= h3, onLine = s.y >= -0.75 && s.y <= 0.45;
+          const q = r < 0.6 ? 0.6 : r > 1.3 ? 1.3 : r;
+          c.base += DRIFT.ppm * ds * (ideal ? DRIFT.idealBonus : 1) * (onLine ? 1 : DRIFT.offLine) * q;
+          c.zone += ds;
+          if (ideal) c.ideal += ds;
+          if (onLine) c.line += ds;
+          if (!s.inZone) s.events.push({ k: 'zone' });
+        }
       }
       s.inZone = inZone;
-    } else if (!inCorner) s.ang = Math.max(0, s.ang - model.recover * 1.5 * dt);
-    s.inCorner = inCorner;
+      c.vs += s.v * ds;
+      c.dist += ds;
+    } else {
+      s.v += (s.hold ? model.acc * (1 - s.v / model.vmax) : -DRIFT_BRAKE) * dt;
+      if (s.v < DRIFT_VMIN) s.v = DRIFT_VMIN;
+      s.ang -= model.recover * 1.5 * dt;
+      if (s.ang < 0) s.ang = 0;
+      s.y -= s.y * 1.5 * dt;
+      s.inZone = false;
+      ds = s.v * dt;
+    }
+    s.pos += ds;
+    if (s.pos >= g.to) {
+      if (s.cur) endCorner(g);
+      s.seg++;
+      if (s.seg >= segs.length) s.done = true;
+      else if (segs[s.seg].kind === 'straight') s.events.push({ k: 'straight', next: segs[s.seg + 1]?.corner ?? -1 });
+    }
+    if (!s.done && s.t >= DRIFT_MS) {
+      if (s.cur) endCorner(segs[s.seg]);
+      s.done = true;
+    }
   };
   s.advance = (ms) => {
     while (!s.done && s.t + DRIFT_STEP <= ms) s.step();
@@ -780,29 +881,86 @@ export function driftSim(model, seed) {
   return s;
 }
 // Replays a gas log (step indexes where the gas flipped); { error } when the log is malformed.
-export function driftReplay(model, seed, log) {
+export function driftReplay(model, track, seed, log) {
   const last = DRIFT_MS / DRIFT_STEP;
   if (!Array.isArray(log) || log.length > 20000) return { error: 'log' };
   for (let k = 0; k < log.length; k++) if (!Number.isSafeInteger(log[k]) || log[k] < 0 || log[k] > last || (k && log[k] < log[k - 1])) return { error: 'log' };
-  const s = driftSim(model, seed);
+  const s = driftSim(model, track, seed);
   let k = 0;
   while (!s.done) {
     while (k < log.length && log[k] === s.t / DRIFT_STEP) (s.hold = !s.hold, k++);
     s.step();
   }
-  return { score: Math.floor(s.score), clean: s.clean, spins: s.spins };
+  return { score: s.score, clean: s.clean, spins: s.spins, wides: s.wides, maxCombo: s.maxCombo, corners: s.corners, ms: s.t };
 }
-// The most a car can score: the angle can't rise faster than turn + wobble, so every corner loses the time it takes
-// to swing into the green zone; every second in the zone pays at most pps × combo × idealBonus.
-export function driftCap(model) {
-  const rise = model.turn + 22 + DRIFT_NOISE / 2;
-  const carry = Math.max(0, model.spin - model.recover * 1.5 * (DRIFT.straightMs - 2 * DRIFT_STEP) / 1000);
-  let pts = 0;
-  for (let i = 0; i < DRIFT.corners; i++) {
-    const entry = Math.max(0, (model.zone[0] - (i ? carry : 0)) / rise);
-    pts += DRIFT.pps * Math.min(DRIFT.comboMax, i + 1) * DRIFT.idealBonus * Math.max(0, DRIFT.cornerMs / 1000 - entry);
+// The most a car can score on a track: every metre in the ideal band, on the line, at the top speed factor, with the
+// full combo from the first corners on; less the distance it takes (at least at the slowest speed) to swing from what
+// is left of the angle after the straight into the corner's green zone.
+export function driftCap(model, track) {
+  const rise = model.turn + 1.5 * 22 + DRIFT_NOISE / 2;
+  let pts = 0, before = 0;
+  for (const g of track.segs) {
+    if (g.kind === 'straight') {
+      before = g.len;
+      continue;
+    }
+    const carry = Math.max(0, model.spin - (model.recover * 1.5 * before) / model.vmax);
+    const entry = (Math.max(0, g.center - model.half - carry) / rise) * DRIFT_VMIN;
+    pts += DRIFT.ppm * Math.max(0, g.len - entry) * DRIFT.idealBonus * 1.3 * driftMult(g.corner + 1);
   }
   return Math.min(DRIFT_MAX, Math.ceil(pts));
+}
+// A driver with human limits, for tuning rivals and computing the par: sees the car `lag` ms late (260 ms at skill 0,
+// 80 ms at skill 1), aims at the corner's ideal angle with a per-corner error and dead band that shrink with skill,
+// adds angle when the car runs wide (more often with skill), and brakes for the next corner to roughly its vref
+// (a careless driver sometimes forgets). Frames at `fps`. Deterministic for (seed, rs).
+export function driftBot(model, track, seed, { skill = 0.5, rs = 1, fps = 60 } = {}) {
+  const sim = driftSim(model, track, seed), rnd = mulberry32((rs * 2654435761) >>> 0), segs = track.segs;
+  const lag = Math.round((260 - 180 * skill) / (1000 / fps));
+  const hist = [];
+  let aim = 0, hyst = 0, entry = 0, seen = -1, next = -1, careless = false;
+  for (let f = 1; !sim.done; f++) {
+    hist.push([sim.ang, sim.y, sim.v, sim.seg]);
+    if (hist.length > lag + 1) hist.shift();
+    const [ang, y, v, si] = hist[0], g = segs[si];
+    let hold;
+    if (g.kind !== 'straight') {
+      if (g.corner !== seen) {
+        seen = g.corner;
+        aim = g.center + (rnd() - 0.5) * 2 * (1 - skill) * 10;
+        hyst = 1 + (1 - skill) * 6;
+      }
+      const a = aim + (y > 0.4 && rnd() < 0.3 + 0.7 * skill ? 7 : 0);
+      hold = ang < a - hyst ? true : ang > a + hyst ? false : sim.hold;
+    } else {
+      const nx = segs[si + 1];
+      if (nx && nx.kind !== 'straight') {
+        if (nx.corner !== next) {
+          next = nx.corner;
+          entry = nx.vref * (1.05 + (rnd() - 0.5) * (1 - skill) * 0.5);
+          careless = rnd() < (1 - skill) * 0.4;
+        }
+        hold = careless || v < entry;
+      } else hold = true;
+    }
+    sim.input(hold);
+    sim.advance((f * 1000) / fps);
+  }
+  return { log: sim.log, score: sim.score, clean: sim.clean, spins: sim.spins, wides: sim.wides, corners: sim.corners, ms: sim.t };
+}
+// The par of a track for a car: the mean score of an average driver over a few fixed runs (cached).
+const driftParCache = new Map();
+export function driftPar(model, track) {
+  const key = `${track.seed}|${model.turn}|${model.recover}|${model.half}|${model.vmax}|${model.acc}|${model.lat}`;
+  let p = driftParCache.get(key);
+  if (p == null) {
+    let sum = 0;
+    for (let k = 1; k <= 10; k++) sum += driftBot(model, track, 7919 * k, { skill: 0.5, rs: k }).score;
+    p = Math.round(sum / 10);
+    if (driftParCache.size > 2000) driftParCache.clear();
+    driftParCache.set(key, p);
+  }
+  return p;
 }
 export const RIVAL_NAMES = ['Ваня_Вихлоп', 'Kirill_M5', 'Lightning', 'Гоша_Форсаж', 'NightRider', 'Вовк', 'Дрифт_Кіт', 'Тарас_Турбо', 'BoostBoy', 'Сашко_GT', 'Оксана_V8', 'Mr.Stance', 'Лис_Нітро', 'Богдан_JDM', 'Карпатський_Дрифт', 'Kyiv_Racer', 'Львівський_Турбо', 'Одеса_Street', 'Шумахер_з_Борщагівки', 'Дизель'];
 export const PVP_MIN_BET = 5000;

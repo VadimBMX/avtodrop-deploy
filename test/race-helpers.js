@@ -54,13 +54,19 @@ export function honestDrag(stats, greenMs, reactionS, wanted, fps = 60) {
   return clientDrag(stats, greenMs, { reactMs: reactionS < 0 ? -300 : reactionS * 1000, taps: plan, fps });
 }
 
-// A drift run by a simple driver (gas below the target angle, off above it) on the shared simulation, with frames
-// at `fps`. Returns the gas log and the score the player saw.
-export function clientDrift(model, seed, { target = (model.ideal[0] + model.ideal[1]) / 2, fps = 60 } = {}) {
-  const sim = S.driftSim(model, seed);
+// A drift run as runDrift() plays it, for a drift/start response `st` ({ model, seed, track }), with frames at `fps`.
+// By default a good driver (S.driftBot at `skill`); with `target` a naive one who holds the gas below that angle in
+// corners (whatever the corner) and on straights. Returns the finish payload: the gas log and what the player saw.
+export function clientDrift(st, { skill = 0.8, rs = 1, target = null, fps = 60 } = {}) {
+  const track = typeof st.track === 'number' ? S.driftTrack(st.track) : st.track;
+  if (target == null) {
+    const r = S.driftBot(st.model, track, st.seed, { skill, rs, fps });
+    return { log: r.log, score: r.score, clean: r.clean, spins: r.spins, ms: r.ms };
+  }
+  const sim = S.driftSim(st.model, track, st.seed);
   for (let f = 1; !sim.done; f++) {
-    sim.input(sim.ang < target);
+    sim.input(track.segs[sim.seg].kind === 'straight' || sim.ang < target);
     sim.advance((f * 1000) / fps);
   }
-  return { log: sim.log, score: Math.floor(sim.score), clean: sim.clean, spins: sim.spins };
+  return { log: sim.log, score: sim.score, clean: sim.clean, spins: sim.spins, ms: sim.t };
 }

@@ -932,19 +932,23 @@ export function createGame(db, opts = {}) {
     return { car: o, list };
   }
   // ---------- drift (rules in S.DRIFT) ----------
-  // Three rivals per car and day, each with a target score; money as in drag races (by the car model's price).
+  // A track of the day per car and three rivals on it, each with a target score: a share of the track's par (what an
+  // average driver scores there in this model's stock form — parts on your car are your edge); money as in drag
+  // races (by the car model's price).
   function driftRivals(uid, { carId }) {
     const c = ownCar(uid, carId);
     const o = carOut(c);
     const h = sha256(`drift:${uid}:${c.id}:${dayOf(now())}`);
+    const trackSeed = parseInt(h.slice(48, 56), 16);
+    const par = S.driftPar(S.driftModel(S.carStats({ model: c.model })), S.driftTrack(trackSeed));
     const pool = S.ALL_MODELS.filter((m) => m.cls === S.MODELS[c.model].cls && !m.secret);
     const list = S.DRIFT_RIVALS.map((r, i) => {
       const x = parseInt(h.slice(i * 6, i * 6 + 6), 16) / 0xffffff;
       const money = S.raceMoney(S.OPPONENTS.find((op) => op.id === r.id), S.MODELS[c.model].price);
       return { id: r.id, label: r.name, name: S.RIVAL_NAMES[parseInt(h.slice(20 + i * 2, 22 + i * 2), 16) % S.RIVAL_NAMES.length],
-        model: pool[Math.floor(x * pool.length)]?.id || c.model, target: Math.round(S.DRIFT_MAX * r.share * (0.92 + 0.16 * x) / 10) * 10, ...money };
+        model: pool[Math.floor(x * pool.length)]?.id || c.model, target: Math.max(10, Math.round((par * r.share * (0.96 + 0.08 * x)) / 10) * 10), ...money };
     });
-    return { car: o, list, model: S.driftModel(o) };
+    return { car: o, list, model: S.driftModel(o), track: trackSeed, par };
   }
   // Fuel: one from the shared tank and one from the car's own tank (as a drag race).
   function useFuel(uid, c) {
@@ -962,51 +966,57 @@ export function createGame(db, opts = {}) {
   }
   function driftStart(uid, { carId, rival }) {
     startLimit(uid, 'drift_runs');
-    const { car, list, model } = driftRivals(uid, { carId });
+    const { car, list, model, track: trackSeed } = driftRivals(uid, { carId });
     const r = list.find((x) => x.id === rival);
     if (!r) fail('Обери суперника');
     const c = carRow(car.id);
     useFuel(uid, c);
     pay(uid, r.entry);
     q("UPDATE drift_runs SET status = 'expired' WHERE user_id = ? AND status = 'running'").run(uid);
-    // The run token: the seed of the physics noise and the model are fixed here; the finish replays the gas log.
+    // The run token: the seed of the physics noise, the track and the model are fixed here; the finish replays the
+    // gas log on them.
     const seed = Math.floor(rnd() * 2 ** 31);
     const id = Number(q('INSERT INTO drift_runs (user_id, car_id, rival, target, entry, prize, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run(uid, c.id, JSON.stringify({ ...r, seed, model }), r.target, r.entry, r.prize, now()).lastInsertRowid);
-    return { runId: id, car, rival: r, model, max: S.DRIFT_MAX, seed, step: S.DRIFT_STEP };
+      .run(uid, c.id, JSON.stringify({ ...r, seed, track: trackSeed, model }), r.target, r.entry, r.prize, now()).lastInsertRowid);
+    return { runId: id, car, rival: r, model, max: S.DRIFT_MAX, seed, track: trackSeed, step: S.DRIFT_STEP };
   }
-  // A run without a gas log (a client from before this release) can't be checked: its score is capped at this share.
-  const DRIFT_LEGACY_SHARE = 0.6;
+  // A run without a gas log (a client from before «Дрифт 2.0», or a run started before it) can't be checked: its
+  // score is capped below the rival's target, so it can never win; it must still have taken an honest run's time.
+  const DRIFT_LEGACY_SHARE = 0.6, DRIFT_LEGACY_MS = 20000;
   function driftFinish(uid, { runId, score, clean, spins, log }) {
     const run = q('SELECT * FROM drift_runs WHERE id = ? AND user_id = ?').get(int(runId, 1, 1e15, 'ID заїзду'), uid);
     if (!run || run.status !== 'running') fail('Заїзд уже завершено');
     const took = now() - run.created_at;
-    // The countdown and the whole run must have passed on the server's clock (less the network allowance).
-    if (took < S.DRIFT_COUNT_MS + S.DRIFT_MS - S.DRAG_TOL.wall) fail('Заїзд ще не закінчився');
-    const { seed, model: m0, ...rival } = JSON.parse(run.rival);
-    const model = m0 || S.driftModel(carOut(carRow(run.car_id)) || { hp: 100, kg: 1000, grip: 0.35 });
-    const cap = S.driftCap(model);
-    let pts, cl, sp, check;
-    if (log != null && seed != null) {
-      const rep = S.driftReplay(model, seed, log);
+    const { seed, track: trackSeed, model: m0, ...rival } = JSON.parse(run.rival);
+    const v2 = seed != null && trackSeed != null && m0?.vmax != null;
+    const model = v2 ? m0 : S.driftModel(carOut(carRow(run.car_id)) || { hp: 100, kg: 1000, grip: 0.35 });
+    const layout = S.driftTrack(trackSeed ?? 0);
+    const cap = S.driftCap(model, layout);
+    let pts, cl, sp, check, extra = {};
+    if (log != null && v2) {
+      const rep = S.driftReplay(model, layout, seed, log);
       if (rep.error) fail('Некоректні дані заїзду');
+      // The countdown and the whole replayed run must have passed on the server's clock (less the network allowance).
+      if (took < S.DRIFT_COUNT_MS + rep.ms - S.DRAG_TOL.wall) fail('Заїзд ще не закінчився');
       pts = rep.score;
       cl = rep.clean;
       sp = rep.spins;
+      extra = { wides: rep.wides, maxCombo: rep.maxCombo, corners: rep.corners, track: trackSeed, ms: rep.ms };
       check = Math.floor(Number(score)) === pts ? 'ok' : 'replayed';
     } else {
+      if (took < S.DRIFT_COUNT_MS + DRIFT_LEGACY_MS - S.DRAG_TOL.wall) fail('Заїзд ще не закінчився');
       pts = Math.max(0, Math.round(Number(score) || 0));
       cl = int(clean ?? 0, 0, S.DRIFT.corners);
       sp = int(spins ?? 0, 0, 99);
       check = 'legacy';
-      pts = Math.min(pts, Math.floor(cap * DRIFT_LEGACY_SHARE));
+      pts = Math.min(pts, Math.floor(run.target * DRIFT_LEGACY_SHARE));
     }
-    // Never above what this car can reach; a run left hanging for minutes counts as nothing.
+    // Never above what this car can reach on this track; a run left hanging for minutes counts as nothing.
     pts = Math.min(pts, cap);
     if (took > 3 * 60e3) (pts = 0, check = 'timeout');
     const win = pts >= run.target;
     if (win) addMoney(uid, run.entry + run.prize);
-    const result = { win, score: pts, target: run.target, prize: win ? run.prize : 0, entry: run.entry, clean: cl, spins: sp, rival, check };
+    const result = { win, score: pts, target: run.target, prize: win ? run.prize : 0, entry: run.entry, clean: cl, spins: sp, ...extra, rival, check };
     q("UPDATE drift_runs SET status = 'done', result = ? WHERE id = ?").run(JSON.stringify(result), run.id);
     q('UPDATE users SET races = races + 1, wins = wins + ? WHERE id = ?').run(win ? 1 : 0, uid);
     xp(uid, win ? 'win' : 'race');

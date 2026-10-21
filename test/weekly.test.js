@@ -89,7 +89,7 @@ test('progress: cases, country cases, income collection and drift runs count; ca
   assert.throws(() => g.api['drift/finish'](id, { runId: run.runId, score: 0 }));
   assert.equal(g.api.weekly(id).list.find((x) => x.key === 'drift').progress, 0);
   clock.t += S.DRIFT_COUNT_MS + S.DRIFT_MS;
-  g.api['drift/finish'](id, { runId: run.runId, ...clientDrift(run.model, run.seed) });
+  g.api['drift/finish'](id, { runId: run.runId, ...clientDrift(run) });
   assert.equal(g.api.weekly(id).list.find((x) => x.key === 'drift').progress, 1);
   // Progress from last week does not carry over.
   clock.t = Date.parse('2026-10-19T08:00:00Z');

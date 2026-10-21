@@ -1469,3 +1469,64 @@ button.li:active { background-color: #ffffff08; }
 .mk-plate > .plate { --h: 20px; width: 90px; }
 .chip.deal .i { font-size: 12px; }
 @media (max-width: 360px) { .mk-plate > .plate { width: 80px; } .mk-search { grid-template-columns: 1fr; } }
+/* ===== «Дрифт 2.0»: drift screen, track of the day, final breakdown (only .d2 / .dmap / .dlegend / .dhow / .dsum / .dbreak / .ddots) ===== */
+.dtcard .dmap { display: block; width: 100%; height: auto; margin-top: 8px; }
+.dmap .dm-road { fill: none; stroke: #3a3e47; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+.dmap .dm-c { fill: none; stroke-width: 7; stroke-linecap: round; }
+.dmap .dm-c.fast { stroke: #38bdf8; } .dmap .dm-c.mid { stroke: #f5b301; } .dmap .dm-c.hair { stroke: #f87171; }
+.dmap text { font: 700 10px var(--f-disp); fill: var(--text); text-anchor: middle; }
+.dmap .dm-s { fill: #4ade80; } .dmap .dm-f { fill: #f4f4f5; stroke: #111; stroke-width: 1.5; }
+.dlegend { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.dlegend .dk { font-size: 11px; padding: 3px 7px; border-radius: 6px; background: var(--card2); border-left: 3px solid; color: var(--muted); white-space: nowrap; }
+.dlegend .dk b { color: var(--text); }
+.dk.fast, .ddots .k-fast { border-color: #38bdf8; } .dk.mid, .ddots .k-mid { border-color: #f5b301; } .dk.hair, .ddots .k-hair { border-color: #f87171; }
+.dhow { margin-top: 10px; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+.dhow > b { color: var(--text); font-family: var(--f-disp); font-size: 15px; }
+.dhow p { margin: 6px 0 0; }
+.dhow p b { color: var(--text); }
+
+.d2 .dhud em { margin-left: 5px; font: 700 13px var(--f-disp); font-style: normal; color: #4ade80; }
+.d2 #dCombo { display: inline-block; }
+.d2 #dCombo.pop { animation: dcombo .45s ease-out; color: var(--accent); }
+@keyframes dcombo { 40% { transform: scale(1.35); } }
+.ddots { display: flex; gap: 5px; justify-content: center; margin-top: 12px; }
+.ddots i { width: 30px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font: 700 13px var(--f-disp); font-style: normal;
+  color: var(--muted); background: var(--card2); border-bottom: 3px solid; transition: background-color .2s, color .2s; }
+.ddots i.now { color: var(--text); box-shadow: 0 0 0 1.5px var(--text) inset; }
+.ddots i.g-perfect { background: #facc15; color: #1a1400; box-shadow: none; }
+.ddots i.g-clean { background: #22c55e; color: #04220f; box-shadow: none; }
+.ddots i.g-weak { background: #78591a; color: #fde68a; box-shadow: none; }
+.ddots i.g-spin, .ddots i.g-wide { background: #7f1d1d; color: #fecaca; box-shadow: none; }
+.d2 .dtrack { height: min(340px, 44vh); margin-top: 8px; background: #17241b; }
+.d2 .dsign { top: 8px; font-size: 14px; text-shadow: 0 2px 8px #000c; }
+.d2 .dmsg { top: 34%; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.d2 .dmsg b { font: 800 30px/1 var(--f-disp); }
+.d2 .dmsg small { font: 700 15px var(--f-disp); color: #fff; opacity: .9; }
+.d2 .dspd { position: absolute; left: 10px; bottom: 8px; z-index: 2; font: 700 13px var(--f-disp); color: #fff; padding: 2px 7px; border-radius: 6px; background: #0009; }
+.d2 .dgauge .dz, .d2 .dgauge .di { transition: left .25s, width .25s; }
+.d2 #dGas { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+
+.dfinal { font: 900 34px var(--f-disp); }
+.dsum { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.dsum > div { text-align: center; padding: 9px 4px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); }
+.dsum b { display: block; font: 800 19px var(--f-disp); }
+.dsum small { font-size: 10.5px; color: var(--muted); }
+.dbreak { display: grid; gap: 6px; margin-bottom: 4px; }
+.drow { position: relative; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); overflow: hidden; }
+.drow::before { content: ''; position: absolute; left: 0; bottom: 0; height: 3px; width: var(--w); background: currentColor; opacity: .8; }
+.drow.g-perfect { color: #facc15; } .drow.g-clean { color: #4ade80; } .drow.g-weak { color: #fbbf24; } .drow.g-spin { color: #f87171; } .drow.g-wide { color: #fb923c; }
+.drow .grow { min-width: 0; color: var(--text); }
+.drow .grow b { font-size: 14px; }
+.drow em { font: 700 10.5px var(--f-disp); font-style: normal; letter-spacing: .3px; margin-left: 4px; padding: 1px 5px; border-radius: 4px; border: 1px solid currentColor; }
+.drow.g-perfect em { color: #facc15; } .drow.g-clean em { color: #4ade80; } .drow.g-weak em { color: #fbbf24; } .drow.g-spin em { color: #f87171; } .drow.g-wide em { color: #fb923c; }
+.drow .dn { flex: none; width: 26px; height: 26px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font: 800 13px var(--f-disp); color: var(--text); background: var(--card2); border-left: 3px solid; }
+.drow .dn.k-fast { border-color: #38bdf8; } .drow .dn.k-mid { border-color: #f5b301; } .drow .dn.k-hair { border-color: #f87171; }
+.drow .dp { text-align: right; color: var(--text); }
+.drow .dp b { display: block; font: 800 16px var(--f-disp); }
+.drow .dp small { font-size: 11px; color: var(--muted); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) {
+  .d2 #dCombo.pop { animation: none; }
+  .d2 .dmsg.pop { animation: dmsg-fade 1s linear; }
+  .d2 .dgauge .dz, .d2 .dgauge .di, .ddots i { transition: none; }
+}
+@keyframes dmsg-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
