@@ -439,12 +439,12 @@ export const CASES = [
   // Rarity cases: a ladder of prices, each about 2.5× the one before, so there is always a next step.
   // Old prices (owner decision, eco3) with the odds of eco2; `hi` keeps the dear cars (Bolide 300M, AMG One …) in the
   // pools now that the corridor is relative to a lower price.
-  { id: 'rust', name: 'Іржавий гараж', icon: 'tool', group: 'rarity', price: 60000, weights: { D: 97.2, C: 2.8 }, pity2: false },
-  { id: 'city', name: 'Міський', icon: 'building-skyscraper', group: 'rarity', price: 300000, weights: { C: 97, B: 3 } },
-  { id: 'tuning', name: 'Тюнінг-ательє', icon: 'tool', group: 'rarity', price: 900000, weights: { C: 82.5, B: 17.2, A: 0.3 }, hi: 18 },
-  { id: 'sport', name: 'Спорткар', icon: 'flag-3', group: 'rarity', price: 2000000, weights: { B: 90.5, A: 9.5 }, hi: 23 },
-  { id: 'premium', name: 'Преміум', icon: 'diamond', group: 'rarity', price: 5000000, weights: { B: 42.8, A: 54, S: 3.2 }, hi: 61 },
-  { id: 'elite', name: 'Еліта', icon: 'crown', group: 'rarity', price: 10000000, weights: { A: 88.3, S: 11.7 }, hi: 31 },
+  { id: 'rust', name: 'Іржавий гараж', icon: 'tool', group: 'rarity', price: 60000, weights: { D: 96.4, C: 3.4, B: 0.18, A: 0.02 }, pity2: false, hi: 2000 },
+  { id: 'city', name: 'Міський', icon: 'building-skyscraper', group: 'rarity', price: 300000, weights: { C: 95.5, B: 4.3, A: 0.18, S: 0.02 }, hi: 1000 },
+  { id: 'tuning', name: 'Тюнінг-ательє', icon: 'tool', group: 'rarity', price: 900000, weights: { C: 80, B: 19, A: 0.95, S: 0.05 }, hi: 340 },
+  { id: 'sport', name: 'Спорткар', icon: 'flag-3', group: 'rarity', price: 2000000, weights: { B: 93, A: 6.8, S: 0.2 }, hi: 150 },
+  { id: 'premium', name: 'Преміум', icon: 'diamond', group: 'rarity', price: 5000000, weights: { B: 58, A: 40.5, S: 1.5 }, hi: 61 },
+  { id: 'elite', name: 'Еліта', icon: 'crown', group: 'rarity', price: 10000000, weights: { A: 94, S: 6 }, hi: 31 },
 ];
 // Country cases start cheap and have a wider ceiling (hi), so the country's dear cars — the ones its collection needs —
 // can still drop from its own case, rarely. Ukraine's gold Soviet rarities drop only from here (homeOnly).
@@ -453,9 +453,9 @@ const COUNTRY_CASES = {
   JP: { price: 450000, weights: { C: 96.76, B: 3.06, A: 0.162, S: 0.018 }, hi: 400 },
   DE: { price: 400000, weights: { C: 98.32, B: 1.554, A: 0.118, S: 0.008 }, hi: 560 },
   CN: { price: 480000, weights: { C: 97.776, B: 2.08, A: 0.108, S: 0.036 }, hi: 400 },
-  US: { price: 2400000, weights: { B: 82.3, A: 17.06, S: 0.64 }, hi: 130 },
-  GB: { price: 3100000, weights: { B: 73.46, A: 25.12, S: 1.42 }, hi: 90 },
-  IT: { price: 3200000, weights: { B: 74, A: 24.7, S: 1.3 }, hi: 55 },
+  US: { price: 2400000, weights: { B: 85.6, A: 14, S: 0.4 }, hi: 130 },
+  GB: { price: 3100000, weights: { B: 79.3, A: 20, S: 0.7 }, hi: 90 },
+  IT: { price: 3200000, weights: { B: 79.3, A: 20, S: 0.7 }, hi: 55 },
 };
 for (const c of MAIN_COUNTRIES) {
   const cc = COUNTRY_CASES[c];
