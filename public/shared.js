@@ -2027,3 +2027,108 @@ export const PAINT = { rate: 0.03, min: 5000, liveryRate: 0.05, liveryMin: 8000 
 const paintRound = (x) => (x < 1e6 ? Math.round(x / 1000) * 1000 : Math.round(x / 10000) * 10000);
 export const paintPrice = (model) => Math.max(PAINT.min, paintRound((MODELS[model]?.price || 0) * PAINT.rate));
 export const liveryPrice = (model) => Math.max(PAINT.liveryMin, paintRound((MODELS[model]?.price || 0) * PAINT.liveryRate));
+
+// ---------- career: country bosses («Кар'єра») ----------
+// A ladder of named bosses, country by country (Україна → Японія → Німеччина → Китай → США → Британія → Італія). Each
+// boss drives a real car of that country with a full kit of one parts tier (exactly what a player can build: its shown
+// power and pace are carStats of that car), driven by an AI of a fixed level — the pace never depends on the player.
+// Bosses open one after another (the next after the previous is beaten); a boss takes the challenge only from a car of
+// its class or higher (`req`). The first win pays the boss's one-time reward (no entry, a loss costs only the fuel);
+// rematches pay like a normal race (bossRematch). The reward money is set by hand per boss: ~4–8 races' worth for a
+// player of that stage (raceEv of a typical car of `req`), a country's last boss ~2× plus two keys of the country case,
+// a pretty plate and the career badge (one badge, upgraded country by country). tools/boss-ladder.mjs prints the odds.
+export const BOSS_AI = {
+  street: { name: 'Вуличний', stars: 1, ...RIVAL_AI },
+  pro: { name: 'Профі', stars: 2, react: [0.17, 0.05], jump: 0.03, sd: 70, bias: -5 },
+  ace: { name: 'Ас', stars: 3, react: [0.15, 0.03], jump: 0.02, sd: 45, bias: 0 },
+  legend: { name: 'Легенда', stars: 4, react: [0.135, 0.02], jump: 0.01, sd: 28, bias: 0 },
+};
+// [id, nickname, car name, kit tier (null = no parts), AI, required class, taunt, money, parts {n, tier}]
+const BOSS_RAW = {
+  UA: [
+    ['ua-panas', 'Дід Панас', 'ЗАЗ-968М «Запорожець»', 'sport', 'street', 'D', 'Онучку, я на «Запорі» ще з колгоспу всіх обганяв. Сідай, покатаю.', 50000, [1, 'stock']],
+    ['ua-zhora', 'Жора Шістка', 'ВАЗ-2106', 'stock', 'street', 'D', 'Шістка не ламається — вона відпочиває. Як і ти зараз на старті.', 75000, [1, 'street']],
+    ['ua-tolik', 'Толік Москвич', 'Москвич-412', 'sport', 'street', 'D', 'Москвич — це не машина, це характер. А в тебе його нема.', 100000, [2, 'street']],
+    ['ua-general', 'Генерал', 'ГАЗ-13 «Чайка»', 'street', 'pro', 'D', 'На «Чайці» возили генсеків. Тебе повеземо хіба що на буксирі.', 200000, null],
+  ],
+  JP: [
+    ['jp-takumi', 'Такумі з Троєщини', 'Toyota Corolla AE86', null, 'street', 'C', 'Я тофу розвожу швидше, ніж ти їздиш на роботу.', 150000, [1, 'street']],
+    ['jp-sensei', 'Сенсей Сашко', 'Toyota Supra MK3', null, 'street', 'C', 'Спершу навчись перемикати, учню. Потім поговоримо.', 200000, [1, 'sport']],
+    ['jp-ninja', 'Ніндзя з Борщагівки', 'Nissan 200SX S13', 'street', 'street', 'C', 'Ти мене не побачиш. Тільки дим від гуми.', 300000, [2, 'sport']],
+    ['jp-godzilla', 'Годзілла', 'Nissan Skyline GT-R R34', null, 'pro', 'C', 'R34 не обганяють. Його відпускають уперед — з поваги.', 600000, null],
+  ],
+  DE: [
+    ['de-hans', 'Ганс з Мукачева', 'Volkswagen Golf GTI Mk7', 'sport', 'street', 'C', 'Орднунг простий: спершу я, потім ти.', 300000, [1, 'sport']],
+    ['de-bumer', 'Бумер', 'BMW M3 E46', 'stock', 'street', 'B', 'Бумер у дзеркалі ближче, ніж здається. Потім — уже ні.', 500000, [1, 'pro']],
+    ['de-emka', 'Вітя М-ка', 'BMW M2 Competition', 'street', 'street', 'B', 'Задній привід, механіка і ніякої жалості.', 800000, [2, 'pro']],
+    ['de-kaiser', 'Кайзер', 'Porsche 911 Turbo S', null, 'pro', 'B', 'Дев\'ятсот одинадцятий не старіє. Старіють ті, хто з ним змагається.', 1500000, null],
+  ],
+  CN: [
+    ['cn-li', 'Пан Лі з Харкова', 'Xiaomi SU7 Max', 'sport', 'street', 'B', 'Мій телефон і моя машина — одна фірма. Обидва швидші за тебе.', 1000000, [1, 'pro']],
+    ['cn-dragon', 'Дракон', 'Yangwang U9', null, 'street', 'A', 'Тиша на старті — і мене вже нема.', 1500000, [2, 'pro']],
+    ['cn-emperor', 'Імператор', 'Xiaomi SU7 Ultra', null, 'pro', 'A', 'Півтори тисячі сил від розетки. Заряджайся морально.', 3000000, null],
+  ],
+  US: [
+    ['us-cowboy', 'Ковбой Мирон', 'Dodge Viper ACR', 'sport', 'street', 'A', 'У Техасі кажуть: більше об\'єм — менше розмов.', 2000000, [1, 'pro']],
+    ['us-tesliar', 'Тесляр', 'Tesla Model S Plaid', 'sport', 'street', 'A', 'Автопілот вимкнув — щоб у тебе був хоч якийсь шанс.', 2500000, [1, 'race']],
+    ['us-sapphire', 'Сапфір', 'Lucid Air Sapphire', 'sport', 'pro', 'A', 'Тиха, розкішна і зла. Як я.', 3000000, [2, 'pro']],
+    ['us-sheriff', 'Шериф', 'Ford GT', 'pro', 'pro', 'A', 'Ford GT розбив Ferrari в Ле-Мані. А ти — навіть не Ferrari.', 6000000, null],
+  ],
+  GB: [
+    ['gb-lord', 'Лорд Чипс', 'McLaren 570S', 'race', 'street', 'A', 'Чай — о п\'ятій. Перемога — на восьмій секунді.', 4000000, [1, 'race']],
+    ['gb-agent', 'Агент 007-й', 'Aston Martin DBS Superleggera', 'race', 'pro', 'S', 'Ім\'я — Бонд. Час — швидший за твій.', 5000000, [1, 'race']],
+    ['gb-volt', 'Леді Вольт', 'Lotus Evija', 'race', 'pro', 'S', 'Дві тисячі сил і жодного звуку. Почуєш тільки, як програв.', 6000000, [2, 'race']],
+    ['gb-king', 'Король Лондона', 'McLaren P1', 'race', 'street', 'S', 'Корона на мені. Хочеш зняти — дожени.', 12000000, null],
+  ],
+  IT: [
+    ['it-toro', 'Бик', 'Lamborghini Huracán EVO', 'race', 'ace', 'S', 'Тореадор? Ні, я бик. А ти — червона ганчірка.', 7000000, [1, 'race']],
+    ['it-don', 'Дон Карлеоне', 'Lamborghini Aventador SVJ', 'race', 'ace', 'S', 'Зроблю тобі пропозицію, від якої не відмовляються: програти.', 8000000, [2, 'race']],
+    ['it-maestro', 'Маестро', 'Ferrari LaFerrari', 'race', 'ace', 'S', 'Моцарт писав симфонії. Я пишу їх двигуном V12.', 10000000, [2, 'race']],
+    ['it-boss', 'Бос усіх босів', 'Ferrari SF90 Stradale', 'race', 'legend', 'S', 'Ти пройшов усіх. Залишився я — і зелене світло.', 25000000, null],
+  ],
+};
+export const BOSS_COUNTRIES = Object.keys(BOSS_RAW);
+// The career badge after each country (one badge «boss» in the profile, replaced by the next): title and tier (colour).
+export const BOSS_BADGES = {
+  UA: ['Король району · Україна', 0], JP: ['Король доріг · Японія', 1], DE: ['Король автобану · Німеччина', 1], CN: ['Король доріг · Китай', 2],
+  US: ['Король хайвею · США', 2], GB: ['Король доріг · Британія', 3], IT: ['Бос усіх босів', 3],
+};
+// The pretty plate a country's last boss gives (its class — the plate's value range, PLATE_VALUE).
+export const BOSS_PLATE = { UA: 'C', JP: 'C', DE: 'B', CN: 'B', US: 'A', GB: 'A', IT: 'S' };
+const bossKit = (model, tier) => (tier ? Object.fromEntries(partKeysOf(model).map((k) => [k, tier])) : {});
+export const BOSSES = [];
+for (const c of BOSS_COUNTRIES) {
+  BOSS_RAW[c].forEach(([id, nick, car, kit, ai, req, taunt, money, parts], i, list) => {
+    const model = ALL_MODELS.find((m) => m.name === car && !m.secret)?.id;
+    if (!model) throw new Error('boss car ' + car);
+    const st = carStats({ model, parts: bossKit(model, kit) });
+    const final = i === list.length - 1;
+    const reward = { money, ...(parts ? { parts: parts[0], tier: parts[1] } : {}), ...(final ? { caseId: 'c-' + c.toLowerCase(), count: 2, plate: BOSS_PLATE[c], badge: BOSS_BADGES[c][0] } : {}) };
+    BOSSES.push({ id, n: BOSSES.length, country: c, nick, model, kit, ai, req, taunt, final, reward, hp: st.hp, base: st.base, shift: st.shift, et: st.et });
+  });
+}
+export const BOSS_BY_ID = Object.fromEntries(BOSSES.map((b) => [b.id, b]));
+// One run of the boss (the server keeps the exact time until the finish, as for any solo rival).
+export const bossRun = (rand, b) => humanRun({ base: b.base, shift: b.shift }, BOSS_AI[b.ai], rand);
+// How much slower than its base the boss runs (like rivalOffsets, with the boss's own driver).
+export function bossOffsets(b, seed = 7) {
+  const rand = seededRand(seed + Math.round(b.base * 100));
+  return Array.from({ length: RIVAL_SAMPLES }, () => bossRun(rand, b) - b.base);
+}
+// A car of the required class or higher (secret and season cars count as above S).
+export const bossFits = (b, model) => rankOf(MODELS[model].cls) >= rankOf(b.req);
+// Rematch money, as a normal race: priced by the cheaper of your model and the boss's (an overpowered car racing an
+// early boss earns that boss's stakes, not its own), and set so that a GOOD driver in your car as it is (parts
+// count) earns ~0.9 raceEv per race at their chance `p` (raceMoney's formula; `p` clamped to the tier range, so a
+// sure win pays about an easy race and a long shot about a hard one). `p` never depends on the player's history.
+export function bossRematch(p, price) {
+  const c = Math.max(0.2, Math.min(0.95, p));
+  return raceMoney({ ev: 0.9, chance: c, entry: c >= 0.7 ? 0.35 : c >= 0.4 ? 0.3 : 0.1 }, price);
+}
+// Text of a boss reward: "200 тис ₴ + 2 × ключ «Україна/СРСР» + номер класу C + значок «…»".
+export function bossRewardText(rw) {
+  const out = [achRewardText(rw)];
+  if (rw.plate) out.push(`номер класу ${rw.plate}`);
+  if (rw.badge) out.push(`значок «${rw.badge}»`);
+  return out.filter(Boolean).join(' + ');
+}

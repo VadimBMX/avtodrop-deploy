@@ -1195,6 +1195,7 @@ export function createGame(db, opts = {}) {
     const win = time < rival.time;
     if (win) addMoney(uid, race.entry + race.prize);
     const result = { win, time, rivalTime: rival.time, diff: round3(Math.abs(time - rival.time)), prize: win ? race.prize : 0, entry: race.entry, jump: run.jump, perfectStart: run.perfectStart, reaction: run.reaction, shifts, corrected: run.corrected };
+    if (rival.boss && S.BOSS_BY_ID[rival.boss]) result.boss = bossAfterRace(uid, S.BOSS_BY_ID[rival.boss], result);
     q("UPDATE races SET status = 'done', result = ? WHERE id = ?").run(JSON.stringify(result), race.id);
     q('UPDATE users SET races = races + 1, wins = wins + ? WHERE id = ?').run(win ? 1 : 0, uid);
     q('DELETE FROM rivals WHERE user_id = ? AND car_id = ?').run(uid, race.car_id);
@@ -1206,6 +1207,99 @@ export function createGame(db, opts = {}) {
     flag(uid, 'race');
     if (win) flag(uid, 'win');
     return result;
+  }
+
+  // ---------- career: country bosses (S.BOSSES) ----------
+  // A boss race is a solo drag race in the `races` table (rival.boss = the boss id), started here and finished by
+  // race/finish exactly like any other (same replay and checks); bossAfterRace adds the career part to its result.
+  const bossRows = (uid) => Object.fromEntries(q('SELECT * FROM boss_runs WHERE user_id = ?').all(uid).map((r) => [r.boss, r]));
+  // Bosses open in order: the first one always, every next one once the one before it is beaten.
+  const bossOpen = (b, rows) => b.n === 0 || !!rows[S.BOSSES[b.n - 1].id]?.beaten_at;
+  // What a car of the player earns and risks against a boss: before the first win nothing (no entry, no prize — the
+  // one-time reward is the prize); after it, normal race money (S.bossRematch) at a good driver's odds in this car.
+  // A boss's pace never changes, so its run spread is worked out once per process.
+  const bossOffs = new Map();
+  const bossOffsetsOf = (b) => bossOffs.get(b.id) || (bossOffs.set(b.id, S.bossOffsets(b)), bossOffs.get(b.id));
+  function bossMoney(b, o, beaten, good = S.driverTimes({ base: o.base, shift: o.shift })) {
+    if (!beaten) return { entry: 0, prize: 0 };
+    const p = S.oddsVs(good, bossOffsetsOf(b), b.base);
+    return S.bossRematch(p, Math.min(S.MODELS[o.model].price, S.MODELS[b.model].price));
+  }
+  function bossList(uid, { carId } = {}) {
+    const rows = bossRows(uid);
+    const o = carId ? carOut(ownCar(uid, carId)) : null;
+    const mine = o ? myTimes(uid, o) : null;
+    const good = o ? S.driverTimes({ base: o.base, shift: o.shift }) : null;
+    let next = null;
+    const list = S.BOSSES.map((b) => {
+      const r = rows[b.id], open = bossOpen(b, rows), beaten = !!r?.beaten_at;
+      if (open && !beaten && !next) next = b.id;
+      const out = { id: b.id, open, beaten, tries: r?.tries || 0, wins: r?.wins || 0, best: r?.best ?? null };
+      if (o && open) {
+        out.fits = S.bossFits(b, o.model);
+        out.chance = Math.round(S.oddsVs(mine, bossOffsetsOf(b), b.base) * 100);
+        Object.assign(out, bossMoney(b, o, beaten, good));
+      }
+      return out;
+    });
+    const beatenN = list.filter((x) => x.beaten).length;
+    return { list, next, beaten: beatenN, total: S.BOSSES.length, badge: q("SELECT title, tier FROM badges WHERE user_id = ? AND key = 'boss'").get(uid) || null };
+  }
+  function bossStart(uid, { carId, boss }) {
+    startLimit(uid, 'races');
+    const b = S.BOSS_BY_ID[String(boss)];
+    if (!b) fail('Невідомий бос');
+    const rows = bossRows(uid);
+    if (!bossOpen(b, rows)) fail('Спершу переможи попереднього боса');
+    const c = ownCar(uid, carId);
+    const car = carOut(c);
+    if (!S.bossFits(b, c.model)) fail(`${b.nick} не прийме виклик: потрібна машина класу ${b.req} або вище`);
+    const u = userRow(uid);
+    const f = fuelState(u);
+    if (f.fuel < 1) fail('Загальний бак порожній — зачекай або відкрий кейс нагород');
+    const t = tankState(c);
+    if (t.tank < 1) fail('Бак цієї машини порожній — візьми іншу');
+    const beaten = !!rows[b.id]?.beaten_at;
+    const money = bossMoney(b, car, beaten);
+    q("UPDATE races SET status = 'expired' WHERE user_id = ? AND status = 'running'").run(uid);
+    pay(uid, money.entry);
+    q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(f.fuel - 1, f.fuel >= S.FUEL_MAX ? now() : f.at, uid);
+    q('UPDATE cars SET tank = ?, tank_at = ? WHERE id = ?').run(t.tank - 1, t.tank >= S.CAR_TANK ? now() : t.at, c.id);
+    q('INSERT INTO boss_runs (user_id, boss, tries) VALUES (?, ?, 1) ON CONFLICT DO UPDATE SET tries = tries + 1').run(uid, b.id);
+    const rivalTime = S.bossRun(lcg(Math.floor(rnd() * 2 ** 31)), b);
+    const greenMs = S.RACE_GREEN[0] + Math.floor(rnd() * (S.RACE_GREEN[1] - S.RACE_GREEN[0]));
+    const r = { id: 'boss', boss: b.id, label: "Бос", name: b.nick, model: b.model, hp: b.hp, base: b.base, shift: b.shift, et: b.et, ...money };
+    const rec = { ...r, time: rivalTime, me: { base: car.base, shift: car.shift }, greenMs };
+    const id = Number(q('INSERT INTO races (user_id, car_id, rival, entry, prize, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(uid, c.id, JSON.stringify(rec), money.entry, money.prize, now()).lastInsertRowid);
+    return { raceId: id, car, rival: { ...r, time: Math.round(rivalTime * 10) / 10, coarse: true }, greenMs, shiftPoints: S.SHIFT_POINTS };
+  }
+  // After race/finish of a boss race: counts the win, and the first one pays the reward once (beaten_at is set in the
+  // same transaction, guarded by "IS NULL", so a second win — or a replayed finish — can never pay it again).
+  function bossAfterRace(uid, b, result) {
+    if (result.win) q('UPDATE boss_runs SET wins = wins + 1, best = MIN(COALESCE(best, ?), ?) WHERE user_id = ? AND boss = ?').run(result.time, result.time, uid, b.id);
+    const first = result.win && q('UPDATE boss_runs SET beaten_at = ? WHERE user_id = ? AND boss = ? AND beaten_at IS NULL').run(now(), uid, b.id).changes > 0;
+    const out = { id: b.id, first };
+    if (!first) return out;
+    const rw = b.reward;
+    const got = grant(uid, { money: rw.money, parts: rw.parts, tier: rw.tier, caseId: rw.caseId, count: rw.count });
+    out.reward = { money: rw.money, caseId: rw.caseId, count: rw.count, tier: rw.tier, parts: rw.parts, items: got.items || [] };
+    if (rw.plate) {
+      const text = makePlate(rw.plate);
+      const [lo, hi] = S.PLATE_VALUE[rw.plate];
+      const value = Math.round((lo + rnd() * (hi - lo)) / 100) * 100;
+      const pid = Number(q('INSERT INTO plates (owner_id, text, cls, value, created_at) VALUES (?, ?, ?, ?, ?)').run(uid, text, rw.plate, value, now()).lastInsertRowid);
+      q('UPDATE users SET plate_best = MAX(plate_best, ?) WHERE id = ?').run(S.rankOf(rw.plate), uid);
+      out.reward.plate = { id: pid, text, cls: rw.plate, value };
+    }
+    if (rw.badge) {
+      // One career badge, replaced by the next country's (never downgraded by an old country — the ladder is in order).
+      q("INSERT INTO badges (user_id, key, title, tier, season, place, created_at) VALUES (?, 'boss', ?, ?, NULL, NULL, ?) ON CONFLICT DO UPDATE SET title = excluded.title, tier = excluded.tier, created_at = excluded.created_at")
+        .run(uid, rw.badge, S.BOSS_BADGES[b.country][1], now());
+      out.reward.badge = rw.badge;
+    }
+    const nx = S.BOSSES[b.n + 1];
+    out.next = nx ? nx.id : null;
+    return out;
   }
 
   // ---------- upgrade ----------
@@ -3829,6 +3923,7 @@ export function createGame(db, opts = {}) {
     'parts/open': openParts, 'parts/merge': merge, 'parts/sell': sellParts, 'parts/install': install, 'parts/uninstall': uninstall,
     'plate/generate': generatePlate, 'plate/attach': attachPlate, 'plate/detach': detachPlate, 'plate/sell': sellPlate,
     'race/rivals': rivals, 'race/start': raceStart, 'race/finish': raceFinish,
+    'boss/list': bossList, 'boss/start': bossStart,
     'drift/rivals': driftRivals, 'drift/start': driftStart, 'drift/finish': driftFinish,
     upgrade, 'dealer/tradein': tradeIn,
     'casino/slots': slots, 'casino/roulette': roulette,

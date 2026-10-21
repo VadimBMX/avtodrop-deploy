@@ -2190,3 +2190,53 @@ button.li:active { background-color: #ffffff08; }
 .broke-tx b { font-size: 14px; }
 .broke-row .btn.sm { flex: none; width: auto; padding: 0 14px; min-height: 34px; margin: 0; }
 .broke-row .chip { flex: none; }
+
+/* ---------- career: country bosses («Гонки → Кар'єра») ---------- */
+.career-hero .ch-n { font: 700 22px var(--f-disp); }
+.career-hero .ch-n small { font-size: 14px; color: var(--muted); }
+.cbar { height: 6px; margin: 8px 0 2px; border-radius: 3px; background: #ffffff12; overflow: hidden; }
+.cbar i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent), #ffe27a); box-shadow: 0 0 10px var(--accent); }
+.cmap { display: flex; align-items: flex-start; margin-top: 14px; }
+.cmap .cm-line { flex: 1; min-width: 4px; height: 2px; margin-top: 13px; background: var(--line2); }
+.cm { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: none; }
+.cm .flag-emb { width: 28px; height: 28px; vertical-align: 0; box-shadow: 0 0 0 2px #ffffff1f; transition: transform .15s; }
+.cm small { display: inline-flex; align-items: center; height: 14px; font: 600 11px var(--f-disp); color: var(--muted); }
+.cm small .i { width: 13px; height: 13px; }
+.cm.lock .flag-emb { filter: grayscale(.8) brightness(.8); opacity: .75; }
+.cm.done small { color: var(--green); }
+.cm.here .flag-emb { box-shadow: 0 0 0 2px var(--accent), 0 0 14px var(--accent); transform: scale(1.12); }
+.cm.here small { color: var(--accent); }
+.boss-next { position: relative; overflow: hidden; margin-top: 12px; cursor: pointer;
+  background: radial-gradient(110% 70% at 50% 34%, color-mix(in srgb, var(--c) 26%, transparent), transparent 72%), var(--card);
+  border: 1px solid color-mix(in srgb, var(--c) 45%, var(--line)); }
+.boss-next.done { cursor: default; display: flex; flex-direction: column; align-items: center; padding: 22px 16px; }
+.boss-next.done > .i { width: 40px; height: 40px; }
+.bn-tag { display: flex; align-items: center; gap: 6px; font: 700 12px var(--f-disp); letter-spacing: .7px; text-transform: uppercase; color: var(--accent); }
+.bn-art { height: 128px; margin: 6px 0 4px; display: flex; justify-content: center; }
+.bn-art img, .bn-art svg { height: 100%; max-width: 100%; object-fit: contain; }
+.bn-name { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; }
+.bn-name b { font: 700 22px var(--f-disp); letter-spacing: .3px; }
+.taunt { position: relative; margin: 10px 0 0; padding: 9px 12px; border-radius: 12px; background: #ffffff0a; border: 1px solid #ffffff12; font-style: italic; font-size: 13.5px; color: #d7dae0; }
+.taunt.big { font-size: 14.5px; margin-top: 12px; text-align: center; }
+.boss-next .btn { width: 100%; }
+.diff.lock { color: var(--muted); border-color: var(--line2); }
+.diff .i { width: 12px; height: 12px; vertical-align: -2px; }
+.rival.boss.locked .grow > b, .rival.boss.locked .center b { opacity: .55; }
+.rival.boss.open { background: linear-gradient(90deg, var(--accent-soft), transparent 70%); box-shadow: inset 3px 0 0 var(--accent); }
+.rival.boss .grow > b .i { width: 15px; height: 15px; vertical-align: -2px; }
+.boss-card .hero { height: 160px; }
+.boss-card .bc-car { font: 700 19px var(--f-disp); margin-top: 4px; }
+.boss-card .bc-ic { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 10px; background: #ffffff0a; color: var(--accent); }
+.boss-card .btn { width: 100%; }
+.bstars { color: var(--accent); letter-spacing: 1px; }
+.bstars i { font-style: normal; color: var(--line2); }
+.boss-reward { margin: 12px 0; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: radial-gradient(120% 90% at 50% 0%, var(--accent-soft), transparent 70%), var(--card); }
+.boss-reward .hook-t { font: 700 17px var(--f-disp); color: var(--accent); }
+.boss-reward .hook-t .i { color: var(--accent); }
+.rw-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.rw { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.rw-ic { width: 46px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 10px; background: #ffffff0a; color: var(--accent); }
+.rw-ic .flag-emb { width: 24px; height: 24px; }
+.rw > b { font: 700 18px var(--f-disp); }
+.rw .plate { --h: 24px; }

@@ -201,6 +201,11 @@ CREATE TABLE IF NOT EXISTS badges (
   user_id INTEGER NOT NULL, key TEXT NOT NULL, title TEXT NOT NULL, tier INTEGER NOT NULL DEFAULT 0, season INTEGER, place INTEGER,
   created_at INTEGER NOT NULL, PRIMARY KEY (user_id, key)
 );
+-- Career (S.BOSSES): one row per boss a player has raced; beaten_at is set once, by the first win (its one-time reward).
+CREATE TABLE IF NOT EXISTS boss_runs (
+  user_id INTEGER NOT NULL, boss TEXT NOT NULL, tries INTEGER NOT NULL DEFAULT 0, wins INTEGER NOT NULL DEFAULT 0,
+  best REAL, beaten_at INTEGER, PRIMARY KEY (user_id, boss)
+);
 -- Weekly route (S.WEEKLY_QUESTS): four tasks per player and Kyiv week (Monday date). Chest claims live in claims
 -- under "wk:<week>:<days>".
 CREATE TABLE IF NOT EXISTS weekly_quests (

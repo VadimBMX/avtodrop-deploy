@@ -1332,13 +1332,14 @@ function spinMany(host, n, spinOne) {
 TABS.race = async () => {
   if (state.race && state.race.phase !== 'idle') return raceScreen();
   if (state.drift) return driftScreen();
-  const seg = `<div class="seg">${[['race', 'Драг-заїзд'], ['drift', 'Дрифт'], ['pvp', 'PvP']].map(([k, t]) => `<button class="${state.raceView === k ? 'on' : ''}" data-act="raceView" data-k="${k}">${t}</button>`).join('')}</div>${eventStrip(['race', 'fuel'])}`;
+  const seg = `<div class="seg">${[['race', 'Драг-заїзд'], ['career', "Кар'єра"], ['drift', 'Дрифт'], ['pvp', 'PvP']].map(([k, t]) => `<button class="${state.raceView === k ? 'on' : ''}" data-act="raceView" data-k="${k}">${t}</button>`).join('')}</div>${eventStrip(['race', 'fuel'])}`;
   const garage = me.cars.filter((c) => c.status === 'garage');
   if (!garage.length) return seg + emptyBox('flag-3', 'Немає на чому їхати', 'Для гонки потрібна хоча б одна машина в гаражі', '<button class="btn sm" data-act="toCases">Відкрити кейс</button>');
   if (!garage.some((c) => c.id === state.raceCar)) state.raceCar = [...garage].sort((a, b) => b.tank - a.tank || a.et - b.et)[0].id;
   const car = garage.find((c) => c.id === state.raceCar);
   if (state.raceView === 'pvp') return seg + await pvpView(car);
   if (state.raceView === 'drift') return seg + await driftView(car, garage);
+  if (state.raceView === 'career') return seg + await careerView(car, garage);
   const { list } = await api('race/rivals', { carId: car.id });
   const cls = M(car.model).cls;
   return seg + `<div class="h2"><span>Твоя машина</span><span>${garage.length}</span></div>
@@ -1650,6 +1651,7 @@ H.pvpExit = () => {
 };
 function raceResult() {
   if (state.race.live) return liveResult();
+  if (state.race.rival.boss) return bossResult();
   const R = state.race, r = R.result;
   const startTxt = r.jump ? 'Фальстарт −8%' : r.perfectStart ? 'Ідеальний старт +4%' : r.reaction >= 1.5 ? 'Пізній старт' : `Реакція ${dec(r.reaction, 3)} с`;
   return raceSheetHtml({ win: r.win, diff: r.diff, amount: r.win ? '+' + S.fmt(r.prize) : r.entry ? '−' + S.fmt(r.entry) : 'Тренування',
@@ -2106,6 +2108,136 @@ H.driftAgain = H.driftExit = () => {
 H.raceAgain = H.raceExit = () => {
   state.race = null;
   render();
+};
+
+// ---------- career: country bosses (S.BOSSES) ----------
+// «Гонки → Кар'єра»: the country strip (the map) with progress, the next boss as a big card, then every country's
+// bosses (beaten / next / locked as a silhouette). A boss opens as a card (sheet); «Кинути виклик» runs the usual
+// race screen with the boss as the rival (raceScreen / runRace are shared), and the result adds the one-time reward.
+const BOSS = (id) => S.BOSS_BY_ID[id];
+const bossStars = (b) => `<span class="bstars">${'★'.repeat(S.BOSS_AI[b.ai].stars)}<i>${'★'.repeat(4 - S.BOSS_AI[b.ai].stars)}</i></span>`;
+const bossKit = (b) => (b.kit ? `${S.TIER_BY_ID[b.kit].name}-кіт` : 'без тюнінгу');
+const bossOf = (c) => S.BOSSES.filter((b) => b.country === c);
+async function careerView(car, garage) {
+  const data = await api('boss/list', { carId: car.id });
+  state.career = data;
+  const st = Object.fromEntries(data.list.map((x) => [x.id, x]));
+  const next = data.next ? BOSS(data.next) : null;
+  const here = next ? next.country : S.BOSS_COUNTRIES.at(-1);
+  const map = S.BOSS_COUNTRIES.map((c) => {
+    const bs = bossOf(c), n = bs.filter((b) => st[b.id].beaten).length;
+    const cls = n === bs.length ? 'done' : bs.some((b) => st[b.id].open) ? 'cur' : 'lock';
+    return `<button class="cm ${cls} ${c === here ? 'here' : ''}" data-act="careerJump" data-c="${c}" aria-label="${S.COUNTRIES[c].name}">${flagEmblem(c)}<small>${n === bs.length ? ic('check') : `${n}/${bs.length}`}</small></button>`;
+  }).join('<i class="cm-line"></i>');
+  const hero = `<div class="card career-hero"><div class="row between"><span class="hook-t">${ic('crown')} Боси країн</span><b class="ch-n">${data.beaten}<small>/${data.total}</small></b></div>
+    <div class="cbar"><i style="width:${(data.beaten / data.total) * 100}%"></i></div>
+    <div class="cmap">${map}</div>
+    <div class="row between small mt">${data.badge ? badgeChip(data.badge) : '<span class="muted">Перемагай босів по черзі. Останній бос країни дає значок у профіль, ключі й номер.</span>'}</div></div>`;
+  const nextCard = next ? bossFeature(next, st[next.id], car) : `<div class="card boss-next done center">${ic('crown', 'win')}<b class="mt">Кар'єру пройдено!</b><div class="small muted">Усі ${data.total} босів переможені. Реванші — як звичайні гонки.</div></div>`;
+  return `${hero}
+    ${nextCard}
+    <div class="h2"><span>Твоя машина</span><span>${garage.length}</span></div>
+    <div class="carpick">${garage.map((c) => carTile(c, { act: 'pickRaceCar', sel: c.id === car.id, showTank: true })).join('')}</div>
+    ${fuelCard(car)}
+    ${S.BOSS_COUNTRIES.map((c) => {
+      const bs = bossOf(c);
+      return `<div class="h2" id="cc-${c}"><span class="row" style="gap:8px">${flagEmblem(c)} ${S.COUNTRIES[c].name}</span><span>${bs.filter((b) => st[b.id].beaten).length}/${bs.length}</span></div>
+      <div class="list rivals bosses">${bs.map((b) => bossRow(b, st[b.id])).join('')}</div>`;
+    }).join('')}
+    <div class="tiny muted">Бос їде завжди однаково — сильніша машина, деталі й чисті перемикання дають тобі шанс. Перша перемога над босом дає нагороду один раз і відкриває наступного; реванш — як звичайна гонка. Пальне — як у драг-заїзді.</div>`;
+}
+const bossChance = (s) => (s.chance == null ? '' : `<span class="chip">шанс ${s.chance < 1 ? '<1' : s.chance}%</span>`);
+function bossFeature(b, s, car) {
+  const color = S.CLASSES[M(b.model).cls].color;
+  return `<div class="card boss-next" data-act="bossCard" data-id="${b.id}" style="--c:${color}">
+    <div class="bn-tag">${flagEmblem(b.country)} Наступний бос${b.final ? ' · фінал країни' : ''}</div>
+    <div class="bn-art">${carArt(b.model, { glow: true })}</div>
+    <div class="bn-name"><b>${esc(b.nick)}</b><span class="small muted">${esc(M(b.model).name)} · ${b.hp} к.с. · ${bossKit(b)}</span></div>
+    <div class="taunt">«${esc(b.taunt)}»</div>
+    <div class="row between mt" style="gap:8px;flex-wrap:wrap"><span class="small ${s.fits ? 'muted' : 'lose'}">${s.fits ? `Клас ${b.req}+ · бос їде ~${dec(b.et, 2)} с` : `Потрібен клас ${b.req}+`}</span>${bossChance(s)}</div>
+    <div class="row between mt"><span class="small">Нагорода: <b class="win">${esc(S.bossRewardText(b.reward))}</b></span></div>
+    <button class="btn yellow mt" data-act="startBoss" data-id="${b.id}" ${!s.fits || me.fuel < 1 || car.tank < 1 ? 'disabled' : ''}>${ic('flag-3')} Кинути виклик</button></div>`;
+}
+function bossRow(b, s) {
+  const prev = S.BOSSES[b.n - 1];
+  const tag = s.beaten ? `<span class="diff easy">${ic('check')} Переможений</span>` : s.open ? '<span class="diff mid">Наступний</span>' : `<span class="diff lock">${ic('lock')} Після «${esc(prev.nick)}»</span>`;
+  return `<button class="rival boss ${s.beaten ? 'beaten' : s.open ? 'open' : 'locked'}" data-act="bossCard" data-id="${b.id}">
+    <div class="mini art lit r${S.rankOf(M(b.model).cls)}" style="--c:${S.CLASSES[M(b.model).cls].color}">${carArt(b.model, { silhouette: !s.open })}</div>
+    <div class="grow"><b class="ellipsis">${esc(b.nick)}${b.final ? ` ${ic('crown', 'win')}` : ''}</b><div class="small muted rv-meta"><span class="ellipsis">${esc(M(b.model).name)}</span><span class="nw">· ${b.hp} к.с.</span></div>
+      <div class="row mt" style="gap:6px">${tag}${s.open && !s.beaten ? bossChance(s) : ''}</div></div>
+    <div class="center">${s.beaten ? `<b class="muted">${s.best != null ? dec(s.best, 2) + ' с' : ''}</b><div class="tiny muted">реванш</div>` : `<b class="win">+${S.short(b.reward.money)}</b><div class="tiny muted">${b.final ? 'і значок' : 'нагорода'}</div>`}</div></button>`;
+}
+H.careerJump = (d) => $('#cc-' + d.c)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+H.bossCard = (d) => {
+  const b = BOSS(d.id);
+  if (!b) return;
+  const s = state.career?.list.find((x) => x.id === b.id) || {};
+  const car = me.cars.find((c) => c.id === state.raceCar);
+  const m = M(b.model), rank = S.rankOf(m.cls), color = S.CLASSES[m.cls].color;
+  const bs = bossOf(b.country), prev = S.BOSSES[b.n - 1];
+  const row = (icon, title, sub, right = '') => `<div class="li"><span class="bc-ic">${ic(icon)}</span><div class="grow"><b>${title}</b><div class="small muted">${sub}</div></div>${right}</div>`;
+  const btn = !s.open ? `${ic('lock')} Спершу переможи «${esc(prev.nick)}»` : !s.fits ? `Потрібна машина класу ${b.req}+` : s.beaten ? `${ic('refresh')} Реванш` : `${ic('flag-3')} Кинути виклик`;
+  sheet(esc(b.nick), `<div class="boss-card" style="--c:${color}">
+    <div class="hero r${rank}" style="--c:${color}"><div class="art">${carArt(b.model, { glow: rank >= 2 && s.open, silhouette: !s.open })}</div></div>
+    <div class="center"><div class="small muted row" style="justify-content:center;gap:6px">${flagEmblem(b.country)} ${S.COUNTRIES[b.country].name} · бос ${bs.indexOf(b) + 1} з ${bs.length}${b.final ? ' · фінал' : ''}</div>
+      <div class="bc-car">${esc(m.name)}</div>
+      <div class="small muted">${bossKit(b)} · ${b.hp} к.с. · ~${dec(b.et, 2)} с на 402 м</div>
+      <div class="small mt">Водій: ${bossStars(b)} ${S.BOSS_AI[b.ai].name}</div></div>
+    <div class="taunt big">«${esc(b.taunt)}»</div>
+    <div class="list mt">
+      ${row('car', 'Вимога', `машина класу ${b.req} або вище`, s.fits == null ? '' : `<b class="${s.fits ? 'win' : 'lose'}">${s.fits ? ic('check') : '✕'}</b>`)}
+      ${s.chance != null && car ? row('target-arrow', 'Твій шанс', `${esc(M(car.model).name)} · ${car.hp} к.с. · ${dec(car.et, 2)} с`, `<b>${s.chance < 1 ? '<1' : s.chance}%</b>`) : ''}
+      ${row('trophy', s.beaten ? 'Нагороду отримано' : 'Нагорода за першу перемогу', esc(S.bossRewardText(b.reward)), s.beaten ? `<b class="win">${ic('check')}</b>` : '')}
+      ${s.beaten ? row('refresh', 'Реванш', s.prize != null ? `як звичайна гонка: приз +${S.short(s.prize)}, внесок ${S.short(s.entry)}` : 'як звичайна гонка') : row('gas-station', 'Без внеску', 'програш коштує тільки пальне')}
+    </div>
+    <button class="btn yellow mt" data-act="startBoss" data-id="${b.id}" ${!s.open || !s.fits || me.fuel < 1 ? 'disabled' : ''}>${btn}</button></div>`);
+};
+H.startBoss = async (d) => {
+  let r;
+  try {
+    r = await api('boss/start', { carId: state.raceCar, boss: d.id });
+  } catch (e) {
+    return toast(e.message, true);
+  }
+  if (!$('#modal').hidden) closeModal();
+  me.fuel--;
+  renderHeader();
+  hideClaimBanners();
+  state.race = { phase: 'lights', id: r.raceId, car: r.car, rival: r.rival, greenMs: r.greenMs, reaction: null, shifts: [], gear: 1, result: null };
+  await render();
+  runRace();
+};
+// The boss race result: the usual timing sheet, then the one-time reward (first win) or the boss's taunt (a loss).
+function bossResult() {
+  const R = state.race, r = R.result, b = BOSS(R.rival.boss), bo = r.boss || {}, rw = bo.reward;
+  const startTxt = r.jump ? 'Фальстарт −8%' : r.perfectStart ? 'Ідеальний старт +4%' : r.reaction >= 1.5 ? 'Пізній старт' : `Реакція ${dec(r.reaction, 3)} с`;
+  const amount = bo.first ? '+' + S.fmt(rw.money) : r.win ? (r.prize ? '+' + S.fmt(r.prize) : 'Перемога') : r.entry ? '−' + S.fmt(r.entry) : 'Без внеску';
+  const note = bo.first ? 'бос переможений · нагорода нижче' : r.win ? (r.entry ? `реванш · внесок ${S.short(r.entry)} повернувся` : 'реванш') : r.entry ? 'внесок згорів' : 'програш коштує тільки пальне';
+  const nx = bo.next ? BOSS(bo.next) : null;
+  const reward = bo.first ? `<div class="card boss-reward" style="--c:${S.CLASSES[M(b.model).cls].color}"><div class="hook-t">${ic('crown')} ${esc(b.nick)} переможений!</div>
+      <div class="rw-list">
+        <div class="rw"><span class="rw-ic">${ic('cash')}</span><b class="win">${S.fmt(rw.money)}</b></div>
+        ${(rw.items || []).map((p) => `<div class="rw">${partArt(p.type, p.tier, 'sm')}<span>${esc(S.partLabel(p.type, p.tier))}</span></div>`).join('')}
+        ${rw.caseId ? `<div class="rw"><span class="rw-ic">${caseIcon(S.CASE_BY_ID[rw.caseId])}</span><span>${rw.count} × ключ «${esc(S.CASE_BY_ID[rw.caseId].name)}»</span></div>` : ''}
+        ${rw.plate ? `<div class="rw">${plate(rw.plate.text)}<span class="small muted">номер класу ${rw.plate.cls} · ${S.short(rw.plate.value)}</span></div>` : ''}
+        ${rw.badge ? `<div class="rw">${badgeChip({ title: rw.badge, tier: S.BOSS_BADGES[b.country][1] })}<span class="small muted">у профілі</span></div>` : ''}
+      </div>
+      <div class="small muted mt">${nx ? `Відкрито: <b>${esc(nx.nick)}</b> · ${esc(M(nx.model).name)}${nx.country !== b.country ? ` · нова країна — ${S.COUNTRIES[nx.country].name}!` : ''}` : "Ти пройшов усю кар'єру!"}</div></div>` : !r.win ? `<div class="taunt">${esc(b.nick)}: «${esc(b.taunt)}»</div>` : '';
+  return raceSheetHtml({ tag: `Бос · ${esc(b.nick)}`, win: r.win, diff: r.diff, amount, note,
+    rows: [{ who: 'Ти', model: R.car.model, look: R.car.look, time: r.time, won: r.win }, { who: b.nick, model: b.model, time: r.rivalTime, won: !r.win }], start: startTxt, shifts: r.shifts })
+    + reward
+    + (nx && bo.first ? `<button class="btn yellow" data-act="bossNext" data-id="${nx.id}">Наступний бос: ${esc(nx.nick)}</button>`
+      : `<button class="btn yellow" data-act="bossAgain" data-id="${b.id}" ${me.fuel < 1 ? 'disabled' : ''}>${r.win ? 'Реванш' : 'Ще спроба'} · пальне ${me.fuel}/${S.FUEL_MAX}</button>`)
+    + `<button class="btn outline mt" data-act="raceExit">До кар'єри</button>`;
+}
+H.bossAgain = (d) => {
+  state.race = null;
+  H.startBoss(d);
+};
+H.bossNext = async (d) => {
+  state.race = null;
+  await render();
+  H.bossCard(d);
 };
 
 async function pvpView(car) {
