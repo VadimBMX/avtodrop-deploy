@@ -114,6 +114,10 @@ def build(base_path):
     rgb8, alpha = px[..., :3], px[..., 3].astype(np.float64) / 255
     mask, lab, car = green_mask(rgb8.astype(np.float64) / 255, alpha)
     wheels, _ = find_wheels(car, lab)
+    # The detector sometimes returns a bogus huge circle (tall SUVs, boxy bodies): a wheel is a small circle in the
+    # lower half of the picture, anything else is dropped (the green mask alone already excludes the tyres).
+    H = car.shape[0]
+    wheels = [(cx, cy, r) for cx, cy, r in wheels if 0.05 * H < r < 0.28 * H and 0.35 * H < cy < H]
     for cx, cy, r in wheels:  # the tyre and rim are never paint (green reflections in polished rims)
         mask[disk(mask.shape, cx, cy, r * 0.97)] = 0
     q = np.round(mask * 15).astype(np.uint8)
@@ -159,7 +163,7 @@ def render(rgb8, q, meta, paint=None, two=None, key=True):
     out = shade_lut(paint['hex'], meta['p'], finish, soft, key)[Lq]
     if two:
         lut2 = shade_lut(two['hex'], meta['p'], two.get('finish', finish), soft, key)[Lq]
-        ground = max(cy + r for _, cy, r in meta['wheels'])
+        ground = max((cy + r for _, cy, r in meta['wheels']), default=h - 1)  # no wheels found: the canvas floor
         ys = meta['top'] + (ground - meta['top']) * two['at']
         t = np.clip(np.arange(h) - ys + 0.5, 0, 1)[:, None, None]
         u = t if two.get('side') == 'below' else 1 - t
