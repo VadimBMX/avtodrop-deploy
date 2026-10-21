@@ -1,4 +1,4 @@
-// Test copy of the game for the owner: its own bot (.env.test), its own database (data-test/), its own Cloudflare
+// Test copy of the game for the owner: its own bot (data-test/bot-token.txt), its own database (data-test/), its own Cloudflare
 // tunnel on port 3300. Real players and the real database are not touched. Never runs in DEV mode.
 // Started and stopped from the local dev server (/api/dev/test-live) or by hand: node tools/live-test.mjs
 import { spawn } from 'node:child_process';
@@ -10,12 +10,12 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = '3300';
 const DATA = path.join(ROOT, 'data-test');
 const exe = path.join(ROOT, 'tools', 'bin', process.platform === 'win32' ? 'cloudflared.exe' : 'cloudflared');
-const testEnv = path.join(ROOT, '.env.test');
 fs.mkdirSync(DATA, { recursive: true });
+const testEnv = path.join(DATA, 'bot-token.txt');
 const status = (s) => fs.writeFileSync(path.join(DATA, 'status.json'), JSON.stringify({ ...s, pid: process.pid, at: Date.now() }));
 
-const token = /^BOT_TOKEN=(.+)$/m.exec(fs.existsSync(testEnv) ? fs.readFileSync(testEnv, 'utf8') : '')?.[1]?.trim();
-if (!token) { status({ state: 'error', error: 'Немає BOT_TOKEN у .env.test' }); process.exit(1); }
+const token = (fs.existsSync(testEnv) ? fs.readFileSync(testEnv, 'utf8') : '').replace(/^BOT_TOKEN=/m, '').trim();
+if (!token) { status({ state: 'error', error: 'Немає токена тестового бота в data-test/bot-token.txt' }); process.exit(1); }
 if (!fs.existsSync(exe)) { status({ state: 'error', error: 'Немає tools/bin/cloudflared.exe' }); process.exit(1); }
 
 // The dev server that may have started us runs with DEV=1 and an empty BOT_TOKEN: drop those so this copy is a
