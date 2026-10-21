@@ -22,3 +22,16 @@ test('support: the player writes, admins are told in Telegram, the answer pops u
   t += 61e3;
   g.api['support/send'](1, { text: 'Дякую!' });
 });
+
+test('support: the owner, every admin and every helper get the Telegram ping', () => {
+  const db = openDb(':memory:');
+  const sent = [];
+  const g = createGame(db, { now: () => Date.parse('2026-10-20T10:00:00Z'), notify: (uid, text) => sent.push([uid, text]), admins: [1] });
+  for (const id of [1, 2, 3, 4, 10]) g.ensureUser({ id, first_name: 'U' + id });
+  g.admin.role('tg:1', { id: 2, role: 'admin' });
+  g.admin.role('tg:1', { id: 3, role: 'helper' });
+  sent.length = 0;
+  g.api['support/send'](10, { text: 'Не прийшла машина' });
+  const pinged = sent.filter(([, t]) => t.includes('Підтримка')).map(([u]) => u).sort();
+  assert.deepEqual(pinged, [1, 2, 3]);
+});

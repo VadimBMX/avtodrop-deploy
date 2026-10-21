@@ -3147,7 +3147,10 @@ export function createGame(db, opts = {}) {
     if (last && now() - last.created_at < SUPPORT_GAP_MS) fail('Зачекай хвилинку перед наступним повідомленням');
     if (q('SELECT COUNT(*) n FROM support WHERE user_id = ? AND answer IS NULL').get(uid).n >= SUPPORT_OPEN_MAX) fail('Дочекайся відповіді на попередні повідомлення');
     const id = Number(q('INSERT INTO support (user_id, text, created_at) VALUES (?, ?, ?)').run(uid, t, now()).lastInsertRowid);
-    for (const a of opts.admins || []) {
+    // The owner(s) and everyone with a panel role (admin, helper) hear about it; the writer never pings themself.
+    const staff = new Set([...(opts.admins || []), ...q("SELECT id FROM users WHERE role IN ('admin', 'helper')").all().map((r) => r.id)]);
+    staff.delete(uid);
+    for (const a of staff) {
       try {
         notify(a, `🆘 Підтримка #${id} від ${name(uid)} (ID ${uid}):\n\n${t}\n\nВідповісти: адмін-панель → Підтримка`);
       } catch {}
