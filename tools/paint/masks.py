@@ -114,10 +114,16 @@ def main():
         os.makedirs(sheets, exist_ok=True)
     os.makedirs(OUT, exist_ok=True)
     ids = argv or sorted(f[:-5] for f in os.listdir(CARS) if f.endswith('.webp'))
+    # green key cars (public/cars/base/<id>.webp) get their mask and photo from `npm run green-cars`: never here
+    key = [c for c in ids if os.path.exists(os.path.join(CARS, 'base', c + '.webp'))]
+    if key:
+        print('green key base, use npm run green-cars:', ' '.join(key))
+        ids = [c for c in ids if c not in key]
     hints = load_hints()
     meta = {}
-    if os.path.exists(META) and argv:
-        meta = json.load(open(META, encoding='utf-8')).get('cars', {})
+    if os.path.exists(META):
+        old = json.load(open(META, encoding='utf-8')).get('cars', {})
+        meta = old if argv else {k: v for k, v in old.items() if v.get('base')}
     rows = []
     with ProcessPoolExecutor(max(1, min(4, os.cpu_count() or 1))) as ex:
         for cid, m, row in ex.map(one, [(c, hints.get(c), bool(sheets)) for c in ids]):

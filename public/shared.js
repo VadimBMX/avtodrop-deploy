@@ -2154,6 +2154,48 @@ export const PAINT_COLORS = [
 ];
 export const PAINT_BY_ID = Object.fromEntries(PAINT_COLORS.map((p) => [p.id, p]));
 export const PAINT_FINISH = { gloss: 'глянець', metallic: 'металік', matte: 'мат' };
+
+// Green "key" photos (the 27 NEW_RAW cars, prompts 151–177): Gemini draws every painted panel in one uniform
+// medium-bright metallic green (KEY_GREEN), so the body mask is a simple colour key and every recolour starts from a
+// mid-tone. `npm run green-cars` (tools/paint/green.py) keeps that photo in public/cars/base/<id>.webp, builds the
+// mask from it and bakes public/cars/<id>.webp in the car's factory colour below with the same maths as paint.js, so
+// the catalogue, drops and garage just show the baked photo; a repaint starts from the green base again.
+// key: the photo is expected to be a green base. two: a second factory colour on the body rows above / below
+// `at` (share of the height from the top of the body to the ground), e.g. the Volga's ivory roof.
+// Colour names are those of docs/car-prompts.txt; hexes are sRGB approximations of the factory paints.
+export const KEY_GREEN = '#3fae49';
+export const FACTORY_PAINT = {
+  'volkswagen-passat-b5': { hex: '#1f2a4d', finish: 'metallic', name: 'Indigo blue metallic', key: true },
+  'luaz-969m-volyn': { hex: '#e2621c', finish: 'gloss', name: 'bright orange (khaki canvas top)', key: true },
+  'vaz-2114': { hex: '#b6babe', finish: 'metallic', name: 'silver «Snow Queen» metallic', key: true },
+  'lada-priora': { hex: '#121315', finish: 'gloss', name: 'gloss black', key: true },
+  'zaz-966-vukhatyi': { hex: '#e6d9a2', finish: 'gloss', name: 'light cream yellow', key: true },
+  'mitsubishi-pajero-ii': { hex: '#1f3b2c', finish: 'metallic', name: 'dark green metallic over silver', key: true,
+    two: { hex: '#a9adb1', finish: 'metallic', side: 'below', at: 0.64 } },
+  'haz-21-volha': { hex: '#8cc5bd', finish: 'gloss', name: 'pale turquoise with an ivory roof', key: true,
+    two: { hex: '#ebe2c8', finish: 'gloss', side: 'above', at: 0.36 } },
+  'audi-100-c3-syhara': { hex: '#b9141c', finish: 'gloss', name: 'Tornado red', key: true },
+  'hummer-h2': { hex: '#f2c00f', finish: 'gloss', name: 'bright yellow', key: true },
+  'toyota-land-cruiser-200': { hex: '#eceee9', finish: 'metallic', name: 'pearl white', key: true },
+  'toyota-camry-3-5-xv40': { hex: '#121315', finish: 'gloss', name: 'gloss black', key: true },
+  'mercedes-benz-e55-amg-w210': { hex: '#262c4f', finish: 'metallic', name: 'Tanzanite blue metallic', key: true },
+  'bmw-750i-e38-bumer': { hex: '#16171a', finish: 'metallic', name: 'Cosmos black metallic', key: true },
+  'mercedes-benz-s600-w140-kaban': { hex: '#141519', finish: 'metallic', name: 'Obsidian black metallic', key: true },
+  'mercedes-benz-e500-w124-vovchok': { hex: '#b3b7bb', finish: 'metallic', name: 'Brilliant silver metallic', key: true },
+  'bmw-m5-e34': { hex: '#0f1012', finish: 'gloss', name: 'Jet black', key: true },
+  'range-rover-supercharged-l322': { hex: '#efefeb', finish: 'gloss', name: 'Fuji white', key: true },
+  'dodge-charger-r-t-1970': { hex: '#121315', finish: 'gloss', name: 'gloss black', key: true },
+  'nissan-skyline-gt-r-r32': { hex: '#5a5e62', finish: 'metallic', name: 'Gun Grey metallic', key: true },
+  'bmw-m5-e39': { hex: '#24477e', finish: 'metallic', name: 'Avus blue metallic', key: true },
+  'ferrari-testarossa': { hex: '#eeefec', finish: 'gloss', name: 'white', key: true },
+  'lamborghini-countach-lp5000-qv': { hex: '#a8141b', finish: 'gloss', name: 'Rosso Siviglia red', key: true },
+  'porsche-959': { hex: '#eeefeb', finish: 'gloss', name: 'Grand Prix white', key: true },
+  'koenigsegg-ccx': { hex: '#ea6a1a', finish: 'gloss', name: 'bright orange (carbon fibre details)', key: true },
+  'ferrari-f40': { hex: '#cc1118', finish: 'gloss', name: 'Rosso Corsa', key: true },
+  'porsche-carrera-gt': { hex: '#c4161c', finish: 'gloss', name: 'Guards red', key: true },
+  'ferrari-enzo': { hex: '#f4c70f', finish: 'gloss', name: 'Giallo Modena', key: true },
+};
+export const isKeyCar = (id) => !!FACTORY_PAINT[id]?.key;
 export const LIVERIES = [
   { id: 'stripes', name: 'Смуги', hint: 'дві смуги вздовж кузова' },
   { id: 'race', name: 'Гоночна', hint: 'смуга й номер у колі' },

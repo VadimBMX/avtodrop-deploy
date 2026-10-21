@@ -5,6 +5,9 @@
 // reflections stay; wheels, glass, lights, chrome and black plastic are outside the mask and stay as photographed.
 // Results are cached per car+look as object URLs (data: URLs where blobs fail), rendered one at a time between frames
 // so a garage full of painted cars still scrolls smoothly. Anything missing (mask, canvas) → the plain photo.
+// Green key cars (meta.base, `npm run green-cars` / tools/paint/green.py): the game shows the photo baked in the factory
+// colour; a look is rendered from the green original public/cars/base/<id>.webp (key tone curve, green spill outside
+// the body neutralised), and a livery without a paint sits on the factory colour (meta.factory, two-tone included).
 import * as S from './shared.js';
 
 let META = null;
@@ -22,6 +25,16 @@ export function loadPaintMeta() {
 }
 export const paintMetaReady = () => !!META;
 export const canPaint = (id) => !!(META?.cars?.[id]?.w && !META.cars[id].off);
+// Green key cars (meta.base, made by `npm run green-cars`): paint starts from the green original in public/cars/base,
+// not from the photo the game shows (that one is baked in the factory colour); other cars paint their own photo.
+export const paintSource = (id, meta, photo = photoOf) => (meta?.base ? `cars/base/${id}.webp?v=${meta.base}` : photo(id));
+// The colour(s) a look puts on the body: the chosen paint, or for a key car without one its factory colour (as baked).
+export function lookPaints(look, meta) {
+  const pc = S.PAINT_BY_ID[look?.paint];
+  if (pc) return { pc, two: null };
+  const f = meta?.base ? meta.factory : null;
+  return { pc: f || null, two: f?.two || null };
+}
 
 // "model|paint|livery|n" — what an <img data-look> asks for; null for a factory car.
 export function lookKey(model, look) {
@@ -59,13 +72,21 @@ const hexLab = (h) => rgb2lab(parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5
 
 // Same as tools/paint/recolor.py shade_lab(): source lightness → target colour with the photo's shading.
 const Q = 4; // lightness steps per unit in the lookup tables (0..100 → 401 entries)
-function shadeLut(T, p, finish, soft = false) {
-  const [p2, p50, p98] = p, Tl = T[0];
+// Green key photos only (recolor.py key_curve): [mid, gamma above the median, gamma below] for a target lightness —
+// deep blacks with bright reflections, whites with a gloss highlight range and lifted shadows.
+export function keyCurve(Tl) {
+  return [Tl > 70 ? Tl - (Tl - 70) * 0.35 : Tl, Tl < 45 ? 1 + (1.5 * (45 - Tl)) / 45 : 1, Tl > 60 ? 1 - (0.45 * (Tl - 60)) / 40 : 1];
+}
+export function shadeLut(T, p, finish, soft = false, key = false) {
+  const [p2, p50, p98] = p;
+  let Tl = T[0];
   const lo = Math.max(2, Tl - Math.min(0.62 * Tl, 38)), hi = Math.min(99, Tl + (100 - Tl) * 0.8);
+  const [kMid, gUp, gDn] = key ? keyCurve(Tl) : [Tl, 1, 1];
+  Tl = kMid;
   const lut = new Uint8ClampedArray(101 * Q * 3 + 3);
   for (let q = 0; q <= 100 * Q; q++) {
     const l = q / Q;
-    let Ln = l < p50 ? lo + (Tl - lo) * cl01((l - p2) / Math.max(1, p50 - p2)) : Tl + (hi - Tl) * cl01((l - p50) / Math.max(1, p98 - p50));
+    let Ln = l < p50 ? lo + (Tl - lo) * Math.pow(cl01((l - p2) / Math.max(1, p50 - p2)), gDn) : Tl + (hi - Tl) * Math.pow(cl01((l - p50) / Math.max(1, p98 - p50)), gUp);
     // dark photo, light colour: the photo's deep shadows are mostly noise, so they're flattened a bit
     if (soft && Tl > 60 && Ln < Tl) Ln = Tl - (Tl - Ln) * 0.7;
     if (finish === 'matte') Ln = Tl + (Ln - Tl) * (Ln > Tl ? 0.35 : 0.8);
@@ -104,7 +125,7 @@ async function prepare(id) {
     await loadPaintMeta();
     const meta = META?.cars?.[id];
     if (!meta?.w || meta.off) return null;
-    const [photo, mask] = await Promise.all([loadImg(photoOf(id)), loadImg(`paint/${id}.png?v=${META.v}`)]);
+    const [photo, mask] = await Promise.all([loadImg(paintSource(id, meta)), loadImg(`paint/${id}.png?v=${META.v}`)]);
     const w = photo.naturalWidth, h = photo.naturalHeight;
     if (w !== meta.w || h !== meta.h) return null; // photo changed after the mask was made
     const c = canvas(w, h), x = c.getContext('2d', { willReadFrequently: true });
@@ -126,6 +147,8 @@ async function prepare(id) {
       }
       Lf[i] = L;
     }
+    // green key photo: green spill outside the body (edges, reflections in glass and chrome) → neutral (green.py despill)
+    if (meta.base) for (let i = 0, o = 0; i < n; i++, o += 4) if (M[i] < 255) { const c = Math.max(s[o], s[o + 2]); if (s[o + 1] > c) s[o + 1] = c; }
     // dark photos are noisy in the shadows: smooth the body lightness a little (mask-weighted 5×5 box, as recolor.py)
     const Ls = meta.p[1] < 30 ? smoothBody(Lf, M, w, h, 2) : Lf;
     for (let i = 0; i < n; i++) if (M[i]) Lq[i] = Math.max(0, Math.min(100 * Q, Math.round(Ls[i] * Q)));
@@ -241,11 +264,16 @@ function paintPixels(car, look) {
   const { w, h, src, M, Lq, meta } = car;
   const out = new ImageData(new Uint8ClampedArray(src.data), w, h);
   const d = out.data, s = src.data;
-  const pc = S.PAINT_BY_ID[look.paint];
+  const keyBase = !!meta.base;
+  const { pc, two } = lookPaints(look, meta);
   const finish = pc?.finish || 'gloss';
   const soft = meta.p[1] < 30;
-  const lut = pc ? shadeLut(hexLab(pc.hex), meta.p, finish, soft) : null;
-  const flake = finish === 'metallic';
+  const lut = pc ? shadeLut(hexLab(pc.hex), meta.p, finish, soft, keyBase) : null;
+  // two-tone factory paint: the second colour on the rows above / below the split (one anti-aliased row at the seam)
+  const lut2 = two ? shadeLut(hexLab(two.hex), meta.p, two.finish || finish, soft, keyBase) : null;
+  const ground = Math.max(...meta.wheels.map((q) => q[1] + q[2]));
+  const ySplit = two ? meta.top + (ground - meta.top) * two.at : 0;
+  const flake = finish === 'metallic' || two?.finish === 'metallic';
   const lightPaint = pc ? hexLab(pc.hex)[0] > 70 : meta.p[1] > 70;
   const lay = look.livery && S.LIVERY_BY_ID[look.livery] ? liveryLayer(car, look.livery, look.n, lightPaint) : null;
   const luts = new Map();
@@ -256,6 +284,10 @@ function paintPixels(car, look) {
     let r = s[o], g = s[o + 1], b = s[o + 2];
     if (lut) {
       r = lut[q * 3]; g = lut[q * 3 + 1]; b = lut[q * 3 + 2];
+      if (lut2) {
+        const t = cl01(((i / w) | 0) - ySplit + 0.5), u = two.side === 'below' ? t : 1 - t;
+        if (u) { r += (lut2[q * 3] - r) * u; g += (lut2[q * 3 + 1] - g) * u; b += (lut2[q * 3 + 2] - b) * u; }
+      }
       if (flake) { // metallic flake: a fine ±3% sparkle on the result
         const f = 1 + ((((i * 2654435761) >>> 0) & 255) / 255 - 0.5) * 0.06;
         r *= f; g *= f; b *= f;
@@ -264,7 +296,7 @@ function paintPixels(car, look) {
     if (lay && lay[o + 3]) {
       const key = ((lay[o] >> 2) << 12) | ((lay[o + 1] >> 2) << 6) | (lay[o + 2] >> 2);
       let lt = luts.get(key);
-      if (!lt) luts.set(key, (lt = shadeLut(rgb2lab(lay[o], lay[o + 1], lay[o + 2]), meta.p, finish, soft)));
+      if (!lt) luts.set(key, (lt = shadeLut(rgb2lab(lay[o], lay[o + 1], lay[o + 2]), meta.p, finish, soft, keyBase)));
       const a = lay[o + 3] / 255;
       r = r * (1 - a) + lt[q * 3] * a; g = g * (1 - a) + lt[q * 3 + 1] * a; b = b * (1 - a) + lt[q * 3 + 2] * a;
     }

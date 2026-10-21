@@ -47,13 +47,29 @@ def flake(shape):
     return ((((i * np.uint64(2654435761)) & np.uint64(0xffffffff)) & np.uint64(255)).astype(np.float64) / 255).reshape(shape)
 
 
-def shade_lab(l, T, p, finish='gloss', soft=False):
+def key_curve(Tl):
+    """Green key photos (tools/paint/green.py): the mid-tone green body has real shading over its whole range, so
+    the mapping can shape it per target. Very dark paints: the part above the median is pushed down with a power
+    curve (deep black panels, the bright studio reflections stay); very light paints: the median sits a little below
+    the paint's own lightness (so highlights have room to read as gloss) and the shadows are lifted.
+    Returns (mid, gamma above the median, gamma below the median). Same numbers as keyCurve() in public/paint.js."""
+    mid = Tl - (Tl - 70) * 0.35 if Tl > 70 else Tl
+    g_up = 1 + 1.5 * (45 - Tl) / 45 if Tl < 45 else 1.0
+    g_dn = 1 - 0.45 * (Tl - 60) / 40 if Tl > 60 else 1.0
+    return mid, g_up, g_dn
+
+
+def shade_lab(l, T, p, finish='gloss', soft=False, key=False):
     """Source lightness array -> Lab of the target colour T with the photo's shading."""
     p2, p50, p98 = p
     Tl = T[0]
     lo, hi = tone_range(Tl)
-    Ln = np.where(l < p50, lo + (Tl - lo) * np.clip((l - p2) / max(1, p50 - p2), 0, 1),
-                  Tl + (hi - Tl) * np.clip((l - p50) / max(1, p98 - p50), 0, 1))
+    u = np.clip((l - p2) / max(1, p50 - p2), 0, 1)
+    t = np.clip((l - p50) / max(1, p98 - p50), 0, 1)
+    if key:
+        Tl, g_up, g_dn = key_curve(Tl)
+        u, t = u ** g_dn, t ** g_up
+    Ln = np.where(l < p50, lo + (Tl - lo) * u, Tl + (hi - Tl) * t)
     if soft and Tl > 60:  # dark photo, light colour: flatten the noisy deep shadows a bit
         Ln = np.where(Ln < Tl, Tl - (Tl - Ln) * 0.7, Ln)
     if finish == 'matte':
