@@ -497,9 +497,13 @@ function licenceCard(p) {
   const top = (p.top || []).filter((c) => M(c.model)).slice(0, 3);
   const best = top[0] && M(top[0].model);
   const rank = best ? S.rankOf(best.cls) : 0, color = best ? S.CLASSES[best.cls].color : '#9aa4b2';
+  // Collection-set badges: the two hardest as stamps, the rest as one "+N сетів" stamp (badges come tier-first).
+  const setB = (p.badges || []).filter((b) => b.key?.startsWith('set:'));
   const stamps = [
     p.vip ? `<span class="lstamp vip">${ic('crown')}VIP</span>` : '',
-    ...(p.badges || []).map((b) => `<span class="lstamp" style="--bc:${BADGE_COLORS[b.tier] || '#8e8e93'}">${ic('trophy')}${esc(b.title)}</span>`),
+    ...(p.badges || []).filter((b) => !b.key?.startsWith('set:')).map((b) => `<span class="lstamp" style="--bc:${BADGE_COLORS[b.tier] || '#8e8e93'}">${ic('trophy')}${esc(b.title)}</span>`),
+    ...setB.slice(0, 2).map((b) => `<span class="lstamp" style="--bc:${SET_TIER_COLORS[b.tier] || '#8e8e93'}">${ic('books')}${esc(b.title)}</span>`),
+    setB.length > 2 ? `<span class="lstamp" style="--bc:#c3cad6">${ic('books')}+${setB.length - 2} ${plural(setB.length - 2, ['сет', 'сети', 'сетів'])}</span>` : '',
     p.legacy ? `<span class="lstamp legacy">${ic('heart')}Гравець з перших днів</span>` : '',
   ].join('');
   const bay = (c, i) => {
@@ -2191,6 +2195,7 @@ function claimableCollection() {
   const owned = new Set(me.collection);
   const n = me.collection.filter((id) => !M(id)?.secret).length;
   if (S.COLLECTION_MILESTONES.some((m) => n >= m.n && !me.claims.includes('n' + m.n))) return true;
+  if (setsReady() > 0) return true;
   return S.MAIN_COUNTRIES.some((c) => !me.claims.includes('c' + c) && S.countryModels(c).every((m) => owned.has(m.id)));
 }
 TABS.menu = () => {
@@ -2260,7 +2265,14 @@ H.supSend = async () => {
 H.copyId = () => navigator.clipboard?.writeText(String(me.id)).then(() => toast('ID скопійовано'), () => toast(String(me.id)));
 
 // ---------- collection ----------
+// Two views: the cars (with milestones and countries) and the themed sets that cut across countries.
 PAGES.collection = () => {
+  const ready = setsReady();
+  const seg = `<div class="seg">${[['cars', 'Машини', 0], ['sets', 'Сети', ready]].map(([k, t, n]) => `<button class="${(state.collTab || 'cars') === k ? 'on' : ''}" data-act="collTab" data-k="${k}">${t}${n ? `<span class="sets-dot">${n}</span>` : ''}</button>`).join('')}</div>`;
+  return seg + (state.collTab === 'sets' ? setsView() : collectionCars());
+};
+H.collTab = (d) => (state.collTab = d.k, render());
+const collectionCars = () => {
   const owned = new Set(me.collection);
   const n = me.collection.filter((id) => !M(id)?.secret).length;
   const totalReg = S.ALL_MODELS.filter((m) => !m.secret).length;
@@ -2320,6 +2332,59 @@ H.collMissing = () => (state.collMissing = !state.collMissing, render());
 H.collClaim = (d) => act('collection/claim', { key: d.k }, (r) => `Отримано: ${S.short(r.reward.money)}${r.reward.secret ? ' + секретна машина!' : ''}`);
 H.collAll = () => (state.collAll = !state.collAll, render());
 H.collFilter = (d) => (state.collFilter = d.k, render());
+
+// ---------- collection sets (S.SETS) ----------
+// Progress comes from me.collection (models ever found) and me.claims ("set:<id>"), so no extra request is needed.
+const SET_TIER_COLORS = ['#cd7f32', '#c0c7d1', '#ffcc33', '#7ee8fa'];
+function setsReady() {
+  if (!me) return 0;
+  const owned = new Set(me.collection);
+  return S.SETS.filter((s) => !me.claims.includes('set:' + s.id) && S.setProgress(s, owned).done).length;
+}
+function setsView() {
+  const owned = new Set(me.collection);
+  const rows = S.SETS.map((s, i) => ({ s, i, p: S.setProgress(s, owned), claimed: me.claims.includes('set:' + s.id) }));
+  const done = rows.filter((r) => r.claimed).length;
+  // Ready to claim first, then the closest to done, finished ones last; ties keep the list order (easy → hard).
+  const rank = (r) => (r.claimed ? 2 : r.p.done ? 0 : 1);
+  rows.sort((a, b) => rank(a) - rank(b) || (rank(a) === 1 ? b.p.have / b.p.need - a.p.have / a.p.need : 0) || a.i - b.i);
+  const card = ({ s, p, claimed }) => {
+    const col = SET_TIER_COLORS[s.tier], ready = p.done && !claimed;
+    const thumbs = s.models.map((id) => {
+      const m = M(id), own = owned.has(id);
+      return `<div class="set-car ${own ? 'own' : 'miss'} r${S.rankOf(m.cls)}" style="--c:${S.CLASSES[m.cls].color}" title="${own ? esc(m.name) : '???'}"><div class="art">${carArt(id, { silhouette: !own })}</div>
+        <span class="ellipsis">${own ? esc(m.name) : `${S.COUNTRIES[m.country].flag} ${m.cls} · ???`}</span></div>`;
+    }).join('');
+    return `<div class="card set-card ${ready ? 'ready' : ''} ${claimed ? 'claimed' : ''}" style="--tc:${col}">
+      <div class="set-head"><span class="set-ic">${ic(s.icon)}</span><div class="grow"><b class="disp">${esc(s.name)}</b><div class="tiny muted">${esc(s.text)}</div></div>
+        <span class="set-tier">${ic('trophy')}${S.SET_TIERS[s.tier].name}</span></div>
+      <div class="set-prog"><div class="progress"><i style="width:${(p.have / p.need) * 100}%"></i></div><span><b>${p.have}</b>/${p.need}</span></div>
+      <div class="set-cars">${thumbs}</div>
+      <div class="set-foot"><div class="tiny set-rw">${ic('gift')} ${esc(S.setRewardText(s))}</div>
+        ${claimed ? `<span class="set-got">${ic('check')} Отримано</span>` : ready ? `<button class="btn sm yellow" data-act="setClaim" data-id="${s.id}">Забрати</button>` : `<span class="tiny muted set-left">ще ${p.need - p.have}</span>`}</div></div>`;
+  };
+  return `<div class="card set-sum"><div class="grow"><b class="disp">Тематичні сети</b><div class="tiny muted">Машини з різних країн за однією темою. Рахуються всі знайдені моделі — навіть ті, що вже продані. За кожен сет — значок у ліцензію пілота, ключ, деталі й бонус до доходу його машин.</div></div>
+      <div class="set-count"><b>${done}</b><small>/${S.SETS.length}</small></div></div>
+    ${rows.map(card).join('')}`;
+}
+H.setClaim = async (d) => {
+  const s = S.SET_BY_ID[d.id];
+  const r = await act('sets/claim', { id: d.id }, null);
+  if (!r) return;
+  const rw = r.reward;
+  const list = [
+    rw.keys ? `${ic('key')} Ключ «${S.CASE_BY_ID[rw.caseId].name}»` : '',
+    rw.frag ? `${ic('key')} ${rw.frag} фрагменти ключа «${S.CASE_BY_ID[rw.caseId].name}»${rw.newKeys ? ` (+${rw.newKeys} ключ)` : ''}` : '',
+    ...(rw.items || []).map((it) => `${ic('engine')} ${esc(S.partLabel(it.type, it.tier))}`),
+    `${ic('coin')} +${Math.round(rw.income * 100)}% доходу машинам сету`,
+  ].filter(Boolean);
+  sheet('Сет зібрано!', `<div class="card center reward-res pop set-done" style="--tc:${SET_TIER_COLORS[s.tier]}">
+      <div class="set-cars mini">${s.models.map((id) => `<div class="set-car own"><div class="art">${carArt(id)}</div></div>`).join('')}</div>
+      <span class="set-medal">${ic(s.icon)}</span><b class="disp rr-name">${esc(s.name)}</b>
+      <span class="lstamp" style="--bc:${SET_TIER_COLORS[s.tier]}">${ic('trophy')}${esc(rw.badge)}</span>
+      <div class="set-rw-list">${list.map((x) => `<div>${x}</div>`).join('')}</div>
+      <div class="tiny muted mt">Значок уже у твоїй ліцензії пілота</div></div>`);
+};
 
 // ---------- plates ----------
 PAGES.plates = () => {
@@ -4224,6 +4289,7 @@ H.bannerClaim = async (d) => {
   if (c.kind === 'weekly') return H.wkClaim({ k: c.id });
   if (c.kind === 'wchest') return H.wkChest({ d: c.id });
   if (c.kind === 'coll') return act('collection/claim', { key: c.id }, (r) => `Отримано: ${S.short(r.reward.money)}${r.reward.secret ? ' + секретна машина!' : ''}`);
+  if (c.kind === 'set') return H.setClaim({ id: c.id });
   if (c.kind === 'ach') return act('ach/claim', { key: c.id }, (r) => `Досягнення: ${r.text}`);
   if (c.kind === 'achAll') return act('ach/claim', {}, (r) => `${r.tiers} досягнень: ${r.text}`);
   if (c.kind === 'pass') return H.passClaim();
@@ -4250,6 +4316,7 @@ H.bannerOpen = (d) => {
   if (k === 'pass') return go('season');
   if (k === 'weekly' || k === 'wchest') return (state.questTab = 'week', go('quests'));
   if (k === 'quest') state.questTab = 'day';
+  if (k === 'set' || k === 'coll') state.collTab = k === 'set' ? 'sets' : 'cars';
   go(k === 'quest' ? 'quests' : k === 'ach' || k === 'achAll' ? 'achievements' : 'collection');
 };
 H.togglePush = async () => {

@@ -1185,6 +1185,89 @@ export function achRewardText(rw) {
 // Money for finishing a country collection (on top of its secret car): 11% of that secret car's value.
 export const COUNTRY_REWARD = Object.fromEntries(MAIN_COUNTRIES.map((c) => [c, Math.round((MODELS[SECRET_BY_COUNTRY[c]].price * 0.11) / 10000) * 10000]));
 
+// ---------- collection sets ----------
+// Themed sets that cut across countries. A set counts models ever found (the collection table — bought or traded cars
+// don't count, as everywhere), not cars owned now. Finishing one pays once (claims key "set:<id>"): a badge for the
+// player card, a key and parts by the set's tier, and a small permanent income bonus for the set's cars in the garage
+// (the largest bonus of the claimed sets a car is in; bonuses don't add up). No cash.
+// Tiers follow the simulated effort to finish the set from zero (tools/sim-sets.mjs: expected opens with the best
+// case for each missing car; net loss = spend − instant sale of every drop): bronze ≲ 3 M of net loss, silver ≲ 25 M,
+// gold ≲ 300 M, diamond above. A reward is worth 1–8% of that loss in instant-sale terms (the cheap Soviet set ≈ 20%,
+// but that is 0.1 M), and all sets together ≈ 21 M — less than the single «Уся колекція» milestone (30 M + 2 slots).
+export const SET_TIERS = [
+  { name: 'Бронза', reward: { caseId: 'city', frag: 4, parts: 2, tier: 'stock' }, income: 0.01 },
+  { name: 'Срібло', reward: { caseId: 'tuning', count: 1, parts: 2, tier: 'sport' }, income: 0.01 },
+  { name: 'Золото', reward: { caseId: 'sport', count: 1, parts: 2, tier: 'pro' }, income: 0.02 },
+  { name: 'Діамант', reward: { caseId: 'premium', count: 1, parts: 1, tier: 'race' }, income: 0.02 },
+];
+export const SETS = [
+  { id: 'people', name: 'Народні авто', icon: 'car', tier: 0, text: 'Те, на чому їздила вся країна',
+    models: ['zaz-lanos', 'daewoo-matiz', 'renault-logan', 'chevrolet-aveo', 'hyundai-accent', 'volkswagen-golf-ii', 'toyota-corolla-e120'] },
+  { id: 'soviet', name: 'Радянська класика', icon: 'star', tier: 0, text: 'Копійка, Волга, Нива і компанія',
+    models: ['vaz-2101-kopiika', 'vaz-2106', 'moskvych-412', 'haz-24-volha', 'vaz-2121-nyva', 'zaz-968m-zaporozhets', 'zaz-965-horbatyi'] },
+  { id: 'nineties', name: '90-ті', icon: 'clock', tier: 1, text: 'Дев\'яності на парковці біля під\'їзду',
+    models: ['vaz-2109', 'zaz-1102-tavriia', 'opel-vectra-a', 'volkswagen-passat-b3', 'mazda-mx-5-na', 'nissan-200sx-s13', 'toyota-mark-ii-jzx100', 'bmw-m3-e30'] },
+  { id: 'wagons', name: 'Універсали', icon: 'building-warehouse', tier: 1, text: 'Багажник більший за амбіції — або ні',
+    models: ['volkswagen-passat-b3', 'skoda-octavia-tour', 'volvo-240-turbo', 'audi-rs4-b7', 'zeekr-001'] },
+  { id: 'hothatch', name: 'Хот-хетчі', icon: 'flame', tier: 1, text: 'Маленькі, злі й швидкі',
+    models: ['peugeot-205-gti', 'volkswagen-golf-gti-mk5', 'volkswagen-golf-gti-mk7', 'honda-civic-type-r-ep3', 'renault-clio-v6', 'mini-cooper-s'] },
+  { id: 'drift', name: 'Дрифт-корч', icon: 'tool', tier: 1, text: 'Задній привід і боком у поворот',
+    models: ['toyota-corolla-ae86', 'nissan-200sx-s13', 'nissan-silvia-s15', 'toyota-mark-ii-jzx100', 'bmw-325i-e30', 'ford-mustang-gt-2005'] },
+  { id: 'jdm', name: 'JDM-легенди', icon: 'flag-3', tier: 1, text: 'Герої «Форсажу» та японських гір',
+    models: ['toyota-supra-a80', 'nissan-skyline-gt-r-r34', 'mazda-rx-7-fd', 'honda-nsx-na1', 'mitsubishi-lancer-evolution-vi', 'subaru-impreza-wrx-gc8'] },
+  { id: 'rally', name: 'Ралі: група B і WRC', icon: 'world', tier: 1, text: 'Від ВАЗ VFTS до GR Yaris',
+    models: ['vaz-2105-vfts', 'lancia-delta-hf-integrale', 'audi-80-quattro', 'subaru-impreza-wrx-sti', 'mitsubishi-lancer-evolution-ix', 'toyota-gr-yaris'] },
+  { id: 'german', name: 'Німецька трійка', icon: 'engine', tier: 1, text: 'BMW, Mercedes, Audi — по дві легенди',
+    models: ['bmw-m3-e30', 'bmw-m3-e46', 'mercedes-benz-190e-2-3-16', 'mercedes-amg-c63-s', 'audi-80-quattro', 'audi-rs4-b7'] },
+  { id: 'china', name: 'Китайський прорив', icon: 'bolt', tier: 1, text: 'BYD, Zeekr, Xiaomi, NIO',
+    models: ['byd-dolphin', 'geely-monjaro', 'byd-seal', 'byd-han', 'zeekr-001', 'xiaomi-su7-max', 'nio-et7'] },
+  { id: 'ev', name: 'Електрореволюція', icon: 'battery', tier: 2, text: 'Від Leaf до Taycan — без жодної краплі бензину',
+    models: ['nissan-leaf', 'byd-dolphin', 'tesla-model-y', 'tesla-model-3-performance', 'hyundai-ioniq-5-n', 'kia-ev6-gt', 'porsche-taycan-turbo-s'] },
+  { id: 'muscle', name: 'Американські мускул-кари', icon: 'flame', tier: 2, text: 'V8, дим і пряма',
+    models: ['ford-mustang-1967', 'ford-mustang-gt-2005', 'chevrolet-camaro-ss', 'dodge-challenger-srt-hellcat', 'shelby-gt500', 'dodge-viper-acr'] },
+  { id: 'offroad', name: 'Позашляховики', icon: 'world', tier: 2, text: 'Куди асфальт не веде',
+    models: ['vaz-2121-nyva', 'toyota-land-cruiser-80', 'jeep-wrangler', 'bmw-x5-e70', 'lamborghini-urus', 'mercedes-amg-g63'] },
+  { id: 'super10', name: 'Суперкари 2010-х', icon: 'diamond', tier: 2, text: 'Плакати на стіні — тепер у гаражі',
+    models: ['ferrari-458-italia', 'lamborghini-huracan-evo', 'mclaren-570s', 'audi-r8-v10-plus', 'porsche-911-turbo-s', 'nissan-gt-r-r35', 'chevrolet-corvette-c8'] },
+  { id: 'hyper', name: 'Гіперкари', icon: 'crown', tier: 3, text: 'Свята трійця та її друзі',
+    models: ['porsche-918-spyder', 'ferrari-laferrari', 'mclaren-p1', 'bugatti-veyron-16-4', 'pagani-huayra', 'lexus-lfa'] },
+  { id: 'club1000', name: 'Клуб 1000+ к.с.', icon: 'rocket', tier: 3, text: 'Понад тисячу сил — і жодних компромісів',
+    models: ['bugatti-chiron-super-sport', 'koenigsegg-jesko', 'rimac-nevera', 'ssc-tuatara', 'lotus-evija', 'nio-ep9'] },
+];
+export const SET_BY_ID = Object.fromEntries(SETS.map((s) => [s.id, s]));
+export const setReward = (set) => SET_TIERS[set.tier].reward;
+export const setIncome = (set) => SET_TIERS[set.tier].income;
+export const setBadgeTitle = (set) => `Сет «${set.name}»`;
+// What a set's reward is worth if cashed out at once: the key at its case's instant-sale average, parts at half price.
+export function setRewardValue(set) {
+  const r = setReward(set);
+  return Math.round(CASE_BY_ID[r.caseId].sellEv * ((r.count || 0) + (r.frag || 0) / FRAGMENTS_PER_KEY) + TIER_BY_ID[r.tier].price * PART_SELL_RATE * r.parts);
+}
+// "ключ «Тюнінг-ательє» + 2 × деталь Sport + +1% доходу"
+export function setRewardText(set) {
+  const r = setReward(set), out = [];
+  if (r.count) out.push(`${r.count > 1 ? r.count + ' × ' : ''}ключ «${CASE_BY_ID[r.caseId].name}»`);
+  if (r.frag) out.push(`${r.frag} фрагменти ключа «${CASE_BY_ID[r.caseId].name}»`);
+  if (r.parts) out.push(`${r.parts > 1 ? r.parts + ' × ' : ''}деталь ${TIER_BY_ID[r.tier].name}`);
+  out.push(`+${Math.round(setIncome(set) * 100)}% доходу машинам сету`);
+  return out.join(' + ');
+}
+// Found models of a set; `have` is a Set (or array) of model ids from the collection.
+export function setProgress(set, have) {
+  const h = have instanceof Set ? have : new Set(have);
+  const got = set.models.filter((id) => h.has(id));
+  return { have: got.length, need: set.models.length, done: got.length === set.models.length, got };
+}
+// Income bonus of a model from claimed sets (claimed: iterable of set ids): the largest one, never a sum.
+export function setIncomeBonus(model, claimed) {
+  let b = 0;
+  for (const id of claimed) {
+    const s = SET_BY_ID[id];
+    if (s && s.models.includes(model)) b = Math.max(b, setIncome(s));
+  }
+  return b;
+}
+
 // ---------- upgrade (CS-style: risk your cars for a chance at a pricier one) ----------
 // Trade-in at the dealer: three cars of one class go in, one car comes out — of the next class with `chance`, else
 // of the same class. The car out is drawn from that class with price up to `maxMult` × what went in, cheaper cars more

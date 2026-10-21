@@ -224,7 +224,10 @@ export function createGame(db, opts = {}) {
   function incomeRate(uid) {
     const u = q('SELECT slots FROM users WHERE id = ?').get(uid);
     const listed = q("SELECT COUNT(*) n FROM cars WHERE owner_id = ? AND status IN ('market', 'auction')").get(uid).n;
-    const earning = q("SELECT * FROM cars WHERE owner_id = ? AND status = 'garage'").all(uid).map((c) => ({ country: S.MODELS[c.model].country, v: carIncome(c) }))
+    // Finished collection sets: a small bonus for their cars (S.setIncomeBonus — the largest, never a sum).
+    const done = claimedSets(uid);
+    const earning = q("SELECT * FROM cars WHERE owner_id = ? AND status = 'garage'").all(uid)
+      .map((c) => ({ country: S.MODELS[c.model].country, v: carIncome(c) * (1 + (done.length ? S.setIncomeBonus(c.model, done) : 0)) }))
       .sort((a, b) => b.v - a.v).slice(0, Math.max(0, (u?.slots ?? 1e9) - listed));
     // Three or more earning cars of one country: +10% to their income (S.COUNTRY_BONUS).
     const per = {};
@@ -2538,6 +2541,9 @@ export function createGame(db, opts = {}) {
     for (const c of S.MAIN_COUNTRIES) {
       if (!have.has('c' + c) && S.countryModels(c).every((m) => owned.has(m.id))) claims.push({ key: 'coll:c' + c, kind: 'coll', id: 'c' + c, title: `Колекція «${S.COUNTRIES[c].name}» зібрана!`, sub: 'Секретна машина й гроші', money: S.COUNTRY_REWARD[c] });
     }
+    for (const s of S.SETS) {
+      if (!have.has('set:' + s.id) && S.setProgress(s, owned).done) claims.push({ key: 'set:' + s.id, kind: 'set', id: s.id, title: `Сет «${s.name}» зібрано!`, sub: `Значок ${S.SET_TIERS[s.tier].name} · ${S.setRewardText(s)}` });
+    }
     // Achievements: one banner per new tier, or a single "claim all" banner when several are waiting.
     const ach = achievementState(uid).filter((s) => s.reached > s.claimed);
     if (ach.length > 2) {
@@ -2716,6 +2722,37 @@ export function createGame(db, opts = {}) {
       if (garageCount(uid) > userRow(uid).slots) q("UPDATE cars SET status = 'showcase' WHERE id = ?").run(id);
     }
     return { reward: rw };
+  }
+
+  // ---------- collection sets (S.SETS) ----------
+  // Progress counts models ever found (collection table); a finished set is claimed once under "set:<id>".
+  const claimedSets = (uid) => q("SELECT key FROM claims WHERE user_id = ? AND key LIKE 'set:%'").all(uid).map((r) => r.key.slice(4));
+  function sets(uid) {
+    const owned = new Set(q('SELECT model FROM collection WHERE user_id = ?').all(uid).map((r) => r.model));
+    const claimed = new Set(claimedSets(uid));
+    return {
+      list: S.SETS.map((s) => {
+        const p = S.setProgress(s, owned);
+        return { id: s.id, have: p.have, need: p.need, got: p.got, ready: p.done && !claimed.has(s.id), claimed: claimed.has(s.id) };
+      }),
+    };
+  }
+  function setClaim(uid, { id }) {
+    const set = S.SET_BY_ID[String(id)];
+    if (!set || !Object.hasOwn(S.SET_BY_ID, String(id))) fail('Невідомий сет');
+    const owned = new Set(q('SELECT model FROM collection WHERE user_id = ?').all(uid).map((r) => r.model));
+    const p = S.setProgress(set, owned);
+    if (!p.done) fail(`Ще не зібрано: ${p.have}/${p.need}`);
+    // The claim row goes first: a second call (double tap, two tabs) finds it and pays nothing.
+    if (q('INSERT OR IGNORE INTO claims (user_id, key) VALUES (?, ?)').run(uid, 'set:' + set.id).changes === 0) fail('Нагороду вже отримано');
+    bank(uid); // the income bonus counts from now on, not for the hours before
+    const r = S.setReward(set);
+    const got = { id: set.id, caseId: r.caseId, income: S.setIncome(set), badge: S.setBadgeTitle(set), tier: set.tier };
+    if (r.count) addKeys(uid, r.caseId, (got.keys = r.count));
+    if (r.frag) got.newKeys = addFragments(uid, r.caseId, (got.frag = r.frag));
+    if (r.parts) got.items = grant(uid, { parts: r.parts, tier: r.tier }).items;
+    q('INSERT OR IGNORE INTO badges (user_id, key, title, tier, season, place, created_at) VALUES (?, ?, ?, ?, NULL, NULL, ?)').run(uid, 'set:' + set.id, got.badge, set.tier, now());
+    return { reward: got };
   }
 
   // ---------- seasons (S.SEASON) ----------
@@ -3721,7 +3758,7 @@ export function createGame(db, opts = {}) {
     'room/chat': (u, b) => postChat(u, roomLive(u, b.id).id, b.text),
     'battle/list': battleList, 'battle/create': battleCreate, 'battle/join': battleJoin, 'battle/cancel': battleCancel, 'battle/get': battleGet,
     rewards, 'rewards/daily': dailyClaim, 'rewards/case': rewardCase, 'newbie/claim': newbieClaim, 'level/seen': levelSeen, 'intro/seen': introSeen, 'guide/off': guideOff,
-    quests, 'quests/claim': questClaim, 'collection/claim': collectionClaim,
+    quests, 'quests/claim': questClaim, 'collection/claim': collectionClaim, sets, 'sets/claim': setClaim,
     weekly, 'weekly/claim': weeklyClaim, 'weekly/chest': weeklyChest,
     leaderboard, promo: redeemPromo, events,
     season, 'season/claim': passClaim, shop, 'shop/stars': buyWithStars, feed: dropFeed,
