@@ -2892,3 +2892,84 @@ button.li:active { background-color: #ffffff08; }
 .putlink > span { min-width: 0; }
 .putlink b { color: var(--green); white-space: nowrap; }
 .putlink.more { background: none; padding: 4px 0; color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+/* ---------- wave E: rewards center, reward reveal, season cosmetics ---------- */
+/* «Забрати все» card at the top of the rewards window */
+.rwc { border-color: #4a3c10; background: linear-gradient(135deg, #2a2208, var(--card) 70%); }
+.rwc-h { display: flex; align-items: center; justify-content: space-between; }
+.rwc-h b { display: inline-flex; align-items: center; gap: 6px; font: 700 16px var(--f-disp); letter-spacing: .2px; }
+.rwc-h b .i { color: var(--accent); }
+.rwc-n { min-width: 24px; height: 24px; padding: 0 7px; border-radius: 12px; display: inline-grid; place-items: center; background: var(--accent); color: #1c1500; font: 800 13px var(--f-disp); }
+.rwc-list { margin-top: 8px; }
+.rwc-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid #ffffff0d; }
+.rwc-ic { width: 30px; height: 30px; flex: none; border-radius: 9px; display: inline-grid; place-items: center; background: #ffc40017; color: var(--accent); font-size: 16px; }
+.rwc-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rwc-tx b { font-size: 13.5px; font-weight: 700; }
+.rwc-tx span { font-size: 11.5px; color: var(--muted); }
+.rwc-row > b.win { font: 700 13px var(--f-disp); }
+.rwc-more { padding-top: 4px; }
+/* daily bonus: what a case day gives, today's reward in words */
+.day-cls { display: block; margin-top: 1px; font: 600 9.5px var(--f-disp) !important; letter-spacing: .3px !important; color: var(--accent) !important; }
+.day-now { display: flex; align-items: center; gap: 6px; margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: #2a2208; box-shadow: inset 0 0 0 1px #4a3c10; font-size: 13px; line-height: 1.3; }
+.day-now .i { flex: none; color: var(--accent); }
+/* the reveal: a full-screen card with the case reel, under the «вау» takeover (z 28) and the effects canvas */
+.rvl { position: fixed; inset: 0; z-index: 26; display: flex; align-items: center; justify-content: center; overflow-y: auto;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, var(--safe-b, 0px));
+  background: radial-gradient(ellipse 90% 55% at 50% 35%, #231a4a, #07090d 70%); opacity: 0; transition: opacity .2s; }
+.rvl.in { opacity: 1; }
+.rvl-box { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 6px; }
+.rvl-top { display: flex; align-items: center; justify-content: space-between; min-height: 30px; }
+.rvl-n { font: 600 12px var(--f-disp); letter-spacing: .8px; text-transform: uppercase; color: var(--muted); }
+.rvl-skip { padding: 6px 10px; border-radius: 9px; background: #ffffff10; color: var(--muted); font: 600 13px var(--f-disp); }
+.rvl-t { text-align: center; font: 700 19px/1.2 var(--f-disp); letter-spacing: .2px; }
+.rvl-stage { margin: 4px 0 6px; }
+.rvl-res { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 40px; }
+.rvl-res .result-name { text-align: center; }
+.rvl-res .drop-sell { display: flex; gap: 6px; align-items: center; justify-content: center; font-size: 14px; color: var(--muted); }
+.rvl-res .drop-sell b { color: var(--text); }
+.rvl-btns { margin-top: 10px; min-height: 52px; }
+.rvl-btns .btns { display: flex; gap: 8px; }
+.rvl-btns .btns > * { flex: 1; }
+.rvl-btns .done { opacity: .6; pointer-events: none; }
+/* reward case strip cards (money, part, fuel) and the won one, big */
+.reel .rc-card .art { display: flex; align-items: center; justify-content: center; }
+.rc-ic { display: inline-grid; place-items: center; width: 54px; height: 54px; border-radius: 16px; font-size: 30px; color: var(--c);
+  background: radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--c) 30%, #2a2f38), #171b22 80%); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--c) 60%, transparent); }
+.reel-wrap.mini .rc-ic { width: 36px; height: 36px; font-size: 20px; border-radius: 11px; }
+.rc-big { width: 128px; height: 128px; margin: 34px auto 16px; border-radius: 34px; display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--c) 40%, #2a2f38), #12151b 78%); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 70%, transparent), 0 0 46px -6px var(--c); }
+.rc-big-ic { font-size: 62px; color: var(--c); display: inline-flex; }
+.rc-big .part { --s: 92px; }
+/* boss / set: open the reward keys */
+.rw-keys { width: 100%; }
+/* season pass: income note, cosmetic cells and the cosmetics strip */
+.pass-rate { display: flex; gap: 5px; align-items: flex-start; color: var(--accent); }
+.pass-rate .i { flex: none; margin-top: 1px; }
+.pcell.cos { border-color: #4b2f8a; background: linear-gradient(135deg, #22163f, var(--card) 75%); }
+.pcell.cos .i { color: #b48cff; }
+.scos-card { margin-top: 10px; }
+.scos-card > .row b { display: inline-flex; align-items: center; gap: 6px; font: 700 15px var(--f-disp); }
+.scos-card > .row b .i { color: #b48cff; }
+.scos-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 10px 0 8px; }
+.scos { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 3px; border-radius: 10px; background: #0e131b; box-shadow: inset 0 0 0 1px #ffffff0d; text-align: center; min-width: 0; }
+.scos b { font: 600 11px/1.15 var(--f-disp); letter-spacing: .2px; }
+.scos small { font-size: 10px; color: var(--muted); display: inline-flex; align-items: center; gap: 2px; }
+.scos-pv { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; font-size: 18px; color: #ffc400;
+  background: linear-gradient(#3b1d7a 0 55%, #ffc400 55% 62%, #3b1d7a 62%); box-shadow: inset 0 0 0 1px #ffffff1f; }
+.scos-pv .i { filter: drop-shadow(0 1px 2px #000c); }
+.scos-pv.scos-gold { background: linear-gradient(#5a4610 0 55%, #151515 55% 62%, #c9a227 62%); color: #ffe27a; }
+.scos-pv.scos-frame { background: #f2f2f2; color: #111; box-shadow: 0 0 0 2px #ffc400, 0 0 0 4px #3b1d7a; }
+.scos-pv.scos-showcase { background: radial-gradient(circle at 50% 30%, #5b3df0, #0d0a1f 75%); }
+.scos-pv.scos-badge { background: radial-gradient(circle, #3b1d7a, #1a0f33); }
+.scos.own { box-shadow: inset 0 0 0 1.5px #b48cff; }
+.scos.own small { color: #b48cff; }
+.scos.ready { box-shadow: inset 0 0 0 1.5px var(--accent); }
+/* season liveries in the paint shop */
+.lv[data-id^="szn"] i { background: linear-gradient(#3a3f48 0 50%, #ffc400 50% 57%, #3b1d7a 57%); }
+.lv[data-id^="szn"][data-id$="g"] i { background: linear-gradient(#3a3f48 0 50%, #151515 50% 57%, #c9a227 57%); }
+.lv[data-id^="szn"] b::after { content: ' ★'; color: #b48cff; }
+/* season plate frame on the owner's plates */
+.plate.pf-season { box-shadow: 0 0 0 max(1.5px, calc(var(--h) * .07)) #ffc400, 0 0 0 max(3px, calc(var(--h) * .14)) #3b1d7a, 0 2px 10px #5b3df066; }
+/* season showcase backdrop: a night showroom behind the cars */
+.grid.sc-season { position: relative; isolation: isolate; padding: 10px; border-radius: 14px;
+  background: radial-gradient(ellipse 80% 60% at 50% 0%, #5b3df055, transparent 70%), linear-gradient(180deg, #120c2a, #07090d 85%); box-shadow: inset 0 0 0 1px #ffc40033; }
+.grid.sc-season::before { content: 'СЕЗОН ' attr(data-season); position: absolute; z-index: -1; right: 12px; bottom: 4px; font: 800 34px/1 var(--f-disp); letter-spacing: 1px; color: #ffc40017; transform: skewX(-8deg); pointer-events: none; }

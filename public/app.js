@@ -284,7 +284,7 @@ const left = (ms) => {
 };
 const serverNow = () => Date.now() + clockOffset;
 const plateGroups = (text, wrapChars = false) => String(text).split(' ').map((g) => `<span class="g">${wrapChars ? [...g].map((c) => `<span class="ch">${esc(c)}</span>`).join('') : esc(g)}</span>`).join('');
-const plate = (text, size = '') => `<span class="plate ${size}"><span class="ua"><i></i>UA</span><span class="tx"><span class="txi">${plateGroups(text)}</span></span></span>`;
+const plate = (text, size = '') => `<span class="plate ${size}${plateFrame(text)}"><span class="ua"><i></i>UA</span><span class="tx"><span class="txi">${plateGroups(text)}</span></span></span>`;
 
 // Plate typography adapts to whatever condensed font the device has: capitals are sized to 62% of the
 // plate height and centred vertically, measured from the real font metrics.
@@ -369,7 +369,8 @@ function rewardText(rw) {
   if (rw.car) parts.push(`Машина класу ${rw.car}`);
   if (rw.caseId) parts.push(`Кейс «${S.CASE_BY_ID[rw.caseId].name}»${rw.count > 1 ? ` ×${rw.count}` : ''}`);
   if (rw.seasonCar) parts.push(M(rw.seasonCar).name);
-  if (rw.slots) parts.push(`+${rw.slots} місце в гаражі`);
+  if (rw.slots) parts.push(`+${rw.slots} ${plural(rw.slots, ['місце', 'місця', 'місць'])} в гаражі`);
+  if (rw.cosmetic && S.cosmeticOf(rw.cosmetic)) parts.push(S.cosmeticOf(rw.cosmetic).name);
   if (rw.fuel) parts.push('Повний бак');
   return parts.join(' · ');
 }
@@ -395,8 +396,7 @@ function renderHeader() {
   const first = (words[0][0] || '?').toUpperCase();
   const initials = !/[ВАСХBACDSX]/.test(first) ? first : words.length > 1 ? first + (words[1][0] || '').toUpperCase() : first + (words[0][1] || '').toLowerCase();
   $('#avatar').innerHTML = `${ring(me.level, me.xp, me.xpNeed)}<span class="face${photo ? ' photo' : ''}">${photo ? `<img src="${esc(photo)}" alt="" referrerpolicy="no-referrer">` : esc(initials)}</span><span class="lvl">${me.level}</span>`;
-  const giftReady = me.dailyReady || serverNow() >= me.rewardCaseAt;
-  $('#giftBadge').hidden = !giftReady || (!!me.guide && me.guide !== 'daily'); // first steps: one thing at a time
+  paintGiftBadge(); // how many rewards wait (rewards center); first steps: one thing at a time
   $('#menuDot').hidden = !(me.incomingTrades || me.unread || claimableCollection() || me.newbie?.ready || me.achReady || me.season?.ready || me.questReady);
   $('#title').textContent = state.page ? PAGE_TITLES[state.page] : TITLES[state.tab];
   $('#title').classList.toggle('long', $('#title').textContent.length > 8);
@@ -717,27 +717,31 @@ H.newbieClaim = async () => {
   if (await act('newbie/claim', {}, (r) => `+${S.fmt(r.got)}`, { rerender: false })) openProfile();
 };
 async function openRewards(result) {
-  let r;
+  let r, p;
   try {
-    r = await api('rewards');
+    // the claims of a fresh pulse: «Забрати все» lists exactly what is ready now
+    [r, p] = await Promise.all([api('rewards'), api('pulse').catch(() => null)]);
   } catch (e) {
     return toast(e.message, true);
   }
+  if (p) setRewardClaims(p.claims);
   const caseReady = serverNow() >= r.rewardCaseAt;
   const doneUpTo = r.ready ? r.nextDay - 1 : r.todayIndex + 1;
   const rc = result?.car ? S.CLASSES[M(result.car.model).cls].color : '';
   sheet('Нагороди', `${result ? `<div class="card center reward-res pop">${result.car ? `<div class="reveal-wrap r${S.rankOf(M(result.car.model).cls)}" style="--c:${rc};height:110px"><div class="art">${carArt(result.car.model, { glow: true })}</div></div><b class="disp rr-name">${esc(M(result.car.model).name)}</b>` : `<span class="rr-ic">${ic('gift')}</span>`}
       <div class="small muted">${esc(result.title)}</div><div class="rr-text win">${esc(result.text)}</div></div>` : ''}
+    ${rewardsAllCard()}
     <div class="h2"><span>Щоденний бонус</span><span>день ${r.ready ? r.nextDay : r.todayIndex + 1} з ${r.days.length}</span></div>
     <div class="card"><div class="days">${r.days.map((d, i) => {
-      const e = ic(d.money ? 'coin' : d.parts ? 'tool' : d.car ? 'car' : 'car-turbine');
+      const e = ic(d.money ? 'coin' : d.parts ? 'tool' : d.car ? 'car' : 'box');
       const label = d.money ? S.short(d.money).replace(' ₴', '') : d.parts ? `Деталі ×${d.parts}` : d.label;
       const today = r.ready && i === r.nextDay - 1;
-      return `<div class="day ${d.big ? 'big' : ''} ${today ? 'today' : ''} ${i < doneUpTo ? 'done' : ''}"><small>День ${i + 1}</small><div class="e">${i < doneUpTo ? ic('check') : e}</div><b>${esc(label)}</b></div>`;
+      return `<div class="day ${d.big ? 'big' : ''} ${today ? 'today' : ''} ${i < doneUpTo ? 'done' : ''}"><small>День ${i + 1}</small><div class="e">${i < doneUpTo ? ic('check') : e}</div><b>${esc(label)}</b>${d.caseId ? `<small class="day-cls">машина ${S.caseClassSpan(d.caseId)}</small>` : ''}</div>`;
     }).join('')}</div>
-    <div class="tiny muted mt">Заходь щодня: на 7-й день машина зі «Спорткара», на 14-й — з «Еліти». Пропустив день — нічого не згорає, продовжиш з того ж місця.</div>
+    ${r.ready ? `<div class="day-now">${ic('gift')} <b>День ${r.nextDay}</b> — ${esc(S.dailyText(r.days[r.nextDay - 1]))}</div>` : ''}
+    <div class="tiny muted mt">Заходь щодня: на 5-й і 10-й день — машина, на 7-й — кейс «Спорткар» (машина ${S.caseClassSpan('sport')}), на 14-й — кейс «Еліта» (машина ${S.caseClassSpan('elite')}). Кейс відкривається одразу після «Забрати». Пропустив день — нічого не згорає, продовжиш з того ж місця.</div>
     ${r.vip ? `<div class="tiny mt" style="color:var(--accent)">${ic('crown')} VIP: ще +${S.short(r.vipDaily)} щодня до бонусу</div>` : `<div class="tiny muted mt">${ic('crown')} VIP додає ще +${S.short(r.vipDaily)} щодня</div>`}
-    <button class="btn mt" data-act="claimDaily" ${r.ready ? '' : 'disabled'}>${r.ready ? `Забрати · день ${r.nextDay}` : 'Наступний через <span data-until="' + (new Date(new Date().toDateString()).getTime() + 86400e3) + '"></span>'}</button></div>
+    <button class="btn mt" data-act="claimDaily" ${r.ready ? '' : 'disabled'}>${r.ready ? `Забрати · день ${r.nextDay}${r.days[r.nextDay - 1].caseId ? ' · відкрити кейс' : ''}` : 'Наступний через <span data-until="' + (new Date(new Date().toDateString()).getTime() + 86400e3) + '"></span>'}</button></div>
     <div class="h2"><span>Кейс нагород</span><span>раз на ${S.REWARD_CASE_HOURS} год</span></div>
     <div class="card row"><span class="ic tint" style="--c:#ffc400">${ic('gift')}</span><div class="grow"><b>Кейс нагород</b><div class="small muted">Гроші, деталь, повний бак або машина</div></div>
       ${caseReady ? '<button class="btn sm" data-act="claimRewardCase">Відкрити</button>' : `<span class="chip" data-until="${r.rewardCaseAt - clockOffset}"></span>`}</div>
@@ -752,13 +756,28 @@ async function openRewards(result) {
     } else setTimeout(() => (FX.sparkle(res, ['#ffd500', '#ffffff', '#34c759'], 12), FX.popEl(res?.querySelector('.rr-ic'), 1.25, 450), SFX.win()), 300);
   }
 }
+// A car or a case of the daily bonus (days 5/7/10/14) is revealed like a case drop (revealRewards); money and parts
+// show in the rewards window.
 H.claimDaily = async () => {
   const r = await act('rewards/daily', {}, null, { rerender: false });
-  if (r) openRewards({ title: `День ${((r.streak - 1) % S.DAILY_BONUS.length) + 1}`, text: rewardText(r.reward) + (r.reward.items ? ': ' + r.reward.items.map((p) => S.PARTS[p.type].name).join(', ') : '') + (r.reward.vip ? ` + VIP ${S.short(r.reward.vip)}` : ''), car: r.reward.carOut });
+  if (!r) return;
+  pulseSoon();
+  const day = ((r.streak - 1) % S.DAILY_BONUS.length) + 1, rw = r.reward;
+  if (rw.carOut || rw.caseId) {
+    if (rw.vip) toast(`${ic('crown')} VIP: +${S.short(rw.vip)}`);
+    const title = `Щоденний бонус · день ${day}`;
+    return revealRewards([rw.carOut ? { kind: 'car', car: rw.carOut, isNew: rw.isNew, title } : { kind: 'key', caseId: rw.caseId, count: rw.count || 1, title }]);
+  }
+  openRewards({ title: `День ${day}`, text: rewardText(rw) + (rw.items ? ': ' + rw.items.map((p) => S.PARTS[p.type].name).join(', ') : '') + (rw.vip ? ` + VIP ${S.short(rw.vip)}` : '') });
 };
+// The reward case: a 2-second strip of what it can give stops on what came (the coins fly only then).
 H.claimRewardCase = async () => {
-  const r = await act('rewards/case', {}, null, { rerender: false });
-  if (r) openRewards({ title: 'Кейс нагород', text: r.reward.items ? S.partLabel(r.reward.items[0].type, r.reward.items[0].tier) : rewardText(r.reward), car: r.reward.carOut });
+  const fromSheet = !$('#modal').hidden;
+  const r = await claimQuiet('rewards/case');
+  if (!r) return;
+  pulseSoon();
+  await revealRewards([{ kind: 'rcase', reward: r.reward, title: 'Кейс нагород' }]);
+  if (fromSheet && !rvl) openRewards();
 };
 function tickUntil() {
   document.querySelectorAll('[data-until]').forEach((el) => (el.textContent = left(Number(el.dataset.until) - Date.now())));
@@ -807,7 +826,7 @@ TABS.garage = () => {
     const free = me.showcaseSlots - cars.length;
     return seg + `<div class="card"><div class="row between"><b class="disp" style="font-size:17px;letter-spacing:.5px">${ic('building-arch')} ВІТРИНА</b><span class="muted">${cars.length}/${me.showcaseSlots}</span></div>
       <div class="small muted mt">Улюблені машини на постаменті. Тут вони не їздять і не приносять доходу, зате не займають місця в гаражі. Твою вітрину бачать інші гравці з рейтингу.</div></div>
-      <div class="grid">${cars.map((c) => carTile(c)).join('')}${Array.from({ length: free }, () => '<button class="slot" data-act="showcasePick">+ Виставити машину</button>').join('')}
+      <div class="grid${showcaseBackdrop()}">${cars.map((c) => carTile(c)).join('')}${Array.from({ length: free }, () => '<button class="slot" data-act="showcasePick">+ Виставити машину</button>').join('')}
       ${me.showcaseSlots < S.SHOWCASE_MAX ? `<button class="slot buy" data-act="buyShowcase">+<span>Місце на вітрині</span><b>${S.short(S.showcaseCost(me.showcaseSlots))}</b></button>` : ''}</div>`;
   }
   const i = me.income;
@@ -2842,6 +2861,7 @@ function bossResult() {
         <div class="rw"><span class="rw-ic">${ic('cash')}</span><b class="win">${S.fmt(rw.money)}</b></div>
         ${(rw.items || []).map((p) => `<div class="rw">${partArt(p.type, p.tier, 'sm')}<span>${esc(S.partLabel(p.type, p.tier))}</span></div>`).join('')}
         ${rw.caseId ? `<div class="rw"><span class="rw-ic">${caseIcon(S.CASE_BY_ID[rw.caseId])}</span><span>${rw.count} × ключ «${esc(S.CASE_BY_ID[rw.caseId].name)}»</span></div>` : ''}
+        ${rw.caseId && !bo.keysOpened ? rewardKeysBtn(rw.caseId, rw.count, `Бос · ${b.nick}`, 'boss') : ''}
         ${rw.plate ? `<div class="rw">${plate(rw.plate.text)}<span class="small muted">номер класу ${rw.plate.cls} · ${S.short(rw.plate.value)}</span></div>` : ''}
         ${rw.badge ? `<div class="rw">${badgeChip({ title: rw.badge, tier: S.BOSS_BADGES[b.country][1] })}<span class="small muted">у профілі</span></div>` : ''}
       </div>
@@ -3469,8 +3489,8 @@ function paintBuyBtn(c) {
   const cur = curLook(c), d = state.paintDraft;
   const pc = d.paint !== cur.paint, lc = d.livery !== cur.livery;
   if (!pc && !lc) return `<button class="btn" disabled>${cur.paint || cur.livery ? 'Це вже на машині' : 'Обери колір або ліврею'}</button>`;
-  const price = (pc && d.paint ? S.paintPrice(c.model) : 0) + (lc && d.livery ? S.liveryPrice(c.model) : 0);
-  if (!price) return `<button class="btn ghost" id="paintBuy" data-act="paintBuy">${d.paint || d.livery ? 'Зняти ліврею' : 'Повернути заводський вигляд'} · безкоштовно</button>`;
+  const price = (pc && d.paint ? S.paintPrice(c.model) : 0) + (lc && d.livery ? S.liveryPrice(c.model, d.livery) : 0);
+  if (!price) return `<button class="btn ${lc && S.LIVERY_BY_ID[d.livery]?.season ? 'yellow' : 'ghost'}" id="paintBuy" data-act="paintBuy">${lc && S.LIVERY_BY_ID[d.livery]?.season ? `${ic('brush')} Нанести ліврею сезону` : d.paint || d.livery ? 'Зняти ліврею' : 'Повернути заводський вигляд'} · безкоштовно</button>`;
   if (price > me.balance) return `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(price - me.balance)}</button>`;
   const what = pc && d.paint && lc && d.livery ? 'Фарба + ліврея' : pc && d.paint ? 'Пофарбувати' : 'Нанести ліврею';
   return `<button class="btn yellow" id="paintBuy" data-act="paintBuy" data-price="${price}">${ic('palette')} ${what} · ${S.fmt(price)}</button>`;
@@ -3492,7 +3512,7 @@ function paintView() {
     const grid = mode === 'color'
       ? `<div class="swatches"><button class="sw factory ${!d.paint ? 'on' : ''}" data-act="paintColor" data-id=""><i></i><span>Завод</span></button>${S.PAINT_COLORS.map((p) => `<button class="sw ${p.finish} ${d.paint === p.id ? 'on' : ''}" data-act="paintColor" data-id="${p.id}" style="${swatchStyle(p)}" aria-label="${esc(p.name)}"><i></i><span>${esc(p.name)}</span></button>`).join('')}</div>
         <div class="tiny muted center">Фарба · ${S.fmt(S.paintPrice(c.model))} — ${Math.round(S.PAINT.rate * 100)}% ціни моделі. Металік блищить дрібними іскрами, мат — без відблисків.</div>`
-      : `<div class="liveries"><button class="lv ${!d.livery ? 'on' : ''}" data-act="paintLivery" data-id=""><b>Без лівреї</b><span>лише фарба</span></button>${S.LIVERIES.map((l) => `<button class="lv lv-${l.id} ${d.livery === l.id ? 'on' : ''}" data-act="paintLivery" data-id="${l.id}"><i></i><b>${esc(l.name)}</b><span>${esc(l.hint)}</span></button>`).join('')}</div>
+      : `<div class="liveries"><button class="lv ${!d.livery ? 'on' : ''}" data-act="paintLivery" data-id=""><b>Без лівреї</b><span>лише фарба</span></button>${liveryList().map((l) => `<button class="lv lv-${l.id} ${d.livery === l.id ? 'on' : ''}" data-act="paintLivery" data-id="${l.id}"><i></i><b>${esc(l.name)}</b><span>${esc(l.hint)}</span></button>`).join('')}</div>
         <div class="tiny muted center">Ліврея · ${S.fmt(S.liveryPrice(c.model))} — ${Math.round(S.PAINT.liveryRate * 100)}% ціни моделі. Лягає поверх фарби з тінями кузова.</div>`;
     body = `<div id="paintBuyBox" class="paint-buy">${paintBuyBtn(c)}</div>
       <div class="seg paint-seg">${[['color', 'Колір'], ['livery', 'Ліврея']].map(([k, t]) => `<button class="${mode === k ? 'on' : ''}" data-act="paintMode" data-k="${k}">${t}</button>`).join('')}</div>
@@ -3549,7 +3569,7 @@ H.paintBuy = async (d, el) => {
       if (want.livery !== cur.livery) await api('car/livery', { carId: c.id, livery: want.livery });
     }
     haptic('success');
-    toast(price ? `Готово! −${S.fmt(price)}` : 'Повернуто заводський вигляд');
+    toast(price ? `Готово! −${S.fmt(price)}` : S.LIVERY_BY_ID[want.livery]?.season && want.livery !== cur.livery ? 'Ліврею сезону нанесено!' : 'Повернуто заводський вигляд');
     if (price) {
       const r = el.getBoundingClientRect();
       FX.burst(r.left + r.width / 2, r.top, ['#ffd500', '#ffffff', S.PAINT_BY_ID[want.paint]?.hex || '#f5b301'], { count: 28, power: 5, shape: 'mix' });
@@ -3887,6 +3907,7 @@ H.setClaim = async (d) => {
       <span class="set-medal">${ic(s.icon)}</span><b class="disp rr-name">${esc(s.name)}</b>
       <span class="lstamp" style="--bc:${SET_TIER_COLORS[s.tier]}">${ic('trophy')}${esc(rw.badge)}</span>
       <div class="set-rw-list">${list.map((x) => `<div>${x}</div>`).join('')}</div>
+      ${rewardKeysBtn(rw.caseId, (rw.keys || 0) + (rw.newKeys || 0), `Сет «${s.name}»`)}
       <div class="tiny muted mt">Значок уже у твоїй ліцензії пілота</div></div>`);
   celebrateSheet($('#sheet .set-medal'), [SET_TIER_COLORS[s.tier] || '#ffd500', '#ffd500', '#ffffff'], { confetti: 0.9 });
 };
@@ -4779,15 +4800,327 @@ async function dailyQuests() {
 H.newbieQuest = () => act('newbie/claim', {}, (r) => `+${S.fmt(r.got)}`);
 H.questClaim = (d) => act('quests/claim', { key: d.k }, (r) => `+${S.fmt(r.got)}`);
 
+// ---------- rewards center & reveal (wave E: audit №7, №8, feature 3) ----------
+// Cars and case keys from rewards (daily bonus, season pass, sets, «Забрати все», bosses, a friend's invite) come the
+// way a case drop does: the reel spins and stops on what came, then the same celebration. A key is opened at once by
+// case/open with keyOnly (a key is used, never money): the server rolls it like any opening. A car the server already
+// gave (class C / B of the daily bonus, the season car) gets a reel of its own class that stops on it. The reward case
+// spins a 2-second strip of what it can give. One at a time; «Далі» moves on, «Пропустити» leaves the keys in the cases.
+const REWARD_KINDS = new Set(['daily', 'rcase', 'newbie', 'quest', 'weekly', 'wchest', 'coll', 'set', 'ach', 'achAll', 'pass']);
+const REWARD_IC = { daily: 'gift', rcase: 'box', newbie: 'sparkles', quest: 'target-arrow', weekly: 'calendar', wchest: 'gift', coll: 'books', set: 'books', ach: 'diamond', achAll: 'diamond', pass: 'ticket' };
+CELEBRATE.add('rewards/all');
+let rewardClaims = []; // reward claims of the last pulse: the rewards center lists them, the gift badge counts them
+function setRewardClaims(claims) {
+  rewardClaims = (claims || []).filter((c) => REWARD_KINDS.has(c.kind));
+  paintGiftBadge();
+}
+// Without the daily bonus / reward case once they are taken (the pulse may be a few seconds old).
+const liveRewardClaims = () => rewardClaims.filter((c) => (c.kind !== 'daily' || me.dailyReady) && (c.kind !== 'rcase' || serverNow() >= me.rewardCaseAt));
+function paintGiftBadge() {
+  const el = $('#giftBadge');
+  if (!el || !me) return;
+  const list = liveRewardClaims(), kinds = new Set(list.map((c) => c.kind));
+  const n = list.length + (me.dailyReady && !kinds.has('daily') ? 1 : 0) + (serverNow() >= me.rewardCaseAt && !kinds.has('rcase') ? 1 : 0);
+  el.hidden = !n || (!!me.guide && me.guide !== 'daily'); // first steps: one thing at a time
+  el.textContent = n > 9 ? '9+' : String(n);
+}
+const hashStr = (str) => {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
+  return (h >>> 0).toString(36);
+};
+// Banners: one reward keeps its own «Забрати»; several fold into one «Нагороди» banner that opens the rewards center
+// (its single rewards are remembered as shown, so they don't come back one by one). Other claims stay as they were.
+function showClaimBanners(claims) {
+  const one = (c) => showBanner({ ...c, claim: c, sub: esc(countFix(c.sub)) + (c.money ? ` · <b class="win">+${S.short(c.money)}</b>` : ''), ttl: 8000, buttons: [{ label: 'Забрати', act: 'bannerClaim' }] });
+  for (const c of claims) if (!REWARD_KINDS.has(c.kind) && !bannerSeen.has(c.key)) one(c);
+  const rw = claims.filter((c) => REWARD_KINDS.has(c.kind) && !(c.kind === 'daily' && skipDailyBanner));
+  if (rw.length === 1 && !bannerSeen.has(rw[0].key)) return one(rw[0]);
+  if (rw.length < 2) return;
+  const key = 'rwall:' + hashStr(rw.map((c) => c.key).sort().join('|'));
+  if (bannerSeen.has(key) || banners.has(key)) return;
+  for (const [k, b] of banners) if (b.data.claim && REWARD_KINDS.has(b.data.kind)) hideBanner(k, false);
+  rw.forEach((c) => rememberBanner(c.key));
+  const money = rw.reduce((sum, c) => sum + (c.money || 0), 0);
+  showBanner({ key, kind: 'rwall', icon: 'gift', color: '#ffc400', claim: { kind: 'rwall' }, title: `Нагороди чекають · ${rw.length}`,
+    sub: esc(rw.slice(0, 2).map((c) => countFix(c.title)).join(' · ')) + (rw.length > 2 ? ` · ще ${rw.length - 2}` : '') + (money ? ` · <b class="win">+${S.short(money)}</b>` : ''),
+    ttl: 9000, open: () => openRewards(), buttons: [{ label: 'Забрати все', act: 'claimAllBanner' }] });
+}
+H.claimAllBanner = (d) => {
+  hideBanner(d.key);
+  H.claimAll();
+};
+// «Забрати все» at the top of the rewards window: what is ready, in one tap (POST rewards/all).
+function rewardsAllCard() {
+  const list = liveRewardClaims();
+  if (!list.length) return '';
+  const rows = list.slice(0, 5).map((c) => `<div class="rwc-row"><span class="rwc-ic">${ic(REWARD_IC[c.kind] || 'gift')}</span><span class="rwc-tx"><b class="ellipsis">${esc(countFix(c.title))}</b><span class="ellipsis">${esc(countFix(c.sub))}</span></span>${c.money ? `<b class="win nw">+${S.short(c.money)}</b>` : ''}</div>`).join('');
+  return `<div class="card rwc"><div class="rwc-h"><b>${ic('gift')} Готово до видачі</b><span class="rwc-n">${list.length}</span></div>
+    <div class="rwc-list">${rows}${list.length > 5 ? `<div class="tiny muted rwc-more">і ще ${list.length - 5}</div>` : ''}</div>
+    <button class="btn yellow mt" data-act="claimAll">${ic('gift')} Забрати все (${list.length})</button>
+    <div class="tiny muted center mt">Гроші, деталі й пальне — одразу; машини й ключі покажемо по черзі</div></div>`;
+}
+const claimAllText = (r) => [`Забрано: ${r.n}`, r.money > 0 ? '+' + S.short(r.money) : '', r.parts > 0 ? `деталі ×${r.parts}` : '', r.slots > 0 ? `+${r.slots} ${plural(r.slots, ['місце', 'місця', 'місць'])} в гаражі` : '', r.fuel ? 'повний бак' : '', ...(r.cosmetics || [])].filter(Boolean).join(' · ');
+H.claimAll = async () => {
+  const fromSheet = !$('#modal').hidden;
+  const r = await act('rewards/all', {}, claimAllText, { rerender: false });
+  if (!r) return;
+  pulseSoon();
+  if (r.reveal.length) await revealRewards(r.reveal);
+  if (fromSheet && !rvl) openRewards();
+};
+// A claim whose result is revealed later: no coins and no refresh yet (act() would fly the coins before the reel).
+const claiming = new Set();
+async function claimQuiet(name, body = {}) {
+  if (claiming.has(name)) return null;
+  claiming.add(name);
+  try {
+    const r = await api(name, body);
+    haptic('success');
+    return r;
+  } catch (e) {
+    toast(e.message, true);
+    haptic('error');
+    refresh().catch(() => {});
+    return null;
+  } finally {
+    claiming.delete(name);
+  }
+}
+// «Відкрити ключ» under a reward that gave keys (a finished set, a country's last boss).
+const rewardKeysBtn = (caseId, n, title, from = '') => (caseId && n > 0 && S.CASE_BY_ID[caseId]
+  ? `<button class="btn yellow mt rw-keys" data-act="openRewardKeys" data-c="${caseId}" data-n="${n}" data-t="${esc(title)}" data-from="${from}">${ic('key')} Відкрити ${n > 1 ? `${n} × ключ` : 'ключ'} «${esc(S.CASE_BY_ID[caseId].name)}»</button>` : '');
+H.openRewardKeys = async (d, el) => {
+  el.disabled = true;
+  if (d.from === 'boss' && state.race?.result?.boss) state.race.result.boss.keysOpened = true;
+  await revealRewards([{ kind: 'key', caseId: d.c, count: Number(d.n) || 1, title: d.t }]);
+};
+
+// ---- the reveal: a full-screen card over everything (below the «вау» takeover)
+let rvl = null;
+function revealRewards(items) {
+  const list = [];
+  for (const it of items || []) {
+    if (it.kind === 'key') for (let k = 0; k < Math.min(it.count || 1, 12); k++) list.push({ ...it, count: 1, nth: k + 1, of: Math.min(it.count || 1, 12) });
+    else if (it.kind === 'rcase' || it.car) list.push(it);
+  }
+  if (!list.length) return refresh().catch(() => {});
+  if (rvl) {
+    rvl.list.push(...list);
+    return rvl.promise;
+  }
+  closeModal();
+  hideClaimBanners();
+  const el = document.createElement('div');
+  el.className = 'rvl';
+  document.body.append(el);
+  let resolve;
+  const promise = new Promise((r) => (resolve = r));
+  rvl = { list, i: 0, el, resolve, promise, cur: null, free: me.slots - me.used }; // free: garage slots for the keys
+  state.opening = true; // no banners, level-up windows or case opening over the reel
+  rvlStep();
+  return promise;
+}
+const rvlTitle = (it) => (it.kind === 'key' ? `${it.title ? it.title + ' · ' : ''}Кейс «${S.CASE_BY_ID[it.caseId].name}»${it.of > 1 ? ` · ${it.nth}/${it.of}` : ''}` : it.title || 'Нагорода');
+async function rvlStep() {
+  const R = rvl, it = R.list[R.i];
+  R.cur = null;
+  const left = R.list.length - R.i - 1;
+  R.el.innerHTML = `<div class="rvl-box">
+    <div class="rvl-top"><span class="rvl-n">${R.list.length > 1 ? `Нагорода ${R.i + 1} з ${R.list.length}` : 'Нагорода'}</span>${left && R.list.slice(R.i + 1).some((x) => x.kind === 'key') ? '<button class="rvl-skip" data-act="rvlSkip">Пропустити</button>' : ''}</div>
+    <b class="rvl-t">${esc(rvlTitle(it))}</b>
+    <div class="stage rvl-stage" id="rvlStage"><div class="reel-wrap" id="rvlWrap"><div class="reel" id="rvlReel"></div></div></div>
+    <div class="rvl-res" id="rvlRes"></div><div class="rvl-btns" id="rvlBtns"></div></div>`;
+  requestAnimationFrame(() => R.el.classList.add('in'));
+  try {
+    if (it.kind === 'key') await rvlKey(it);
+    else if (it.kind === 'rcase') await rvlRewardCase(it);
+    else await rvlCar(it);
+  } catch (e) {
+    try {
+      rvlMsg('info-circle', 'Не вдалося показати нагороду', esc(e.message));
+    } catch {}
+  } finally {
+    if (rvl === R) rvlButtons(); // always a way out of the overlay
+  }
+}
+async function rvlKey(it) {
+  const cs = S.CASE_BY_ID[it.caseId];
+  let r;
+  try {
+    if (rvl.free < 1) throw new Error('Гараж заповнений — продай авто або купи місце');
+    r = await api('case/open', { caseId: cs.id, count: 1, keyOnly: true });
+    rvl.free--;
+  } catch (e) {
+    rvl.keyLeft = cs.id;
+    return rvlMsg('key', `Ключ «${esc(cs.name)}» чекає в кейсах`, esc(e.message));
+  }
+  const res = r.results[0];
+  if (!state.fast) await spin(cs, res.car.model, { wrap: $('#rvlWrap'), reel: $('#rvlReel') });
+  rvlResult(res, cs);
+}
+// Cards of the car's own class (dearer ones rarer, as in a case); a secret or season car among A and S cars.
+function classCardAt(model) {
+  const m = M(model);
+  const pool = S.ALL_MODELS.filter((x) => !x.secret && (m.secret ? x.cls === 'A' || x.cls === 'S' : x.cls === m.cls));
+  const w = S.modelWeights(pool), sw = w.reduce((a, b) => a + b, 0), strip = [];
+  const draw = () => {
+    let y = Math.random() * sw;
+    for (let i = 0; i < pool.length; i++) if ((y -= w[i]) < 0) return pool[i].id;
+    return pool[pool.length - 1].id;
+  };
+  return (i, W) => reelCard(i === W ? model : (strip[i] ??= draw()));
+}
+async function rvlCar(it) {
+  const m = M(it.car.model);
+  if (!state.fast) await spinReel({ cardAt: classCardAt(it.car.model), color: S.CLASSES[m.cls].color, rank: S.rankOf(m.cls), wrap: $('#rvlWrap'), reel: $('#rvlReel') });
+  rvlResult({ car: it.car, isNew: !!it.isNew }, null);
+}
+// The reward case's strip: money / a part / a full tank / a D or C car by S.REWARD_CASE_ODDS, stopping on what came.
+function rcCard(kind, x) {
+  if (kind === 'car') return reelCard(x);
+  const color = kind === 'money' ? '#ffc400' : kind === 'fuel' ? '#30d158' : S.CLASSES[S.TIER_BY_ID[x.tier].cls].color;
+  const art = kind === 'part' ? partArt(x.type, x.tier) : `<span class="rc-ic">${ic(kind === 'money' ? 'coin' : 'gas-station')}</span>`;
+  const nm = kind === 'money' ? S.short(x) : kind === 'fuel' ? 'Повний бак' : S.partLabel(x.type, x.tier);
+  return `<div class="car pcard rc-card" style="--c:${color}"><div class="art">${art}</div><div class="nm tiny ellipsis">${esc(nm)}</div></div>`;
+}
+async function rvlRewardCase(it) {
+  const rw = it.reward, o = S.REWARD_CASE_ODDS, lvl = me.level;
+  const parts = S.partPoolFor(me.cars.map((c) => c.model));
+  const draw = () => {
+    const x = Math.random();
+    if (x < o.money) return ['money', Math.round(((5000 + Math.random() * 20000) * lvl) / 1000) * 1000];
+    if (x < o.money + o.part) return ['part', { type: parts[Math.floor(Math.random() * parts.length)], tier: Math.random() < 0.7 ? 'stock' : 'street' }];
+    if (x < o.money + o.part + o.fuel) return ['fuel'];
+    const pool = S.ALL_MODELS.filter((m) => !m.secret && m.cls === (Math.random() < 0.85 ? 'D' : 'C'));
+    return ['car', pool[Math.floor(Math.random() * pool.length)].id];
+  };
+  const win = rw.carOut ? ['car', rw.carOut.model] : rw.items ? ['part', rw.items[0]] : rw.fuel ? ['fuel'] : ['money', rw.money];
+  const strip = [];
+  const rank = rw.carOut ? S.rankOf(M(rw.carOut.model).cls) : 0;
+  const color = rw.carOut ? S.CLASSES[M(rw.carOut.model).cls].color : win[0] === 'part' ? S.CLASSES[S.TIER_BY_ID[win[1].tier].cls].color : win[0] === 'fuel' ? '#30d158' : '#ffc400';
+  $('#rvlWrap').classList.add('rc');
+  if (!state.fast) await spinReel({ cardAt: (i, W) => rcCard(...(i === W ? win : (strip[i] ??= draw()))), color, rank: Math.min(rank, 1), wrap: $('#rvlWrap'), reel: $('#rvlReel'), extra: -2300 });
+  if (rw.carOut) return rvlResult({ car: rw.carOut, isNew: !!rw.isNew }, null);
+  const big = win[0] === 'part' ? partArt(win[1].type, win[1].tier, 'lg') : `<span class="rc-big-ic">${ic(win[0] === 'money' ? 'coin' : 'gas-station')}</span>`;
+  const name = win[0] === 'money' ? `+${S.fmt(win[1])}` : win[0] === 'fuel' ? 'Повний бак' : S.partLabel(win[1].type, win[1].tier);
+  const sub = win[0] === 'money' ? 'на рахунок' : win[0] === 'fuel' ? 'загальний бак заправлено' : 'деталь — у Майстерні';
+  $('#rvlStage').outerHTML = `<div class="rc-big pop" id="rvlBig" style="--c:${color}">${big}</div>`;
+  $('#rvlRes').innerHTML = `<div class="result-name pop" style="--c:${color}">${esc(name)}</div><div class="small muted center pop2">${sub}</div>`;
+  FX.sparkle($('#rvlBig'), [color, '#ffffff'], 12);
+  FX.popEl($('#rvlBig'), 1.15, 420);
+  SFX.win();
+  haptic('success');
+  if (win[0] === 'money') moneyFx(win[1]);
+}
+function rvlResult(res, cs) {
+  const car = res.car, m = M(car.model), rank = S.rankOf(m.cls), color = S.CLASSES[m.cls].color;
+  rvl.cur = res;
+  $('#rvlStage').outerHTML = `<div class="reveal-wrap r${rank}" id="rvlReveal" style="--c:${color}"><div class="art reveal" id="rvlArt">${carArt(car.model, { glow: rank >= 2, look: car.look })}</div></div>`;
+  const sale = m.secret ? `<span>${ic('trophy')} трофей — не продається</span>` : `<span>${ic('cash')} продаж <b>${S.short(sellPrice(car))}</b></span>`;
+  $('#rvlRes').innerHTML = `${res.isNew ? `<div class="newtag pop">${ic('sparkles')} Нова в колекції</div>` : ''}
+    <div class="result-name r${rank} pop ${rank >= 3 ? 'shimmer' : ''}" style="--c:${color}">${esc(m.name)}</div>
+    <div class="rarity-row pop2"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span>${originChip(car.model)}${res.forced ? ' <span class="chip">гарантія</span>' : ''}</div>
+    <div class="drop-sell pop2">${sale}</div>`;
+  const fx = () => {
+    if (!$('#rvlReveal')) return;
+    haptic(rank >= 3 ? 'heavy' : rank >= 1 ? 'medium' : 'success');
+    if (rank >= 3) setTimeout(() => SFX.rare(rank), 120);
+    setTimeout(() => FX.dropShow(rank, color, { host: $('#rvlReveal'), target: $('#rvlArt'), newEl: $('#rvlRes .newtag') }), 150);
+  };
+  if (WOW.pickDrop([res])) WOW.celebrate(res, { casePrice: cs?.price || 0, onShare: (r) => openShare(r.car, { mult: cs?.price ? r.car.value / cs.price : 0 }) }).then(fx);
+  else fx();
+}
+function rvlMsg(icon, title, text) {
+  const st = $('#rvlStage') || $('#rvlReveal') || $('#rvlBig');
+  if (st) st.outerHTML = `<div class="rc-big" style="--c:#8e8e93"><span class="rc-big-ic">${ic(icon)}</span></div>`;
+  $('#rvlRes').innerHTML = `<div class="result-name" style="font-size:20px">${title}</div><div class="small muted center">${text}</div>`;
+}
+function rvlButtons() {
+  const R = rvl, left = R.list.length - R.i - 1, res = R.cur;
+  if (!$('#rvlBtns')) return;
+  const sell = res?.car && !M(res.car.model).secret && me.cars.length > 1
+    ? (res.sold ? `<div class="btn ghost btn2 done"><span>${ic('check')} Продано</span></div>` : `<button class="btn ghost btn2" data-act="rvlSell"><span>${ic('cash')} Продати</span><small>${S.short(sellPrice(res.car))}</small></button>`) : '';
+  const toCases = R.keyLeft ? '<button class="btn ghost" data-act="rvlToCases">До кейсів</button>' : '';
+  $('#rvlBtns').innerHTML = `<div class="btns">${sell || toCases}<button class="btn yellow" data-act="rvlNext">${left ? `Далі · ще ${left}` : 'Готово'}</button></div>`;
+}
+H.rvlNext = () => {
+  if (!rvl) return;
+  if (++rvl.i >= rvl.list.length) return rvlClose();
+  rvlStep();
+};
+H.rvlSkip = () => {
+  if (!rvl) return;
+  const keys = rvl.list.slice(rvl.i + 1).filter((x) => x.kind === 'key').length;
+  rvlClose();
+  if (keys) setTimeout(() => toast(`${ic('key')} ${keys} ${plural(keys, ['ключ чекає', 'ключі чекають', 'ключів чекають'])} у кейсах`), 300);
+};
+H.rvlToCases = () => {
+  const caseId = rvl?.keyLeft;
+  rvlClose().then(() => {
+    state.tab = 'cases';
+    state.page = null;
+    if (caseId) state.caseId = caseId;
+    state.count = 1;
+    state.drop = null;
+    render();
+  });
+};
+H.rvlSell = async (d, el) => {
+  const res = rvl?.cur;
+  if (!res || res.sold || !armed(el, 'Точно продати?')) return;
+  if (await act('sell', { carIds: [res.car.id] }, (r) => `Продано: +${S.fmt(r.got)}`, { rerender: false })) {
+    res.sold = true;
+    if (rvl) rvl.free++;
+    if (rvl?.cur === res) rvlButtons();
+  }
+};
+async function rvlClose() {
+  const R = rvl;
+  if (!R) return;
+  rvl = null;
+  state.opening = false;
+  R.el.classList.remove('in');
+  setTimeout(() => R.el.remove(), 220);
+  try {
+    await refresh();
+  } catch {}
+  R.resolve();
+}
+
+// ---- season cosmetics in the game (S.cosmeticOf): free season liveries in the paint shop, the plate frame on the
+// owner's plates, the backdrop behind the showcase. The badge lives in the profile with the other badges.
+let cosCache = { me: null, frame: null, show: null, plates: null };
+function cosNow() {
+  if (cosCache.me !== me) cosCache = { me, frame: me ? S.cosmeticOn(me.claims, 'frame') : null, show: me ? S.cosmeticOn(me.claims, 'showcase') : null, plates: new Set((me?.plates || []).map((p) => p.text)) };
+  return cosCache;
+}
+function plateFrame(text) {
+  const c = cosNow();
+  return c.frame && c.plates.has(text) ? ' pf-season' : '';
+}
+const showcaseBackdrop = () => (cosNow().show ? ` sc-season" data-season="${cosNow().show.season}` : '');
+const liveryList = () => [...S.LIVERIES, ...S.ownedCosmetics(me.claims).filter((c) => c.livery).sort((a, b) => a.season - b.season || (a.kind === 'gold') - (b.kind === 'gold')).map((c) => S.LIVERY_BY_ID[c.livery])];
+
 // ---------- season & pass ----------
 const vipChip = () => `<span class="chip vipchip">${ic('crown')} VIP</span>`;
 const BADGE_COLORS = ['#8e8e93', '#5ac8fa', '#c4c9d2', '#f5b301'];
 const badgeChip = (b) => `<span class="chip" style="color:${BADGE_COLORS[b.tier] || '#8e8e93'};border-color:currentColor">${ic('trophy')} ${esc(b.title)}</span>`;
 const passCell = (rw, state) => {
-  const icon = rw.seasonCar ? 'car-turbine' : rw.caseId ? 'gift' : rw.parts ? 'tool' : 'coin';
+  const cos = S.cosmeticOf(rw.cosmetic);
+  const icon = rw.seasonCar ? 'car-turbine' : cos ? cos.icon : rw.caseId ? 'gift' : rw.parts ? 'tool' : 'coin';
   const label = rw.seasonCar ? 'Машина сезону' : rewardText(rw);
-  return `<div class="pcell ${state}">${state === 'lock' ? ic('lock') : ic(icon)}<span>${esc(label)}</span></div>`;
+  return `<div class="pcell ${state}${cos ? ' cos' : ''}">${state === 'lock' ? ic('lock') : ic(icon)}<span>${esc(label)}</span></div>`;
 };
+// Every 5 levels of the free track: the season's cosmetics (S.PASS_COSMETICS), owned ones ticked.
+function seasonCosStrip(s) {
+  const tiles = Object.keys(S.PASS_COSMETICS).map(Number).map((l) => {
+    const c = S.passCosmetic(s.id, l), own = me.claims.includes(c.id);
+    return `<div class="scos ${own ? 'own' : s.level >= l ? 'ready' : ''}"><span class="scos-pv scos-${c.kind}" data-season="${s.id}">${ic(c.icon)}</span><b>${esc(c.short)}</b><small>${own ? `${ic('check')} твоє` : `рівень ${l}`}</small></div>`;
+  }).join('');
+  return `<div class="card scos-card"><div class="row between"><b>${ic('sparkles')} Косметика сезону ${s.id}</b><span class="tiny muted">кожні 5 рівнів · безкоштовно</span></div>
+    <div class="scos-row">${tiles}</div><div class="tiny muted">Лівреї — у «Фарбуванні» на будь-яку свою машину, рамка — на твоїх номерах, фон — за вітриною, значок — у профілі. Лише в цьому сезоні.</div></div>`;
+}
 // Season car showroom: one 360x200 scene, scaled with the card. The left lamp + beam are drawn once and
 // mirrored with <use>, so both sides are identical; glows are stacked strokes (no SVG filters — cheap on phones).
 // Turntable top: ellipse c(180,150) r(150,24). The car box (CSS) is 262 wide with its bottom at y=149, so any
@@ -4842,21 +5175,31 @@ PAGES.season = async () => {
       <div class="row between mt"><span>Рівень <b>${s.level}</b> з ${S.SEASON.levels}</span><span class="small muted">${s.need ? `${s.levelXp} / ${s.need} досвіду` : 'максимум'}</span></div>
       <div class="progress gold mt"><i style="width:${s.need ? (s.levelXp / s.need) * 100 : 100}%"></i></div>
       <div class="tiny muted mt">Досвід сезону — той самий, що й завжди: гонки (перемоги більше), кейси, завдання, бонуси. Нічого не скидається, крім пропуску.</div>
+      <div class="tiny mt pass-rate">${ic('coin')} Гроші пропуску ростуть разом з гаражем: ${S.passHours(2).toFixed(1).replace('.', ',')}–${S.passHours(S.SEASON.levels).toFixed(1).replace('.', ',')} год його доходу за рівень${s.rate ? ` (зараз ${S.short(s.rate)}/год)` : ''}, мінімум ${S.short(S.passMoneyFor(2))}</div>
       ${s.ready ? `<button class="btn yellow mt" data-act="passClaim">${ic('gift')} Забрати нагороди · ${s.ready}</button>` : ''}</div>
     ${car ? `<div class="card center season-car"><div class="small muted">Рівень ${S.SEASON.levels} · преміум</div><div class="showroom">${SHOWROOM_SVG}<div class="sr-refl" aria-hidden="true">${carArt(car.id)}</div><div class="art">${carArt(car.id)}</div></div><b style="font-size:17px">${esc(car.name)}</b>
       <div class="small muted">${car.hp} к.с. · ${S.short(car.price)} · лише в цьому сезоні</div>
       ${s.premium ? `<div class="mt" style="color:var(--accent)">${ic('crown')} Преміум активний</div>` : `<button class="btn yellow mt" data-act="buyItem" data-id="pass">${ic('crown')} Преміум · ${ic('star')} ${S.SEASON.premiumStars}</button><div class="tiny muted mt">Нагороди правої доріжки за вже пройдені рівні — одразу після покупки</div>`}</div>` : ''}
+    ${seasonCosStrip(s)}
     <div class="prow head"><span class="plvl">#</span><span>Безкоштовно</span><span>${ic('crown')} Преміум</span></div>
     <div class="ptable">${s.levels.map(row).join('')}</div>`;
 };
 AFTER.season = tickUntil;
+// Keys of the pass open one by one with the case reel, the season car comes last (revealRewards).
 H.passClaim = async () => {
-  const r = await act('season/claim', {}, (r) => `Нагород: ${r.got.length}${r.money ? ` · +${S.short(r.money)}` : ''}`, { rerender: false });
-  if (r) {
-    const car = r.got.find((g) => g.carOut);
-    await refresh();
-    if (car) openRewards({ title: 'Машина сезону!', text: M(car.carOut.model).name, car: car.carOut });
+  const cosText = (got) => got.map((g) => S.cosmeticOf(g.cosmetic)?.name).filter(Boolean);
+  const r = await act('season/claim', {}, (r) => [`Нагород: ${r.got.length}`, r.money ? `+${S.short(r.money)}` : '', ...cosText(r.got)].filter(Boolean).join(' · '), { rerender: false });
+  if (!r) return;
+  pulseSoon();
+  const items = [];
+  for (const g of r.got) {
+    const title = `Сезон · рівень ${g.level}${g.premium ? ' · преміум' : ''}`;
+    if (g.caseId) items.push({ kind: 'key', caseId: g.caseId, count: g.count || 1, title });
+    if (g.carOut) items.push({ kind: 'car', car: g.carOut, isNew: true, title });
   }
+  items.sort((a, b) => (a.kind === 'car') - (b.kind === 'car'));
+  if (items.length) await revealRewards(items);
+  else await refresh();
 };
 
 // ---------- what's new (shown once per S.WHATS_NEW.id) ----------
@@ -5822,6 +6165,7 @@ H.giftOk = async () => {
       await api('gifts/seen', { ids: [g.id] });
     } catch {}
   }
+  if (g?.kind === 'ref' && S.CASE_BY_ID[g.data?.caseId] && !me.guide && !me.keys?.starter) await revealRewards([{ kind: 'key', caseId: g.data.caseId, count: 1, title: 'Подарунок від друга' }]);
   if (giftQueue.length) return setTimeout(showGift, 300);
   await refresh();
 };
@@ -5841,6 +6185,7 @@ async function pulse() {
     return;
   }
   clockOffset = p.now - Date.now();
+  setRewardClaims(p.claims);
   const qReady = p.claims.filter((c) => c.kind === 'quest' || c.kind === 'weekly' || c.kind === 'wchest').length;
   // Where the rewards are: the «Сьогодні» / «Тиждень» tabs of Завдання get their own counters.
   const split = { day: p.claims.filter((c) => c.kind === 'quest' || c.kind === 'newbie').length, week: p.claims.filter((c) => c.kind === 'weekly' || c.kind === 'wchest').length };
@@ -5885,10 +6230,7 @@ async function pulse() {
   }
   // First steps: the hint card leads to these rewards itself, banners would only cover it.
   if (claimsBlocked() || guideOn()) hideClaimBanners();
-  else for (const c of p.claims) {
-    if (bannerSeen.has(c.key) || (c.kind === 'daily' && skipDailyBanner)) continue;
-    showBanner({ ...c, claim: c, sub: esc(countFix(c.sub)) +(c.money ? ` · <b class="win">+${S.short(c.money)}</b>` : ''), ttl: 8000, buttons: [{ label: 'Забрати', act: 'bannerClaim' }] });
-  }
+  else showClaimBanners(p.claims); // several rewards fold into one «Нагороди» banner (rewards center)
   // Reloaded the app in the middle of a live race: get back into it.
   if (p.livePvp && !state.race && !$('#pvpWait')) {
     try {

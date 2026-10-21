@@ -261,12 +261,14 @@ export async function shareCard({ model, value, mult = 0, who = '', bot = '' }) 
     c.shadowColor = '#000';
     c.shadowBlur = 40;
     c.shadowOffsetY = 18;
+    if (m.filter) c.filter = m.filter; // a season car: another car's photo in its season colour (S.SEASON_CARS)
     c.drawImage(img, x, y, cw, ch);
     c.restore();
     c.save();
     c.translate(0, (floorY + 30) * 2);
     c.scale(1, -1);
     c.globalAlpha = 0.22;
+    if (m.filter) c.filter = m.filter;
     c.drawImage(img, x, y, cw, ch);
     c.restore();
     g = c.createLinearGradient(0, floorY + 30, 0, floorY + 30 + ch * 0.7);

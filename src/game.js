@@ -710,7 +710,8 @@ export function createGame(db, opts = {}) {
     q('UPDATE users SET nonce = ? WHERE id = ?').run(nonce, uid);
     return { ...u, nonce, roll: (sub) => fairRoll(u.server_seed, u.client_seed, nonce, sub) };
   }
-  function openCase(uid, { caseId, count }) {
+  // keyOnly (a reward key opened from the rewards reveal): never pays — no key left → an error, not a paid opening.
+  function openCase(uid, { caseId, count, keyOnly }) {
     const cs = S.CASE_BY_ID[caseId];
     if (!cs) fail('Невідомий кейс');
     const n = int(count ?? 1, 1, 6, 'Кількість');
@@ -718,6 +719,7 @@ export function createGame(db, opts = {}) {
     needSlots(uid, n);
     const k = q('SELECT count FROM keys WHERE user_id = ? AND case_id = ?').get(uid, caseId)?.count || 0;
     if (cs.starter && k < n) fail('Стартовий кейс уже відкрито');
+    if (keyOnly && k < n) fail(`Ключа «${cs.name}» вже немає`);
     const useKeys = Math.min(k, n);
     // Price, odds, hidden boost and fragments as they are right now (case of the day, game events — S.caseDeal).
     const deal = S.caseDeal(cs, dayOf(now()), evFx());
@@ -1036,9 +1038,11 @@ export function createGame(db, opts = {}) {
     const c = paintTarget(uid, carId);
     const id = livery ? String(livery) : null;
     if (id && !S.LIVERY_BY_ID[id]) fail('Невідома ліврея');
+    // A season livery is a pass reward: only for its owner, and free.
+    if (id && S.LIVERY_BY_ID[id].season && !q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(uid, S.LIVERY_BY_ID[id].cos)) fail('Ця ліврея — нагорода сезонного пропуску');
     const cur = S.LIVERY_BY_ID[c.livery] ? c.livery : null;
     if (cur === id) fail(id ? 'Ця ліврея вже на машині' : 'На машині немає лівреї');
-    const price = id ? S.liveryPrice(c.model) : 0;
+    const price = id ? S.liveryPrice(c.model, id) : 0;
     pay(uid, price);
     q('UPDATE cars SET livery = ? WHERE id = ?').run(id, c.id);
     carChanged(c.id);
@@ -2785,7 +2789,15 @@ export function createGame(db, opts = {}) {
       if (garageCount(uid) > userRow(uid).slots) q("UPDATE cars SET status = 'showcase' WHERE id = ?").run(id);
       got.carOut = carOut(carRow(id));
     }
+    if (rw.cosmetic) grantCosmetic(uid, rw.cosmetic);
     return got;
+  }
+  // A season cosmetic (S.cosmeticOf): owned once (a claim); the badge also goes to the profile.
+  function grantCosmetic(uid, id) {
+    const cos = S.cosmeticOf(id);
+    if (!cos) return;
+    q('INSERT OR IGNORE INTO claims (user_id, key) VALUES (?, ?)').run(uid, cos.id);
+    if (cos.kind === 'badge') q('INSERT OR IGNORE INTO badges (user_id, key, title, tier, season, place, created_at) VALUES (?, ?, ?, 1, NULL, NULL, ?)').run(uid, cos.id, `Сезон ${cos.season} · пропуск`, now());
   }
   function dailyClaim(uid) {
     const u = userRow(uid);
@@ -2806,11 +2818,11 @@ export function createGame(db, opts = {}) {
     const u = userRow(uid);
     if (now() < u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3) fail('Кейс нагород ще не готовий');
     q('UPDATE users SET reward_case_at = ? WHERE id = ?').run(now(), uid);
-    const x = rnd();
+    const x = rnd(), o = S.REWARD_CASE_ODDS;
     let rw;
-    if (x < 0.5) rw = { money: Math.round((5000 + rnd() * 20000) * u.level / 1000) * 1000 };
-    else if (x < 0.8) rw = { parts: 1, tier: rnd() < 0.7 ? 'stock' : 'street' };
-    else if (x < 0.92) rw = { fuel: true };
+    if (x < o.money) rw = { money: Math.round((5000 + rnd() * 20000) * u.level / 1000) * 1000 };
+    else if (x < o.money + o.part) rw = { parts: 1, tier: rnd() < 0.7 ? 'stock' : 'street' };
+    else if (x < o.money + o.part + o.fuel) rw = { fuel: true };
     else {
       if (garageCount(uid) >= u.slots) rw = { money: 50000 * u.level };
       else rw = { car: rnd() < 0.85 ? 'D' : 'C' };
@@ -2916,7 +2928,7 @@ export function createGame(db, opts = {}) {
   // Claims every tier reached and not claimed yet — of one achievement, or of all of them.
   function achievementClaim(uid, { key }) {
     let got = 0, tiers = 0;
-    const items = [];
+    const items = [], keys = [];
     for (const s of achievementState(uid)) {
       if (key && s.key !== key) continue;
       const a = S.ACH_BY_KEY[s.key];
@@ -2927,13 +2939,14 @@ export function createGame(db, opts = {}) {
         grant(uid, { ...rw, money: 0 });
         got += rw.money || 0;
         if (rw.caseId || rw.parts || rw.fuel) items.push(S.achRewardText({ ...rw, money: 0 }));
+        if (rw.caseId) keys.push({ caseId: rw.caseId, count: rw.count || 1 });
         tiers++;
         xp(uid, 'task');
       }
     }
     if (!tiers) fail('Немає нових досягнень');
     if (got) addMoney(uid, got);
-    return { got, tiers, items, text: [got ? '+' + S.fmt(got) : '', ...items].filter(Boolean).join(' + ') };
+    return { got, tiers, items, keys, text: [got ? '+' + S.fmt(got) : '', ...items].filter(Boolean).join(' + ') };
   }
 
   // The app polls every 4 s only while it is on screen: a gap of up to PLAY_GAP_MS since the previous poll is time
@@ -3161,6 +3174,7 @@ export function createGame(db, opts = {}) {
     if (rw.secret) {
       const { id } = giveCar(uid, rw.secret);
       if (garageCount(uid) > userRow(uid).slots) q("UPDATE cars SET status = 'showcase' WHERE id = ?").run(id);
+      rw.carOut = carOut(carRow(id));
     }
     return { reward: rw };
   }
@@ -3229,31 +3243,131 @@ export function createGame(db, opts = {}) {
     }
     return { id: cur, endsAt: S.seasonEndOf(cur), xp, level: p.level, levelXp: p.xp, need: p.need, premium, ready, claimed: [...claimed] };
   }
+  // The garage income per hour the pass money scales with (S.passMoneyFor): the same number the garage shows.
+  const passRate = (u) => Math.round(incomeState(u).rate);
   function season(uid) {
     const u = userRow(uid);
     const info = seasonInfo(u);
+    const rate = passRate(u);
     const levels = [];
-    for (let l = 2; l <= S.SEASON.levels; l++) levels.push({ level: l, free: S.passReward(info.id, l, false), premium: S.passReward(info.id, l, true) });
+    for (let l = 2; l <= S.SEASON.levels; l++) levels.push({ level: l, free: S.passReward(info.id, l, false, rate), premium: S.passReward(info.id, l, true, rate) });
     const car = S.passReward(info.id, S.SEASON.levels, true).seasonCar;
-    return { ...info, levels, car };
+    return { ...info, levels, car, rate };
   }
   // Claims every pass reward reached and not yet taken (free track, and premium if bought).
   function passClaim(uid) {
     const u = userRow(uid);
     const info = seasonInfo(u);
+    const rate = passRate(u);
     const got = [];
     for (let l = 2; l <= info.level; l++) {
       for (const tr of info.premium ? ['f', 'p'] : ['f']) {
         const key = `pass:${info.id}:${l}:${tr}`;
         if (info.claimed.includes(key)) continue;
         q('INSERT INTO claims (user_id, key) VALUES (?, ?)').run(uid, key);
-        const rw = S.passReward(info.id, l, tr === 'p');
+        const rw = S.passReward(info.id, l, tr === 'p', rate);
         if (rw.seasonCar && q('SELECT 1 FROM cars WHERE owner_id = ? AND model = ?').get(uid, rw.seasonCar)) continue;
         got.push({ level: l, premium: tr === 'p', ...grant(uid, rw) });
       }
     }
     if (!got.length) fail('Немає нових нагород пропуску');
     return { got, money: got.reduce((n, g) => n + (g.money || 0), 0) };
+  }
+
+  // ---------- rewards center: «Забрати все» (wave E) ----------
+  // Every reward that is ready, in one call: daily bonus, reward case, newbie and daily tasks, the weekly route,
+  // achievements, the season pass, collection and sets. Each part goes through its own claim with its own guard (the
+  // claim row or flag is written before anything is paid), so a second call — a double tap, a second tab — finds
+  // nothing left and pays nothing. A part that fails with a game error (no longer ready) is rolled back to its savepoint
+  // and skipped. Money, parts, fuel and cosmetics land at once; cars and keys come back in `reveal` (in this order), for
+  // the app to show one by one: keys are opened by the app through case/open, so the server rolls them as usual.
+  function rewardsAll(uid) {
+    const snap = () => {
+      const u = userRow(uid);
+      return { bal: u.balance, slots: u.slots, fuel: u.fuel, parts: q('SELECT COALESCE(SUM(count), 0) n FROM parts WHERE user_id = ?').get(uid).n,
+        cos: new Set(q("SELECT key FROM claims WHERE user_id = ? AND key LIKE 'cos:%'").all(uid).map((r) => r.key)) };
+    };
+    const before = snap();
+    const reveal = [], kinds = [];
+    const take = (kind, fn) => {
+      db.exec('SAVEPOINT rewards_all');
+      try {
+        const r = fn();
+        db.exec('RELEASE rewards_all');
+        kinds.push(kind);
+        return r;
+      } catch (e) {
+        db.exec('ROLLBACK TO rewards_all');
+        db.exec('RELEASE rewards_all');
+        if (e instanceof GameError) return null;
+        throw e;
+      }
+    };
+    const key = (caseId, count, title) => {
+      if (caseId && count > 0 && S.CASE_BY_ID[caseId]) reveal.push({ kind: 'key', caseId, count, title });
+    };
+    const car = (out, title, isNew = true) => out && reveal.push({ kind: 'car', car: out, title, isNew });
+    const t = now(), day = dayOf(t), u = userRow(uid);
+    if (u.streak_day !== day) {
+      const r = take('daily', () => dailyClaim(uid));
+      if (r) {
+        const title = `Щоденний бонус · день ${((r.streak - 1) % S.DAILY_BONUS.length) + 1}`;
+        car(r.reward.carOut, title, !!r.reward.isNew);
+        key(r.reward.caseId, r.reward.count || 1, title);
+      }
+    }
+    if (t >= u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3) {
+      const r = take('rcase', () => rewardCase(uid));
+      if (r) reveal.unshift({ kind: 'rcase', reward: r.reward, title: 'Кейс нагород' });
+    }
+    for (let i = 0; i < S.NEWBIE_TASKS.length && newbieState(userRow(uid))?.ready; i++) if (!take('newbie', () => newbieClaim(uid))) break;
+    const qday = ensureQuests(uid);
+    for (const r of q('SELECT key FROM quests WHERE user_id = ? AND day = ? AND claimed = 0 AND progress >= target').all(uid, qday)) take('quest', () => questClaim(uid, { key: r.key }));
+    const week = ensureWeekly(uid);
+    for (const r of q('SELECT key FROM weekly_quests WHERE user_id = ? AND week = ? AND claimed = 0 AND progress >= target').all(uid, week)) {
+      const w = take('weekly', () => weeklyClaim(uid, { key: r.key }));
+      if (w?.newKeys) key(w.caseId, w.newKeys, 'Тижневий маршрут · ключ з фрагментів');
+    }
+    const active = activeDays(uid, week).length;
+    for (const c of S.WEEK_CHEST) {
+      if (active < c.days || q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(uid, chestKey(week, c.days))) continue;
+      const w = take('wchest', () => weeklyChest(uid, { days: c.days }));
+      if (w) key(w.caseId, (w.keys || 0) + (w.newKeys || 0), `Скриня тижня · ${c.days} дн.`);
+    }
+    if (achievementState(uid).some((s) => s.reached > s.claimed)) {
+      const a = take('ach', () => achievementClaim(uid, {}));
+      for (const k of a?.keys || []) key(k.caseId, k.count, 'Досягнення');
+    }
+    if (seasonInfo(userRow(uid)).ready) {
+      const p = take('pass', () => passClaim(uid));
+      for (const g of p?.got || []) {
+        car(g.carOut, `Сезон · рівень ${g.level}${g.premium ? ' · преміум' : ''}`);
+        key(g.caseId, g.count || 1, `Сезон · рівень ${g.level}${g.premium ? ' · преміум' : ''}`);
+      }
+    }
+    const owned = new Set(q('SELECT model FROM collection WHERE user_id = ?').all(uid).map((r) => r.model));
+    const have = new Set(q('SELECT key FROM claims WHERE user_id = ?').all(uid).map((r) => r.key));
+    const regular = [...owned].filter((id) => !S.MODELS[id]?.secret).length;
+    for (const m of S.COLLECTION_MILESTONES) if (regular >= m.n && !S.milestoneTaken(m, have)) take('coll', () => collectionClaim(uid, { key: S.milestoneId(m) }));
+    for (const c of S.MAIN_COUNTRIES) {
+      if (have.has('c' + c) || !S.countryModels(c).every((m) => owned.has(m.id))) continue;
+      const r = take('coll', () => collectionClaim(uid, { key: 'c' + c }));
+      car(r?.reward.carOut, `Колекція «${S.COUNTRIES[c].name}» зібрана`);
+    }
+    for (const s of S.SETS) {
+      if (have.has('set:' + s.id) || !S.setProgress(s, owned).done) continue;
+      const r = take('set', () => setClaim(uid, { id: s.id }));
+      if (r) key(r.reward.caseId, (r.reward.keys || 0) + (r.reward.newKeys || 0), `Сет «${s.name}»`);
+    }
+    if (!kinds.length) fail('Немає нагород, які можна забрати');
+    const after = snap();
+    // The reward case first, then the keys, the cars last (the season car is the finale).
+    const order = { rcase: 0, key: 1, car: 2 };
+    reveal.sort((a, b) => order[a.kind] - order[b.kind]);
+    return {
+      n: kinds.length, kinds, money: after.bal - before.bal, parts: after.parts - before.parts, slots: after.slots - before.slots,
+      fuel: after.fuel > before.fuel, cosmetics: [...after.cos].filter((k) => !before.cos.has(k)).map((k) => S.cosmeticOf(k)?.name).filter(Boolean), reveal,
+    };
   }
   function seasonBoard(uid) {
     const cur = S.seasonOf(now());
@@ -4286,6 +4400,7 @@ export function createGame(db, opts = {}) {
     weekly, 'weekly/claim': weeklyClaim, 'weekly/chest': weeklyChest,
     leaderboard, promo: redeemPromo, events,
     season, 'season/claim': passClaim, shop, 'shop/stars': buyWithStars, feed: dropFeed,
+    'rewards/all': rewardsAll,
     'dream/set': dreamSet,
   };
   // Every call runs in one transaction, settles the weekly race and refreshes the caller's garage value — except the

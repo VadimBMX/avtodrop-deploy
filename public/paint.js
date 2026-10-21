@@ -250,6 +250,23 @@ function liveryLayer(car, kind, num, lightPaint) {
       x.fillStyle = cols[best];
       x.fillRect(gx * cell, gy * cell, cell, cell);
     }
+  } else if (/^szn\d+g?$/.test(kind)) {
+    // Season livery (pass reward): the lower body in the season colour under a neon line, «S<n>» on the door.
+    const gold = kind.endsWith('g'), n = kind.replace(/\D/g, '');
+    const y = top + H * 0.56, t = Math.max(2, H * 0.035);
+    x.fillStyle = gold ? '#c9a227' : '#3b1d7a';
+    x.fillRect(0, y, w, h - y);
+    x.fillStyle = gold ? '#151515' : '#ffc400';
+    x.fillRect(0, y - t, w, t);
+    const cx = (rx + fx) / 2, cy = top + H * 0.42, bw = H * 0.5, bh = H * 0.3;
+    x.fillStyle = gold ? '#151515' : '#ffc400';
+    x.beginPath();
+    x.roundRect ? x.roundRect(cx - bw / 2, cy - bh / 2, bw, bh, bh * 0.22) : x.rect(cx - bw / 2, cy - bh / 2, bw, bh);
+    x.fill();
+    x.fillStyle = gold ? '#e8c34a' : '#1a0f33';
+    x.font = `800 ${Math.round(bh * 0.78)}px "Fira Sans Condensed", Arial, sans-serif`;
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText('S' + n, cx, cy + bh * 0.04);
   } else if (kind === 'fade') {
     // 32 bands instead of a smooth gradient: few distinct colours → one shading table each
     const a = [0xff, 0x5f, 0x1f], b = [0x7b, 0x1f, 0xa2], x0 = meta.x0, x1 = meta.x1, n = 32;

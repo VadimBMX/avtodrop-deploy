@@ -446,10 +446,16 @@ for (const [name, hp, kg, body, country, year, price, ev] of SECRETS) {
 // Season cars: the premium pass's level-30 reward of each season. A livery of a real car (its photo through a paint
 // filter, `img` + `filter`) or its own photo, never in a case. Like a secret car it can't be sold, traded or burned in an upgrade,
 // and it doesn't count in collections; it stays in the garage for good — the proof you were there that season.
+// Season 1: the R34 in its exclusive «Сезон 1» colour (Midnight Purple over the Bayside Blue photo; wave E, audit №7).
 export const SEASON_CARS = [
+  { season: 1, name: 'Nissan Skyline GT-R R34 «Сезон 1»', hp: 600, kg: 1540, body: 'coupe', country: 'JP', year: 2002, price: 150000000,
+    img: 'nissan-skyline-gt-r-r34', filter: 'hue-rotate(42deg) saturate(1.3) brightness(.9)' },
+];
+// Former season prizes: no longer given, kept as models so a car already in a garage stays valid.
+const OLD_SEASON_CARS = [
   { season: 1, name: 'BMW X5 M E70 «Monte Carlo Blue»', hp: 555, kg: 2380, body: 'suv', country: 'DE', year: 2010, price: 150000000 },
 ];
-for (const c of SEASON_CARS) {
+for (const c of [...SEASON_CARS, ...OLD_SEASON_CARS]) {
   const id = slug(c.name);
   MODELS[id] = { id, name: c.name, cls: 'X', hp: c.hp, kg: c.kg, body: c.body, country: c.country, year: c.year, price: c.price, secret: true, season: c.season, img: c.img, filter: c.filter };
   c.id = id;
@@ -1568,18 +1574,32 @@ export const DAILY_BONUS = [
   { parts: 3, tier: 'stock' },
   { money: 40000 },
   { parts: 2, tier: 'street' },
-  { car: 'C', label: 'Машина' },
+  { car: 'C', label: 'Машина C' },
   { money: 120000 },
-  { caseId: 'sport', label: 'Машина зі «Спорткара»', big: true },
+  { caseId: 'sport', label: 'Кейс «Спорткар»', big: true },
   { money: 250000 },
   { parts: 2, tier: 'sport' },
-  { car: 'B', label: 'Машина' },
+  { car: 'B', label: 'Машина B' },
   { money: 500000 },
   { parts: 1, tier: 'pro' },
   { money: 1000000 },
-  { caseId: 'elite', label: 'Машина з «Еліти»', big: true },
+  { caseId: 'elite', label: 'Кейс «Еліта»', big: true },
 ];
+// Classes a case can drop, as "B–S" (the daily bonus says «Кейс «Спорткар» (машина B–S)»: the key opens right away).
+export function caseClassSpan(caseId) {
+  const cls = CLASS_ORDER.filter((c) => CASE_BY_ID[caseId]?.weights[c] > 0);
+  return cls.length > 1 ? `${cls[0]}–${cls[cls.length - 1]}` : cls[0] || '';
+}
+// One day of the daily bonus in words: «Кейс «Спорткар» (машина B–S)», «Машина класу C», «40 000 ₴», «Деталі Street ×2».
+export function dailyText(d) {
+  if (d.caseId) return `Кейс «${CASE_BY_ID[d.caseId].name}» (машина ${caseClassSpan(d.caseId)})`;
+  if (d.car) return `Машина класу ${d.car}`;
+  if (d.parts) return `Деталі ${TIER_BY_ID[d.tier].name} ×${d.parts}`;
+  return fmt(d.money);
+}
 export const REWARD_CASE_HOURS = 4;
+// What the reward case gives (src/game.js rewardCase rolls these shares; the app's 2-second strip draws by them too).
+export const REWARD_CASE_ODDS = { money: 0.5, part: 0.3, fuel: 0.12, car: 0.08 };
 
 // In the order the features open (UNLOCKS, `feature`): level-1 things first, parts at level 2, the plate after level 3.
 // NEWBIE_ORDER_V1 is the order before the ladder — db/game migrate players who were in the middle of it.
@@ -1933,10 +1953,19 @@ export function passLevel(xp) {
   return { level: lvl, xp: left, need: lvl < SEASON.levels ? passXpFor(lvl) : 0 };
 }
 const passMoney = (l) => niceRound(16000 * Math.pow(l, 1.5));
-// Free and premium rewards for each level 2…30 (level 1 is where everyone starts).
-export function passReward(season, lvl, premium) {
+// Money of a level grows with the player's garage: passHours(l) hours of the hourly income (`rate`, capped at
+// SEASON_RATE_CAP), never less than the base curve (45 тис at level 2 → 2,6 млн at 30). A casual garage (≤ 300 тис/год)
+// gets exactly the base; a late one (3,5 млн/год) ~1 h of income per level, 0,3 h at level 2 → 1,5 h at 30.
+export const SEASON_RATE_CAP = 10000000;
+export const passHours = (l) => 0.2 + 0.045 * l;
+export const passMoneyFor = (l, rate = 0) => Math.max(passMoney(l), niceRound(Math.max(1000, Math.min(SEASON_RATE_CAP, rate || 0) * passHours(l))));
+// Free and premium rewards for each level 2…30 (level 1 is where everyone starts). rate: the player's garage income
+// per hour (scales the money); every 5th level of the free track adds a season cosmetic (passCosmetic).
+export function passReward(season, lvl, premium, rate = 0) {
   if (!premium) {
-    const r = { money: passMoney(lvl) };
+    const r = { money: passMoneyFor(lvl, rate) };
+    const cos = passCosmetic(season, lvl);
+    if (cos) r.cosmetic = cos.id;
     if (lvl === 5) r.caseId = 'city';
     if (lvl === 10) Object.assign(r, { caseId: 'sport', slots: 1 });
     if (lvl === 15) Object.assign(r, { parts: 2, tier: 'sport' });
@@ -1951,9 +1980,33 @@ export function passReward(season, lvl, premium) {
   if (lvl === 15) return { caseId: 'sport', count: 2 };
   if (lvl === 20) return { caseId: 'elite' };
   if (lvl === 25) return { caseId: 'elite', count: 2 };
-  if (lvl % 2 === 0) return { money: passMoney(lvl) };
+  if (lvl % 2 === 0) return { money: passMoneyFor(lvl, rate) };
   return { parts: lvl < 10 ? 2 : 1, tier: lvl < 10 ? 'street' : lvl < 20 ? 'sport' : 'pro' };
 }
+// Season cosmetics of the free track (every 5 levels), kept as claims "cos:s<season>:<kind>". Liveries go through the
+// paint shop (free on any own car once earned), the frame goes round the owner's plates, the backdrop behind the
+// showcase, the badge into the profile. Exclusive: nothing else gives them.
+export const PASS_COSMETICS = { 5: 'livery', 10: 'frame', 15: 'showcase', 20: 'gold', 25: 'badge' };
+const COSMETIC_INFO = {
+  livery: { short: 'Ліврея', name: 'Ліврея «Сезон {n}»', icon: 'brush', hint: 'на будь-яку свою машину, безкоштовно' },
+  frame: { short: 'Рамка номера', name: 'Рамка номера «Сезон {n}»', icon: 'license', hint: 'на всіх твоїх номерах' },
+  showcase: { short: 'Фон вітрини', name: 'Фон вітрини «Сезон {n}»', icon: 'building-arch', hint: 'нічний шоурум за твоєю вітриною' },
+  gold: { short: 'Золота ліврея', name: 'Ліврея «Сезон {n} · Золото»', icon: 'brush', hint: 'на будь-яку свою машину, безкоштовно' },
+  badge: { short: 'Значок', name: 'Значок «Сезон {n}»', icon: 'trophy', hint: 'у профілі назавжди' },
+};
+export function cosmeticOf(id) {
+  const m = /^cos:s(\d{1,3}):([a-z]+)$/.exec(String(id || ''));
+  const info = m && COSMETIC_INFO[m[2]];
+  if (!info) return null;
+  const season = Number(m[1]);
+  return { id, season, kind: m[2], ...info, name: info.name.replace('{n}', season), livery: m[2] === 'livery' ? `szn${season}` : m[2] === 'gold' ? `szn${season}g` : null };
+}
+export function passCosmetic(season, lvl) {
+  return PASS_COSMETICS[lvl] ? cosmeticOf(`cos:s${season}:${PASS_COSMETICS[lvl]}`) : null;
+}
+// The cosmetics a player owns (from me.claims) and whether a kind is on for the season shown (the newest one wins).
+export const ownedCosmetics = (claims) => (claims || []).map(cosmeticOf).filter(Boolean);
+export const cosmeticOn = (claims, kind) => ownedCosmetics(claims).filter((c) => c.kind === kind).sort((a, b) => b.season - a.season)[0] || null;
 // Season rating: by season XP. Prizes are stars on the player's account (spent in the shop) and a badge that stays.
 export const SEASON_PRIZES = [500, 250, 250, 50, 50, 50, 50, 50, 50, 50];
 export const SEASON_BADGE_TOP = 100;
@@ -2303,7 +2356,13 @@ export const LIVERY_BY_ID = Object.fromEntries(LIVERIES.map((l) => [l.id, l]));
 export const PAINT = { rate: 0.03, min: 5000, liveryRate: 0.05, liveryMin: 8000 };
 const paintRound = (x) => (x < 1e6 ? Math.round(x / 1000) * 1000 : Math.round(x / 10000) * 10000);
 export const paintPrice = (model) => Math.max(PAINT.min, paintRound((MODELS[model]?.price || 0) * PAINT.rate));
-export const liveryPrice = (model) => Math.max(PAINT.liveryMin, paintRound((MODELS[model]?.price || 0) * PAINT.liveryRate));
+export const liveryPrice = (model, livery = null) => (LIVERY_BY_ID[livery]?.season ? 0 : Math.max(PAINT.liveryMin, paintRound((MODELS[model]?.price || 0) * PAINT.liveryRate)));
+// Season liveries (passCosmetic: levels 5 and 20 of the pass): not on sale, free on any own car once earned (the claim
+// in `cos`). Ids "szn<n>" / "szn<n>g"; public/paint.js draws them with the season number on the door.
+for (let n = 1; n <= 26; n++) {
+  LIVERY_BY_ID['szn' + n] = { id: 'szn' + n, name: `Сезон ${n}`, hint: 'нагорода пропуску', season: n, cos: `cos:s${n}:livery` };
+  LIVERY_BY_ID['szn' + n + 'g'] = { id: 'szn' + n + 'g', name: `Сезон ${n} · Золото`, hint: 'нагорода пропуску', season: n, gold: true, cos: `cos:s${n}:gold` };
+}
 
 // ---------- career: country bosses («Кар'єра») ----------
 // A ladder of named bosses, country by country (Україна → Японія → Німеччина → Китай → США → Британія → Італія). Each
