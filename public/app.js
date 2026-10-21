@@ -1738,11 +1738,16 @@ TABS.race = async () => {
     <div class="h2"><span>Суперники · клас ${cls}</span><span>драг 402 м</span></div>
     <div class="list rivals">${list.map((r) => `<button class="rival d-${r.id}" data-act="startRace" data-rival="${r.id}">
       ${miniCar(r.model)}
-      <div class="grow"><b class="ellipsis">${esc(r.name)}</b><div class="small muted rv-meta"><span class="ellipsis">${esc(M(r.model).name)}</span><span class="nw">· ${r.hp} к.с.</span></div>
-        <div class="row mt" style="gap:6px"><span class="diff ${r.id}">${r.label}</span><span class="chip">шанс ${r.chance < 1 ? '<1' : r.chance}%</span></div></div>
+      <div class="grow"><b class="ellipsis">${esc(r.name)}</b><div class="small muted rv-meta"><span class="ellipsis">${esc(M(r.model).name)}</span><span class="nw">· ${r.hp} к.с.</span></div>${r.driver ? `<div class="tiny muted rv-drv">водій: ${esc(r.driver)}</div>` : ''}
+        <div class="row mt" style="gap:6px"><span class="diff ${r.id}">${r.label}</span>${rivalChanceChip(r)}</div></div>
       <div class="center"><b class="win">+${S.short(r.prize)}</b><div class="tiny muted">${r.entry ? `внесок ${S.short(r.entry)}` : 'без внеску'}</div>${r.et ? `<div class="tiny muted">${dec(r.et, 2)} с</div>` : ''}</div></button>`).join('')}</div>
-    <details class="dr-how"><summary>${ic('info-circle')} Як їздити</summary><div class="tiny muted">Тисни на суперника, щоб почати. Три жовті — чекай; щойно загориться зелений, жми «ГАЗ». Натиснеш до зеленого — фальстарт (−8% потужності). Реакція 0,10–0,15 с — ідеальний старт (+4%). Під час заїзду перемикай передачі, коли стрілка тахометра в зеленій зоні; не встигнеш — передача перемкнеться сама на відсічці, але пізно. Програв — внесок згоряє. Шанс рахується за твоїми останніми заїздами; деталі на машині його піднімають.</div></details>`;
+    <details class="dr-how"><summary>${ic('info-circle')} Як їздити</summary><div class="tiny muted">Тисни на суперника, щоб почати. Три жовті — чекай; щойно загориться зелений, жми «ГАЗ». Натиснеш до зеленого — фальстарт (−8% потужності). Реакція 0,10–0,15 с — ідеальний старт (+4%). Під час заїзду перемикай передачі, коли стрілка тахометра в зеленій зоні; не встигнеш — передача перемкнеться сама на відсічці, але пізно. Програв — внесок згоряє.</div>
+      <div class="tiny muted mt">${RIVAL_HONEST_TEXT}</div></details>`;
 };
+// «Чесний шанс»: the chance chip of a solo rival — or, for an easy rival you'd lose more often than not right now,
+// a plain «важко» instead of a number (S.RACE_FORM.toughBelow).
+const rivalChanceChip = (r) => (r.tough ? '<span class="chip rv-tough">Для тебе зараз: важко — потренуйся</span>' : `<span class="chip">шанс ${r.chance < 1 ? '<1' : r.chance}%</span>`);
+const RIVAL_HONEST_TEXT = `Шанс — за медіаною ${S.RACE_FORM.runs} твоїх останніх заїздів, де ти сам перемикав передачі (заїзди на автопілоті не рахуються; поки таких заїздів мало — як у доброго водія). На Тренуванні й Легкому шанс не нижчий, ніж у звичайного водія, який перемикає передачі (Тренування — щонайменше ${S.CHANCE_FLOOR.train}%). Суперники — справжні машини з їхньою реальною потужністю, а швидкість їм дає водій: від новачка до легенди. Деталі на твоїй машині піднімають шанс.`;
 // Shared fuel: 15 slanted pips like the key fragments; the chosen car's own tank under it.
 function fuelCard(car, extra = '') {
   return `<div class="card fuelcard mt"><div class="row between"><span class="hook-t">${ic('gas-station')} Пальне</span><b class="fuel-n">${me.fuel}<small>/${S.FUEL_MAX}</small></b></div>
@@ -2410,14 +2415,20 @@ function driftMap(track) {
   const [sx, sy] = P(0).split(','), [fx, fy] = P(last).split(',');
   return `<svg class="dmap" viewBox="0 0 ${W} ${Hh}" aria-hidden="true">${out}<circle class="dm-s" cx="${sx}" cy="${sy}" r="4"/><rect class="dm-f" x="${fx - 4}" y="${fy - 4}" width="8" height="8" rx="1"/></svg>`;
 }
+// 1–5 dots for a drift stat (S.driftDots).
+const dDots = (n) => `<span class="ddot5" aria-label="${n} з 5">${'●'.repeat(n)}<i>${'●'.repeat(5 - n)}</i></span>`;
 async function driftView(car, garage) {
-  const { list, model, track: tseed } = await api('drift/rivals', { carId: car.id });
+  const { list, train, model, track: tseed } = await api('drift/rivals', { carId: car.id });
   const track = S.driftTrack(tseed), corners = track.segs.filter((g) => g.kind !== 'straight');
+  const dots = S.driftDots(model);
   return `<div class="h2"><span>Твоя машина</span><span>${garage.length}</span></div>
     <div class="carpick">${garage.map((c) => carTile(c, { act: 'pickRaceCar', sel: c.id === car.id, showTank: true })).join('')}</div>
     <div class="card mt"><div class="row between"><b class="disp" style="font-size:16px">${ic('gas-station')} Пальне ${me.fuel}/${S.FUEL_MAX}</b><span class="small muted">бак машини ${car.tank}/${S.CAR_TANK}</span></div>
-      <div class="row mt" style="gap:8px;flex-wrap:wrap"><span class="chip">зелена зона ±${String(model.half).replace('.', ',')}°</span><span class="chip">занос ${model.turn}°/с</span><span class="chip">вирівнювання ${model.recover}°/с</span><span class="chip">до ${Math.round(model.vmax * 3.6)} км/год</span></div>
-      <div class="tiny muted mt">Підвіска й диски розширюють зелену зону і менше виносять машину. Потужність — більше швидкості й різкіший занос.</div></div>
+      <div class="dfeel mt"><div class="row between"><span>Тримається в повороті</span>${dDots(dots.hold)}</div><div class="row between"><span>Швидкість</span>${dDots(dots.speed)}</div></div>
+      <div class="tiny muted mt">Підвіска й диски — машина краще тримається в повороті. Потужність — більше швидкості, але занос різкіший.</div></div>
+    ${train ? `<div class="card mt dtrain"><div class="row between"><b class="disp" style="font-size:16px">${ic('target-arrow')} Тренування</b><span class="chip ready">безкоштовно</span></div>
+      <div class="small muted mt">Без внеску, без пального й без призу. Над кожним поворотом — підказка: кут і швидкість, а знизу — що робити з газом зараз. Ціль — ${S.fmt(train.target).replace(' ₴', '')} очок, як у Легкого.</div>
+      <button class="btn mt" data-act="startDrift" data-rival="train">${ic('player-play')} Тренуватися</button></div>` : ''}
     <div class="card mt dtcard"><div class="row between"><b class="disp" style="font-size:15px">Траса дня</b><span class="small muted">${track.length} м · ${corners.length} поворотів</span></div>
       ${driftMap(track)}
       <div class="dlegend">${corners.map((g) => `<span class="dk ${g.kind}"><b>${g.corner + 1}</b> ${dArrow(g.dir)} ${DKIND[g.kind]} · ${g.center}°</span>`).join('')}</div></div>
@@ -2439,9 +2450,10 @@ H.startDrift = async (d) => {
   } catch (e) {
     return toast(e.message, true);
   }
-  me.fuel--;
+  const training = r.rival?.id === 'train';
+  if (!training) me.fuel--;
   renderHeader();
-  state.drift = { phase: 'count', ...r, trackObj: S.driftTrack(r.track), result: null };
+  state.drift = { phase: 'count', ...r, training, trackObj: S.driftTrack(r.track), result: null };
   await render();
   runDrift();
 };
@@ -2458,13 +2470,13 @@ function driftScreen() {
       <div class="dsign" id="dSign">ГОТУЙСЯ</div><div class="dmsg" id="dMsg"><b></b><small></small></div><div class="dspd" id="dSpd"></div></div>
     <div class="dgauge"><span class="dz" id="dZone"></span><span class="di" id="dIdeal"></span><span class="dr" style="left:${pct(D.model.spin)}"></span><i id="dNeedle"></i></div>
     <div class="row between tiny muted mt"><span>0°</span><span id="dAngle">кут 0°</span><span>90°</span></div>
-    <div class="center small muted mt" id="dHint">Тримай «ГАЗ», щоб розігнатись</div>
+    <div class="center mt ${D.training ? 'dtip' : 'small muted'}" id="dHint">Тримай «ГАЗ», щоб розігнатись</div>
     <button class="btn racebtn gas mt" id="dGas">ГАЗ</button></div>`;
 }
 // Top-down drift scene on a canvas: the day's track (corners with red-white kerbs, start and finish lines) on a
 // grass pattern, the car sliding at the drift angle and pushed across the road by the line, black tyre marks and
 // smoke puffs (a pre-rendered sprite, no per-frame gradients); the camera follows and turns with the road.
-function driftScene(canvas, color, track) {
+function driftScene(canvas, color, track, tips = false) {
   const ctx = canvas.getContext('2d');
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   const W = canvas.clientWidth, H = canvas.clientHeight;
@@ -2588,6 +2600,32 @@ function driftScene(canvas, color, track) {
       ctx.setLineDash([]);
       if (from <= 2) checker(1);
       if (finishAt >= from && finishAt <= to) checker(finishAt);
+      // Training: a sign on the road at every corner ahead (not the one being driven) — direction, angle, entry speed.
+      if (tips) {
+        for (let s = 0; s < segs.length; s++) {
+          const g = segs[s], at = G.start[s];
+          if (g.kind === 'straight' || g.corner == null || s <= seg || at < from || at > Math.min(to, i + 110)) continue;
+          const txt = `${g.dir > 0 ? '↱' : '↰'} ${g.center}° · до ${Math.round(g.vref * 3.6)} км/год`;
+          ctx.save();
+          ctx.translate(xs[at], ys[at]);
+          // Only where it is fully on screen, clear of the corner name at the top.
+          const tm = ctx.getTransform(), sx = tm.e / dpr, sy = tm.f / dpr;
+          if (sx < 70 || sx > W - 70 || sy < 52 || sy > H - 16) {
+            ctx.restore();
+            continue;
+          }
+          ctx.rotate(camH);
+          ctx.font = '800 14px system-ui, sans-serif';
+          const w = ctx.measureText(txt).width + 16;
+          ctx.fillStyle = '#0b0f16d9';
+          ctx.beginPath(); ctx.roundRect(-w / 2, -12, w, 24, 8); ctx.fill();
+          ctx.fillStyle = { fast: '#38bdf8', mid: '#facc15', hair: '#f87171' }[g.kind] || '#fff';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(txt, 0, 0);
+          ctx.restore();
+        }
+      }
       // All tyre marks in one path.
       ctx.strokeStyle = 'rgba(8,8,10,.42)';
       ctx.lineWidth = 3.5;
@@ -2621,7 +2659,7 @@ function runDrift() {
   const sim = S.driftSim(M2, track, D.seed);
   // The car on the track wears the player's paint (the class colour only for a factory car).
   const look = D.car.look || me.cars.find((c) => c.id === D.car.id)?.look;
-  const scene = driftScene(el('dCanvas'), S.PAINT_BY_ID[look?.paint]?.hex || S.CLASSES[M(D.car.model).cls].color, track);
+  const scene = driftScene(el('dCanvas'), S.PAINT_BY_ID[look?.paint]?.hex || S.CLASSES[M(D.car.model).cls].color, track, !!D.training);
   const dots = [...el('dDots').children];
   // Text and style writes only when the value changes (cheap frames on slow phones).
   const shown = {};
@@ -2756,7 +2794,23 @@ function runDrift() {
     else if (sim.y < -0.75) hint = 'Притискає всередину — трохи менше кута';
     else if (ang < g.center - M2.half) hint = 'Більше газу — заносу мало';
     else hint = 'Тримай занос!';
-    put('dHint', hint);
+    if (!D.training) put('dHint', hint);
+    else {
+      // The same advice, big over the track, with the numbers to aim at.
+      let tip = hint, tone = 'ok';
+      if (g.kind === 'straight') {
+        const nx = segs[sim.seg + 1];
+        if (nx && sim.v > nx.vref * 1.15) (tip = `ВІДПУСТИ ГАЗ — гальмуй до ${Math.round(nx.vref * 3.6)} км/год`, tone = 'stop');
+        else if (nx && sim.v < nx.vref * 0.85) (tip = 'ТРИМАЙ ГАЗ — розганяйся', tone = 'go');
+        else if (nx) tip = `Заходь у поворот: тримай газ, кут ${nx.center}°`;
+      } else if (t >= sim.spinUntil) {
+        if (ang > g.center + M2.half) (tip = 'ВІДПУСТИ — забагато кута!', tone = 'stop');
+        else if (ang < g.center - M2.half) (tip = `ТИСНИ ГАЗ — більше кута (до ${g.center}°)`, tone = 'go');
+        else tip = 'Так тримай — стрілка в зеленій зоні';
+      }
+      put('dHint', tip);
+      put('dHint', tone === 'stop' ? '#f87171' : tone === 'go' ? '#4ade80' : '#facc15', 'color');
+    }
     raf = requestAnimationFrame(frame);
   }
   async function finish() {
@@ -2785,10 +2839,16 @@ function runDrift() {
 function driftResult() {
   const D = state.drift, r = D.result, cs = r.corners || D.local || [];
   const best = Math.max(1, ...cs.map((c) => c.pts));
-  return `<div class="center mt2"><div class="tiny muted">Дрифт</div><div class="big ${r.win ? 'win' : 'lose'}">${r.win ? 'Перемога!' : 'Поразка'}</div>
+  const head = r.training
+    ? `<div class="center mt2"><div class="tiny muted">Дрифт · тренування</div><div class="big ${r.win ? 'win' : ''}">${r.win ? 'Ціль виконано!' : 'Ще трохи'}</div>
+    <div class="dfinal mt">${dPts(r.score)} <span class="muted small">очок</span></div>
+    <div class="muted">ціль тренування: ${dPts(r.target)} · без призу й внеску</div>
+    <div class="small muted mt">${r.win ? 'Так проходиш Легкого суперника — спробуй на гроші.' : 'Дивись, де повороти не чисті, і тримай стрілку в зеленій зоні.'}</div></div>`
+    : `<div class="center mt2"><div class="tiny muted">Дрифт</div><div class="big ${r.win ? 'win' : 'lose'}">${r.win ? 'Перемога!' : 'Поразка'}</div>
     <div class="dfinal mt">${dPts(r.score)} <span class="muted small">очок</span></div>
     <div class="muted">ціль ${esc(r.rival.name)}: ${dPts(r.target)}</div>
-    <div style="font-size:24px;font-weight:900" class="mt ${r.win ? 'win' : 'lose'}">${r.win ? '+' + S.fmt(r.prize) : '−' + S.fmt(r.entry)}</div></div>
+    <div style="font-size:24px;font-weight:900" class="mt ${r.win ? 'win' : 'lose'}">${r.win ? '+' + S.fmt(r.prize) : '−' + S.fmt(r.entry)}</div></div>`;
+  return `${head}
     <div class="dsum mt"><div><b>${r.clean}/${S.DRIFT.corners}</b><small>чистих</small></div><div><b>${dMult(r.maxCombo || 1)}</b><small>макс. комбо</small></div>
       <div><b>${r.spins}</b><small>розворотів</small></div><div><b>${r.wides ?? 0}</b><small>знесло</small></div></div>
     ${cs.length ? `<div class="h2"><span>Повороти</span><span>бали × комбо</span></div>
@@ -2797,9 +2857,15 @@ function driftResult() {
       <div class="grow"><b>${dArrow(c.dir)} ${DKIND[c.kind]} <em>${DGRADE[c.grade][0]}</em></b>
         <div class="tiny muted">у зоні ${c.zone}% · центр ${c.ideal}% · лінія ${c.line}% · ${c.kmh} км/год</div></div>
       <div class="dp"><b>${dPts(c.pts)}</b><small>${c.base}${c.mult > 1 ? ' ' + dMult(c.mult) : ''}</small></div></div>`).join('')}</div>` : ''}
-    <button class="btn yellow mt" data-act="driftAgain" ${me.fuel < 1 ? 'disabled' : ''}>Ще дрифт · пальне ${me.fuel}/${S.FUEL_MAX}</button>
+    ${r.training ? '<button class="btn yellow mt" data-act="driftTrainAgain">Ще тренування</button>'
+      : `<button class="btn yellow mt" data-act="driftAgain" ${me.fuel < 1 ? 'disabled' : ''}>Ще дрифт · пальне ${me.fuel}/${S.FUEL_MAX}</button>`}
     <button class="btn outline mt" data-act="driftExit">До суперників</button>`;
 }
+H.driftTrainAgain = () => {
+  state.drift = null;
+  state.raceView = 'drift';
+  H.startDrift({ rival: 'train' });
+};
 H.driftAgain = H.driftExit = () => {
   state.drift = null;
   state.raceView = 'drift';
@@ -2815,7 +2881,23 @@ H.raceAgain = H.raceExit = () => {
 // bosses (beaten / next / locked as a silhouette). A boss opens as a card (sheet); «Кинути виклик» runs the usual
 // race screen with the boss as the rival (raceScreen / runRace are shared), and the result adds the one-time reward.
 const BOSS = (id) => S.BOSS_BY_ID[id];
-const bossStars = (b) => `<span class="bstars">${'★'.repeat(S.BOSS_AI[b.ai].stars)}<i>${'★'.repeat(4 - S.BOSS_AI[b.ai].stars)}</i></span>`;
+const bossStars = (b) => `<span class="bstars">${'★'.repeat(S.BOSS_AI[b.ai].stars)}<i>${'★'.repeat(Math.max(0, 4 - S.BOSS_AI[b.ai].stars))}</i></span>`;
+// Class window: which of your cars a boss takes; none in the garage → a button for one that does, or a few models.
+// "машина класу C–B" with the window kept on one line.
+const bossNeedHtml = (b) => esc(S.bossNeedText(b)).replace(/([DCBASX])–([DCBASX])/, '<span class="nw">$1–$2</span>');
+const bossGarageFits = (b) => me.cars.filter((c) => c.status === 'garage' && S.bossFits(b, c.model)).sort((x, y) => (y.tank > 0) - (x.tank > 0) || x.et - y.et);
+function bossFitHint(b) {
+  const c = bossGarageFits(b)[0];
+  if (c) return `<button class="btn sm ghost bc-pick" data-act="bossPickCar" data-id="${c.id}" data-boss="${b.id}">${ic('car')} Взяти ${esc(M(c.model).name)}</button>`;
+  return `<div class="tiny muted bc-hint">У гаражі такої немає. Підійде, наприклад: ${S.bossCarHint(b).map((id) => esc(M(id).name)).join(', ')}</div>`;
+}
+H.bossPickCar = async (d) => {
+  state.raceCar = Number(d.id);
+  prefSet('raceCar', state.raceCar);
+  if (!$('#modal').hidden) closeModal();
+  await render();
+  if (d.boss && $('#modal').hidden) H.bossCard({ id: d.boss });
+};
 const bossKit = (b) => (b.kit ? `${S.TIER_BY_ID[b.kit].name}-кіт` : 'без тюнінгу');
 const bossOf = (c) => S.BOSSES.filter((b) => b.country === c);
 async function careerView(car, garage) {
@@ -2839,7 +2921,7 @@ async function careerView(car, garage) {
     <div class="cbar"><i style="width:${(data.beaten / data.total) * 100}%"></i></div>
     <div class="cmap">${map}</div>
     <div class="row between small mt">${data.badge ? badgeChip(data.badge) : '<span class="muted">Перемагай босів по черзі. Останній бос країни дає значок у профіль, ключі й номер.</span>'}</div></div>`;
-  const nextCard = next ? bossFeature(next, st[next.id], car) : `<div class="card boss-next done center">${ic('crown', 'win')}<b class="mt">Кар'єру пройдено!</b><div class="small muted">Усі ${data.total} босів переможені. Реванші — як звичайні гонки.</div></div>`;
+  const nextCard = next ? bossFeature(next, st[next.id], car) : `<div class="card boss-next done center">${ic('crown', 'win')}<b class="mt">Кар'єру пройдено!</b><div class="small muted">Усі ${data.total} босів переможені. Реванші — як звичайні гонки, складні — ×${S.BOSS_HARD.prizeMult} раз на день.</div></div>`;
   return `${hero}
     ${nextCard}
     <div class="h2"><span>Твоя машина</span><span>${garage.length}</span></div>
@@ -2850,7 +2932,7 @@ async function careerView(car, garage) {
       return `<div class="h2" id="cc-${c}"><span class="row" style="gap:8px">${flagEmblem(c)} ${S.COUNTRIES[c].name}</span><span>${bs.filter((b) => st[b.id].beaten).length}/${bs.length}</span></div>
       <div class="list rivals bosses">${bs.map((b) => bossRow(b, st[b.id])).join('')}</div>`;
     }).join('')}
-    <div class="tiny muted">Бос їде завжди однаково — сильніша машина, деталі й чисті перемикання дають тобі шанс. Перша перемога над босом дає нагороду один раз і відкриває наступного; реванш — як звичайна гонка. Пальне — як у драг-заїзді.</div>`;
+    <div class="tiny muted">Бос їде завжди однаково — сильніша машина, деталі й чисті перемикання дають тобі шанс. Кожен бос пускає лише машини свого вікна класу (напр. «лише B» чи «C–B»), а фінальний бос країни — лише машину цієї країни, тож одна сильна машина всю кар'єру не пройде. Перша перемога над босом дає нагороду один раз і відкриває наступного; реванш — як звичайна гонка, а «Реванш · складний» (кращий кіт і сильніший водій) платить ×${S.BOSS_HARD.prizeMult} — одна перемога на день. Пальне — як у драг-заїзді.</div>`;
 }
 const bossChance = (s) => (s.chance == null ? '' : `<span class="chip">шанс ${s.chance < 1 ? '<1' : s.chance}%</span>`);
 function bossFeature(b, s, car) {
@@ -2860,7 +2942,8 @@ function bossFeature(b, s, car) {
     <div class="bn-art">${carArt(b.model, { glow: true })}</div>
     <div class="bn-name"><b>${esc(b.nick)}</b><span class="small muted">${esc(M(b.model).name)} · ${b.hp} к.с. · ${bossKit(b)}</span></div>
     <div class="taunt">«${esc(b.taunt)}»</div>
-    <div class="row between mt" style="gap:8px;flex-wrap:wrap"><span class="small ${s.fits ? 'muted' : 'lose'}">${s.fits ? `Клас ${b.req}+ · бос їде ~${dec(b.et, 2)} с` : `Потрібен клас ${b.req}+`}</span>${bossChance(s)}</div>
+    <div class="row between mt" style="gap:8px;flex-wrap:wrap"><span class="small ${s.fits ? 'muted' : 'lose'}">${s.fits ? `Клас <span class="nw">${S.bossWindowText(b)}</span>${b.own ? ` · ${S.BOSS_COUNTRY_ADJ[b.country]}` : ''} · бос їде ~${dec(b.et, 2)} с` : `Потрібна ${bossNeedHtml(b)}`}</span>${bossChance(s)}</div>
+    ${s.fits ? '' : bossFitHint(b)}
     <div class="row between mt"><span class="small">Нагорода: <b class="win">${esc(S.bossRewardText(b.reward))}</b></span></div>
     <button class="btn yellow mt" data-act="startBoss" data-id="${b.id}" ${!s.fits || me.fuel < 1 || car.tank < 1 ? 'disabled' : ''}>${ic('flag-3')} Кинути виклик</button></div>`;
 }
@@ -2870,7 +2953,7 @@ function bossRow(b, s) {
   return `<button class="rival boss ${s.beaten ? 'beaten' : s.open ? 'open' : 'locked'}" data-act="bossCard" data-id="${b.id}">
     <div class="mini art lit r${S.rankOf(M(b.model).cls)}" style="--c:${S.CLASSES[M(b.model).cls].color}">${carArt(b.model, { silhouette: !s.open })}</div>
     <div class="grow"><b class="ellipsis">${esc(b.nick)}${b.final ? ` ${ic('crown', 'win')}` : ''}</b><div class="small muted rv-meta"><span class="ellipsis">${esc(M(b.model).name)}</span><span class="nw">· ${b.hp} к.с.</span></div>
-      <div class="row mt" style="gap:6px">${tag}${s.open && !s.beaten ? bossChance(s) : ''}</div></div>
+      <div class="row mt" style="gap:6px">${tag}${s.open && !s.beaten ? bossChance(s) : ''}${s.beaten ? (s.hard?.done ? `<span class="chip">${ic('check')} складний сьогодні</span>` : '<span class="chip bs-hard">складний ×2</span>') : ''}</div></div>
     <div class="center">${s.beaten ? `<b class="muted">${s.best != null ? dec(s.best, 2) + ' с' : ''}</b><div class="tiny muted">реванш</div>` : `<b class="win">+${S.short(b.reward.money)}</b><div class="tiny muted">${b.final ? 'і значок' : 'нагорода'}</div>`}</div></button>`;
 }
 H.careerJump = (d) => $('#cc-' + d.c)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -2882,7 +2965,8 @@ H.bossCard = (d) => {
   const m = M(b.model), rank = S.rankOf(m.cls), color = S.CLASSES[m.cls].color;
   const bs = bossOf(b.country), prev = S.BOSSES[b.n - 1];
   const row = (icon, title, sub, right = '') => `<div class="li"><span class="bc-ic">${ic(icon)}</span><div class="grow"><b>${title}</b><div class="small muted">${sub}</div></div>${right}</div>`;
-  const btn = !s.open ? `${ic('lock')} Спершу переможи «${esc(prev.nick)}»` : !s.fits ? `Потрібна машина класу ${b.req}+` : s.beaten ? `${ic('refresh')} Реванш` : `${ic('flag-3')} Кинути виклик`;
+  const btn = !s.open ? `${ic('lock')} Спершу переможи «${esc(prev.nick)}»` : !s.fits ? `Потрібна ${S.bossNeedText(b)}` : s.beaten ? `${ic('refresh')} Реванш` : `${ic('flag-3')} Кинути виклик`;
+  const h = S.bossHard(b), hs = s.hard || {};
   sheet(esc(b.nick), `<div class="boss-card" style="--c:${color}">
     <div class="hero r${rank}" style="--c:${color}"><div class="art">${carArt(b.model, { glow: rank >= 2 && s.open, silhouette: !s.open })}</div></div>
     <div class="center"><div class="small muted row" style="justify-content:center;gap:6px">${flagEmblem(b.country)} ${S.COUNTRIES[b.country].name} · бос ${bs.indexOf(b) + 1} з ${bs.length}${b.final ? ' · фінал' : ''}</div>
@@ -2891,17 +2975,19 @@ H.bossCard = (d) => {
       <div class="small mt">Водій: ${bossStars(b)} ${S.BOSS_AI[b.ai].name}</div></div>
     <div class="taunt big">«${esc(b.taunt)}»</div>
     <div class="list mt">
-      ${row('car', 'Вимога', `машина класу ${b.req} або вище`, s.fits == null ? '' : `<b class="${s.fits ? 'win' : 'lose'}">${s.fits ? ic('check') : '✕'}</b>`)}
+      ${row('car', 'Вимога', `${bossNeedHtml(b)}${b.own ? ' — фінал країни' : ''}${s.fits === false ? bossFitHint(b) : ''}`, s.fits == null ? '' : `<b class="${s.fits ? 'win' : 'lose'}">${s.fits ? ic('check') : '✕'}</b>`)}
       ${s.chance != null && car ? row('target-arrow', 'Твій шанс', `${esc(M(car.model).name)} · ${car.hp} к.с. · ${dec(car.et, 2)} с`, `<b>${s.chance < 1 ? '<1' : s.chance}%</b>`) : ''}
       ${row('trophy', s.beaten ? 'Нагороду отримано' : 'Нагорода за першу перемогу', esc(S.bossRewardText(b.reward)), s.beaten ? `<b class="win">${ic('check')}</b>` : '')}
       ${s.beaten ? row('refresh', 'Реванш', s.prize != null ? `як звичайна гонка: приз +${S.short(s.prize)}, внесок ${S.short(s.entry)}` : 'як звичайна гонка') : row('gas-station', 'Без внеску', 'програш коштує тільки пальне')}
+      ${s.beaten ? row('flame', 'Реванш · складний', `${h.kit ? `${S.TIER_BY_ID[h.kit].name}-кіт` : 'без тюнінгу'} · ${h.hp} к.с. · водій ${S.BOSS_AI[h.ai].name} · ~${dec(h.et, 2)} с<br>${hs.done ? 'Сьогодні вже виграно — завтра знову' : `приз ×${S.BOSS_HARD.prizeMult}${hs.prize != null ? `: +${S.short(hs.prize)}, внесок ${S.short(hs.entry)}` : ''} · перемога раз на день`}`, hs.chance != null && !hs.done ? `<b>${hs.chance < 1 ? '<1' : hs.chance}%</b>` : '') : ''}
     </div>
-    <button class="btn yellow mt" data-act="startBoss" data-id="${b.id}" ${!s.open || !s.fits || me.fuel < 1 ? 'disabled' : ''}>${btn}</button></div>`);
+    <button class="btn yellow mt" data-act="startBoss" data-id="${b.id}" ${!s.open || !s.fits || me.fuel < 1 ? 'disabled' : ''}>${btn}</button>
+    ${s.beaten ? `<button class="btn outline mt bc-hard" data-act="startBoss" data-id="${b.id}" data-hard="1" ${hs.done || !s.fits || me.fuel < 1 ? 'disabled' : ''}>${ic('flame')} Реванш · складний ×${S.BOSS_HARD.prizeMult}</button>` : ''}</div>`);
 };
 H.startBoss = async (d) => {
   let r;
   try {
-    r = await api('boss/start', { carId: state.raceCar, boss: d.id });
+    r = await api('boss/start', { carId: state.raceCar, boss: d.id, hard: d.hard === '1' });
   } catch (e) {
     return toast(e.message, true);
   }
@@ -2918,7 +3004,8 @@ function bossResult() {
   const R = state.race, r = R.result, b = BOSS(R.rival.boss), bo = r.boss || {}, rw = bo.reward;
   const startTxt = r.jump ? 'Фальстарт −8%' : r.perfectStart ? 'Ідеальний старт +4%' : r.reaction >= 1.5 ? 'Пізній старт' : `Реакція ${dec(r.reaction, 3)} с`;
   const amount = bo.first ? '+' + S.fmt(rw.money) : r.win ? (r.prize ? '+' + S.fmt(r.prize) : 'Перемога') : r.entry ? '−' + S.fmt(r.entry) : 'Без внеску';
-  const note = bo.first ? 'бос переможений · нагорода нижче' : r.win ? (r.entry ? `реванш · внесок ${S.short(r.entry)} повернувся` : 'реванш') : r.entry ? 'внесок згорів' : 'програш коштує тільки пальне';
+  const hard = !!R.rival.hard;
+  const note = bo.first ? 'бос переможений · нагорода нижче' : r.win ? (hard ? `складний реванш ×${S.BOSS_HARD.prizeMult} · наступний — завтра` : r.entry ? `реванш · внесок ${S.short(r.entry)} повернувся` : 'реванш') : r.entry ? 'внесок згорів' : 'програш коштує тільки пальне';
   const nx = bo.next ? BOSS(bo.next) : null;
   const reward = bo.first ? `<div class="card boss-reward" style="--c:${S.CLASSES[M(b.model).cls].color}"><div class="hook-t">${ic('crown')} ${esc(b.nick)} переможений!</div>
       <div class="rw-list">
@@ -2930,11 +3017,11 @@ function bossResult() {
         ${rw.badge ? `<div class="rw">${badgeChip({ title: rw.badge, tier: S.BOSS_BADGES[b.country][1] })}<span class="small muted">у профілі</span></div>` : ''}
       </div>
       <div class="small muted mt">${nx ? `Відкрито: <b>${esc(nx.nick)}</b> · ${esc(M(nx.model).name)}${nx.country !== b.country ? ` · нова країна — ${S.COUNTRIES[nx.country].name}!` : ''}` : "Ти пройшов усю кар'єру!"}</div></div>` : !r.win ? `<div class="taunt">${esc(b.nick)}: «${esc(b.taunt)}»</div>` : '';
-  return raceSheetHtml({ tag: `Бос · ${esc(b.nick)}`, win: r.win, diff: r.diff, amount, note,
+  return raceSheetHtml({ tag: `Бос · ${esc(b.nick)}${hard ? ' · складний' : ''}`, win: r.win, diff: r.diff, amount, note,
     rows: [{ who: 'Ти', model: R.car.model, look: R.car.look, time: r.time, won: r.win }, { who: b.nick, model: b.model, time: r.rivalTime, won: !r.win }], start: startTxt, shifts: r.shifts })
     + reward
     + (nx && bo.first ? `<button class="btn yellow" data-act="bossNext" data-id="${nx.id}">Наступний бос: ${esc(nx.nick)}</button>`
-      : `<button class="btn yellow" data-act="bossAgain" data-id="${b.id}" ${me.fuel < 1 ? 'disabled' : ''}>${r.win ? 'Реванш' : 'Ще спроба'} · пальне ${me.fuel}/${S.FUEL_MAX}</button>`)
+      : `<button class="btn yellow" data-act="bossAgain" data-id="${b.id}" ${hard && !r.win ? 'data-hard="1"' : ''} ${me.fuel < 1 ? 'disabled' : ''}>${r.win ? 'Реванш' : hard ? 'Ще спроба · складний' : 'Ще спроба'} · пальне ${me.fuel}/${S.FUEL_MAX}</button>`)
     + `<button class="btn outline mt" data-act="raceExit">До кар'єри</button>`;
 }
 H.bossAgain = (d) => {

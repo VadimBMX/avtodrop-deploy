@@ -210,12 +210,13 @@ test('drift runs (11–15%), career bosses and PvP (both cars) get the cars dirt
   call(u, 'drift/start', { carId: id, rival: st.list[0].id });
   const d1 = car(id).dirt;
   assert.ok(d1 >= S.WASH.drift[0] && d1 <= S.WASH.drift[1], `drift added ${d1}`);
-  const boss = call(u, 'boss/list', { carId: id }).list.find((b) => b.open && b.fits);
-  call(u, 'boss/start', { carId: id, boss: boss.id });
-  const d2 = car(id).dirt - d1;
+  const bid = g.giveCar(u, 'vaz-2107').id; // the first boss races D–C cars only (class windows)
+  const boss = call(u, 'boss/list', { carId: bid }).list.find((b) => b.open && b.fits);
+  call(u, 'boss/start', { carId: bid, boss: boss.id });
+  const d2 = car(bid).dirt;
   assert.ok(d2 >= S.WASH.race[0] && d2 <= S.WASH.race[1] + 0.01, `boss added ${d2}`);
   const { id: pid } = call(u, 'pvp/create', { carId: id, bet: S.PVP_MIN_BET });
   call(v, 'pvp/accept', { id: pid, carId: vid });
-  assert.ok(car(id).dirt - d1 - d2 >= S.WASH.race[0] - 0.01, 'creator car');
+  assert.ok(car(id).dirt - d1 >= S.WASH.race[0] - 0.01, 'creator car');
   assert.ok(car(vid).dirt >= S.WASH.race[0], 'opponent car');
 });

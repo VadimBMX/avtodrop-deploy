@@ -7,6 +7,8 @@ import * as S from '../public/shared.js';
 import { honestDrag } from './race-helpers.js';
 
 const byName = (n) => S.ALL_MODELS.find((m) => m.name === n && !m.secret).id;
+// The quickest stock car a boss takes (class window, own country for a final).
+const fitFor = (b) => S.ALL_MODELS.filter((m) => !m.secret && S.bossFits(b, m.id)).sort((x, y) => S.carStats({ model: x.id }).base - S.carStats({ model: y.id }).base)[0].id;
 function setup(seed = 3) {
   const db = openDb(':memory:');
   let t = Date.parse('2026-10-21T09:00:00Z');
@@ -55,7 +57,7 @@ test('boss: the ladder is real cars in order — every country ends on its final
 
 test('boss: only the first boss is open; each win opens exactly the next one, across countries', () => {
   const { g, race, beat } = setup();
-  const car = g.giveCar(1, byName('Bugatti Chiron Super Sport')).id; // class S: fits every boss
+  const car = g.giveCar(1, fitFor(S.BOSSES[0])).id; // the UA bosses race D–C cars
   let l = g.api['boss/list'](1, { carId: car });
   assert.equal(l.next, S.BOSSES[0].id);
   assert.deepEqual(l.list.filter((x) => x.open).map((x) => x.id), [S.BOSSES[0].id]);
@@ -72,7 +74,7 @@ test('boss: only the first boss is open; each win opens exactly the next one, ac
   const ua = S.BOSSES.filter((b) => b.country === 'UA');
   beat(...ua.slice(0, -1).map((b) => b.id));
   assert.throws(() => g.api['boss/start'](1, { carId: car, boss: S.BOSSES.find((b) => b.country === 'JP').id }), /попереднього боса/);
-  assert.ok(race(car, ua.at(-1).id).res.boss.first);
+  assert.ok(race(g.giveCar(1, fitFor(ua.at(-1))).id, ua.at(-1).id).res.boss.first);
   l = g.api['boss/list'](1, { carId: car });
   const jp = S.BOSSES.filter((b) => b.country === 'JP');
   assert.equal(l.next, jp[0].id);
@@ -120,13 +122,12 @@ test('boss: the first win pays the reward once; rematches pay normal race money,
 
 test('boss: a country final gives two keys of the country case, a plate and one career badge that the next country replaces', () => {
   const { db, g, race, beat } = setup();
-  const car = g.giveCar(1, byName('Bugatti Chiron Super Sport')).id;
   const keys = (cs) => db.prepare('SELECT COALESCE(SUM(count), 0) n FROM keys WHERE user_id = 1 AND case_id = ?').get(cs).n;
   const finals = ['UA', 'JP'].map((c) => S.BOSSES.filter((b) => b.country === c));
   for (const bs of finals) {
     beat(...bs.slice(0, -1).map((b) => b.id));
     const f = bs.at(-1), k0 = keys(f.reward.caseId);
-    const res = race(car, f.id).res;
+    const res = race(g.giveCar(1, fitFor(f)).id, f.id).res;
     assert.ok(res.win && res.boss.first, f.nick);
     assert.equal(keys(f.reward.caseId) - k0, 2);
     const p = db.prepare('SELECT * FROM plates WHERE id = ?').get(res.boss.reward.plate.id);
@@ -143,10 +144,11 @@ test('boss: a country final gives two keys of the country case, a plate and one 
 test('boss: validation — car class, own car, fuel, unknown boss; finished exactly like a solo race (early finish refused, no double finish)', () => {
   const { db, g, race, beat, refuel, advance } = setup();
   const d = g.giveCar(1, byName('ЗАЗ Lanos')).id;
-  const s = g.giveCar(1, byName('Bugatti Chiron Super Sport')).id;
   beat(...S.BOSSES.filter((b) => b.country === 'UA').map((b) => b.id));
   const jp = S.BOSSES.find((b) => b.country === 'JP');
-  assert.throws(() => g.api['boss/start'](1, { carId: d, boss: jp.id }), /класу C або вище/);
+  const s = g.giveCar(1, fitFor(jp)).id;
+  assert.throws(() => g.api['boss/start'](1, { carId: d, boss: jp.id }), /потрібна машина класу C/);
+  assert.throws(() => g.api['boss/start'](1, { carId: g.giveCar(1, byName('Bugatti Chiron Super Sport')).id, boss: jp.id }), /потрібна машина класу C/);
   assert.throws(() => g.api['boss/start'](1, { carId: s, boss: 'nobody' }), /Невідомий бос/);
   g.ensureUser({ id: 2, first_name: 'B' });
   const other = g.giveCar(2, byName('Bugatti Chiron Super Sport')).id;

@@ -3000,8 +3000,7 @@ button.li:active { background-color: #ffffff08; }
   .garage-h .hn-gsum > span { font-size: 12px; }
   .garage-h .hn-gsum b { font-size: 14px; }
 }
-/* ============================================================================================================
-   night wave A (audit §2 №12–13): banners never float over the page, one yellow per screen, battle case picker
+/* =====================================================================================================   night wave A (audit §2 №12–13): banners never float over the page, one yellow per screen, battle case picker
    ============================================================================================================ */
 /* reward banners: a strip at the top of the page that scrolls away with it; only a live invite stays pinned */
 #banners { position: relative; top: auto; }
@@ -3021,3 +3020,19 @@ button.li:active { background-color: #ffffff08; }
 .bpick-p { flex: none; font: 800 17px var(--f-disp); color: var(--text); white-space: nowrap; }
 .dr-btns { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .dr-btns .btn.btn2 > small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+=======
+/* ===== Гонки: чесний шанс і ростер, вікна класу босів, тренування дрифту (only .rv-* / .bs-hard / .bc-* / .dfeel / .ddot5 / .dtrain / .dtip) ===== */
+.rival .chip.rv-tough { background: #3a2a0c; color: #fbbf24; white-space: normal; text-align: left; line-height: 1.25; }
+.rival .rv-drv { margin-top: 1px; }
+.rival .chip.bs-hard { background: #3a1517; color: #ff9a6b; }
+.boss-next .bc-pick, .boss-card .bc-pick { margin-top: 8px; }
+.boss-next .bc-hint { margin-top: 6px; }
+.boss-card .bc-hint { margin-top: 4px; }
+.boss-card .bc-hard { border-color: #7a3a1a; color: #ff9a6b; }
+.dfeel { display: grid; gap: 6px; font-size: 14px; }
+.dfeel .row { align-items: center; }
+.ddot5 { letter-spacing: 3px; color: #facc15; font-size: 14px; white-space: nowrap; }
+.ddot5 i { font-style: normal; color: #3a4150; }
+.dtrain { border: 1px solid #1d4a31; }
+.d2 .dtip { min-height: 38px; padding: 8px 10px; border-radius: 10px; background: #0b0f16; border: 1px solid var(--line);
+  font: 800 15px/1.25 var(--f-disp); color: #facc15; }

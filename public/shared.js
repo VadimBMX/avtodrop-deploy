@@ -1070,7 +1070,7 @@ export function seededRand(seed) {
   return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
 }
 const gauss = (rand) => Math.sqrt(-2 * Math.log(rand() || 1e-9)) * Math.cos(2 * Math.PI * rand());
-export const rivalRun = (rand, r) => humanRun({ base: r.base, shift: r.shift || 0 }, RIVAL_AI, rand);
+export const rivalRun = (rand, r) => humanRun({ base: r.base, shift: r.shift || 0 }, r.ai || RIVAL_AI, rand);
 // One run of driver d in a car with `stats`, scored exactly as the server scores a report (dragReplay + raceTime):
 // every tap aims at the middle of the perfect zone with the driver's noise; a tap after the limiter is a late shift.
 export function humanRun(stats, d, rand) {
@@ -1202,6 +1202,147 @@ export function pickRival(cls, target, { hp, harder = null, rand = Math.random, 
   }
   return quick;
 }
+// ---------- solo drag rivals: an honest roster («чесний ростер», rivals 3) ----------
+// A rival is a real model with a kit a player could build, and the power it shows is that car's own: within
+// RIVAL_HP_DEV of the factory figure (one power part at most; grip, weight and brake parts change no power). The pace a
+// tier needs comes from WHO drives it — a driver of skill 0…1 (rivalDriver: from a novice who reacts late and misses the
+// shift zone, through RIVAL_AI at 0.5, to a legend) — never from invented horsepower. tools/sim-race.mjs prints it.
+export const RIVAL_HP_DEV = 0.1;
+const SKILL_ANCHORS = [
+  [0, { react: [0.6, 0.12], jump: 0.07, sd: 200, bias: 100 }],
+  [0.5, RIVAL_AI],
+  [1, { react: [0.13, 0.015], jump: 0.005, sd: 22, bias: 0 }],
+];
+export function rivalDriver(k) {
+  const x = Math.max(0, Math.min(1, Number(k) || 0)), i = x <= 0.5 ? 0 : 1;
+  const [k0, a] = SKILL_ANCHORS[i], [k1, b] = SKILL_ANCHORS[i + 1], f = (x - k0) / (k1 - k0);
+  const L = (p, q, d = 3) => Math.round((p + (q - p) * f) * 10 ** d) / 10 ** d;
+  return { react: [L(a.react[0], b.react[0]), L(a.react[1], b.react[1])], jump: L(a.jump, b.jump, 4), sd: L(a.sd, b.sd, 1), bias: L(a.bias, b.bias, 1) };
+}
+// What the list says about the driver (the same words as the bosses' drivers: Вуличний = RIVAL_AI).
+export const RIVAL_LEVELS = [[0.25, 'Новачок'], [0.45, 'Аматор'], [0.6, 'Вуличний'], [0.75, 'Профі'], [0.9, 'Ас'], [Infinity, 'Легенда']];
+export const rivalLevel = (k) => RIVAL_LEVELS.find(([x]) => k < x)[1];
+// The skill a tier's driver is looked for around (the car decides the rest): a training rival is a novice-ish driver,
+// a hard one a pro.
+export const RIVAL_SKILL = { train: 0.3, easy: 0.42, mid: 0.55, hard: 0.72 };
+// How much slower than its base driver d runs in a car of this base (rivalOffsets with any driver; same seeds).
+export function driverOffsets(base, d, shift = 0, seed = 7, n = RIVAL_SAMPLES) {
+  const rand = seededRand(seed + Math.round(base * 100));
+  return Array.from({ length: n }, () => humanRun({ base, shift }, d, rand) - base);
+}
+// Samples behind a shown chance: twice RIVAL_SAMPLES (±3 points instead of ±4,5), affordable since they are cached.
+export const CHANCE_SAMPLES = 480;
+// Kits a rival may carry: none, or parts of one tier (class minimum and up) on the grip slots, plus body and brakes,
+// plus one power part whose gain stays within RIVAL_HP_DEV. Never a full set (no set bonus), never a gearbox.
+function rivalKits(model) {
+  const m = MODELS[model], keys = partKeysOf(model), out = [{ kit: null, tier: null, parts: {} }];
+  for (let ti = minTierFor(m.cls); ti < TIERS.length; ti++) {
+    const t = TIERS[ti].id, grip = { suspension: t, wheels: t }, light = { ...grip, body: t, brakes: t };
+    out.push({ kit: 'grip', tier: t, parts: grip }, { kit: 'light', tier: t, parts: light });
+    const pw = keys.filter((k) => PARTS[k].stat === 'hp' && PARTS[k].fx[ti] <= RIVAL_HP_DEV).sort((a, b) => PARTS[b].fx[ti] - PARTS[a].fx[ti])[0];
+    if (pw) out.push({ kit: 'power', tier: t, parts: { ...light, [pw]: t } });
+  }
+  return out;
+}
+const rivalCandCache = {};
+export function rivalCandidates(cls) {
+  if (rivalCandCache[cls]) return rivalCandCache[cls];
+  const out = [];
+  for (const p of rivalPool(cls)) {
+    for (const k of rivalKits(p.model)) {
+      const st = carStats({ model: p.model, parts: k.parts });
+      out.push({ model: p.model, cls: p.cls, kit: k.kit, tier: k.tier, parts: k.parts, hp: st.hp, base: st.base });
+    }
+  }
+  return (rivalCandCache[cls] = out);
+}
+// Rival skill comes in SKILL_LEVELS + 1 steps (0, 0.05 … 1). The run spread of a level in a car of a given base is
+// worked out once and kept (a bounded cache shared by every player: the same cars come up again and again).
+export const SKILL_LEVELS = 20;
+// Cars are picked for drivers up to «Ас» (k 0.8): a legend nearly always gets the perfect start (−1.3% of the base),
+// and a rival that only a legend makes fast would leave your parts nothing to win against. Above it only when no
+// car is quick enough.
+const SKILL_SELECT = 16;
+const levelCache = new Map(), LEVEL_CACHE_MAX = 4000;
+function levelOffsets(base, i) {
+  const key = `${base}|${i}`;
+  let v = levelCache.get(key);
+  if (v) {
+    levelCache.delete(key);
+    levelCache.set(key, v);
+    return v;
+  }
+  v = driverOffsets(base, rivalDriver(i / SKILL_LEVELS), 0, 7, CHANCE_SAMPLES).sort((a, b) => a - b);
+  levelCache.set(key, v);
+  if (levelCache.size > LEVEL_CACHE_MAX) levelCache.delete(levelCache.keys().next().value);
+  return v;
+}
+// Median offsets of the even levels (k 0, 0.1 … 1) for a car of about this base (0.25 s buckets): picks the car and
+// the skill without simulating every candidate.
+function skillCurve(base) {
+  const b = Math.round(base * 4) / 4;
+  return Array.from({ length: SKILL_LEVELS / 2 + 1 }, (_, j) => {
+    const o = levelOffsets(b, 2 * j);
+    return o[o.length >> 1];
+  });
+}
+// The rival for chance p of the reference times `ref` (sorted): `target` is the median time it must run. Every
+// candidate car gets the skill whose median time hits that (the faster the car, the weaker its driver); the best
+// fit wins — own class, the tier's usual skill, more power than yours for a hard rival (less for an easy one), a
+// model not yet in the list, no more parts than needed — then the level nearest to p is found on that very car.
+// Returns { model, parts, kit, tier, hp, base, skill, ai, offsets (sorted), et (median time) }.
+export function pickRivalCar(cls, ref, p, target, { hp, harder = null, skill = 0.55, rand = Math.random, avoid = [] } = {}) {
+  const own = cls === 'X' ? 'S' : cls, med = skillCurve(target), KS = SKILL_SELECT / 2, step = 2 / SKILL_LEVELS;
+  let best = null, bs = Infinity;
+  for (const c of rivalCandidates(cls)) {
+    const need = target - c.base; // the median offset its driver must run
+    let k, off = 0;
+    if (need >= med[0]) ((k = 0), (off = need - med[0]));
+    else if (need <= med[KS]) ((k = KS * step), (off = med[KS] - need));
+    else {
+      let j = 0;
+      while (j < KS && med[j + 1] > need) j++;
+      k = (j + (med[j] - need) / Math.max(1e-9, med[j] - med[j + 1])) * step;
+    }
+    const dk = Math.abs(k - skill);
+    let s = off * 40 + dk * 8 + Math.max(0, dk - 0.25) * 30;
+    if (c.cls !== own) s += 6 + 4 * (CLASS_ORDER.indexOf(c.cls) < CLASS_ORDER.indexOf(own));
+    if (harder != null && (harder ? c.hp <= hp * 1.05 : c.hp >= hp)) s += 3;
+    if (avoid.includes(c.model)) s += 6;
+    if (c.kit) s += 0.4 * ({ grip: 1, light: 2, power: 3 }[c.kit]) + 0.3 * (TIER_BY_ID[c.tier].index - minTierFor(c.cls));
+    s += rand() * 2.5;
+    if (s < bs) ((bs = s), (best = c));
+  }
+  // The level for p on this car: the chance falls as the skill grows (bisection over the levels, the nearer of the two).
+  const chAt = (i) => oddsVs(ref, levelOffsets(best.base, i), best.base);
+  const top = chAt(SKILL_SELECT) <= p ? SKILL_SELECT : SKILL_LEVELS;
+  let lo = 0, hi = top, cl = chAt(0), chh = chAt(top), i;
+  if (cl <= p) i = 0;
+  else if (chh >= p) i = top;
+  else {
+    while (hi - lo > 1) {
+      const m = (lo + hi) >> 1, cm = chAt(m);
+      if (cm > p) ((lo = m), (cl = cm));
+      else ((hi = m), (chh = cm));
+    }
+    i = cl - p <= p - chh ? lo : hi;
+  }
+  const k = i / SKILL_LEVELS, offsets = levelOffsets(best.base, i);
+  return { model: best.model, parts: best.parts, kit: best.kit, tier: best.tier, hp: best.hp, base: best.base, skill: k, ai: rivalDriver(k), offsets,
+    et: Math.round((best.base + offsets[offsets.length >> 1]) * 100) / 100 };
+}
+// The shown chance (race2 «чесний шанс»). A player's form is the median of their last RACE_FORM.runs solo runs in which
+// they shifted themselves at least RACE_FORM.minShifts times (a run left to the limiter — AFK, or a newcomer who hasn't
+// found the button — says nothing about how they drive); with fewer than RACE_FORM.min such runs, a good driver.
+// Floors (CHANCE_FLOOR, %): Training and Easy never show less than this — backed by the real odds of an AVERAGE
+// driver who shifts (the floor is capped by them, so it never promises more than a plain driver gets). An easy rival
+// below RACE_FORM.toughBelow % for you shows «важко — потренуйся» instead of a number.
+export const RACE_FORM = { runs: 10, minShifts: 2, min: 3, toughBelow: 50 };
+export const CHANCE_FLOOR = { train: 85, easy: 70 };
+// The training rival is slow enough for an average driver who shifts to win at least this often (so its 85% floor is
+// true in every class — in a fast car the gap between a good and an average driver is widest).
+export const TRAINING_PLAIN = 0.9;
+export const ownShifts = (shifts) => (Array.isArray(shifts) ? shifts.filter((q) => q && q !== 'late').length : 0);
 // Money per race for a good driver racing a model of this price: ~10k for a 40k car, ~33k at 350k, ~130k at 4M,
 // ~350k at 23M, ~950k at 140M, ~1.45M at 300M — a full tank (15 races) is about one case of the car's class.
 export const raceEv = (value) => 10000 * Math.pow(Math.max(value, 1000) / 40000, 0.56);
@@ -1243,6 +1384,17 @@ export const DRIFT_RIVALS = [
   { id: 'mid', name: 'Середній', share: 0.9 },
   { id: 'hard', name: 'Складний', share: 1.12 },
 ];
+// «Тренування» in drift: free (no entry, no fuel, no prize, no XP or race counters), hints over every corner; its
+// target is the easy rival's share of the par, just to aim at.
+export const DRIFT_TRAIN = { id: 'train', name: 'Тренування', share: 0.73 };
+// The car in plain words, as 1–5 dots: how well it holds a slide (grip widens the green zone and pushes the car out
+// less; lots of power makes the slide sharper) and how fast it goes (top speed).
+export function driftDots(m) {
+  // Grip as a share of what Race suspension and wheels give (+0.34 → 0.76 of driftModel's range).
+  const g = Math.max(0, Math.min(1, (m.half - 12) / 6 / 0.75)), sharp = Math.max(0, Math.min(1, (m.turn - 35) / 60));
+  const dot = (x) => Math.max(1, Math.min(5, 1 + Math.round(4 * x)));
+  return { hold: dot(0.6 * g + 0.4 * (1 - sharp)), speed: dot((m.vmax - 26.5) / 17.5) };
+}
 export function driftModel(stats) {
   const pw = Math.min(1, stats.hp / stats.kg);
   const g = Math.max(0, Math.min(1, (stats.grip - 0.35) / 0.45));
@@ -2433,6 +2585,7 @@ export const BOSS_AI = {
   pro: { name: 'Профі', stars: 2, react: [0.17, 0.05], jump: 0.03, sd: 70, bias: -5 },
   ace: { name: 'Ас', stars: 3, react: [0.15, 0.03], jump: 0.02, sd: 45, bias: 0 },
   legend: { name: 'Легенда', stars: 4, react: [0.135, 0.02], jump: 0.01, sd: 28, bias: 0 },
+  champ: { name: 'Чемпіон', stars: 5, react: [0.125, 0.012], jump: 0.005, sd: 20, bias: 0 }, // «Реванш · складний» only
 };
 // [id, nickname, car name, kit tier (null = no parts), AI, required class, taunt, money, parts {n, tier}]
 const BOSS_RAW = {
@@ -2498,7 +2651,40 @@ for (const c of BOSS_COUNTRIES) {
     BOSSES.push({ id, n: BOSSES.length, country: c, nick, model, kit, ai, req, taunt, final, reward, hp: st.hp, base: st.base, shift: st.shift, et: st.et });
   });
 }
+// Class windows («вікно класу»): a boss races cars from its `req` class up to `max` only — so one strong car can't
+// clear the whole career — and a country's final boss (`own`) only a car of its own country. 'X' = no upper bound.
+export const BOSS_MAX = {
+  'ua-panas': 'C', 'ua-zhora': 'C', 'ua-tolik': 'C', 'ua-general': 'C',
+  'jp-takumi': 'C', 'jp-sensei': 'C', 'jp-ninja': 'B', 'jp-godzilla': 'B',
+  'de-hans': 'B', 'de-bumer': 'B', 'de-emka': 'B', 'de-kaiser': 'A',
+  'cn-li': 'A', 'cn-dragon': 'A', 'cn-emperor': 'S',
+  'us-cowboy': 'A', 'us-tesliar': 'A', 'us-sapphire': 'A', 'us-sheriff': 'S',
+  'gb-lord': 'S', 'gb-agent': 'X', 'gb-volt': 'X', 'gb-king': 'X',
+  'it-toro': 'X', 'it-don': 'X', 'it-maestro': 'X', 'it-boss': 'X',
+};
+for (const b of BOSSES) Object.assign(b, { max: BOSS_MAX[b.id] || 'X', own: b.final });
 export const BOSS_BY_ID = Object.fromEntries(BOSSES.map((b) => [b.id, b]));
+// "лише B", "C–B", "S і вище".
+export const bossWindowText = (b) => (b.max === b.req ? `лише ${b.req}` : b.max === 'X' ? `${b.req} і вище` : `${b.req}–${b.max}`);
+export const BOSS_COUNTRY_ADJ = { UA: 'українська чи радянська', JP: 'японська', DE: 'німецька', CN: 'китайська', US: 'американська', GB: 'британська', IT: 'італійська' };
+// "машина класу C–B" / "японська машина класу C–B".
+export const bossNeedText = (b) => `${b.own ? BOSS_COUNTRY_ADJ[b.country] + ' ' : ''}машина класу ${b.req === b.max ? b.req : bossWindowText(b)}`;
+// A few cars that fit, cheapest first — for a garage with none of them.
+export function bossCarHint(b, n = 3) {
+  return ALL_MODELS.filter((m) => !m.secret && bossFits(b, m.id)).sort((x, y) => x.price - y.price).slice(0, n).map((m) => m.id);
+}
+// «Реванш · складний» (after the first win, once a day per boss): the same boss one parts tier up (no kit → Stock) and
+// one driver level up (a legend becomes a champion), for twice the rematch prize. BOSS_HARD.kit overrides the kit
+// where a tier up would leave no car of the window a chance (tools/boss-ladder.mjs prints the odds).
+export const BOSS_HARD = { prizeMult: 2, kit: { 'us-sheriff': 'pro' } };
+const BOSS_AI_UP = { street: 'pro', pro: 'ace', ace: 'legend', legend: 'champ' };
+const bossHardCache = {};
+export function bossHard(b) {
+  if (bossHardCache[b.id]) return bossHardCache[b.id];
+  const kit = BOSS_HARD.kit[b.id] || (b.kit ? TIERS[Math.min(TIERS.length - 1, TIER_BY_ID[b.kit].index + 1)].id : TIERS[0].id);
+  const st = carStats({ model: b.model, parts: bossKit(b.model, kit) });
+  return (bossHardCache[b.id] = { ...b, hard: true, kit, ai: BOSS_AI_UP[b.ai] || b.ai, hp: st.hp, base: st.base, shift: st.shift, et: st.et });
+}
 // One run of the boss (the server keeps the exact time until the finish, as for any solo rival).
 export const bossRun = (rand, b) => humanRun({ base: b.base, shift: b.shift }, BOSS_AI[b.ai], rand);
 // How much slower than its base the boss runs (like rivalOffsets, with the boss's own driver).
@@ -2506,8 +2692,11 @@ export function bossOffsets(b, seed = 7) {
   const rand = seededRand(seed + Math.round(b.base * 100));
   return Array.from({ length: RIVAL_SAMPLES }, () => bossRun(rand, b) - b.base);
 }
-// A car of the required class or higher (secret and season cars count as above S).
-export const bossFits = (b, model) => rankOf(MODELS[model].cls) >= rankOf(b.req);
+// A car inside the boss's class window (secret and season cars count as above S), of its country for a final.
+export const bossFits = (b, model) => {
+  const m = MODELS[model], r = rankOf(m.cls);
+  return r >= rankOf(b.req) && r <= rankOf(b.max || 'X') && (!b.own || m.country === b.country);
+};
 // Rematch money, as a normal race: priced by the cheaper of your model and the boss's (an overpowered car racing an
 // early boss earns that boss's stakes, not its own), and set so that a GOOD driver in your car as it is (parts
 // count) earns ~0.9 raceEv per race at their chance `p` (raceMoney's formula; `p` clamped to the tier range, so a

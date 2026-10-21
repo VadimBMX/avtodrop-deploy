@@ -1194,25 +1194,50 @@ export function createGame(db, opts = {}) {
 
   // ---------- racing ----------
   function rivalSig(c) {
-    return JSON.stringify([2, c.model, carParts(c.id), carPlate(c.id)?.id || 0]);
+    return JSON.stringify([3, c.model, carParts(c.id), carPlate(c.id)?.id || 0]);
   }
-  // The player's own form for the shown odds: what their last solo races took over their car's base time (at least
-  // 5 races; before that a mix of a good and an average driver). Only the shown chance uses it — how fast the
-  // rivals are never depends on the player's skill.
-  function myTimes(uid, o) {
+  // The player's form (S.RACE_FORM): the median of what their last solo runs with at least two own shifts took over
+  // the car's base time. AFK runs and runs left to the limiter don't count; too few runs → null (a good driver).
+  function myForm(uid) {
     const offs = [];
-    for (const r of q("SELECT rival, result FROM races WHERE user_id = ? AND status = 'done' ORDER BY id DESC LIMIT 30").all(uid)) {
+    for (const r of q("SELECT rival, result FROM races WHERE user_id = ? AND status = 'done' ORDER BY id DESC LIMIT 60").all(uid)) {
       try {
         const rv = JSON.parse(r.rival), res = JSON.parse(r.result);
-        if (rv.me?.base && res.time < 99) offs.push(res.time - rv.me.base);
+        if (!rv.me?.base || !(res.time < 99) || S.ownShifts(res.shifts) < S.RACE_FORM.minShifts) continue;
+        offs.push(res.time - rv.me.base);
       } catch {}
+      if (offs.length >= S.RACE_FORM.runs) break;
     }
-    if (offs.length >= 5) return offs.map((x) => o.base + x).sort((a, b) => a - b);
-    const st = { base: o.base, shift: o.shift };
-    return [...S.driverTimes(st, S.DRIVERS.good, 120), ...S.driverTimes(st, S.DRIVERS.average, 120)].sort((a, b) => a - b);
+    if (offs.length < S.RACE_FORM.min) return null;
+    offs.sort((a, b) => a - b);
+    const n = offs.length;
+    return n % 2 ? offs[n >> 1] : (offs[n / 2 - 1] + offs[n / 2]) / 2;
   }
-  // Rivals (rules in S.OPPONENTS): for every tier the base time that gives a good driver in the reference car
-  // (S.raceRef) the tier's chance, then a real model that runs it (S.pickRival) — its shown power is what it needs.
+  // A driver's times in a car (S.DRIVERS[name], S.CHANCE_SAMPLES runs, sorted): the same car always gives the same
+  // times, so they are kept (bounded). Read-only for callers.
+  const timesCache = new Map();
+  function timesOf(stats, name = 'good') {
+    const key = `${stats.base}|${stats.shift || 0}|${name}`;
+    let v = timesCache.get(key);
+    if (v) return (timesCache.delete(key), timesCache.set(key, v), v);
+    v = S.driverTimes({ base: stats.base, shift: stats.shift || 0 }, S.DRIVERS[name], S.CHANCE_SAMPLES);
+    timesCache.set(key, v);
+    if (timesCache.size > 3000) timesCache.delete(timesCache.keys().next().value);
+    return v;
+  }
+  // The player's times for the shown odds: a good driver's spread in this car, moved so its median is the player's
+  // own form (S.RACE_FORM). Only the shown chance uses it — how fast the rivals are never depends on the player's skill.
+  function myTimes(uid, o) {
+    const good = timesOf(o);
+    const form = myForm(uid);
+    if (form == null) return good;
+    const move = o.base + form - good[good.length >> 1];
+    return good.map((t) => t + move);
+  }
+  // Rivals (rules in S.OPPONENTS): for every tier the pace that gives a good driver in the reference car (S.raceRef)
+  // the tier's chance, then a real car with a real kit and a driver whose skill makes it run that pace (S.pickRivalCar).
+  // The shown chance is the player's own form (myTimes) against that very car and driver, with the floors of
+  // S.CHANCE_FLOOR (capped by an average driver's real odds) and «важко» for an easy rival below RACE_FORM.toughBelow.
   function rivals(uid, { carId }) {
     const c = ownCar(uid, carId);
     const o = carOut(c);
@@ -1230,18 +1255,31 @@ export function createGame(db, opts = {}) {
     const opOf = (id) => tiers.find((op) => op.id === id);
     if (row && row.sig === sig) return { car: o, list: JSON.parse(row.data).map((r) => ({ ...r, ...money(opOf(r.id)) })) };
     const ref = S.raceRef({ model: c.model, parts: carParts(c.id) });
-    const refTimes = S.driverTimes({ base: ref.base, shift: ref.shift });
+    const refTimes = timesOf(ref);
     const refOffsets = S.rivalOffsets(ref.base);
     const mine = myTimes(uid, o);
+    const plain = timesOf(o, 'average');
+    const refMed = refOffsets.slice().sort((a, b) => a - b)[refOffsets.length >> 1];
     const names = [...S.RIVAL_NAMES].sort(() => rnd() - 0.5);
     const used = [c.model];
+    const plainRef = timesOf(ref, 'average');
     const list = tiers.map((op, i) => {
-      const p = op.chance + (rnd() * 2 - 1) * op.spread;
-      const base = round3(S.baseForChance(refTimes, refOffsets, p));
-      const pick = S.pickRival(cls, base, { hp: ref.stock.hp, harder: op.id === 'hard' ? true : op.id === 'mid' ? null : false, rand: rnd, avoid: used });
+      let p = op.chance + (rnd() * 2 - 1) * op.spread;
+      let pace = S.baseForChance(refTimes, refOffsets, p);
+      if (op.id === 'train') {
+        const easy = S.baseForChance(plainRef, refOffsets, S.TRAINING_PLAIN);
+        if (easy > pace) ((pace = easy), (p = S.oddsVs(refTimes, refOffsets, pace)));
+      }
+      const target = pace + refMed;
+      const pick = S.pickRivalCar(cls, refTimes, p, target, { hp: ref.stock.hp, harder: op.id === 'hard' ? true : op.id === 'mid' ? null : false, skill: S.RIVAL_SKILL[op.id], rand: rnd, avoid: used });
       used.push(pick.model);
-      const chance = Math.round(S.oddsVs(mine, S.rivalOffsets(base), base) * 100);
-      return { id: op.id, label: op.name, name: names[i] || 'Інструктор', model: pick.model, hp: pick.hp, tuned: pick.tuned, base, et: Math.round((base + 0.2) * 100) / 100, ...money(op), chance };
+      const base = pick.base;
+      let chance = Math.round(S.oddsVs(mine, pick.offsets, base) * 100);
+      const tough = op.id === 'easy' && chance < S.RACE_FORM.toughBelow;
+      const floor = S.CHANCE_FLOOR[op.id];
+      if (floor && !tough) chance = Math.max(chance, Math.min(floor, Math.round(S.oddsVs(plain, pick.offsets, base) * 100)));
+      return { id: op.id, label: op.name, name: names[i] || 'Інструктор', model: pick.model, hp: pick.hp, tuned: !!pick.kit, kit: pick.kit, tier: pick.tier, parts: pick.parts,
+        base, ai: pick.ai, skill: pick.skill, driver: S.rivalLevel(pick.skill), et: pick.et, ...money(op), chance, ...(tough ? { tough: true } : {}) };
     });
     q('INSERT INTO rivals (user_id, car_id, sig, data) VALUES (?, ?, ?, ?) ON CONFLICT DO UPDATE SET sig = excluded.sig, data = excluded.data').run(uid, c.id, sig, JSON.stringify(list));
     return { car: o, list };
@@ -1272,7 +1310,9 @@ export function createGame(db, opts = {}) {
       return { id: r.id, label: r.name, name: nameAt(parseInt(h.slice(20 + i * 2, 22 + i * 2), 16)),
         model: pool[Math.floor(x * pool.length)]?.id || c.model, target: Math.max(10, Math.round((par * r.share * (0.96 + 0.08 * x)) / 10) * 10), ...money };
     });
-    return { car: o, list, model: S.driftModel(o), track: trackSeed, par };
+    // «Тренування» (S.DRIFT_TRAIN): the same track, free, nothing to win — a target to aim at and hints over the corners.
+    const train = { id: 'train', label: S.DRIFT_TRAIN.name, name: 'Інструктор', model: c.model, target: Math.max(10, Math.round((par * S.DRIFT_TRAIN.share) / 10) * 10), entry: 0, prize: 0, training: true };
+    return { car: o, list, train, model: S.driftModel(o), track: trackSeed, par };
   }
   // Fuel: one from the shared tank and one from the car's own tank (as a drag race).
   function useFuel(uid, c) {
@@ -1299,13 +1339,16 @@ export function createGame(db, opts = {}) {
   }
   function driftStart(uid, { carId, rival }) {
     startLimit(uid, 'drift_runs');
-    const { car, list, model, track: trackSeed } = driftRivals(uid, { carId });
-    const r = list.find((x) => x.id === rival);
+    const { car, list, train, model, track: trackSeed } = driftRivals(uid, { carId });
+    const r = rival === 'train' ? train : list.find((x) => x.id === rival);
     if (!r) fail('Обери суперника');
     const c = carRow(car.id);
-    useFuel(uid, c);
-    pay(uid, r.entry);
-    soil(c, 'drift');
+    // Training costs nothing: no fuel, no entry, the car stays clean.
+    if (!r.training) {
+      useFuel(uid, c);
+      pay(uid, r.entry);
+      soil(c, 'drift');
+    }
     q("UPDATE drift_runs SET status = 'expired' WHERE user_id = ? AND status = 'running'").run(uid);
     // The run token: the seed of the physics noise, the track and the model are fixed here; the finish replays the
     // gas log on them.
@@ -1349,6 +1392,12 @@ export function createGame(db, opts = {}) {
     pts = Math.min(pts, cap);
     if (took > 3 * 60e3) (pts = 0, check = 'timeout');
     const win = pts >= run.target;
+    if (rival.training) {
+      // Training: the score and the corners, nothing paid, no race counted (no XP, quests or weekly tasks).
+      const result = { win, score: pts, target: run.target, prize: 0, entry: 0, clean: cl, spins: sp, ...extra, rival, check, training: true };
+      q("UPDATE drift_runs SET status = 'done', result = ? WHERE id = ?").run(JSON.stringify(result), run.id);
+      return result;
+    }
     if (win) addMoney(uid, run.entry + run.prize);
     const result = { win, score: pts, target: run.target, prize: win ? run.prize : 0, entry: run.entry, clean: cl, spins: sp, ...extra, rival, check };
     q("UPDATE drift_runs SET status = 'done', result = ? WHERE id = ?").run(JSON.stringify(result), run.id);
@@ -1428,7 +1477,7 @@ export function createGame(db, opts = {}) {
     const win = time < rival.time;
     if (win) addMoney(uid, race.entry + race.prize);
     const result = { win, time, rivalTime: rival.time, diff: round3(Math.abs(time - rival.time)), prize: win ? race.prize : 0, entry: race.entry, jump: run.jump, perfectStart: run.perfectStart, reaction: run.reaction, shifts, corrected: run.corrected };
-    if (rival.boss && S.BOSS_BY_ID[rival.boss]) result.boss = bossAfterRace(uid, S.BOSS_BY_ID[rival.boss], result);
+    if (rival.boss && S.BOSS_BY_ID[rival.boss]) result.boss = bossAfterRace(uid, S.BOSS_BY_ID[rival.boss], result, rival);
     q("UPDATE races SET status = 'done', result = ? WHERE id = ?").run(JSON.stringify(result), race.id);
     q('UPDATE users SET races = races + 1, wins = wins + ? WHERE id = ?').run(win ? 1 : 0, uid);
     q('DELETE FROM rivals WHERE user_id = ? AND car_id = ?').run(uid, race.car_id);
@@ -1452,12 +1501,22 @@ export function createGame(db, opts = {}) {
   // one-time reward is the prize); after it, normal race money (S.bossRematch) at a good driver's odds in this car.
   // A boss's pace never changes, so its run spread is worked out once per process.
   const bossOffs = new Map();
-  const bossOffsetsOf = (b) => bossOffs.get(b.id) || (bossOffs.set(b.id, S.bossOffsets(b)), bossOffs.get(b.id));
+  const bossOffsetsOf = (b) => {
+    const key = b.hard ? b.id + ':hard' : b.id;
+    return bossOffs.get(key) || (bossOffs.set(key, S.bossOffsets(b)), bossOffs.get(key));
+  };
   function bossMoney(b, o, beaten, good = S.driverTimes({ base: o.base, shift: o.shift })) {
     if (!beaten) return { entry: 0, prize: 0 };
     const p = S.oddsVs(good, bossOffsetsOf(b), b.base);
     return S.bossRematch(p, Math.min(S.MODELS[o.model].price, S.MODELS[b.model].price));
   }
+  // «Реванш · складний» (S.bossHard): rematch money at the harder boss's odds, the prize × BOSS_HARD.prizeMult; one
+  // win a Kyiv day per boss (a claim «bosshard:<boss>:<day>», written by the win).
+  function bossHardMoney(b, o, good) {
+    const m = bossMoney(S.bossHard(b), o, true, good);
+    return { entry: m.entry, prize: m.prize * S.BOSS_HARD.prizeMult };
+  }
+  const bossHardDone = (uid, b) => !!q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(uid, `bosshard:${b.id}:${dayOf(now())}`);
   function bossList(uid, { carId } = {}) {
     const rows = bossRows(uid);
     const o = carId ? carOut(ownCar(uid, carId)) : null;
@@ -1468,51 +1527,67 @@ export function createGame(db, opts = {}) {
       const r = rows[b.id], open = bossOpen(b, rows), beaten = !!r?.beaten_at;
       if (open && !beaten && !next) next = b.id;
       const out = { id: b.id, open, beaten, tries: r?.tries || 0, wins: r?.wins || 0, best: r?.best ?? null };
+      if (beaten) out.hard = { done: bossHardDone(uid, b) };
       if (o && open) {
+        // A chance only for a race this boss would take (class window, own country for a final).
         out.fits = S.bossFits(b, o.model);
-        out.chance = Math.round(S.oddsVs(mine, bossOffsetsOf(b), b.base) * 100);
+        if (out.fits) out.chance = Math.round(S.oddsVs(mine, bossOffsetsOf(b), b.base) * 100);
         Object.assign(out, bossMoney(b, o, beaten, good));
+        if (beaten) {
+          const hb = S.bossHard(b);
+          if (out.fits) out.hard.chance = Math.round(S.oddsVs(mine, bossOffsetsOf(hb), hb.base) * 100);
+          Object.assign(out.hard, bossHardMoney(b, o, good));
+        }
       }
       return out;
     });
     const beatenN = list.filter((x) => x.beaten).length;
     return { list, next, beaten: beatenN, total: S.BOSSES.length, badge: q("SELECT title, tier FROM badges WHERE user_id = ? AND key = 'boss'").get(uid) || null };
   }
-  function bossStart(uid, { carId, boss }) {
+  function bossStart(uid, { carId, boss, hard }) {
     startLimit(uid, 'races');
     const b = S.BOSS_BY_ID[String(boss)];
     if (!b) fail('Невідомий бос');
     const rows = bossRows(uid);
     if (!bossOpen(b, rows)) fail('Спершу переможи попереднього боса');
+    hard = !!hard;
+    if (hard && !rows[b.id]?.beaten_at) fail('Складний реванш відкривається після першої перемоги');
+    if (hard && bossHardDone(uid, b)) fail('Складний реванш сьогодні вже виграно — приходь завтра');
     const c = ownCar(uid, carId);
     const car = carOut(c);
-    if (!S.bossFits(b, c.model)) fail(`${b.nick} не прийме виклик: потрібна машина класу ${b.req} або вище`);
+    if (!S.bossFits(b, c.model)) fail(`${b.nick} не прийме виклик: потрібна ${S.bossNeedText(b)}`);
     const u = userRow(uid);
     const f = fuelState(u);
     if (f.fuel < 1) fail('Загальний бак порожній — зачекай або відкрий кейс нагород');
     const t = tankState(c);
     if (t.tank < 1) fail('Бак цієї машини порожній — візьми іншу');
     const beaten = !!rows[b.id]?.beaten_at;
-    const money = bossMoney(b, car, beaten);
+    const hb = hard ? S.bossHard(b) : b;
+    const money = hard ? bossHardMoney(b, car) : bossMoney(b, car, beaten);
     q("UPDATE races SET status = 'expired' WHERE user_id = ? AND status = 'running'").run(uid);
     pay(uid, money.entry);
     q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(f.fuel - 1, f.fuel >= S.FUEL_MAX ? now() : f.at, uid);
     q('UPDATE cars SET tank = ?, tank_at = ? WHERE id = ?').run(t.tank - 1, t.tank >= S.CAR_TANK ? now() : t.at, c.id);
     q('INSERT INTO boss_runs (user_id, boss, tries) VALUES (?, ?, 1) ON CONFLICT DO UPDATE SET tries = tries + 1').run(uid, b.id);
     soil(c);
-    const rivalTime = S.bossRun(lcg(Math.floor(rnd() * 2 ** 31)), b);
+    const rivalTime = S.bossRun(lcg(Math.floor(rnd() * 2 ** 31)), hb);
     const greenMs = S.RACE_GREEN[0] + Math.floor(rnd() * (S.RACE_GREEN[1] - S.RACE_GREEN[0]));
-    const r = { id: 'boss', boss: b.id, label: "Бос", name: b.nick, model: b.model, hp: b.hp, base: b.base, shift: b.shift, et: b.et, ...money };
-    const rec = { ...r, time: rivalTime, me: { base: car.base, shift: car.shift }, greenMs };
+    const r = { id: 'boss', boss: b.id, label: "Бос", name: b.nick, model: b.model, hp: hb.hp, base: hb.base, shift: hb.shift, et: hb.et, ...money,
+      ...(hard ? { hard: true, kit: hb.kit, driver: hb.ai } : {}) };
+    const rec = { ...r, time: rivalTime, me: { base: car.base, shift: car.shift }, greenMs, ...(hard ? { day: dayOf(now()) } : {}) };
     const id = Number(q('INSERT INTO races (user_id, car_id, rival, entry, prize, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(uid, c.id, JSON.stringify(rec), money.entry, money.prize, now()).lastInsertRowid);
     return { raceId: id, car, rival: { ...r, time: Math.round(rivalTime * 10) / 10, coarse: true }, greenMs, shiftPoints: S.SHIFT_POINTS };
   }
   // After race/finish of a boss race: counts the win, and the first one pays the reward once (beaten_at is set in the
   // same transaction, guarded by "IS NULL", so a second win — or a replayed finish — can never pay it again).
-  function bossAfterRace(uid, b, result) {
+  function bossAfterRace(uid, b, result, rival = {}) {
     if (result.win) q('UPDATE boss_runs SET wins = wins + 1, best = MIN(COALESCE(best, ?), ?) WHERE user_id = ? AND boss = ?').run(result.time, result.time, uid, b.id);
     const first = result.win && q('UPDATE boss_runs SET beaten_at = ? WHERE user_id = ? AND boss = ? AND beaten_at IS NULL').run(now(), uid, b.id).changes > 0;
     const out = { id: b.id, first };
+    if (rival.hard) {
+      out.hard = true;
+      if (result.win) q('INSERT OR IGNORE INTO claims (user_id, key) VALUES (?, ?)').run(uid, `bosshard:${b.id}:${rival.day || dayOf(now())}`);
+    }
     if (!first) return out;
     const rw = b.reward;
     const got = grant(uid, { money: rw.money, parts: rw.parts, tier: rw.tier, caseId: rw.caseId, count: rw.count });
@@ -4464,7 +4539,7 @@ export function createGame(db, opts = {}) {
     if (q('UPDATE users SET last_seen = ? WHERE id = ? AND (last_seen IS NULL OR last_seen < ?)').run(now(), uid, now() - 15e3).changes) markDay(uid);
     const r = fn(uid, body || {});
     // Weekly tasks counted per finished call (kept out of the handlers themselves).
-    if (WEEKLY_AFTER[k]) track(uid, WEEKLY_AFTER[k]);
+    if (WEEKLY_AFTER[k] && !r?.training) track(uid, WEEKLY_AFTER[k]);
     if (!light) recalc(uid);
     return r;
   })]));

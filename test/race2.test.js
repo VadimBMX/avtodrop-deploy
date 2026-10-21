@@ -23,29 +23,45 @@ const sample = (cls, n) => {
   return Array.from({ length: n }, (_, i) => l[Math.round((i * (l.length - 1)) / Math.max(1, n - 1))]);
 };
 
-test('race2: every rival is a real car whose shown power runs exactly its pace; the hard one is faster than your stock car, the easy one slower', () => {
+test('race2: every rival is a real car with a real kit and its factory power (±10%); a driver\'s skill sets the pace, tiers in order', () => {
   const { g, fresh } = setup();
-  let hpUp = 0, n = 0;
+  let hpUp = 0, hpDown = 0, n = 0;
   for (const m of regular) {
     const carId = g.giveCar(1, m.id).id;
     const own = S.carStats({ model: m.id });
     const r = byId(fresh(carId));
     assert.deepEqual(Object.keys(r), ['train', 'easy', 'mid', 'hard']);
+    const good = S.driverTimes({ base: own.base, shift: own.shift });
+    const odds = {};
     for (const x of Object.values(r)) {
       const rm = S.MODELS[x.model];
       assert.ok(rm && !rm.secret, `${m.name}: ${x.model}`);
       assert.ok(Math.abs(S.CLASS_ORDER.indexOf(rm.cls) - S.CLASS_ORDER.indexOf(m.cls)) <= 1, `${m.name} vs ${rm.name}: a neighbouring class at most`);
-      const need = S.hpForBase(rm.kg, x.base, x.hp);
-      assert.ok((need != null && Math.abs(need - x.hp) <= 0.5) || (need == null && x.tuned), `${m.name}: ${rm.name} shows ${x.hp} hp, needs ${need} for ${x.base}`);
-      assert.equal(x.et, Math.round((x.base + 0.2) * 100) / 100);
+      // The shown power and pace are exactly that model with that kit; the power is the factory figure ±10%.
+      const st = S.carStats({ model: x.model, parts: x.parts });
+      assert.equal(x.hp, st.hp, `${m.name}: ${rm.name}`);
+      assert.equal(x.base, st.base);
+      assert.ok(Math.abs(x.hp - rm.hp) <= rm.hp * S.RIVAL_HP_DEV + 1, `${m.name}: ${rm.name} shows ${x.hp} hp, factory ${rm.hp}`);
+      assert.ok(!x.parts.gearbox && !x.parts.reducer && !S.hasSet({ model: x.model, parts: x.parts }), 'no gearbox, never a full set');
+      for (const [k, t] of Object.entries(x.parts)) assert.ok(S.partFits(x.model, k) && S.TIER_BY_ID[t].index >= S.minTierFor(rm.cls), `${rm.name}: ${k} ${t}`);
+      // The driver is one of the skill levels, named in the list; its time is the median of its runs in that car.
+      assert.ok(x.skill >= 0 && x.skill <= 1 && Number.isInteger(Math.round(x.skill * S.SKILL_LEVELS * 1e6) / 1e6));
+      assert.deepEqual(x.ai, S.rivalDriver(x.skill));
+      assert.equal(x.driver, S.rivalLevel(x.skill));
+      const offs = S.driverOffsets(x.base, x.ai, 0, 7, S.CHANCE_SAMPLES).sort((a, b) => a - b);
+      assert.equal(x.et, Math.round((x.base + offs[offs.length >> 1]) * 100) / 100);
+      odds[x.id] = S.oddsVs(good, offs, x.base);
     }
-    assert.ok(r.hard.base < own.base, `${m.name}: hard rival ${r.hard.base} must be faster than ${own.base}`);
-    assert.ok(r.easy.base > own.base && r.train.base > r.easy.base, `${m.name}: easy/training slower`);
-    assert.ok(r.train.base > r.easy.base && r.easy.base > r.mid.base && r.mid.base > r.hard.base, `${m.name}: tiers in order`);
+    // Tiers in order for a good driver in your car as it leaves the factory: the hard rival is the favourite.
+    assert.ok(odds.train > odds.easy && odds.easy > odds.mid && odds.mid > odds.hard, `${m.name}: ${JSON.stringify(odds)}`);
+    assert.ok(odds.easy > 0.75 && odds.hard < 0.4, `${m.name}: easy ${odds.easy}, hard ${odds.hard}`);
     if (r.hard.hp > own.hp) hpUp++;
+    if (r.easy.hp <= own.hp * 1.1) hpDown++;
     n++;
   }
-  assert.ok(hpUp / n >= 0.9, `a hard rival shows more power than your car (${hpUp}/${n})`);
+  // The list reads right most of the time: a hard rival shows more power than your car, an easy one not much more.
+  assert.ok(hpUp / n >= 0.75, `a hard rival shows more power than your car (${hpUp}/${n})`);
+  assert.ok(hpDown / n >= 0.75, `an easy rival shows no more power than yours (${hpDown}/${n})`);
 });
 
 test('race2: a good driver in a stock car wins the easy rival ~90%, the medium ~55%, the hard ~22% (every class, real server runs)', () => {
