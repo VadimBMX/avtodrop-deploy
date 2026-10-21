@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import * as S from '../public/shared.js';
+import * as T from '../public/tune.js';
 
 export class GameError extends Error {}
 const fail = (msg) => {
@@ -325,7 +326,7 @@ export function createGame(db, opts = {}) {
   // API calls that start or make a locked action. Reads, cancels, cash-outs and finishing a started run stay open,
   // so nothing is ever stuck (a listing can be withdrawn, a running crash or mines game cashed out).
   const GATES = {
-    'parts/open': 'parts', 'parts/merge': 'parts', 'parts/install': 'parts',
+    'parts/open': 'parts', 'parts/merge': 'parts', 'parts/install': 'parts', 'parts/install-best': 'parts',
     'drift/rivals': 'drift', 'drift/start': 'drift',
     'plate/generate': 'plates', 'plate/attach': 'plates',
     'car/paint': 'paint', 'car/livery': 'paint',
@@ -884,12 +885,13 @@ export function createGame(db, opts = {}) {
   function openParts(uid, { caseId, type, count }) {
     const pc = S.PART_CASE_BY_ID[caseId];
     if (!pc) fail('Невідомий кейс');
-    const wait = (partOpenedAt.get(uid) || 0) + partCooldown - now();
-    if (wait > 0) fail(`Зачекай ${Math.ceil(wait / 1000)} с перед наступним відкриттям`);
     if (type != null && !S.PART_KEYS.includes(type)) fail('Невідома деталь');
     if (type && pc.randomOnly) fail('У цьому кейсі лише випадкові деталі');
     const n = int(count ?? 1, 1, 10, 'Кількість');
     if (![1, 3, 5, 10].includes(n)) fail('Можна відкрити 1, 3, 5 або 10');
+    // The pause is for ×1 only (its reel plays meanwhile); ×3/×5/×10 open at once and show one combined reveal.
+    const wait = n === 1 ? (partOpenedAt.get(uid) || 0) + partCooldown - now() : 0;
+    if (wait > 0) fail(`Зачекай ${Math.ceil(wait / 1000)} с перед наступним відкриттям`);
     const price = Math.round(pc.price * (type ? 1 + S.PICK_PART_EXTRA : 1) / 100) * 100;
     pay(uid, price * n);
     const tiers = Object.entries(pc.weights);
@@ -908,8 +910,9 @@ export function createGame(db, opts = {}) {
     xp(uid, 'case', n);
     track(uid, 'parts', n);
     flag(uid, 'part_case');
-    partOpenedAt.set(uid, now());
-    return { results, price: price * n, nextAt: now() + partCooldown };
+    if (n === 1) partOpenedAt.set(uid, now());
+    // nextAt: when the next ×1 may open (a multi-open doesn't move it).
+    return { results, price: price * n, nextAt: Math.max(now(), (partOpenedAt.get(uid) || 0) + partCooldown) };
   }
   function merge(uid, { type, tier }) {
     if (!S.PART_KEYS.includes(type) || !S.TIER_BY_ID[tier]) fail('Невідома деталь');
@@ -963,6 +966,49 @@ export function createGame(db, opts = {}) {
     coolPart(uid, type, old.tier);
     carChanged(c.id);
     return { car: carOut(carRow(c.id)) };
+  }
+  // «Встановити найкраще»: the fastest kit for this car from its slots and the free pieces on the warehouse (T.bestTune,
+  // the same count the app previews). Swapped-out parts go back to the warehouse and cool down like any removed part.
+  // Returns the changes [{ type, from, to, dt }] and the time before/after (T.tuneTime, s).
+  function installBest(uid, { carId }) {
+    const c = ownCar(uid, carId, ['garage', 'showcase']);
+    const plan = T.bestTune({ model: c.model, parts: carParts(c.id) }, inventory(uid));
+    if (plan.changes.length) {
+      bank(uid);
+      for (const ch of plan.changes) {
+        if (ch.to) {
+          takePart(uid, ch.type, ch.to);
+          q('INSERT INTO car_parts (car_id, type, tier) VALUES (?, ?, ?) ON CONFLICT DO UPDATE SET tier = excluded.tier').run(c.id, ch.type, ch.to);
+        } else q('DELETE FROM car_parts WHERE car_id = ? AND type = ?').run(c.id, ch.type);
+        if (ch.from) coolPart(uid, ch.type, ch.from);
+      }
+      carChanged(c.id);
+      const put = plan.changes.filter((ch) => ch.to).length;
+      if (put) xp(uid, 'install', put), flag(uid, 'install');
+    }
+    return { car: carOut(carRow(c.id)), changes: plan.changes, before: plan.before, after: plan.after, dt: plan.dt };
+  }
+  // «Продати непотрібні»: the pieces no car of the player needs (T.junkParts over every car they own) at the usual
+  // dealer rate. items: what the app showed in its confirm; only those still unneeded are sold, at most that many.
+  function sellJunk(uid, { items }) {
+    if (!Array.isArray(items) || !items.length || items.length > 200) fail('Немає що продати');
+    const cars = q('SELECT id, model FROM cars WHERE owner_id = ?').all(uid).map((c) => ({ model: c.model, parts: carParts(c.id) }));
+    const junk = T.junkParts(cars, inventory(uid));
+    let got = 0, count = 0;
+    const sold = [];
+    for (const it of items) {
+      const j = junk.find((p) => p.type === it?.type && p.tier === it?.tier && p.count > 0);
+      if (!j) continue;
+      const n = Math.min(j.count, int(it.count ?? j.count, 1, 10000, 'Кількість'));
+      takePart(uid, j.type, j.tier, n);
+      j.count -= n;
+      got += Math.floor(S.TIER_BY_ID[j.tier].price * S.PART_SELL_RATE) * n;
+      count += n;
+      sold.push({ type: j.type, tier: j.tier, count: n });
+    }
+    if (!count) fail('Ці деталі вже не зайві — онови склад');
+    addMoney(uid, got);
+    return { got, count, sold };
   }
 
   // ---------- paint shop (S.PAINT_COLORS / S.LIVERIES) ----------
@@ -4212,7 +4258,7 @@ export function createGame(db, opts = {}) {
     'wash/hand': washHand, 'wash/auto': washAuto,
     'case/open': openCase, 'case/history': dropHistory,
     'fair/seed': setClientSeed, 'fair/rotate': rotateSeed, 'fair/revealed': revealedSeeds,
-    'parts/open': openParts, 'parts/merge': merge, 'parts/sell': sellParts, 'parts/install': install, 'parts/uninstall': uninstall,
+    'parts/open': openParts, 'parts/merge': merge, 'parts/sell': sellParts, 'parts/install': install, 'parts/uninstall': uninstall, 'parts/install-best': installBest, 'parts/sell-junk': sellJunk,
     'plate/generate': generatePlate, 'plate/attach': attachPlate, 'plate/detach': detachPlate, 'plate/sell': sellPlate,
     'race/rivals': rivals, 'race/start': raceStart, 'race/finish': raceFinish,
     'boss/list': bossList, 'boss/start': bossStart,

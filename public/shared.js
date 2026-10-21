@@ -695,7 +695,7 @@ export function partEffect(type, tier) {
   if (p.stat === 'kg') return `−${Math.round(v * 100)}% ваги`;
   if (p.stat === 'grip') return `+${Math.round(v * 100)} до зчеплення`;
   if (p.stat === 'shift') return `−${Math.round(v * 100)}% втрат на перемиканні`;
-  return `−${(v * 100).toFixed(1)}% часу`;
+  return `−${(v * 100).toFixed(1).replace('.', ',')}% часу`;
 }
 export const PART_CASES = [
   { id: 'scrap', name: 'Розбірка', icon: 'tool', weights: { stock: 85, street: 14, sport: 1 } },

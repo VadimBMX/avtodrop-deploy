@@ -1,4 +1,6 @@
 import * as S from './shared.js';
+// Workshop maths: a part's real effect on the 402 m time, «Встановити найкраще», parts no car needs.
+import * as T from './tune.js';
 import { carArt, setImages } from './car.js';
 // Painted cars get their recoloured photo once the picture is in the page.
 import * as PAINT from './paint.js';
@@ -901,7 +903,7 @@ function pickCar(title, onPick, filter = (c) => c.status === 'garage', back = nu
 }
 
 // ---------- car sheet ----------
-function carSheet(id) {
+function carSheet(id, best = null) {
   const c = me.cars.find((x) => x.id === Number(id));
   if (!c) return closeModal();
   const m = M(c.model);
@@ -922,10 +924,12 @@ function carSheet(id) {
       ${PAINT.canPaint(c.model) || c.look ? `<button class="li" data-act="carPaint" data-id="${c.id}"><span class="ic">${ic('palette')}</span><div class="grow"><b>Фарбування</b><div class="small muted">${c.look ? [S.PAINT_BY_ID[c.look.paint]?.name, S.LIVERY_BY_ID[c.look.livery] && 'ліврея «' + S.LIVERY_BY_ID[c.look.livery].name + '»'].filter(Boolean).join(' · ') : 'заводський колір'}</div></div>${c.look?.paint ? `<span class="sw-dot ${S.PAINT_BY_ID[c.look.paint].finish}" style="--sw:${S.PAINT_BY_ID[c.look.paint].hex}"></span>` : '<span class="chev">›</span>'}</button>` : ''}
     </div>
     <div class="h2 tune-h"><span>Тюнінг <b>${partCount(c)}</b>/${partSlots(c)}</span><span>${isOpen('parts') ? '' : lockChip('parts') + ' '}${m.ev ? `${ic('bolt')} електро · ` : ''}деталі від ${S.TIERS[minTier].name}</span></div>
+    ${isOpen('parts') ? tuneBest(c, best) : ''}
     <div class="tune">${S.partKeysOf(c.model).map((k) => {
       const t = c.parts[k];
-      return `<button class="ptile ${t ? 'on' : 'empty'}" data-act="carSlot" data-id="${c.id}" data-type="${k}" ${t ? `style="--c:${S.CLASSES[tierCls(t)].color}"` : ''}>${partArt(k, t, t ? 'sm' : 'sm empty')}
-        <span class="ptile-tx"><b>${S.PARTS[k].name}</b><span>${t ? S.partEffect(k, t) : S.PARTS[k].hint}</span></span>
+      const tdt = isOpen('parts') ? tileDt(c, k) : '';
+      return `<button class="ptile ${t ? 'on' : 'empty'}${tdt.includes('spin') ? ' spin' : ''}" data-act="carSlot" data-id="${c.id}" data-type="${k}" ${t ? `style="--c:${S.CLASSES[tierCls(t)].color}"` : ''}>${partArt(k, t, t ? 'sm' : 'sm empty')}
+        <span class="ptile-tx"><b>${S.PARTS[k].name}</b><span>${t ? S.partEffect(k, t) : S.PARTS[k].hint}</span>${tdt}</span>
         ${t ? `<span class="ptile-tier">${clsBadge(tierCls(t))}${S.TIER_BY_ID[t].name}</span>` : `<span class="ptile-add">${ic('plus')}</span>`}</button>`;
     }).join('')}</div>
     ${c.status === 'garage' ? `<div class="btns"><button class="btn yellow" data-act="raceWith" data-id="${c.id}">${ic('flag-3')} Гонка</button>${m.secret ? '' : `<button class="btn ghost" data-act="carSellMenu" data-id="${c.id}">${ic('cash')} Продати</button>`}</div>
@@ -950,13 +954,16 @@ H.carSlot = (d) => {
   const type = d.type;
   const minTier = S.minTierFor(M(c.model).cls);
   const cur = c.parts[type];
-  const inv = me.parts.filter((p) => p.type === type).sort((a, b) => S.TIER_BY_ID[b.tier].index - S.TIER_BY_ID[a.tier].index);
+  // Most useful for this car first (its real effect on the time), then the higher tier.
+  const gainOf = (p) => (S.TIER_BY_ID[p.tier].index >= minTier ? T.partGain(c, type, p.tier) : null);
+  const inv = me.parts.filter((p) => p.type === type).map((p) => ({ ...p, g: gainOf(p) }))
+    .sort((a, b) => (a.g?.dt ?? 9) - (b.g?.dt ?? 9) || S.TIER_BY_ID[b.tier].index - S.TIER_BY_ID[a.tier].index);
   sheet(S.PARTS[type].name, `
-    ${cur ? `<div class="h2"><span>Встановлено</span></div><div class="list"><div class="li">${partArt(type, cur, 'sm')}<div class="grow"><b>${S.partLabel(type, cur)}</b><div class="small muted">${S.partEffect(type, cur)} · +${S.short(S.TIER_BY_ID[cur].price)}</div></div><button class="btn sm ghost" data-act="uninstall" data-id="${c.id}" data-type="${type}">Зняти</button></div></div>` : ''}
+    ${cur ? `<div class="h2"><span>Встановлено</span></div><div class="list"><div class="li">${partArt(type, cur, 'sm')}<div class="grow"><b>${S.partLabel(type, cur)}</b><div class="small muted">${S.partEffect(type, cur)} · +${S.short(S.TIER_BY_ID[cur].price)}</div>${shareLine(c, type)}</div><button class="btn sm ghost" data-act="uninstall" data-id="${c.id}" data-type="${type}">Зняти</button></div></div>` : ''}
     <div class="h2"><span>На складі</span></div>
     ${inv.length ? `<div class="list">${inv.map((p) => {
       const ok = S.TIER_BY_ID[p.tier].index >= minTier;
-      return `<div class="li">${partArt(type, p.tier, 'sm')}<div class="grow"><b>${S.partLabel(type, p.tier)} × ${p.count}</b><div class="small muted">${S.partEffect(type, p.tier)} · +${S.short(S.TIER_BY_ID[p.tier].price)}${p.cooling ? ` · остигає: ${p.cooling}` : ''}</div></div>
+      return `<div class="li">${partArt(type, p.tier, 'sm')}<div class="grow"><b>${S.partLabel(type, p.tier)} × ${p.count}</b><div class="small muted">${S.partEffect(type, p.tier)} · +${S.short(S.TIER_BY_ID[p.tier].price)}${p.cooling ? ` · остигає: ${p.cooling}` : ''}</div>${p.g ? dtLine(p.g, type) : ''}</div>
         <button class="btn sm" data-act="install" data-id="${c.id}" data-type="${type}" data-tier="${p.tier}" ${ok && p.available ? '' : 'disabled'}>${ok ? (cur ? 'Замінити' : 'Встановити') : 'Не підходить'}</button></div>`;
     }).join('')}</div>` : emptyBox('tool', 'Немає деталей цього типу', 'Вибий їх у кейсах майстерні', `<button class="btn sm" data-act="toPartCases" data-type="${type}">До кейсів з деталями</button>`)}
     <div class="tiny muted">Підходять деталі не нижче класу машини. Знята деталь ${S.PART_COOLDOWN_MIN} хв «остигає» — її не можна поставити чи злити.</div>`, () => carSheet(c.id));
@@ -975,6 +982,150 @@ H.toPartCases = (d) => {
   state.partType = d.type;
   closeModal();
   render();
+};
+
+// ---------- workshop without grind (public/tune.js) ----------
+// What a part really does to a car's 402 m time (T.partGain / T.partShare), «Встановити найкраще» (T.bestTune — the
+// same count the server runs), «Поставити на …» from a drop or the warehouse, «Продати непотрібні» (T.junkParts).
+const spinText = (type) => `${S.PARTS[type].stat === 'kg' ? 'Легша, але' : 'Більше к.с., але'} колеса буксують`;
+// A part's effect as a line: green — faster; orange — the wheels spin, so the car is slower; grey — a downgrade or ~0.
+function dtLine(g, type) {
+  const st = S.PARTS[type].stat;
+  if (g.spin) return `<div class="dt spin">${ic('flame')}${spinText(type)}: ${T.fmtDt(g.dt)}</div>`;
+  if (g.same) return '<div class="dt">така сама вже стоїть</div>';
+  if (g.dt <= -T.TUNE_EPS) return `<div class="dt win">${T.fmtDt(g.dt)} на 402 м</div>`;
+  if (g.worse) return `<div class="dt">гірша за встановлену: ${T.fmtDt(g.dt)}</div>`;
+  if (g.dt >= T.TUNE_EPS) return `<div class="dt">повільніше: ${T.fmtDt(g.dt)}</div>`;
+  return `<div class="dt">≈0 с: ${st === 'grip' ? 'машина й так не буксує' : st === 'shift' ? 'у повільній машині перемикання майже не важать' : 'майже нічого не дає'}</div>`;
+}
+// What the installed part gives the car now.
+function shareLine(c, type) {
+  const s = T.partShare(c, type);
+  if (!s) return '';
+  if (s.spin) return `<div class="dt spin">${ic('flame')}${spinText(type)}: через неї ${T.fmtDt(s.dt)}. Зніми її або постав підвіску й шини.</div>`;
+  return s.dt <= -T.TUNE_EPS ? `<div class="dt win">дає ${T.fmtDt(s.dt)} на 402 м</div>` : '<div class="dt">≈0 с на цій машині</div>';
+}
+// Under a tuning tile: what the installed part gives (orange if it slows the car), or what the warehouse could add.
+function tileDt(c, k) {
+  if (c.status === 'market' || c.status === 'auction') return '';
+  if (c.parts[k]) {
+    const s = T.partShare(c, k);
+    if (s.spin) return `<span class="ptile-dt spin">${ic('flame')}буксує ${T.fmtDt(s.dt)}</span>`;
+    return s.dt <= -T.TUNE_EPS ? `<span class="ptile-dt win">${T.fmtDt(s.dt)}</span>` : '';
+  }
+  const best = Math.min(0, ...me.parts.filter((p) => p.type === k && p.available > 0 && T.canTake(c.model, k, p.tier)).map((p) => T.partGain(c, k, p.tier).dt));
+  return best <= -T.TUNE_EPS ? `<span class="ptile-dt can">на складі ${T.fmtDt(best)}</span>` : '';
+}
+// «+4 деталі · −0,21 с» (time: the card's 402 m time, gearbox counted for an average driver's shifts).
+const bestSummary = (r) => {
+  const put = r.changes.filter((x) => x.to).length, off = r.changes.length - put;
+  return [put ? `+${put} ${plural(put, ['деталь', 'деталі', 'деталей'])}` : '', off ? `${off} знято` : ''].filter(Boolean).join(', ') + ` · ${T.fmtDt(r.dt)}`;
+};
+// Above the tuning tiles: the button with what it will do, and after a press what it did.
+function tuneBest(c, done) {
+  if (c.status === 'market' || c.status === 'auction') return '';
+  const plan = T.bestTune(c, me.parts);
+  const res = done?.changes?.length ? bestDone(c, done) : '';
+  if (plan.changes.length) return `${res}<button class="btn btn2 tune-best" data-act="installBest" data-id="${c.id}"><span>${ic('sparkles')} Встановити найкраще</span><small>${bestSummary(plan)}</small></button>`;
+  const fits = me.parts.some((p) => T.canTake(c.model, p.type, p.tier));
+  return res || (fits ? `<div class="tiny muted tune-ok">${ic('check')} Найкраще зі складу вже стоїть</div>` : '');
+}
+function bestDone(c, r) {
+  const tn = (t) => S.TIER_BY_ID[t].name;
+  const rows = r.changes.map((x) => `<div class="bd-row">${partArt(x.type, x.to || x.from, 'xs')}<span>${S.PARTS[x.type].name}</span><b class="${x.to ? '' : 'spin'}">${x.to ? (x.from ? `${tn(x.from)} → ${tn(x.to)}` : tn(x.to)) : `${tn(x.from)} знято — колеса буксували`}</b></div>`).join('');
+  const back = r.changes.some((x) => x.from);
+  return `<div class="best-done"><div class="bd-head">${ic('check')}<b>${bestSummary(r)}</b><span>${dec(c.et, 2)} с на 402 м</span></div>${rows}
+    ${c.set ? `<div class="tiny bd-set">${ic('sparkles')} Повний комплект ${tn(c.parts[S.partKeysOf(c.model)[0]])}: +${Math.round(S.SET_BONUS.hp * 100)}% к.с.</div>` : ''}
+    ${back ? `<div class="tiny muted">Зняті деталі — на складі, ${S.PART_COOLDOWN_MIN} хв остигають.</div>` : ''}</div>`;
+}
+H.installBest = async (d) => {
+  const r = await act('parts/install-best', { carId: Number(d.id) }, (x) => (x.changes.length ? bestSummary(x) : 'Найкраще вже стоїть'), { rerender: false });
+  if (!r) return;
+  carSheet(d.id, r);
+  render();
+  const el = $('#sheet .best-done');
+  if (el && r.changes.length) FX.sparkle(el, ['#ffd500', '#ffffff', '#2fbf71'], 10);
+};
+// Puts one piece on a car (the slot sheet's «Встановити»), with the time it gives in the toast.
+async function putPart(carId, type, tier) {
+  const c = me.cars.find((x) => x.id === carId);
+  if (!c) return null;
+  const g = T.partGain(c, type, tier);
+  return act('parts/install', { carId, type, tier }, `${S.partLabel(type, tier)} → ${M(c.model).name} · ${T.fmtDt(g.dt)}`, { rerender: false });
+}
+// Which car to put a part on: every car that can take it, with what it would do there.
+function putSheet(type, tier, onPut, back = null) {
+  const list = T.partTargets(me.cars, type, tier);
+  H.putPicked = async (d) => {
+    const id = Number(d.id);
+    if (await putPart(id, type, tier)) onPut ? onPut(id) : (closeModal(), render());
+  };
+  sheet(esc(S.partLabel(type, tier)), list.length ? `<div class="tiny muted">Куди поставити: ${S.partEffect(type, tier)}. Знята стара деталь повернеться на склад.</div>
+    <div class="list mt">${list.map((x) => `<div class="li">${miniCar(x.car.model, '', x.car.look)}<div class="grow"><b class="ellipsis">${esc(M(x.car.model).name)}</b><div class="small muted">${dec(x.car.et, 2)} с · ${x.car.parts[type] ? `зараз ${S.TIER_BY_ID[x.car.parts[type]].name}` : 'слот порожній'}</div>${dtLine(x, type)}</div>
+      <button class="btn sm ${x.dt < -T.TUNE_EPS ? '' : 'ghost'}" data-act="putPicked" data-id="${x.car.id}" ${x.same ? 'disabled' : ''}>${x.car.parts[type] ? 'Замінити' : 'Поставити'}</button></div>`).join('')}</div>`
+    : emptyBox('car', 'Немає машини для цієї деталі', 'Підходять машини в гаражі чи на вітрині, клас яких дозволяє цей рівень деталі'), back);
+}
+// Under a dropped part: «Поставити на <машину>» — the fastest car it makes faster — and a picker for any other.
+function dropPutBtn(p, i, one) {
+  if (p.sold) return '';
+  if (p.put) return `<div class="dropput done">${ic('check')}<span class="ellipsis">${one ? 'Стоїть на ' : ''}${esc(p.put)}</span></div>`;
+  if (!T.partTargets(me.cars, p.type, p.tier).length) return '';
+  const tg = T.bestTarget(me.cars, p.type, p.tier);
+  return `<div class="dropput-row">${tg ? `<button class="dropput" data-act="dropPut" data-i="${i}" data-car="${tg.car.id}"><span class="ellipsis">${one ? 'Поставити на ' : ''}${esc(M(tg.car.model).name)}</span><b>${ic('tool')}${T.fmtDt(tg.dt)}</b></button>` : ''}
+    <button class="dropput more ${tg ? '' : 'wide'}" data-act="dropPick" data-i="${i}" aria-label="Обрати машину">${ic('car')}${tg ? '' : '<span>Поставити…</span>'}</button></div>`;
+}
+function dropPutDone(p, carId) {
+  const c = me.cars.find((x) => x.id === carId);
+  p.put = c ? M(c.model).name : 'машині';
+  render();
+}
+H.dropPut = async (d) => {
+  const p = state.partDrop?.[Number(d.i)];
+  if (!p || p.put || p.sold) return;
+  if (await putPart(Number(d.car), p.type, p.tier)) dropPutDone(p, Number(d.car));
+};
+H.dropPick = (d) => {
+  const p = state.partDrop?.[Number(d.i)];
+  if (!p || p.put || p.sold) return;
+  putSheet(p.type, p.tier, (id) => (closeModal(), dropPutDone(p, id)));
+};
+// ×3/×5/×10: one line over the cards — what tiers came and how many make a car faster.
+function dropSummary(d) {
+  const by = {};
+  for (const p of d) by[p.tier] = (by[p.tier] || 0) + 1;
+  const useful = d.filter((p) => !p.sold && !p.put && T.bestTarget(me.cars, p.type, p.tier)).length;
+  return `<div class="dropsum">${S.TIERS.filter((t) => by[t.id]).reverse().map((t) => `<span style="--c:${S.CLASSES[t.cls].color}"><i></i>${t.name} ×${by[t.id]}</span>`).join('')}
+    <em>${useful ? `${ic('tool')} прискорять машини: ${useful}` : d.some((p) => p.put) ? '' : 'жодна не прискорить твої машини'}</em></div>`;
+}
+// Склад, most useful first: per piece, the car «Поставити на …» would put it on (T.bestTarget) and what it gives there.
+function stockUse() {
+  const use = {};
+  for (const p of me.parts) {
+    const tg = T.bestTarget(me.cars, p.type, p.tier);
+    use[p.type + ':' + p.tier] = tg && tg.dt <= -T.TUNE_EPS ? tg : null;
+  }
+  return use;
+}
+// In the type sheet of the warehouse: put this tier on its best car, or say why it is not needed.
+function stockPutLine(p) {
+  const tg = p.available ? T.bestTarget(me.cars, p.type, p.tier) : null;
+  if (tg) return `<div class="putline"><button class="putlink" data-act="stockPut" data-k="${p.type}" data-tier="${p.tier}" data-car="${tg.car.id}">${ic('tool')}<span class="ellipsis">На ${esc(M(tg.car.model).name)}</span><b>${T.fmtDt(tg.dt)}</b></button><button class="putlink more" data-act="stockPick" data-k="${p.type}" data-tier="${p.tier}">інша…</button></div>`;
+  if (T.junkParts(me.cars, [{ ...p, available: 1 }]).length) return '<div class="dt">не краща за встановлені на всіх машинах</div>';
+  return `<div class="dt">${T.partTargets(me.cars, p.type, p.tier).length ? 'зараз не прискорить жодну машину' : 'не підходить жодній машині'}</div>`;
+}
+H.stockPut = async (d) => {
+  if (await putPart(Number(d.car), d.k, d.tier)) H.stockType({ k: d.k });
+};
+H.stockPick = (d) => putSheet(d.k, d.tier, () => H.stockType({ k: d.k }), () => H.stockType({ k: d.k }));
+H.sellJunk = async () => {
+  const junk = T.junkParts(me.cars, me.parts);
+  if (!junk.length) return toast('Непотрібних деталей немає');
+  const n = junk.reduce((s, j) => s + j.count, 0);
+  const sum = junk.reduce((s, j) => s + Math.floor(S.TIER_BY_ID[j.tier].price * S.PART_SELL_RATE) * j.count, 0);
+  const names = junk.slice(0, 8).map((j) => `${S.partLabel(j.type, j.tier)} ×${j.count}`).join(', ') + (junk.length > 8 ? ` і ще ${junk.length - 8}` : '');
+  const merge = junk.some((j) => j.count >= 3 && S.TIER_BY_ID[j.tier].index < S.TIERS.length - 1);
+  if (!(await confirmBox(`Продати ${n} ${plural(n, ['деталь', 'деталі', 'деталей'])} за ${S.fmt(sum)}? ${names}. Жодна не краща за встановлені на твоїх машинах.${merge ? ' Порада: 3 однакові можна злити в одну рівнем вище — це вигідніше.' : ''}`))) return;
+  await act('parts/sell-junk', { items: junk }, (r) => `Продано ${r.count} шт: +${S.fmt(r.got)}`);
 };
 H.carPlate = (d) => {
   const c = me.cars.find((x) => x.id === Number(d.id));
@@ -2827,14 +2978,14 @@ TABS.shop = () => {
   if (d) {
     stage = `<div class="multi parts ${d.length === 1 ? 'one' : ''}">${d.map((p, i) => {
       const t = S.TIER_BY_ID[p.tier];
-      const sell = p.sold ? '<div class="dropsell done">Продано</div>' : `<button class="dropsell" data-act="sellDropPart" data-i="${i}">${ic('cash')}${S.short(t.price * S.PART_SELL_RATE)}</button>`;
+      const sell = p.sold ? '<div class="dropsell done">Продано</div>' : p.put ? '' : `<button class="dropsell" data-act="sellDropPart" data-i="${i}">${ic('cash')}${S.short(t.price * S.PART_SELL_RATE)}</button>`;
       return `<div class="${fresh ? 'flip-in' : ''} ${p.sold ? 'sold' : ''}" style="animation-delay:${i * 140}ms"><div class="car pcard r${t.index}" style="--c:${S.CLASSES[t.cls].color}">${clsBadge(t.cls, 'tl')}
-        <div class="art">${partArt(p.type, p.tier, 'lg')}</div><div class="nm ellipsis">${S.PARTS[p.type].name}</div><div class="meta">${t.name} · ${S.partEffect(p.type, p.tier)}</div>${S.partPoolFor(me.cars.map((c) => c.model)).includes(p.type) ? '' : `<div class="meta ptype-tag">${S.PARTS[p.type].ev ? 'для електро' : 'для бензинових'}</div>`}</div>${sell}</div>`;
+        <div class="art">${partArt(p.type, p.tier, 'lg')}</div><div class="nm ellipsis">${S.PARTS[p.type].name}</div><div class="meta">${t.name} · ${S.partEffect(p.type, p.tier)}</div>${S.partPoolFor(me.cars.map((c) => c.model)).includes(p.type) ? '' : `<div class="meta ptype-tag">${S.PARTS[p.type].ev ? 'для електро' : 'для бензинових'}</div>`}</div>${dropPutBtn(p, i, d.length === 1)}${sell}</div>`;
     }).join('')}</div>`;
   } else {
     stage = `<div class="reel-wrap" id="reelWrap"><div class="reel" id="reel">${Array.from({ length: 6 }, () => partReelCard(randomPartFor(pc))).join('')}</div></div>`;
   }
-  const alive = d ? d.filter((p) => !p.sold) : [];
+  const alive = d ? d.filter((p) => !p.sold && !p.put) : [];
   const sum = alive.reduce((s, p) => s + Math.floor(S.TIER_BY_ID[p.tier].price * S.PART_SELL_RATE), 0);
   const myPool = S.partPoolFor(me.cars.map((c) => c.model)); // what fits the player's cars (the server's random pool)
   const fitTag = (k) => (myPool.includes(k) ? '' : `<small class="ptype-tag">${S.PARTS[k].ev ? 'для електро' : 'для бензинових'}</small>`);
@@ -2848,15 +2999,16 @@ TABS.shop = () => {
         <span class="tierbar">${Object.entries(c.weights).map(([t, w]) => `<i style="flex:${w};background:${S.CLASSES[S.TIER_BY_ID[t].cls].color}"></i>`).join('')}</span>
         <span class="pprice">${off ? 'лише випадкові' : S.fmt(partCasePrice(c.id))}</span></button>`;
     }).join('')}</div>
-    <div class="stage pstage" style="${d?.length > 3 ? 'height:auto;min-height:200px' : ''}">${stage}</div>
+    <div class="stage pstage" style="${d?.length > 3 ? 'height:auto;min-height:200px' : d ? 'height:auto;min-height:170px' : ''}">${stage}</div>
+    ${d?.length > 1 ? dropSummary(d) : ''}
     <div class="seg">${[1, 3, 5, 10].map((k) => `<button class="${k === state.partCount ? 'on' : ''}" data-act="partCount" data-n="${k}">×${k}</button>`).join('')}</div>
     ${price * state.partCount > me.balance ? `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(price * state.partCount - me.balance)}</button>`
-      : (state.partNext || 0) > serverNow()
-        ? `<button class="btn" disabled>Наступне відкриття через <span data-until="${state.partNext - clockOffset}"></span></button>`
+      : state.partCount === 1 && (state.partNext || 0) > serverNow()
+        ? `<button class="btn pwait" disabled style="--d:${S.PART_COOLDOWN_MS}ms;--o:${Math.min(0, state.partNext - serverNow() - S.PART_COOLDOWN_MS)}ms">Наступне ×1 через <span data-until="${state.partNext - clockOffset}"></span></button>`
         : `<button class="btn" data-act="openParts" ${state.opening ? 'disabled' : ''}>${d ? 'Відкрити ще' : 'Відкрити'}${state.partCount > 1 ? ' ×' + state.partCount : ''} · ${S.fmt(price * state.partCount)}</button>`}
     ${d ? `<div class="btns mt"><button class="btn outline" data-act="shopView" data-k="stock">На склад</button>${alive.length ? `<button class="btn ghost btn2" data-act="sellDropParts"><span>${ic('cash')} Продати все</span><small>${S.short(sum)}</small></button>` : ''}</div>` : ''}
     <div class="card row between mt"><span>Швидке відкриття</span><button class="toggle ${state.fast ? 'on' : ''}" data-act="toggleFast"></button></div>
-    <div class="tiny muted center">${state.partType ? `Випадає лише «${S.PARTS[state.partType].name}», кейс на ${S.PICK_PART_EXTRA * 100}% дорожчий.` : 'Випадає випадкова деталь з тих, що підходять твоїм машинам. Обери конкретну вгорі, щоб збирати лише її.'} Три однакові деталі зливаються в одну рівнем вище на складі.</div>`;
+    <div class="tiny muted center">${state.partType ? `Випадає лише «${S.PARTS[state.partType].name}», кейс на ${S.PICK_PART_EXTRA * 100}% дорожчий.` : 'Випадає випадкова деталь з тих, що підходять твоїм машинам. Обери конкретну вгорі, щоб збирати лише її.'} Три однакові деталі зливаються в одну рівнем вище на складі. Пауза ${S.PART_COOLDOWN_MS / 1000} с — лише між відкриттями ×1; ×3–×10 відкриваються одразу.</div>`;
 };
 const partCasePrice = (id) => Math.round(S.PART_CASE_BY_ID[id].price * (state.partType ? 1 + S.PICK_PART_EXTRA : 1) / 100) * 100;
 function randomPartFor(pc) {
@@ -2956,21 +3108,16 @@ H.openParts = async (d, el) => {
     haptic('error');
     return toast(e.message, true);
   }
-  // One part, not in fast mode: spin the reel first, like car cases.
-  // Not in fast mode: spin a reel per part (up to 5 at once; ×10 shows the cards straight away).
-  if (!state.fast && r.results.length <= 5) {
+  // ×1, not in fast mode: spin the reel first, like car cases. ×3/×5/×10 show all the cards at once (one reveal).
+  if (!state.fast && r.results.length === 1) {
     const pc = S.PART_CASE_BY_ID[state.partCase];
     state.partDrop = null;
     const spinPart = (win, opts = {}) => {
       const t = S.TIER_BY_ID[win.tier];
       return spinReel({ cardAt: (i, W) => partReelCard(i === W ? win : randomPartFor(pc)), color: S.CLASSES[t.cls].color, rank: t.index, ...opts });
     };
-    if (r.results.length === 1) {
-      $('.pstage').innerHTML = '<div class="reel-wrap" id="reelWrap"><div class="reel" id="reel"></div></div>';
-      await spinPart(r.results[0]);
-    } else {
-      await spinMany($('.pstage'), r.results.length, (i, wrap, reel, extra, quiet) => spinPart(r.results[i], { wrap, reel, extra, quiet }));
-    }
+    $('.pstage').innerHTML = '<div class="reel-wrap" id="reelWrap"><div class="reel" id="reel"></div></div>';
+    await spinPart(r.results[0]);
   }
   state.opening = false;
   state.partDrop = r.results.map((p) => ({ ...p }));
@@ -2979,13 +3126,29 @@ H.openParts = async (d, el) => {
 };
 function stockView() {
   if (!me.parts.length) return emptyBox('box', 'Склад порожній', 'Деталі випадають з кейсів майстерні. Три однакові деталі зливаються в одну рівнем вище.', '<button class="btn sm" data-act="shopView" data-k="cases">До кейсів з деталями</button>');
-  const types = S.PART_KEYS.filter((k) => me.parts.some((p) => p.type === k));
-  return `<div class="list">${types.map((k) => {
+  // Types with the part that speeds a car up the most first; parts no car needs (T.junkParts) at the bottom, greyed.
+  const use = stockUse();
+  const junk = T.junkParts(me.cars, me.parts);
+  const isJunk = (p) => junk.some((j) => j.type === p.type && j.tier === p.tier);
+  const junkN = junk.reduce((s, j) => s + j.count, 0);
+  const junkSum = junk.reduce((s, j) => s + Math.floor(S.TIER_BY_ID[j.tier].price * S.PART_SELL_RATE) * j.count, 0);
+  const total = me.parts.reduce((s, p) => s + p.count, 0);
+  const useful = me.parts.filter((p) => use[p.type + ':' + p.tier]).reduce((s, p) => s + p.count, 0);
+  const rows = S.PART_KEYS.filter((k) => me.parts.some((p) => p.type === k)).map((k, order) => {
     const items = me.parts.filter((p) => p.type === k).sort((a, b) => S.TIER_BY_ID[a.tier].index - S.TIER_BY_ID[b.tier].index);
+    const best = items.filter((p) => use[k + ':' + p.tier]).sort((a, b) => use[k + ':' + a.tier].dt - use[k + ':' + b.tier].dt)[0] || null;
+    return { k, items, order, best: best && { p: best, u: use[k + ':' + best.tier] }, junk: items.every(isJunk) };
+  }).sort((a, b) => (a.best ? a.best.u.dt : 1) - (b.best ? b.best.u.dt : 1) || a.junk - b.junk || a.order - b.order);
+  return `<div class="card stock-sum"><div class="grow"><b>${total} ${plural(total, ['деталь', 'деталі', 'деталей'])} · ${rows.length} ${plural(rows.length, ['вид', 'види', 'видів'])}</b>
+      <div class="small muted">${useful ? `${useful} прискорять машини` : 'жодна не прискорить твої машини'}${junkN ? ` · ${junkN} не потрібні` : ''}</div></div>
+      ${junkN ? `<button class="btn sm ghost btn2" data-act="sellJunk"><span>${ic('cash')} Продати непотрібні</span><small>${junkN} шт · ${S.short(junkSum)}</small></button>` : ''}</div>
+  <div class="list">${rows.map(({ k, items, best, junk: allJunk }) => {
     const canMerge = items.some((p) => p.available >= 3 && S.TIER_BY_ID[p.tier].index < S.TIERS.length - 1);
-    return `<button class="li" data-act="stockType" data-k="${k}">${partArt(k, items[items.length - 1].tier, 'sm')}<div class="grow"><b>${S.PARTS[k].name}</b><div class="dots tiers">${items.map((p) => `<span style="--c:${S.CLASSES[tierCls(p.tier)].color}">${S.TIER_BY_ID[p.tier].name}<b>×${p.count}</b></span>`).join('')}</div></div>${canMerge ? `<span class="mergetag">${ic('sparkles')}3→1</span>` : `<span class="chev">${ic('chevron-right')}</span>`}</button>`;
+    return `<button class="li ${allJunk ? 'junk' : ''}" data-act="stockType" data-k="${k}">${partArt(k, items[items.length - 1].tier, 'sm')}<div class="grow"><b>${S.PARTS[k].name}</b><div class="dots tiers">${items.map((p) => `<span class="${isJunk(p) ? 'junk' : ''}" style="--c:${S.CLASSES[tierCls(p.tier)].color}">${S.TIER_BY_ID[p.tier].name}<b>×${p.count}</b></span>`).join('')}</div>
+      ${best ? `<div class="stock-use">${S.TIER_BY_ID[best.p.tier].name}: <b>${T.fmtDt(best.u.dt)}</b> на ${esc(M(best.u.car.model).name)}</div>` : `<div class="stock-use none">${allJunk ? 'не кращі за встановлені на всіх машинах' : 'зараз не прискорять жодну машину'}</div>`}</div>
+      ${canMerge ? `<span class="mergetag">${ic('sparkles')}3→1</span>` : `<span class="chev">${ic('chevron-right')}</span>`}</button>`;
   }).join('')}</div>
-  <div class="tiny muted">Встановити деталь можна в гаражі, у картці машини. Підходять деталі не нижче класу машини.</div>`;
+  <div class="tiny muted">Угорі — деталі, що найбільше прискорять твої машини (час на 402 м). Непотрібні — не кращі за встановлені на всіх машинах або не підходять жодній. Поставити деталь можна з її картки тут або кнопкою «Встановити найкраще» в картці машини.</div>`;
 }
 H.stockType = (d, el, e, result) => {
   const k = d.k;
@@ -2994,7 +3157,7 @@ H.stockType = (d, el, e, result) => {
     ${items.length ? `<div class="list">${items.map((p) => {
       const t = S.TIER_BY_ID[p.tier];
       const chance = S.MERGE_CHANCE[t.index];
-      return `<div class="li">${partArt(k, p.tier, 'sm')}<div class="grow"><b>${t.name} × ${p.count}</b><div class="small muted">${clsBadge(t.cls)} ${S.short(t.price)} · ${S.partEffect(k, p.tier)}${p.cooling ? ` · остигає ${p.cooling} (<span data-until="${p.coolUntil - clockOffset}"></span>)` : ''}</div></div>
+      return `<div class="li">${partArt(k, p.tier, 'sm')}<div class="grow"><b>${t.name} × ${p.count}</b><div class="small muted">${clsBadge(t.cls)} ${S.short(t.price)} · ${S.partEffect(k, p.tier)}${p.cooling ? ` · остигає ${p.cooling} (<span data-until="${p.coolUntil - clockOffset}"></span>)` : ''}</div>${stockPutLine(p)}</div>
         <div class="col" style="gap:4px">${chance != null ? `<button class="btn sm" data-act="merge" data-k="${k}" data-tier="${p.tier}" ${p.available >= 3 ? '' : 'disabled'}>3→1 · ${Math.round(chance * 100)}%</button>` : ''}
         <button class="btn sm ghost" data-act="sellPart" data-k="${k}" data-tier="${p.tier}" ${p.available ? '' : 'disabled'}>${S.short(t.price * S.PART_SELL_RATE)}</button></div></div>`;
     }).join('')}</div>` : emptyBox('box', 'Деталей цього типу більше немає', 'Нові випадають з кейсів майстерні')}
