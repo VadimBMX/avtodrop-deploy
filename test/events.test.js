@@ -110,7 +110,7 @@ test('regen: no events = the old formula; the fuel event doubles only its own ho
   assert.equal(r.next, start + 5 * MIN);
 });
 
-test('server: shared tank and car tanks refill twice as fast during «Подвійне паливо»', () => {
+test('server: the shared tank refills twice as fast during «Подвійне паливо»', () => {
   const start = K('2026-10-29T00:00:00');
   const { db, g, clock, call } = setup(start - H);
   const car = g.giveCar(1, 'zaz-lanos').id;
@@ -120,7 +120,7 @@ test('server: shared tank and car tanks refill twice as fast during «Подві
   const me = call('me');
   assert.equal(me.fuel, 9);
   assert.equal(me.fuelNext, start + H + 10 * MIN);
-  assert.equal(me.cars.find((c) => c.id === car).tank, S.CAR_TANK, '3 + 6 ≥ 5');
+  assert.equal(me.cars.find((c) => c.id === car).tank, S.CAR_TANK, 'no per-car tank: always reported full');
   assert.ok(me.gameEvents.active.some((e) => e.id === 'fuel'));
   // The same on a plain day: 2 h = 6.
   const s2 = setup(K('2026-11-06T08:00:00'));

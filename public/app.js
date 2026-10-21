@@ -347,7 +347,6 @@ function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false,
     <div class="meta row between" style="gap:4px"><span>${c.hp} к.с.</span><b class="disp hn-sale" style="color:var(--text);font-size:14px;font-weight:600" title="${sale == null ? 'Колекційна ціна' : 'Продаж'}">${sale == null ? S.short(c.value) : `${ic('cash')}${S.short(sale)}`}</b></div>${collLine ? `<div class="meta sellp">${sale == null ? 'не продається' : `${collLine === 'short' ? 'колекц.' : 'колекційна'} ${S.short(c.value)}`}</div>` : ''}
     ${incLine && c.status === 'garage' ? tileInc(c) : ''}
     ${sellLine && c.sell != null && !m.secret && c.status === 'garage' && act !== 'none' ? `<div class="meta sellp">продаж ${S.short(c.sell)}</div>` : ''}
-    ${showTank ? `<div class="tank">${Array.from({ length: S.CAR_TANK }, (_, i) => `<i class="${i < c.tank ? 'on' : ''}"></i>`).join('')}</div>` : ''}
     ${c.status === 'market' ? `<div class="status">${ic('building-store')}На ринку</div>` : c.status === 'auction' ? `<div class="status">${ic('hammer')}На аукціоні</div>` : ''}
   </button>`;
 }
@@ -519,6 +518,37 @@ function lockedSheet(key) {
 }
 H.locked = (d) => lockedSheet(d.k);
 const lockedView = (key) => `<div class="card">${lockBody(key)}</div>`;
+// The next feature on the ladder and how far it is (xp to its level, and the same in race wins, S.XP.win each).
+function nextUnlock() {
+  const all = S.UNLOCKS.filter((u) => u.level > me.level && !isOpen(u.key) && !(u.key === 'casino' && casinoOff()));
+  if (!all.length) return null;
+  const level = all[0].level, at = all.filter((u) => u.level === level);
+  let left = Math.max(0, me.xpNeed - me.xp), total = me.xpNeed;
+  for (let l = me.level + 1; l < level; l++) (left += S.xpForLevel(l)), (total += S.xpForLevel(l));
+  return { u: at[0], names: at.map((u) => u.name), level, left, wins: Math.max(1, Math.ceil(left / S.XP.win)), share: total ? 1 - left / total : 0 };
+}
+// «Ще 3 перемоги → Ринок» when it's a few races away, else «Рів. 4 через ~350 досвіду → Фарбування».
+function nextUnlockText(nu) {
+  if (nu.wins <= 12) return `Ще ${nu.wins} ${plural(nu.wins, ['перемога', 'перемоги', 'перемог'])} → ${nu.names[0]}`;
+  return `Рів. ${nu.level} через ~${S.fmt(Math.ceil(nu.left / 10) * 10).replace(' ₴', '')} досвіду → ${nu.names[0]}`;
+}
+// A slim chip on top of Гараж and Кейси (where players look), when the «Перші кроки» pill isn't there: tap → what it opens.
+function paintNextUnlock() {
+  $('#nextUl')?.remove();
+  if (!me || state.page || state.race || state.drift || state.opening || !['garage', 'cases'].includes(state.tab)) return;
+  if (state.tab === 'cases' && state.drop?.some(dropAlive)) return;
+  const nu = nextUnlock();
+  if (!nu) return;
+  const el = document.createElement('button');
+  el.id = 'nextUl';
+  el.className = 'nextul';
+  el.dataset.act = 'locked';
+  el.dataset.k = nu.u.key;
+  el.setAttribute('aria-label', `${nextUnlockText(nu)}: що відкриється`);
+  el.innerHTML = `<span class="nu-ic">${ic(nu.u.icon)}<i>${ic('lock')}</i></span><span class="nu-t">${esc(nextUnlockText(nu))}${nu.names.length > 1 ? ` <small>+${nu.names.length - 1}</small>` : ''}</span>${nu.wins <= 12 ? `<span class="nu-lv">рів. ${nu.level}</span>` : ''}
+    <span class="nu-bar"><i style="width:${Math.round(nu.share * 100)}%"></i></span>`;
+  $('#view').prepend(el);
+}
 
 // ---------- trade-in (S.TRADE_IN) ----------
 PAGES.tradein = () => {
@@ -686,7 +716,6 @@ H.shareCard = async () => {
   navigator.clipboard?.writeText(text).then(() => toast('Текст картки скопійовано'), () => toast(text));
 };
 function openProfile() {
-  const n = me.newbie;
   const have = me.collection.filter((id) => !M(id)?.secret).length, total = S.ALL_MODELS.filter((m) => !m.secret).length;
   const top = [...me.cars].filter((c) => c.status !== 'auction' && c.status !== 'market').sort((a, b) => b.value - a.value);
   const card = licenceCard({ id: me.id, name: me.username ? '@' + me.username : me.firstName || 'Гравець', level: me.level, xp: me.xp, xpNeed: me.xpNeed, vip: me.vip, badges: me.badges, legacy: me.legacy,
@@ -701,9 +730,7 @@ function openProfile() {
         const lvl = nx[0]?.level;
         return lvl ? `<div class="tiny muted mt">${ic('lock')} На рівні ${lvl} відкриється: <b>${nx.filter((u) => u.level === lvl).map((u) => u.name).join(', ')}</b></div>` : '';
       })()}</div>
-    ${n ? `<div class="h2"><span>Завдання новачка</span><span>${n.step + 1}/${n.total}</span></div>
-      <div class="card row"><div class="grow"><b>${esc(n.text)}</b><div class="small muted">+${S.fmt(n.money)} · +${S.XP.task} досвіду</div></div>
-      <button class="btn sm" data-act="newbieClaim" ${n.ready ? '' : 'disabled'}>${n.ready ? 'Забрати' : n.lockedTill ? `${ic('lock')} рів. ${n.lockedTill}` : 'Виконай'}</button></div>` : ''}
+    ${firstStepsCard('newbieClaim')}
     <div class="h2"><span>Статистика</span></div>
     <div class="stat"><div><b>${me.used}</b><span>у гаражі</span></div><div><b>${have}/${total}</b><span>колекція</span></div><div><b>${me.stats.races ? Math.round((me.stats.wins / me.stats.races) * 100) : 0}%</b><span>перемог</span></div>
     <div><b>${me.stats.wins}/${me.stats.races}</b><span>перемог/гонок</span></div><div><b>${me.stats.merges}</b><span>злиттів</span></div><div><b>${playTime(me.stats.playMs)}</b><span>у грі</span></div></div>
@@ -1748,13 +1775,43 @@ TABS.race = async () => {
 // a plain «важко» instead of a number (S.RACE_FORM.toughBelow).
 const rivalChanceChip = (r) => (r.tough ? '<span class="chip rv-tough">Для тебе зараз: важко — потренуйся</span>' : `<span class="chip">шанс ${r.chance < 1 ? '<1' : r.chance}%</span>`);
 const RIVAL_HONEST_TEXT = `Шанс — за медіаною ${S.RACE_FORM.runs} твоїх останніх заїздів, де ти сам перемикав передачі (заїзди на автопілоті не рахуються; поки таких заїздів мало — як у доброго водія). На Тренуванні й Легкому шанс не нижчий, ніж у звичайного водія, який перемикає передачі (Тренування — щонайменше ${S.CHANCE_FLOOR.train}%). Суперники — справжні машини з їхньою реальною потужністю, а швидкість їм дає водій: від новачка до легенди. Деталі на твоїй машині піднімають шанс.`;
-// Shared fuel: 15 slanted pips like the key fragments; the chosen car's own tank under it.
+// Fuel: one tank for every car — 15 slanted pips like the key fragments, a race of any kind takes one.
 function fuelCard(car, extra = '') {
+  if (me.fuel < 1) return fuelOut();
   return `<div class="card fuelcard mt"><div class="row between"><span class="hook-t">${ic('gas-station')} Пальне</span><b class="fuel-n">${me.fuel}<small>/${S.FUEL_MAX}</small></b></div>
     <div class="pips fuel">${Array.from({ length: S.FUEL_MAX }, (_, i) => `<i class="${i < me.fuel ? 'on' : ''}"></i>`).join('')}</div>
-    <div class="row between small"><span class="muted">${me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}"></span>` : 'Загальний бак повний'}</span><span>Бак машини <b>${car.tank}/${S.CAR_TANK}</b></span></div>
-    ${extra || `<div class="tiny muted mt">Загальний бак — на всі машини, і в кожної машини свій бак на ${S.CAR_TANK} гонок${car.tankNext ? ` (+1 через <span data-until="${car.tankNext - clockOffset}"></span>)` : ''} · ${car.hp} к.с. · ${dec(car.et, 2)} с на 402 м</div>`}</div>`;
+    <div class="row between small"><span class="muted">${me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : 'Бак повний'}</span><span class="muted">заїзд = 1 пальне</span></div>
+    ${extra || `<div class="tiny muted mt">Один бак на всі машини, +1 кожні ${S.FUEL_REGEN_MIN} хв · ${car.hp} к.с. · ${dec(car.et, 2)} с на 402 м</div>`}</div>`;
 }
+// An empty tank: the rivals below grey out (CSS .fuel-out ~ .rivals) and this card says when the next one comes and
+// what to do meanwhile — instead of an error toast on a tap. The screen redraws itself when the fuel is back.
+function fuelOut() {
+  fuelBackSoon();
+  const next = me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : 'скоро +1';
+  return `<div class="card fuelcard fuel-out mt" id="fuelOut"><div class="row between"><span class="hook-t">${ic('gas-station')} Пальне ${me.fuel}/${S.FUEL_MAX}</span><b class="fuel-next">${next}</b></div>
+    <div class="pips fuel">${Array.from({ length: S.FUEL_MAX }, () => '<i></i>').join('')}</div>
+    <div class="small">Поки бак наповнюється — відкрий кейс або забери нагороду: кейс нагород буває з повним баком.</div>
+    <div class="btns mt"><button class="btn sm" data-act="toCases">${ic('box')} Кейси</button><button class="btn sm ghost" data-act="fuelGifts">${ic('gift')} Нагороди</button></div></div>`;
+}
+let fuelTimer = 0;
+function fuelBackSoon() {
+  clearTimeout(fuelTimer);
+  if (!me.fuelNext) return;
+  fuelTimer = setTimeout(() => {
+    if (state.tab === 'race' && !state.page && !state.race && !state.drift && $('#modal').hidden) refresh().catch(() => {});
+  }, Math.min(2 ** 31 - 1, Math.max(1000, me.fuelNext - serverNow() + 600)));
+}
+// Fuel as of now (the last `me` may be a few minutes old: the next one may have come since).
+const fuelNow = () => me.fuel + (me.fuel < S.FUEL_MAX && me.fuelNext && serverNow() >= me.fuelNext ? 1 : 0);
+// A tap on a greyed rival: point at the card instead of an error.
+function fuelNudge() {
+  const card = $('#fuelOut');
+  haptic('warning');
+  if (!card) return toast(`Пальне 0/${S.FUEL_MAX}`);
+  card.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  FX.shake(card, 360);
+}
+H.fuelGifts = () => openRewards();
 // The car picker rail: the chosen car is always in view (it may be the 20th of 30), without moving the page.
 // Race / drift / PvP verdict, once it is on screen: a win throws yellow confetti and counts the prize up,
 // a loss gives the verdict a small shake.
@@ -1811,6 +1868,7 @@ function readyRaceCar(garage, ok = () => true) {
 }
 
 H.startRace = async (d) => {
+  if (fuelNow() < 1) return fuelNudge();
   let r;
   try {
     r = await api('race/start', { carId: state.raceCar, rival: d.rival });
@@ -2423,7 +2481,7 @@ async function driftView(car, garage) {
   const dots = S.driftDots(model);
   return `<div class="h2"><span>Твоя машина</span><span>${garage.length}</span></div>
     <div class="carpick">${garage.map((c) => carTile(c, { act: 'pickRaceCar', sel: c.id === car.id, showTank: true })).join('')}</div>
-    <div class="card mt"><div class="row between"><b class="disp" style="font-size:16px">${ic('gas-station')} Пальне ${me.fuel}/${S.FUEL_MAX}</b><span class="small muted">бак машини ${car.tank}/${S.CAR_TANK}</span></div>
+    ${me.fuel < 1 ? fuelOut() : ''}<div class="card mt"><div class="row between"><b class="disp" style="font-size:16px">${ic('gas-station')} Пальне ${me.fuel}/${S.FUEL_MAX}</b><span class="small muted">${me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}"></span>` : 'бак повний'}</span></div>
       <div class="dfeel mt"><div class="row between"><span>Тримається в повороті</span>${dDots(dots.hold)}</div><div class="row between"><span>Швидкість</span>${dDots(dots.speed)}</div></div>
       <div class="tiny muted mt">Підвіска й диски — машина краще тримається в повороті. Потужність — більше швидкості, але занос різкіший.</div></div>
     ${train ? `<div class="card mt dtrain"><div class="row between"><b class="disp" style="font-size:16px">${ic('target-arrow')} Тренування</b><span class="chip ready">безкоштовно</span></div>
@@ -2444,6 +2502,7 @@ async function driftView(car, garage) {
       <p>Залетиш у поворот надто швидко або з малим кутом — <b>«Знесло!»</b>. Перебереш кут — <b>«Розворот!»</b> і половина очок повороту згорає. Чисті повороти поспіль множать очки: комбо ×1,5 → ×2 → … ×3.</p></div>`;
 }
 H.startDrift = async (d) => {
+  if (fuelNow() < 1) return fuelNudge();
   let r;
   try {
     r = await api('drift/start', { carId: state.raceCar, rival: d.rival });
@@ -2945,7 +3004,7 @@ function bossFeature(b, s, car) {
     <div class="row between mt" style="gap:8px;flex-wrap:wrap"><span class="small ${s.fits ? 'muted' : 'lose'}">${s.fits ? `Клас <span class="nw">${S.bossWindowText(b)}</span>${b.own ? ` · ${S.BOSS_COUNTRY_ADJ[b.country]}` : ''} · бос їде ~${dec(b.et, 2)} с` : `Потрібна ${bossNeedHtml(b)}`}</span>${bossChance(s)}</div>
     ${s.fits ? '' : bossFitHint(b)}
     <div class="row between mt"><span class="small">Нагорода: <b class="win">${esc(S.bossRewardText(b.reward))}</b></span></div>
-    <button class="btn yellow mt" data-act="startBoss" data-id="${b.id}" ${!s.fits || me.fuel < 1 || car.tank < 1 ? 'disabled' : ''}>${ic('flag-3')} Кинути виклик</button></div>`;
+    <button class="btn yellow mt" data-act="startBoss" data-id="${b.id}" ${!s.fits || me.fuel < 1 ? 'disabled' : ''}>${ic('flag-3')} Кинути виклик</button></div>`;
 }
 function bossRow(b, s) {
   const prev = S.BOSSES[b.n - 1];
@@ -3797,13 +3856,12 @@ function hubTile({ page, k, icon, c, title, info = '', badge = 0, act = 'go', si
   return `<button class="hub-t ${size}" ${a} data-page="${page}" style="--c:${c}" ${id ? `id="${id}"` : ''}><span class="hub-ic">${ic(icon)}</span>
     <span class="hub-tx"><b>${title}</b>${size === 'mini' && !info ? '' : `<span class="hub-i">${info}</span>`}${extra}</span>${isNew ? '<span class="hub-new">Нове</span>' : hubCnt(badge)}</button>`;
 }
-// What the next level brings, right under the XP bar: «рів. 4 — Фарбування · ще 1 487 досвіду».
+// What the next level brings, right under the XP bar: «Ще 3 перемоги → Ринок, Трейд-ін» / «Рів. 4 через ~350 досвіду → …».
 function hubNextText() {
+  const nu = nextUnlock();
+  if (nu) return `${nextUnlockText(nu)}${nu.names.length > 1 ? ', ' + nu.names.slice(1).join(', ') : ''}`;
   const left = Math.max(0, (me.xpNeed || 0) - (me.xp || 0));
-  const xp = `ще ${S.fmt(left).replace(' ₴', '')} досвіду`;
-  const nx = S.UNLOCKS.find((u) => u.level > me.level && !isOpen(u.key));
-  if (!nx) return `До ${me.level + 1} рівня — ${xp}`;
-  return nx.level === me.level + 1 ? `Рів. ${nx.level} відкриє «${nx.name}» · ${xp}` : `До ${me.level + 1} рівня — ${xp} · «${nx.name}» на рів. ${nx.level}`;
+  return `До ${me.level + 1} рівня — ще ${S.fmt(left).replace(' ₴', '')} досвіду`;
 }
 TABS.menu = () => {
   const Y = '#ffc400', BL = '#3b82f6', PU = '#a855f7', RD = '#ef4444', GR = '#2fd27a', AM = '#ff8a3d', ST = '#8a94a7', CY = '#22c3e6';
@@ -3826,8 +3884,7 @@ TABS.menu = () => {
   const pass = s ? `<button class="hub-pass${s.ready ? ' ready' : ''}" data-act="go" data-page="season">
     <span class="hub-pass-h"><span class="hub-ic">${ic('ticket')}</span><span class="grow"><b>Сезонний пропуск</b><span class="hub-i">Сезон ${s.id} · ${s.premium ? `<span class="acc">${ic('crown')}Преміум</span>` : 'безкоштовна доріжка'}</span></span>
       <span class="hub-pass-lv"><b>${s.level}</b><small>/${S.SEASON.levels}</small></span></span>
-    <span class="progress gold"><i style="width:${s.need ? (s.levelXp / s.need) * 100 : 100}%"></i></span>
-    <span class="hub-pass-f">${s.ready ? `<span class="hub-claim">${ic('gift')} Забрати нагороди · ${s.ready}</span>` : `<span class="muted">${ic('clock')} до кінця ${untilSpan(s.endsAt)}</span>`}<span class="muted">${s.need ? `${s.levelXp}/${s.need} досвіду` : 'максимум'}</span></span></button>` : '';
+    <span class="hub-pass-f">${s.ready ? `<span class="hub-claim">${ic('gift')} Забрати нагороди · ${s.ready}</span>` : `<span class="muted">${ic('clock')} до кінця ${untilSpan(s.endsAt)}</span>`}<span class="muted">нагороди ${ic('chevron-right')}</span></span></button>` : '';
   // ---- live tiles
   const act = evActive(), nextEv = (me.gameEvents?.next || []).filter((e) => e.start > serverNow())[0];
   const evInfo = act.length ? `<span class="acc">${esc(act[0].title)}</span>${act.length > 1 ? ` +${act.length - 1}` : ''} · ${untilSpan(act[0].end)}` : nextEv ? `${esc(nextEv.title)} через ${untilSpan(nextEv.start)}` : 'за розкладом';
@@ -3906,7 +3963,7 @@ function settingsSheet() {
   const GR = '#2fd27a', Y = '#ffc400', ST = '#8a94a7', BL = '#3b82f6';
   sheet('Налаштування', `<div class="list menu-list settings">
       <div class="li"><span class="mi" style="--c:${GR}">${ic('volume')}</span><div class="grow"><b>Звук</b><div class="tiny muted">На цьому пристрої</div></div><button class="toggle ${SFX.isOn() ? 'on' : ''}" data-act="toggleSound" aria-label="Звук" aria-pressed="${SFX.isOn()}"></button></div>
-      <div class="li"><span class="mi" style="--c:${Y}">${ic('target-arrow')}</span><div class="grow"><b>Підказки перших кроків</b><div class="tiny muted">Смужка «Крок N/5» для новачка</div></div><button class="toggle ${me.claims.includes('guide-off') ? '' : 'on'}" data-act="toggleGuide" aria-label="Підказки перших кроків"></button></div>
+      <div class="li"><span class="mi" style="--c:${Y}">${ic('target-arrow')}</span><div class="grow"><b>Підказки перших кроків</b><div class="tiny muted">Смужка «Перші кроки» для новачка</div></div><button class="toggle ${me.claims.includes('guide-off') ? '' : 'on'}" data-act="toggleGuide" aria-label="Підказки перших кроків"></button></div>
       <div class="li"><span class="mi" style="--c:${ST}">${ic('bell')}</span><div class="grow"><b>Не турбувати</b><div class="tiny muted">Без запрошень на обмін і гонку</div></div><button class="toggle ${me.noInvites ? 'on' : ''}" data-act="toggleDnd" aria-label="Не турбувати"></button></div>
       <div class="li"><span class="mi" style="--c:${BL}">${ic('clock')}</span><div class="grow"><b>Нагадування від бота</b><div class="tiny muted">${me.pushOn && me.pushBlocked ? 'Бот не може написати — відкрий чат з ботом і натисни /start' : 'Бак, дохід, бонус — до 2 разів на день, не вночі'}</div></div><button class="toggle ${me.pushOn ? 'on' : ''}" data-act="togglePush" aria-label="Нагадування від бота"></button></div>
       <div class="li"><span class="mi" style="--c:${Y}">${ic('copy')}</span><div class="grow"><div class="tiny muted">Твій ID для обмінів</div><b class="disp">${me.id}</b></div><button class="btn sm ghost" data-act="copyId">Копіювати</button></div></div>`);
@@ -4957,9 +5014,7 @@ H.wkClaim = (d) => act('weekly/claim', { key: d.k }, wkClaimText);
 H.wkChest = (d) => act('weekly/chest', { days: Number(d.d) }, (r) => 'Скриня: ' + [r.keys ? `ключ «${S.CASE_BY_ID[r.caseId].name}»` : '', r.frag ? `+${r.frag} ${fragWord(r.frag)}${r.newKeys ? ' (ключ зібрано!)' : ''}` : '', r.items ? `${r.items.length} ${plural(r.items.length, ['деталь', 'деталі', 'деталей'])}` : '', r.fuel ? 'повний бак' : ''].filter(Boolean).join(', '));
 async function dailyQuests() {
   const { list } = await api('quests');
-  const n = me.newbie;
-  return `${n ? `<div class="h2"><span>Завдання новачка</span><span>${n.step + 1}/${n.total}</span></div>
-    <div class="card row"><div class="grow"><b>${esc(n.text)}</b><div class="small muted">+${S.fmt(n.money)} · +${S.XP.task} досвіду</div></div><button class="btn sm" data-act="newbieQuest" ${n.ready ? '' : 'disabled'}>${n.ready ? 'Забрати' : n.lockedTill ? `${ic('lock')} рів. ${n.lockedTill}` : 'Виконай'}</button></div>` : ''}
+  return `${firstStepsCard()}
     <div class="h2"><span>На сьогодні</span><span>оновлюються опівночі</span></div>
     ${list.map((x) => questCard({ text: countFix(x.text), progress: x.progress, target: x.target, claimed: x.claimed, reward: `${ic('gift')} ${S.fmt(x.reward)} · +${S.XP.quest} досвіду`,
       btn: x.progress < x.target ? '' : `<button class="btn sm" data-act="questClaim" data-k="${x.key}">Забрати</button>` })).join('')}`;
@@ -4988,7 +5043,7 @@ function paintGiftBadge() {
   if (!el || !me) return;
   const list = liveRewardClaims(), kinds = new Set(list.map((c) => c.kind));
   const n = list.length + (me.dailyReady && !kinds.has('daily') ? 1 : 0) + (serverNow() >= me.rewardCaseAt && !kinds.has('rcase') ? 1 : 0);
-  el.hidden = !n || (!!me.guide && me.guide !== 'daily'); // first steps: one thing at a time
+  el.hidden = !n || (guideOn() && me.guide !== 'daily'); // first steps: one thing at a time
   el.textContent = n > 9 ? '9+' : String(n);
 }
 const hashStr = (str) => {
@@ -5000,7 +5055,7 @@ const hashStr = (str) => {
 // (its single rewards are remembered as shown, so they don't come back one by one). Other claims stay as they were.
 function showClaimBanners(claims) {
   const one = (c) => showBanner({ ...c, claim: c, sub: esc(countFix(c.sub)) + (c.money ? ` · <b class="win">+${S.short(c.money)}</b>` : ''), ttl: 8000, buttons: [{ label: 'Забрати', act: 'bannerClaim' }] });
-  for (const c of claims) if (!REWARD_KINDS.has(c.kind) && !bannerSeen.has(c.key)) one(c);
+  for (const c of claims) if (!REWARD_KINDS.has(c.kind) && !bannerSeen.has(c.key) && !(c.kind === 'newbie' && $('#guide'))) one(c);
   const rw = claims.filter((c) => REWARD_KINDS.has(c.kind) && !(c.kind === 'daily' && skipDailyBanner));
   if (rw.length === 1 && !bannerSeen.has(rw[0].key)) return one(rw[0]);
   if (rw.length < 2) return;
@@ -5426,39 +5481,59 @@ function playStory(story, onClose = () => {}) {
   document.body.appendChild(el);
 }
 
-// ---------- first steps of a new player (S.GUIDE_STEPS; the server says which one, me.guide) ----------
-// One hint card on top of the screen and a glowing ring around the button to press. While the guide runs, reward
-// banners and the level-up window stay away (a level-up is a toast instead) so nothing covers the path.
-const guideOn = () => !!me?.guide;
+// ---------- «Перші кроки» (S.NEWBIE_TASKS; the server says which hint, me.guide, and which step, me.newbie) ----------
+// One pill on top of the screen — the step, its reward, where to go — and a glowing ring around the button to press;
+// a step done turns the pill into «Забрати». During the first few steps (S.GUIDE_FOCUS) reward banners and the
+// level-up window stay away (a level-up is a toast instead) so nothing covers the path.
+const guideOn = () => S.GUIDE_FOCUS.includes(me?.guide);
 function guideKey() {
   if (!me?.guide) return null;
   // Right after a drop the next thing is the choice on the drop screen: keep it or sell it.
-  if (state.tab === 'cases' && !state.page && state.drop?.some(dropAlive) && me.guide !== 'starter') return 'keep';
+  if (guideOn() && state.tab === 'cases' && !state.page && state.drop?.some(dropAlive) && !me.keys.starter) return 'keep';
   return me.guide;
+}
+// The track as a card (profile, Завдання): every step with its reward, done ones ticked, the current one claimable.
+function firstStepsCard(btnAct = 'newbieQuest') {
+  const n = me.newbie;
+  if (!n) return '';
+  const row = (t, i) => {
+    const st = i < n.step ? 'done' : i === n.step ? (n.ready ? 'ready' : 'on') : '';
+    const lock = i === n.step && n.lockedTill ? ` · ${ic('lock')} рів. ${n.lockedTill}` : '';
+    return `<div class="fs-row ${st}"><span class="fs-ic">${i < n.step ? ic('check') : i + 1}</span><span class="grow">${esc(t.text)}${lock}</span><b class="fs-rw">+${S.short(t.money).replace(' ₴', '')}</b></div>`;
+  };
+  return `<div class="h2"><span>Перші кроки</span><span>${n.step + 1}/${n.total}</span></div>
+    <div class="card firststeps"><div class="fs-list">${S.NEWBIE_TASKS.map(row).join('')}</div>
+      <button class="btn ${n.ready ? 'yellow' : ''} mt" data-act="${btnAct}" ${n.ready ? '' : 'disabled'}>${n.ready ? `${ic('gift')} Забрати +${S.fmt(n.money)} · +${S.XP.task} досвіду` : n.lockedTill ? `${ic('lock')} Відкриється на рівні ${n.lockedTill}` : `Крок ${n.step + 1}: ${esc(n.text)}`}</button></div>`;
 }
 function paintGuide() {
   document.querySelectorAll('.guide-hi').forEach((el) => el.classList.remove('guide-hi'));
   $('#guide')?.remove();
   const key = guideKey();
   // Only on the five main tabs (not over Магазин, Підтримка…), and never over a race, a drift run or a spinning case.
-  if (!key || state.page || state.race || state.drift || state.opening) return;
+  if (!key || state.page || state.race || state.drift || state.opening) return paintNextUnlock();
+  $('#nextUl')?.remove();
   const st = S.GUIDE_STEPS.find((s) => s.key === key);
-  const here = !st.tab || st.tab === state.tab;
-  const n = S.GUIDE_PATH.indexOf(key === 'case' ? 'keep' : key);
-  const nb = me.newbie?.ready ? me.newbie : null;
-  const open = here && guideOpen;
+  const nb = me.newbie;
+  const ready = !!nb?.ready && key !== 'keep';
+  const here = ready || !st.tab || st.tab === state.tab;
+  const n = nb ? nb.step : 0, total = S.GUIDE_PATH.length;
+  const open = here && guideOpen && !ready;
   // A slim progress pill (~36 px): on the step's own tab it says what to do and expands on tap (the hint text, hide);
-  // on another tab it says where to go and takes you there.
+  // on another tab it says where to go and takes you there. The step's reward sits on the right — a button once done.
   const el = document.createElement('div');
   el.id = 'guide';
-  el.className = `guide pill${open ? ' open' : ''}`;
-  el.innerHTML = `<div class="guide-bar"><button class="guide-main" data-act="${here ? 'guideToggle' : 'guideGo'}" aria-expanded="${open}">
+  el.className = `guide pill${open ? ' open' : ''}${ready ? ' ready' : ''}`;
+  const title = ready ? `${ic('check')} ${esc(nb.text)}` : `${here ? '' : `<span class="guide-to">${ic('arrow-right')}${TITLES[st.tab]}:</span> `}${esc(st.title)}`;
+  const reward = nb ? (ready ? `<button class="guide-gift" data-act="newbieQuest" aria-label="Забрати нагороду за крок">${ic('gift')}Забрати +${S.short(nb.money).replace(' ₴', '')}</button>`
+    : `<span class="guide-rw">+${S.short(nb.money).replace(' ₴', '')}</span>`) : '';
+  el.innerHTML = `<div class="guide-bar"><button class="guide-main" data-act="${ready ? 'newbieQuest' : here ? 'guideToggle' : 'guideGo'}" aria-expanded="${open}">
       <span class="guide-dots">${S.GUIDE_PATH.map((_, i) => `<i class="${i < n ? 'done' : i === n ? 'on' : ''}"></i>`).join('')}</span>
-      <span class="guide-t"><b>${n + 1}/${S.GUIDE_PATH.length}</b> ${here ? '' : `<span class="guide-to">${ic('arrow-right')}${TITLES[st.tab]}:</span> `}${esc(st.title)}</span>
-      <span class="guide-chev">${ic('chevron-right')}</span></button>
-    ${nb ? `<button class="guide-gift" data-act="newbieQuest" aria-label="Забрати нагороду за завдання">${ic('gift')}+${S.short(nb.money).replace(' ₴', '')}</button>` : ''}</div>
+      <span class="guide-t"><b>${n + 1}/${total}</b> ${title}</span>
+      ${ready ? '' : `<span class="guide-chev">${ic('chevron-right')}</span>`}</button>
+    ${reward}</div>
     ${open ? `<div class="guide-more"><div class="small">${esc(st.text)}</div><button class="guide-off" data-act="guideOff">Сховати підказки (повернути: Меню → Налаштування)</button></div>` : ''}`;
   $('#view').prepend(el);
+  if (ready) return;
   const target = here ? $(st.target) : $(`#tabs button[data-tab="${st.tab}"]`);
   if (!target) return;
   target.classList.add('guide-hi');
@@ -5498,9 +5573,9 @@ let guideWas = null;
 // Called after every refresh: the last step done → a small celebration.
 function guideProgress() {
   if (guideWas !== me.guide) paintGuide();
-  if (guideWas && !me.guide && !me.claims.includes('guide-off')) {
+  if (guideWas && !me.guide && !me.newbie && !me.claims.includes('guide-off')) {
     setTimeout(() => {
-      toast('Перші кроки пройдено! Далі — завдання новачка в профілі');
+      toast('Перші кроки пройдено! Далі — щоденні завдання й тижневий маршрут');
       FX.burst(window.innerWidth / 2, 120, ['#f5b301', '#fff', '#34c759'], { count: 60, power: 7, shape: 'mix' });
       haptic('success');
     }, 400);
@@ -6032,7 +6107,7 @@ PAGES.store = async () => {
   <div class="h2"><span>Гривні</span><span>×${mult < 10 ? mult.toFixed(1).replace('.', ',') : Math.round(mult)} за рівнем</span></div>
   ${config.packs.map((p) => `<div class="card row"><span class="ic tint" style="--c:#ffc400">${ic('coin')}</span><div class="grow"><b style="font-size:18px">${S.short(S.packAmount(p, me.level, me.stats.value))}</b>${p.tag ? ` <span class="qchip q-perfect">${p.tag}</span>` : ''}</div><button class="btn sm yellow" data-act="buyPack" data-id="${p.id}" ${config.stars ? '' : 'disabled'}>${ic('star')} ${p.stars}</button></div>`).join('')}
   <div class="h2"><span>Зручності</span></div>
-  ${[['refuel', 'gas-station', 'Загальний бак і баки всіх машин'], ['cool', 'wind', 'Зняті деталі одразу готові'], ['slot', 'building-warehouse', `Зараз ${me.slots} місць · кожне наступне ×2`]].map(([id, icon, sub]) => `<div class="card row"><span class="ic tint" style="--c:#8a94a7">${ic(icon)}</span><div class="grow"><b>${esc(it[id].name)}</b><div class="tiny muted">${sub}</div></div>${buyBtns(it[id], 'ghost')}</div>`).join('')}
+  ${[['refuel', 'gas-station', `Пальне ${S.FUEL_MAX}/${S.FUEL_MAX} одразу`], ['cool', 'wind', 'Зняті деталі одразу готові'], ['slot', 'building-warehouse', `Зараз ${me.slots} місць · кожне наступне ×2`]].map(([id, icon, sub]) => `<div class="card row"><span class="ic tint" style="--c:#8a94a7">${ic(icon)}</span><div class="grow"><b>${esc(it[id].name)}</b><div class="tiny muted">${sub}</div></div>${buyBtns(it[id], 'ghost')}</div>`).join('')}
   <div class="tiny muted center mt">Оплата через Telegram Stars, усе зараховується одразу. Зірки на рахунку — призи сезону. Ігрові цінності не можна вивести чи обміняти на реальні гроші. Питання — /paysupport у боті.</div>`;
 };
 AFTER.store = tickUntil;
@@ -6305,7 +6380,7 @@ function showGift() {
     // Welcome back (S.COMEBACK): granted on the server already, this window only shows what came.
     title = 'З поверненням!';
     color = '#30d158';
-    const lines = [`${ic('gas-station')} Повний бак і всі баки машин`, ...d.keys.map((k) => `${ic('key')} Ключ «${esc(S.CASE_BY_ID[k.caseId].name)}»${k.count > 1 ? ` ×${k.count}` : ''}`)];
+    const lines = [`${ic('gas-station')} Повний бак пального`, ...d.keys.map((k) => `${ic('key')} Ключ «${esc(S.CASE_BY_ID[k.caseId].name)}»${k.count > 1 ? ` ×${k.count}` : ''}`)];
     if (d.capHours) lines.push(`${ic('clock')} Дохід копиться на ${d.capHours} год довше — ${d.capFor} год`);
     art = `<div class="gift-ic" style="--c:${color}">${ic('car')}</div><div class="gift-sum" style="color:${color};font-size:26px">Гараж скучив за тобою</div>
       <div class="small muted">тебе не було ${d.days} ${d.days % 10 >= 2 && d.days % 10 <= 4 && (d.days % 100 < 12 || d.days % 100 > 14) ? 'дні' : 'днів'}</div>
@@ -6538,11 +6613,11 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide']) {
     else state.caseId = prefGet('caseId', (id) => !!S.CASE_BY_ID[id] && !S.CASE_BY_ID[id].starter) || state.caseId;
     if (me.dailyReady && !me.cars.length) state.tab = 'cases';
     const story = S.storyFor(me, whatsNewSeenHere());
-    const st = S.GUIDE_STEPS.find((s) => s.key === me.guide);
+    const st = guideOn() && S.GUIDE_STEPS.find((s) => s.key === me.guide);
     if (st?.tab) state.tab = st.tab; // back in the middle of the first steps: open where the next one is
     render();
     // A new player gets neither the rewards window nor banners over the first steps: the guide brings them to the gift.
-    if (me.dailyReady && !me.guide && !me.intro) {
+    if (me.dailyReady && !guideOn() && !me.intro) {
       openRewards();
       skipDailyBanner = true;
     }

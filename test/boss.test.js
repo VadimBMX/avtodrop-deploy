@@ -154,12 +154,11 @@ test('boss: validation — car class, own car, fuel, unknown boss; finished exac
   const other = g.giveCar(2, byName('Bugatti Chiron Super Sport')).id;
   assert.throws(() => g.api['boss/start'](1, { carId: other, boss: jp.id }), /не твоє/);
   db.prepare('UPDATE users SET fuel = 0, fuel_at = ? WHERE id = 1').run(Date.parse('2026-10-21T09:00:00Z') + 1e9);
-  assert.throws(() => g.api['boss/start'](1, { carId: s, boss: jp.id }), /бак порожній/);
+  assert.throws(() => g.api['boss/start'](1, { carId: s, boss: jp.id }), /Пальне 0\/15/);
   refuel();
+  // No per-car tank any more: a car with an old empty cars.tank races all the same.
   db.prepare('UPDATE cars SET tank = 0, tank_at = ? WHERE id = ?').run(Date.parse('2026-10-21T09:00:00Z') + 1e9, s);
-  assert.throws(() => g.api['boss/start'](1, { carId: s, boss: jp.id }), /Бак цієї машини/);
-  refuel();
-  // A start costs one fuel from both tanks, like a race.
+  // A start costs one fuel from the shared tank, like a race.
   const f0 = g.api.me(1).fuel;
   const st = g.api['boss/start'](1, { carId: s, boss: jp.id });
   assert.equal(g.api.me(1).fuel, f0 - 1);

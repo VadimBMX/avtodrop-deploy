@@ -45,26 +45,44 @@ test('intro stories: an existing player never sees them, "what\'s new" still wor
   assert.equal(S.storyFor(me, true), null, 'already seen in this browser');
 });
 
-test('first steps: starter → collect → race → daily, then done; can be turned off', () => {
-  const step = (p) => S.guideStep({ introSeen: true, keys: {}, garage: 1, flags: [], races: 0, streak: 0, dailyReady: true, ...p });
+test('«Перші кроки»: one track of 8 — the pill follows the step; no car → a car first, a locked step → the level', () => {
+  const step = (p) => S.guideStep({ introSeen: true, keys: {}, garage: 1, level: 1, step: 0, ...p });
+  const at = (k) => S.NEWBIE_TASKS.findIndex((t) => t.key === k);
+  assert.equal(S.NEWBIE_TASKS.length, 8);
+  assert.deepEqual(S.GUIDE_PATH, S.NEWBIE_TASKS.map((t) => t.key), 'the pill dots are the track');
+  assert.ok(S.NEWBIE_TASKS.every((t) => t.money > 0 && t.text), 'every step says what to do and what it pays');
   assert.equal(step({ keys: { starter: 1 }, garage: 0 }), 'starter');
-  assert.equal(step({}), 'collect');
-  assert.equal(step({ garage: 0 }), 'case', 'starter car sold: get a car first');
-  assert.equal(step({ flags: ['collect'] }), 'race');
-  assert.equal(step({ flags: ['collect'], races: 1 }), 'daily');
-  assert.equal(step({ flags: ['collect'], races: 1, streak: 1, dailyReady: false }), null);
+  assert.equal(step({}), 'starter', 'opened, not claimed yet: the pill turns into «Забрати»');
+  assert.equal(step({ step: at('collect') }), 'collect');
+  assert.equal(step({ step: at('collect'), garage: 0 }), 'case', 'starter car sold: get a car first');
+  assert.equal(step({ step: at('race') }), 'race');
+  assert.equal(step({ step: at('daily') }), 'daily');
+  assert.equal(step({ step: at('win'), garage: 0 }), 'case');
+  assert.equal(step({ step: at('open_case'), garage: 0 }), 'open_case');
+  assert.equal(step({ step: at('install'), locked: true }), 'level2');
+  assert.equal(step({ step: at('install') }), 'part_case');
+  assert.equal(step({ step: at('install'), parts: 2 }), 'install');
+  assert.equal(step({ step: at('level3') }), 'level3');
+  assert.equal(step({ step: S.NEWBIE_TASKS.length }), null, 'track done');
   assert.equal(step({ introSeen: false }), null);
   assert.equal(step({ off: true }), null);
-  for (const k of S.GUIDE_PATH) assert.ok(S.GUIDE_STEPS.some((s) => s.key === k), k);
+  for (const k of ['starter', 'keep', 'case', 'collect', 'race', 'daily', 'win', 'open_case', 'part_case', 'install', 'level2', 'level3']) {
+    assert.ok(S.GUIDE_STEPS.some((s) => s.key === k), k);
+  }
+  for (const k of S.GUIDE_FOCUS) assert.ok(S.GUIDE_STEPS.some((s) => s.key === k), k);
 
   const { mk, call } = setup();
   mk(3);
   call(3, 'intro/seen');
   assert.equal(call(3, 'me').guide, 'starter');
   call(3, 'case/open', { caseId: 'starter' });
+  assert.equal(call(3, 'me').guide, 'starter');
+  assert.equal(call(3, 'me').newbie.ready, true);
+  call(3, 'newbie/claim');
   assert.equal(call(3, 'me').guide, 'collect');
   call(3, 'guide/off');
   assert.equal(call(3, 'me').guide, null);
+  assert.equal(call(3, 'me').newbie.key, 'collect', 'hints off: the track stays in Завдання');
 });
 
 test('first steps add no money: newbie task rewards are unchanged', () => {

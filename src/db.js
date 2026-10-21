@@ -273,6 +273,10 @@ const MIGRATIONS = [
   'ALTER TABLE users ADD COLUMN season_id INTEGER',
   'ALTER TABLE users ADD COLUMN season_xp INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE users ADD COLUMN premium_season INTEGER NOT NULL DEFAULT 0',
+  // Progression version of the player's row: 0 = the old XP curve (S.xpForLevelV1) and the 10-task newbie track,
+  // 1 = the XP table and «Перші кроки». New players get 1 at sign-up; every row with 0 (players from before, or rows
+  // merged in from an older database) is migrated once at the next start (game.js migrateProgress).
+  'ALTER TABLE users ADD COLUMN prog_v INTEGER NOT NULL DEFAULT 0',
   // Stars on the account (season prizes), spent in the shop; VIP end time; garage slots bought for stars; starter pack.
   'ALTER TABLE users ADD COLUMN stars INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE users ADD COLUMN vip_until INTEGER NOT NULL DEFAULT 0',

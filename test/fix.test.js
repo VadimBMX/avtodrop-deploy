@@ -100,17 +100,16 @@ test('parts: a random part fits the player’s cars (no battery for a petrol gar
   assert.notEqual(S.PART_CASE_BY_ID.atelier.name, S.CASE_BY_ID.tuning.name, 'parts case and car case have different names');
 });
 
-test('first steps: stale steps are skipped and the hints can be turned back on', () => {
-  const step = (p) => S.guideStep({ introSeen: true, keys: {}, garage: 1, flags: [], races: 0, streak: 0, dailyReady: true, ...p });
-  assert.equal(step({ races: 1 }), 'daily', 'raced before collecting: the collect step is stale');
-  assert.equal(step({ opened: S.GUIDE_PAST.opened }), null, 'well past the first minutes');
-  assert.equal(step({ level: S.GUIDE_PAST.level }), null);
-  assert.equal(step({ opened: 3, level: 2 }), 'collect');
+test('first steps: no pill past the first days, and the hints can be turned back on', () => {
+  const step = (p) => S.guideStep({ introSeen: true, keys: {}, garage: 1, level: 1, step: 1, ...p });
+  assert.equal(step({ level: S.GUIDE_PAST.level }), null, 'well past the first days: the track stays in Завдання only');
+  assert.equal(step({ level: 2 }), 'collect');
 
   const { mk, call } = setup();
   mk(3);
   call(3, 'intro/seen');
   call(3, 'case/open', { caseId: 'starter' });
+  call(3, 'newbie/claim');
   call(3, 'guide/off');
   assert.equal(call(3, 'me').guide, null);
   call(3, 'guide/on');

@@ -1034,6 +1034,8 @@ export function dragReplay(stats, reaction, shiftAt, claims = []) {
   while (shifts.length < SHIFTS) shifts.push('late');
   return { shifts, endMs: (endTau / RACE_SPEED) * 1000, corrected };
 }
+// One shared tank: FUEL_MAX races, +1 every FUEL_REGEN_MIN minutes, on any car. CAR_TANK is the old per-car tank —
+// gone from the game (no per-car limit); the cars.tank column stays unused and the API reports it full for old apps.
 export const FUEL_MAX = 15;
 export const CAR_TANK = 5;
 export const FUEL_REGEN_MIN = 20;
@@ -1716,8 +1718,13 @@ export const SHOWCASE_MAX = 12;
 export const showcaseCost = (n) => niceRound(300000 * Math.pow(2, n - SHOWCASE_START));
 
 // ---------- levels, rewards, tasks ----------
-// xp needed to go from lvl to lvl+1. An active player gets ~2,000–2,500 xp a day: level 5 after ~3 days, level 10 after ~3–4 weeks.
-export const xpForLevel = (lvl) => Math.round(300 * Math.pow(lvl, 1.8));
+// xp needed to go from lvl to lvl+1. Levels 1–7 are a table made for the first days (tools/sim-unlock.mjs: L4 ≈ 47 min,
+// L5 ≈ 87 min of active play, see UNLOCKS); 8–10 carry on with the table's own step (×1.34) into 300·L^1.6 from level 11 on, so the
+// curve has no jump (10 400 → 13 911); late levels need about 60% of the old curve (L13: 18 173 instead of 30 354).
+export const XP_TABLE = [300, 700, 1100, 1600, 2300, 3200, 4300, 5800, 7700, 10400];
+export const xpForLevel = (lvl) => (lvl >= 1 && lvl <= XP_TABLE.length ? XP_TABLE[lvl - 1] : Math.round(300 * Math.pow(Math.max(lvl, 1), 1.6)));
+// The curve before the table (300·L^1.8). game.js migrateProgress rescales a player's xp within his level by it, once.
+export const xpForLevelV1 = (lvl) => Math.round(300 * Math.pow(lvl, 1.8));
 export function levelReward(lvl) {
   const r = { money: 15000 * lvl * lvl };
   if (lvl % 5 === 0) r.caseId = lvl >= 15 ? 'sport' : 'city';
@@ -1725,15 +1732,16 @@ export function levelReward(lvl) {
   return r;
 }
 export const XP = { win: 25, race: 10, newCar: 20, daily: 30, task: 30, quest: 60, case: 5, plate: 5, merge: 10, install: 5, pvp: 30, trade: 30, market: 20, upgrade: 10, casino: 2 };
-// Gambling-like actions share the daily cap so levels can't be farmed by spamming them.
+// Gambling-like actions (cases, parts, plates; the upgrade and casino too) share the daily cap so levels can't be farmed
+// by spamming them. Races, bosses, the daily bonus, tasks and quests are never capped.
 export const CAPPED_XP = ['case', 'plate', 'merge', 'install', 'upgrade', 'casino'];
 export const DAILY_XP_CAP = 300;
 
 // ---------- progressive unlock ----------
 // What opens at which level, so a newcomer isn't met by twenty screens at once. Level 1 always has the core loop:
 // car cases, the garage, drag races, the daily bonus and tasks (plus profile, collection, rating, shop, support).
-// Pace with xpForLevel (tools/sim-unlock.mjs, active minutes of a typical newcomer): L2 ≈ 5 min, L3 ≈ 25–30 min
-// (end of the first session), L4 ≈ day 2, L5 ≈ day 3–6, L6 ≈ a week, L8 ≈ 2–3 weeks, L10 ≈ 3–5 weeks.
+// Pace with xpForLevel (tools/sim-unlock.mjs 30 32, active minutes of a typical newcomer, sessions 3 h apart): L2 ≈ 4 min,
+// L3 ≈ 18, L4 ≈ 47 (first evening), L5 ≈ 87 (day 2), L6 ≈ 155 (day 3), L7 ≈ day 4–5.
 // Locked items stay visible with a lock and «Відкриється на рівні N»; the server refuses them too (game.js GATES).
 // A player keeps a feature he already used before the ladder existed (users.feats, see db.js); admins and the owner
 // are never locked.
@@ -1802,21 +1810,23 @@ export const REWARD_CASE_HOURS = 4;
 // What the reward case gives (src/game.js rewardCase rolls these shares; the app's 2-second strip draws by them too).
 export const REWARD_CASE_ODDS = { money: 0.5, part: 0.3, fuel: 0.12, car: 0.08 };
 
-// In the order the features open (UNLOCKS, `feature`): level-1 things first, parts at level 2, the plate after level 3.
-// NEWBIE_ORDER_V1 is the order before the ladder — db/game migrate players who were in the middle of it.
+// «Перші кроки» — the one track of a new player (it replaced the 5-step hint pill and the 10 «Завдання новачка»). Steps
+// are claimed in order (users.newbie_step); one done early is ready the moment the track gets to it. The app's pill on
+// top of the screen shows the current step, its reward and where to go (guideStep → GUIDE_STEPS). In the order the
+// features open (UNLOCKS, `feature`). Done by: a flag (game.js flag()), except daily (a daily bonus ever claimed) and
+// level3. NEWBIE_ORDER_V1 / V2 are the older tracks — game.js migrates players who were in the middle of them.
 export const NEWBIE_TASKS = [
   { key: 'open_starter', text: 'Відкрий стартовий кейс', money: 10000 },
   { key: 'collect', text: 'Забери дохід гаража', money: 20000 },
-  { key: 'race', text: 'Проїдь заїзд', money: 30000 },
+  { key: 'race', text: 'Проїдь перший заїзд', money: 30000 },
+  { key: 'daily', text: 'Забери щоденний бонус', money: 10000 },
   { key: 'win', text: 'Виграй заїзд', money: 40000 },
   { key: 'open_case', text: 'Відкрий кейс з машиною', money: 50000 },
-  { key: 'part_case', text: 'Відкрий кейс з деталями', money: 25000, feature: 'parts' },
-  { key: 'install', text: 'Встанови деталь на машину', money: 30000, feature: 'parts' },
-  { key: 'merge', text: 'Злий 3 деталі в одну', money: 75000, feature: 'parts' },
+  { key: 'install', text: 'Встанови деталь на машину', money: 50000, feature: 'parts' },
   { key: 'level3', text: 'Досягни 3 рівня', money: 150000 },
-  { key: 'plate', text: 'Згенеруй номер', money: 40000, feature: 'plates' },
 ];
 export const NEWBIE_ORDER_V1 = ['open_starter', 'collect', 'part_case', 'install', 'race', 'win', 'plate', 'open_case', 'merge', 'level3'];
+export const NEWBIE_ORDER_V2 = ['open_starter', 'collect', 'race', 'win', 'open_case', 'part_case', 'install', 'merge', 'level3', 'plate'];
 export const QUESTS = {
   open: { text: 'Відкрий {n} кейсів з машинами', range: [3, 8] },
   race: { text: 'Проїдь {n} заїздів', range: [3, 6] },
@@ -2226,7 +2236,7 @@ export const SHOP_ITEMS = [
   { id: 'starter', name: 'Стартовий набір', stars: 99, once: true, money: 3000000, keys: { city: 2 }, vipDays: 3 },
   { id: 'vip', name: `VIP на ${VIP.days} днів`, stars: VIP.stars, vipDays: VIP.days },
   { id: 'pass', name: 'Преміум-пропуск сезону', stars: SEASON.premiumStars },
-  { id: 'refuel', name: 'Заправити всі баки', stars: 25 },
+  { id: 'refuel', name: 'Повний бак', stars: 25 },
   { id: 'cool', name: 'Охолодити деталі', stars: 10 },
   { id: 'slot', name: '+1 місце в гаражі', stars: 100 },
 ];
@@ -2272,9 +2282,12 @@ export function storyFor(me, localSeen = false) {
   if (me.cars.length && !localSeen && !me.claims.includes('story:' + WHATS_NEW.id)) return 'whatsnew';
   return null;
 }
-// First steps after the stories: one highlighted action at a time. Rewards are the ones the game already has
-// (newbie tasks, the daily bonus) — the guide only points at them. 'keep' is the drop screen (known to the app only).
-export const GUIDE_PATH = ['starter', 'keep', 'collect', 'race', 'daily']; // the dots on the hint card
+// «Перші кроки» after the stories: the pill on top shows the step of the track (NEWBIE_TASKS) and its reward, and a
+// ring highlights the button to press. A step can need a hint of its own: 'keep' (the drop screen, known to the app
+// only), 'case' (no car left for a step that needs one), 'part_case' → 'install', 'level2' (the step's feature is
+// still locked). While the pill is on one of GUIDE_FOCUS, banners and the level-up window keep away from the path.
+export const GUIDE_PATH = NEWBIE_TASKS.map((t) => t.key); // the dots on the pill
+export const GUIDE_FOCUS = ['starter', 'keep', 'case', 'collect', 'race', 'daily'];
 export const GUIDE_STEPS = [
   { key: 'starter', tab: 'cases', target: '[data-act="openCase"]', title: 'Відкрий стартовий кейс', text: 'Він безкоштовний — тисни кнопку й дивись, що випаде.' },
   // The starter car is the player's only car, so it can't be sold (server: «Останню машину продати не можна») — the
@@ -2285,22 +2298,28 @@ export const GUIDE_STEPS = [
   { key: 'collect', tab: 'garage', target: '[data-act="collect"]', title: 'Забери дохід гаража', text: 'У касі вже лежить перший дохід. Тисни «Забрати» — і так щоразу, як заходиш.' },
   { key: 'race', tab: 'race', target: '.rival', title: 'Проїдь перший заїзд', text: 'Обери суперника. На світлофорі жми «ГАЗ» на зелений, передачі — у зеленій зоні.' },
   { key: 'daily', tab: null, target: '#gift', title: 'Забери щоденний бонус', text: 'Подарунок угорі екрана. Заходь щодня — на 7-й день машина зі «Спорткара».' },
+  { key: 'win', tab: 'race', target: '.rival', title: 'Виграй заїзд', text: '«Тренування» — без внеску. Газ рівно на зелений, передачі — коли стрілка в зеленій зоні.' },
+  { key: 'open_case', tab: 'cases', target: '[data-act="openCase"]', title: 'Відкрий кейс з машиною', text: 'Нова машина — ще й досвід. «Іржавий гараж» — найдешевший.' },
+  { key: 'part_case', tab: 'shop', target: '[data-act="openParts"]', title: 'Відкрий кейс з деталями', text: 'Деталь випаде з тих, що підходять твоїм машинам. Далі — встанови її.' },
+  { key: 'install', tab: 'garage', target: '#view .car[data-act="car"]', title: 'Встанови деталь на машину', text: 'Тисни на машину → слот деталі → «Встановити». Більше к.с. — швидше в гонках.' },
+  { key: 'level2', tab: 'race', target: '.rival', title: 'Досягни 2 рівня', text: 'Рівень 2 відкриє Майстерню з деталями. Досвід дають заїзди, нові машини й завдання.' },
+  { key: 'level3', tab: 'race', target: '.rival', title: 'Досягни 3 рівня', text: 'Досвід дають заїзди (перемога — більше), нові машини в колекції й завдання.' },
 ];
-// p: { introSeen (the player came through the intro stories), off (hints turned off), keys, garage (cars in the garage), flags (newbie flags), races, streak, dailyReady,
-//   opened (cases opened), level }.
-// Stale steps are skipped: a step done "out of order" (raced before collecting) moves the guide on, and a player who is
-// clearly past the first minutes (GUIDE_PAST) never sees the hints again, so the card can't hang around forever.
-export const GUIDE_PAST = { opened: 15, level: 5 };
+// p: { introSeen (the player came through the intro stories), off (hints turned off), keys, garage (cars in the garage),
+//   level, step (users.newbie_step), locked (the step's feature isn't open yet), parts (parts on the stock) }.
+// The pill follows the track until it's done; a player past the first days (GUIDE_PAST) keeps the track in Завдання, but
+// no pill. A step done but not claimed keeps its key — the app turns the pill into «Забрати».
+export const GUIDE_PAST = { level: 5 };
+const CAR_STEPS = ['collect', 'race', 'win'];
 export function guideStep(p) {
   if (!p.introSeen || p.off) return null;
   if (p.keys?.starter) return 'starter';
-  if ((p.opened || 0) >= GUIDE_PAST.opened || (p.level || 1) >= GUIDE_PAST.level) return null;
-  const needCollect = !p.flags.includes('collect') && !p.races, needRace = !p.races;
-  if (!p.garage && (needCollect || needRace)) return 'case';
-  if (needCollect) return 'collect';
-  if (needRace) return 'race';
-  if (!p.streak && p.dailyReady) return 'daily';
-  return null;
+  const t = NEWBIE_TASKS[p.step || 0];
+  if (!t || (p.level || 1) >= GUIDE_PAST.level) return null;
+  if (!p.garage && CAR_STEPS.includes(t.key)) return 'case';
+  if (t.key === 'open_starter') return 'starter';
+  if (t.key === 'install') return p.locked ? 'level2' : p.parts ? 'install' : 'part_case';
+  return t.key;
 }
 
 // ---------- events ----------
@@ -2313,7 +2332,7 @@ export const EVENTS = {
   luck: { name: 'Вихідні удачі', icon: 'clover', color: '#30d158', days: 2, topMult: 1.3, boost: 0,
     text: 'Кейси за рідкістю: шанс найвищого класу ×1,3. Кейс дня на вихідних відпочиває.' },
   fuel: { name: 'Подвійне паливо', icon: 'gas-station', color: '#ff9f0a', days: 1, fuelMult: 2,
-    text: 'Загальний бак і баки машин наповнюються вдвічі швидше (з VIP — утричі).' },
+    text: 'Пальне наповнюється вдвічі швидше (з VIP — утричі).' },
   race: { name: 'Гоночний уїкенд', icon: 'flag-3', color: '#ff3b30', days: 2, prizeMult: 1.25,
     text: 'Призи за перемоги в драгу й дрифті +25%. Внесок той самий.' },
   // The losing-streak save stays on: the China case (every C car under its price) leaned on it, and without it its

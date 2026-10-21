@@ -177,7 +177,7 @@ test('selling a car returns its parts and plate', () => {
   assert.equal(me.plates[0].carId, null);
 });
 
-test('race: rivals, fuel and tank, perfect driving beats the easy rival, entry is returned on win', () => {
+test('race: rivals, shared fuel, perfect driving beats the easy rival, entry is returned on win', () => {
   const ctx = setup();
   const { mk, call, g, setRandom } = ctx;
   mk(1);
@@ -193,7 +193,7 @@ test('race: rivals, fuel and tank, perfect driving beats the easy rival, entry i
   const st = call(1, 'race/start', { carId: c, rival: 'easy' });
   assert.equal(call(1, 'me').balance, bal - list[0].entry);
   assert.equal(call(1, 'me').fuel, S.FUEL_MAX - 1);
-  assert.equal(car(call, 1, c).tank, S.CAR_TANK - 1);
+  assert.equal(car(call, 1, c).tank, S.CAR_TANK, 'no per-car tank: an app from before sees it full');
   const r = drive(ctx, 1, st, 0.12, ['perfect', 'perfect', 'perfect', 'perfect']);
   assert.deepEqual(r.shifts, ['perfect', 'perfect', 'perfect', 'perfect']);
   assert.equal(r.win, true);
@@ -202,7 +202,7 @@ test('race: rivals, fuel and tank, perfect driving beats the easy rival, entry i
   assert.throws(() => call(1, 'race/finish', { raceId: st.raceId, reaction: 0.12, shifts: ['good', 'good', 'good', 'good'] }), /завершено/);
 });
 
-test('race: jump start and missed shifts are slower; tank empties after 5 races', () => {
+test('race: jump start and missed shifts are slower; one car races the whole shared tank', () => {
   const ctx = setup();
   const { mk, call, g, rich } = ctx;
   mk(1);
@@ -214,8 +214,9 @@ test('race: jump start and missed shifts are slower; tank empties after 5 races'
     times.push(drive(ctx, 1, st, reaction, Array(4).fill(q)).time);
   }
   assert.ok(times[1] > times[0] + 1);
-  for (let i = 0; i < 3; i++) drive(ctx, 1, call(1, 'race/start', { carId: c, rival: 'easy' }), 0.2, Array(4).fill('good'));
-  assert.throws(() => call(1, 'race/start', { carId: c, rival: 'easy' }), /Бак цієї машини/);
+  for (let i = 2; i < S.FUEL_MAX; i++) drive(ctx, 1, call(1, 'race/start', { carId: c, rival: 'easy' }), 0.2, Array(4).fill('good'));
+  assert.equal(call(1, 'me').fuel, 0);
+  assert.throws(() => call(1, 'race/start', { carId: c, rival: 'easy' }), /Пальне 0\/15 — \+1 через \d+ хв/);
 });
 
 test('levels: xp grants level rewards; capped xp stops at the daily limit', () => {

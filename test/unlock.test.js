@@ -33,7 +33,7 @@ test('ladder: one constant, levels ascending, every gated key in it; casino and 
   // Newbie tasks follow the ladder: no task needs a feature that opens later than the step before it allows.
   const at = S.NEWBIE_TASKS.map((t) => (t.feature ? S.unlockLevel(t.feature) : t.key === 'level3' ? 3 : 1));
   assert.deepEqual(at, [...at].sort((a, b) => a - b));
-  assert.deepEqual([...S.NEWBIE_ORDER_V1].sort(), S.NEWBIE_TASKS.map((t) => t.key).sort());
+  assert.deepEqual([...S.NEWBIE_ORDER_V1].sort(), [...S.NEWBIE_ORDER_V2].sort());
 });
 
 test('a level-1 player: core loop open, everything else refused by the API with the level it opens at', () => {
@@ -83,12 +83,12 @@ test('quests: a locked player never gets a daily or weekly task for a locked fea
   }
 });
 
-test('newbie chain: a locked task says when it opens; the level-3 reward comes before the plate', () => {
+test('newbie chain: a locked step says when it opens', () => {
   const { mk, call, db } = setup();
   mk(6);
-  db.prepare("UPDATE users SET newbie_step = 5, newbie_flags = '[]' WHERE id = 6").run();
+  db.prepare("UPDATE users SET newbie_step = ?, newbie_flags = '[]' WHERE id = 6").run(S.NEWBIE_TASKS.findIndex((t) => t.key === 'install'));
   const nb = call(6, 'me').newbie;
-  assert.equal(nb.key, 'part_case');
+  assert.equal(nb.key, 'install');
   assert.equal(nb.lockedTill, 2);
   db.prepare('UPDATE users SET level = 2 WHERE id = 6').run();
   assert.equal(call(6, 'me').newbie.lockedTill, 0);
@@ -202,31 +202,35 @@ test('grandfathering: the feats backfill keeps what an existing player used; lev
   }
 });
 
-test('newbie order migration: a player in the middle keeps his place and is not paid twice', () => {
+test('newbie order migration (V1 → V2 → «Перші кроки»): a player in the middle keeps his place and is not paid twice', () => {
   const db = openDb(':memory:');
   const a = setup(db);
   for (const id of [31, 32, 33]) a.mk(id);
-  // Old order: open_starter, collect, part_case, install, race, win, plate, open_case, merge, level3.
+  // Oldest order: open_starter, collect, part_case, install, race, win, plate, open_case, merge, level3.
   db.prepare('UPDATE users SET newbie_step = 3 WHERE id = 31').run(); // claimed open_starter, collect, part_case
   db.prepare('UPDATE users SET newbie_step = 7 WHERE id = 32').run(); // … install, race, win, plate
   db.prepare('UPDATE users SET newbie_step = 10 WHERE id = 33').run(); // all done
   db.prepare("DELETE FROM meta WHERE key = 'newbie_order_2'").run();
+  db.prepare('UPDATE users SET prog_v = 0').run(); // rows from before «Перші кроки»
   const b = setup(db, { allUnlocked: true });
   const u = (id) => db.prepare('SELECT newbie_step, newbie_flags FROM users WHERE id = ?').get(id);
+  // «Перші кроки»: open_starter, collect, race, daily, win, open_case, install, level3.
   assert.equal(S.NEWBIE_TASKS[u(31).newbie_step].key, 'race');
-  assert.deepEqual(JSON.parse(u(31).newbie_flags), ['nb:part_case']);
-  assert.equal(S.NEWBIE_TASKS[u(32).newbie_step].key, 'open_case');
-  assert.deepEqual(JSON.parse(u(32).newbie_flags).sort(), ['nb:install', 'nb:part_case', 'nb:plate']);
-  assert.equal(u(33).newbie_step, 10);
+  assert.deepEqual(JSON.parse(u(31).newbie_flags), [], 'part_case is not a step any more');
+  assert.equal(S.NEWBIE_TASKS[u(32).newbie_step].key, 'daily', 'the daily step is new for him (no daily bonus taken yet)');
+  assert.deepEqual(JSON.parse(u(32).newbie_flags).sort(), ['nb:install', 'nb:win']);
+  assert.equal(u(33).newbie_step, S.NEWBIE_TASKS.length, 'finished the old track — finished this one');
   // Runs once: a second start changes nothing.
   db.prepare('UPDATE users SET newbie_step = 3 WHERE id = 33').run();
   setup(db);
   assert.equal(u(33).newbie_step, 3);
-  // 32 claims open_case, then merge comes next (part_case and install were paid in the old order).
-  b.call(32, 'case/open', { caseId: 'starter' });
+  // 32 takes the daily bonus and claims the step; win was paid before → open_case is next; then install is skipped too.
+  b.call(32, 'rewards/daily');
+  b.call(32, 'newbie/claim');
+  assert.equal(S.NEWBIE_TASKS[u(32).newbie_step].key, 'open_case');
   db.prepare('UPDATE users SET newbie_flags = ? WHERE id = 32').run(JSON.stringify([...JSON.parse(u(32).newbie_flags), 'open_case']));
   b.call(32, 'newbie/claim');
-  assert.equal(S.NEWBIE_TASKS[u(32).newbie_step].key, 'merge');
+  assert.equal(S.NEWBIE_TASKS[u(32).newbie_step].key, 'level3');
 });
 
 test('level-up: the unlocks between two levels are what the popup lists', () => {

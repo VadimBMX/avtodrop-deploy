@@ -147,15 +147,18 @@ export function createGame(db, opts = {}) {
   }
   const carPlate = (carId) => q('SELECT id, text, cls, value FROM plates WHERE car_id = ?').get(carId) || null;
   const vipOf = (uid) => (q('SELECT vip_until FROM users WHERE id = ?').get(uid)?.vip_until || 0) > now();
-  // VIP refills both the shared tank and the cars' own tanks twice as fast; the «Подвійне паливо» event doubles that
-  // while it runs (S.regenAt switches the speed exactly at the event's start and end, at most ×EVENT_CAPS.fuelTotal).
+  // VIP refills the shared tank twice as fast; the «Подвійне паливо» event doubles that while it runs (S.regenAt
+  // switches the speed exactly at the event's start and end, at most ×EVENT_CAPS.fuelTotal).
   const REGEN_MS = S.FUEL_REGEN_MIN * 60e3;
   const vipMult = (vip) => (vip ? S.VIP.fuelMult : 1);
-  function tankState(c) {
-    if (c.tank >= S.CAR_TANK) return { tank: S.CAR_TANK, at: now(), next: null };
-    const r = S.regenAt(c.tank_at, now(), REGEN_MS, S.CAR_TANK - c.tank, evOv, vipMult(vipOf(c.owner_id)));
-    const tank = c.tank + r.n;
-    return { tank, at: tank >= S.CAR_TANK ? now() : r.at, next: r.next };
+  // The per-car tank is gone (one shared tank): cars.tank stays unused and a car always reports a full one, so an app
+  // from before never greys a car out.
+  const tankState = () => ({ tank: S.CAR_TANK, next: null });
+  // An empty shared tank: when the next one comes (the app shows this as a card, not as an error).
+  function needFuel(f) {
+    if (f.fuel >= 1) return;
+    const min = f.next ? Math.max(1, Math.ceil((f.next - now()) / 60e3)) : S.FUEL_REGEN_MIN;
+    fail(`Пальне 0/${S.FUEL_MAX} — +1 через ${min} хв. Кейс нагород чи завдання можуть дати повний бак`);
   }
   function carOut(c) {
     if (!c) return null;
@@ -381,7 +384,7 @@ export function createGame(db, opts = {}) {
   function migrateNewbieOrder() {
     if (metaGet('newbie_order_2')) return;
     db.tx(() => {
-      const order = S.NEWBIE_TASKS.map((x) => x.key);
+      const order = S.NEWBIE_ORDER_V2;
       for (const u of q('SELECT id, newbie_step, newbie_flags FROM users WHERE newbie_step > 0 AND newbie_step < ?').all(order.length)) {
         const done = new Set(S.NEWBIE_ORDER_V1.slice(0, u.newbie_step));
         let step = 0;
@@ -393,6 +396,44 @@ export function createGame(db, opts = {}) {
       metaSet('newbie_order_2', Date.now());
     });
   }
+  // Progression v1 (users.prog_v, see db.js): every row still at 0 — a player from before, or a row merged in from an
+  // older database — is moved once, at start, after the newbie order migration above:
+  //  • XP: S.xpForLevel (a table for the first levels, 300·L^1.6 later) instead of S.xpForLevelV1. The level never
+  //    changes; the xp inside it is rescaled to the same share of the new (smaller) need, so no bar shows over 100%
+  //    and nobody jumps several levels on the next race. (A row that already held more than its old need — seen in
+  //    an old Railway copy — keeps that excess, rescaled, and levels up on its next xp as it would have before.)
+  //  • «Перші кроки» (S.NEWBIE_TASKS) instead of the 10 tasks of S.NEWBIE_ORDER_V2: a player who finished the old
+  //    track has finished this one; one in the middle keeps every step he claimed — the first unclaimed one is his
+  //    step, claimed ones further on are marked 'nb:<key>' and skipped (never paid twice). The new «daily bonus» step
+  //    counts as claimed for whoever already took a daily bonus.
+  function progressV1(u) {
+    const lvl = Math.max(1, u.level), was = S.xpForLevelV1(lvl), need = S.xpForLevel(lvl);
+    const xp = Math.max(0, Math.floor((u.xp * need) / was));
+    const v2 = S.NEWBIE_ORDER_V2, v3 = S.NEWBIE_TASKS.map((x) => x.key);
+    let step = u.newbie_step, flags = u.newbie_flags;
+    if (step >= v2.length) step = v3.length;
+    else if (step > 0) {
+      const old = JSON.parse(u.newbie_flags);
+      const claimed = new Set([...v2.slice(0, u.newbie_step), ...v2.filter((k) => old.includes('nb:' + k))]);
+      if (u.streak > 0) claimed.add('daily');
+      step = 0;
+      while (step < v3.length && claimed.has(v3[step])) step++;
+      const f = old.filter((x) => !String(x).startsWith('nb:'));
+      for (const k of v3.slice(step)) if (claimed.has(k)) f.push('nb:' + k);
+      flags = JSON.stringify(f);
+    }
+    return { xp, step, flags };
+  }
+  function migrateProgress() {
+    const rows = q('SELECT id, level, xp, newbie_step, newbie_flags, streak FROM users WHERE prog_v = 0').all();
+    if (!rows.length) return;
+    db.tx(() => {
+      for (const u of rows) {
+        const m = progressV1(u);
+        q('UPDATE users SET xp = ?, newbie_step = ?, newbie_flags = ?, prog_v = 1 WHERE id = ? AND prog_v = 0').run(m.xp, m.step, m.flags, u.id);
+      }
+    });
+  }
   function flag(uid, key) {
     const u = q('SELECT newbie_flags FROM users WHERE id = ?').get(uid);
     const f = JSON.parse(u.newbie_flags);
@@ -401,11 +442,19 @@ export function createGame(db, opts = {}) {
       q('UPDATE users SET newbie_flags = ? WHERE id = ?').run(JSON.stringify(f), uid);
     }
   }
+  // What the pill of «Перші кроки» needs besides the player row (S.guideStep): the step, whether its feature is still
+  // locked and whether there is a part on the stock to install.
+  function guideTrack(u) {
+    const nb = newbieState(u);
+    const parts = nb?.key === 'install' ? q('SELECT COALESCE(SUM(count), 0) n FROM parts WHERE user_id = ? AND count > 0').get(u.id).n : 0;
+    return { step: u.newbie_step, locked: !!nb?.lockedTill, parts };
+  }
+  const NEWBIE_DONE = { level3: (u) => u.level >= 3, daily: (u) => u.streak > 0 };
   function newbieState(u) {
     const task = S.NEWBIE_TASKS[u.newbie_step];
     if (!task) return null;
     const flags = JSON.parse(u.newbie_flags);
-    const ready = task.key === 'level3' ? u.level >= 3 : flags.includes(task.key);
+    const ready = NEWBIE_DONE[task.key] ? NEWBIE_DONE[task.key](u) : flags.includes(task.key);
     // A task whose feature is still locked says when it opens (the app shows a lock instead of a "go" button).
     const lockedTill = task.feature && !ready && !openKeys(u).includes(task.feature) ? S.unlockLevel(task.feature) : 0;
     return { step: u.newbie_step, total: S.NEWBIE_TASKS.length, ...task, ready, lockedTill };
@@ -507,6 +556,7 @@ export function createGame(db, opts = {}) {
       q(`INSERT INTO users (id, username, first_name, balance, slots, showcase_slots, income_at, fuel, fuel_at, server_seed, client_seed, created_at, last_seen, week_id)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(uid, uname, first, S.START_BALANCE, S.START_SLOTS, S.SHOWCASE_START, t, S.FUEL_MAX, t, newSeed(), crypto.randomBytes(8).toString('hex'), t, t, weekOf(t));
+      q('UPDATE users SET prog_v = 1 WHERE id = ?').run(uid); // born on the current XP curve and «Перші кроки»
       addKeys(uid, 'starter', 1);
       moneyFlow(S.START_BALANCE);
       if (legacyWelcome(uid)) return { created: true };
@@ -605,6 +655,7 @@ export function createGame(db, opts = {}) {
       introSeen: claims.includes('intro'), off: claims.includes('guide-off'), keys, opened: u.cases_opened, level: u.level,
       garage: cars.filter((c) => c.status === 'garage').length, flags: JSON.parse(u.newbie_flags),
       races: u.races, streak: u.streak, dailyReady: u.streak_day !== day,
+      ...guideTrack(u),
     });
     return {
       id: u.id, username: u.username, firstName: u.first_name, balance: u.balance, intro, guide,
@@ -1314,14 +1365,11 @@ export function createGame(db, opts = {}) {
     const train = { id: 'train', label: S.DRIFT_TRAIN.name, name: 'Інструктор', model: c.model, target: Math.max(10, Math.round((par * S.DRIFT_TRAIN.share) / 10) * 10), entry: 0, prize: 0, training: true };
     return { car: o, list, train, model: S.driftModel(o), track: trackSeed, par };
   }
-  // Fuel: one from the shared tank and one from the car's own tank (as a drag race).
-  function useFuel(uid, c) {
+  // Fuel: one from the shared tank (as a drag race), whatever the car.
+  function useFuel(uid) {
     const f = fuelState(userRow(uid));
-    if (f.fuel < 1) fail('Загальний бак порожній — зачекай або відкрий кейс нагород');
-    const t = tankState(c);
-    if (t.tank < 1) fail('Бак цієї машини порожній — візьми іншу');
+    needFuel(f);
     q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(f.fuel - 1, f.fuel >= S.FUEL_MAX ? now() : f.at, uid);
-    q('UPDATE cars SET tank = ?, tank_at = ? WHERE id = ?').run(t.tank - 1, t.tank >= S.CAR_TANK ? now() : t.at, c.id);
   }
   // A race gets the car dirty (S.WASH.race / .drift, random in the range); the owner's income so far is banked first, at
   // the old dirt. Not from the game's random source (opts.random), so race rolls stay where they were.
@@ -1444,14 +1492,11 @@ export function createGame(db, opts = {}) {
     if (!r) fail('Обери суперника');
     const u = userRow(uid);
     const f = fuelState(u);
-    if (f.fuel < 1) fail('Загальний бак порожній — зачекай або відкрий кейс нагород');
+    needFuel(f);
     const c = carRow(car.id);
-    const t = tankState(c);
-    if (t.tank < 1) fail('Бак цієї машини порожній — візьми іншу');
     q("UPDATE races SET status = 'expired' WHERE user_id = ? AND status = 'running'").run(uid);
     pay(uid, r.entry);
     q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(f.fuel - 1, f.fuel >= S.FUEL_MAX ? now() : f.at, uid);
-    q('UPDATE cars SET tank = ?, tank_at = ? WHERE id = ?').run(t.tank - 1, t.tank >= S.CAR_TANK ? now() : t.at, c.id);
     soil(c);
     const rr = lcg(Math.floor(rnd() * 2 ** 31));
     const rivalTime = S.rivalRun(rr, r);
@@ -1558,16 +1603,13 @@ export function createGame(db, opts = {}) {
     if (!S.bossFits(b, c.model)) fail(`${b.nick} не прийме виклик: потрібна ${S.bossNeedText(b)}`);
     const u = userRow(uid);
     const f = fuelState(u);
-    if (f.fuel < 1) fail('Загальний бак порожній — зачекай або відкрий кейс нагород');
-    const t = tankState(c);
-    if (t.tank < 1) fail('Бак цієї машини порожній — візьми іншу');
+    needFuel(f);
     const beaten = !!rows[b.id]?.beaten_at;
     const hb = hard ? S.bossHard(b) : b;
     const money = hard ? bossHardMoney(b, car) : bossMoney(b, car, beaten);
     q("UPDATE races SET status = 'expired' WHERE user_id = ? AND status = 'running'").run(uid);
     pay(uid, money.entry);
     q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(f.fuel - 1, f.fuel >= S.FUEL_MAX ? now() : f.at, uid);
-    q('UPDATE cars SET tank = ?, tank_at = ? WHERE id = ?').run(t.tank - 1, t.tank >= S.CAR_TANK ? now() : t.at, c.id);
     q('INSERT INTO boss_runs (user_id, boss, tries) VALUES (?, ?, 1) ON CONFLICT DO UPDATE SET tries = tries + 1').run(uid, b.id);
     soil(c);
     const rivalTime = S.bossRun(lcg(Math.floor(rnd() * 2 ** 31)), hb);
@@ -2921,7 +2963,7 @@ export function createGame(db, opts = {}) {
   function newbieClaim(uid) {
     const u = userRow(uid);
     const st = newbieState(u);
-    if (!st) fail('Усі завдання новачка виконано');
+    if (!st) fail('«Перші кроки» вже пройдено');
     if (!st.ready) fail('Завдання ще не виконано');
     // Skip the tasks already claimed in the old order (migrateNewbieOrder).
     const f = JSON.parse(u.newbie_flags);
@@ -3057,7 +3099,7 @@ export function createGame(db, opts = {}) {
     if (u.streak_day !== day) claims.push({ key: 'daily:' + day, kind: 'daily', title: 'Щоденний бонус', sub: `День ${(u.streak % S.DAILY_BONUS.length) + 1} з ${S.DAILY_BONUS.length} — забери подарунок` });
     if (u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3 <= t) claims.push({ key: 'rcase:' + u.reward_case_at, kind: 'rcase', title: 'Кейс нагород готовий', sub: 'Гроші, деталі, пальне або машина' });
     const nb = newbieState(u);
-    if (nb?.ready) claims.push({ key: 'newbie:' + nb.step, kind: 'newbie', title: 'Завдання новачка виконано', sub: nb.text, money: nb.money });
+    if (nb?.ready) claims.push({ key: 'newbie:' + nb.step, kind: 'newbie', title: `Перші кроки ${nb.step + 1}/${nb.total}: виконано`, sub: nb.text, money: nb.money });
     for (const r of q('SELECT key, target, progress, reward FROM quests WHERE user_id = ? AND day = ? AND claimed = 0 AND progress >= target').all(uid, day)) {
       claims.push({ key: `quest:${day}:${r.key}`, kind: 'quest', id: r.key, title: 'Завдання виконано', sub: S.QUESTS[r.key].text.replace('{n}', r.target), money: r.reward });
     }
@@ -4703,6 +4745,7 @@ export function createGame(db, opts = {}) {
 
   importLegacy();
   migrateNewbieOrder();
+  migrateProgress();
   migratePity();
   // The bot's /promo is logged like the panel's (who = "bot").
   const botPromo = (code, amount, uses, days) => db.tx(() => {
