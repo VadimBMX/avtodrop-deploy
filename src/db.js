@@ -187,6 +187,14 @@ CREATE TABLE IF NOT EXISTS badges (
 CREATE TABLE IF NOT EXISTS admin_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT, admin TEXT NOT NULL, action TEXT NOT NULL, target INTEGER, details TEXT, created_at INTEGER NOT NULL
 );
+CREATE INDEX IF NOT EXISTS admin_log_target ON admin_log(target, id);
+-- Admin dashboard: which (Kyiv) days each player was in the game, and the hryvnias that appeared in / left the economy
+-- per day (every addMoney / pay; player-to-player deals count on both sides, the net is the real change of money supply).
+CREATE TABLE IF NOT EXISTS user_days (day TEXT NOT NULL, user_id INTEGER NOT NULL, PRIMARY KEY (day, user_id)) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS money_days (day TEXT PRIMARY KEY, created INTEGER NOT NULL DEFAULT 0, destroyed INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX IF NOT EXISTS drops_time ON drops(created_at);
+CREATE INDEX IF NOT EXISTS users_created ON users(created_at);
+CREATE INDEX IF NOT EXISTS payments_time ON payments(created_at);
 `;
 // Columns added after the first release; ALTER fails harmlessly when they already exist.
 const MIGRATIONS = [

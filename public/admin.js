@@ -47,20 +47,49 @@ async function act(name, body, ok) {
     return null;
   }
 }
-// Destructive buttons need a second click within 3 s.
-function armed(el, label = 'Точно?') {
-  if (el.dataset.armed) return true;
-  const old = el.innerHTML;
-  el.dataset.armed = '1';
-  el.classList.add('armed');
-  el.innerHTML = label;
-  setTimeout(() => {
-    if (!el.isConnected) return;
-    delete el.dataset.armed;
-    el.classList.remove('armed');
-    el.innerHTML = old;
-  }, 3000);
-  return false;
+// Every action that changes a player or the economy goes through this dialog: what will happen, a required reason
+// (it goes into the action log with the admin's name) and an explicit confirm. The server refuses the action without both.
+// `summary` is HTML built by the caller with esc() around anything that came from players.
+function confirmDialog({ title, summary = '', danger = false, button = 'Підтвердити', reasonLabel = 'Причина — піде в журнал дій', reasonValue = '' }) {
+  return new Promise((resolve) => {
+    const m = $('#modal'), d = $('#dialog');
+    d.innerHTML = `<h3></h3><div class="summary">${summary}</div>
+      <label class="field"><span></span><textarea id="cfReason" maxlength="300" rows="2" placeholder="Напр.: компенсація за баг з оплатою"></textarea></label>
+      <div class="row end"><button class="btn ghost" data-cf="0">Скасувати</button><button class="btn ${danger ? 'danger' : ''}" data-cf="1" disabled></button></div>`;
+    $('h3', d).textContent = title;
+    $('label span', d).textContent = reasonLabel;
+    const ok = $('[data-cf="1"]', d);
+    ok.textContent = button;
+    const r = $('#cfReason', d);
+    r.value = reasonValue;
+    const check = () => (ok.disabled = r.value.trim().length < 3);
+    check();
+    r.addEventListener('input', check);
+    const done = (v) => {
+      m.hidden = true;
+      d.innerHTML = '';
+      document.removeEventListener('keydown', onKey);
+      resolve(v);
+    };
+    const onKey = (e) => e.key === 'Escape' && done(null);
+    document.addEventListener('keydown', onKey);
+    d.onclick = (e) => {
+      const b = e.target.closest('[data-cf]');
+      if (b && !b.disabled) done(b.dataset.cf === '1' ? r.value.trim() : null);
+    };
+    m.onclick = (e) => e.target === m && done(null);
+    $('#toast').hidden = true;
+    m.hidden = false;
+    r.focus();
+  });
+}
+// A changing action: ask (dialog above), then call with confirm + reason and re-render on success.
+async function mutate(name, body, dialog, ok) {
+  const reason = await confirmDialog(dialog);
+  if (reason == null) return null;
+  const r = await act(name, { ...body, confirm: true, reason }, ok);
+  if (r) render();
+  return r;
 }
 
 // ---------- formatting ----------
@@ -91,8 +120,12 @@ const tierCls = (tier) => S.TIER_BY_ID[tier]?.cls || 'D';
 const ACTIONS = {
   money: 'Гроші', 'give-car': 'Видано авто', 'remove-car': 'Вилучено авто', part: 'Деталі', keys: 'Ключі', set: 'Параметр',
   ban: 'Бан', unban: 'Розбан', reset: 'Обнулено', 'dealer-refresh': 'Нові лоти дилера', 'give-plate': 'Видано номер', 'remove-plate': 'Забрано номер', message: 'Повідомлення', 'market-remove': 'Знято лот', promo: 'Промокод', 'promo-delete': 'Видалено промокод', support: 'Відповідь підтримки', role: 'Права',
-  luck: 'Підкрутка', rig: 'Гарантована машина', 'rig-cancel': 'Скасовано гарантовану машину',
+  luck: 'Підкрутка', rig: 'Гарантована машина', 'rig-cancel': 'Скасовано гарантовану машину', broadcast: 'Розсилка',
 };
+const FIELD_NAMES = { level: 'Рівень', slots: 'Місць у гаражі', showcase_slots: 'Місць на вітрині', cap_level: 'Рівень сховища', xp: 'XP' };
+const AUDIENCE = { all: 'усім гравцям', active30: 'активним за 30 днів', active7: 'активним за 7 днів', active1: 'активним за добу' };
+const DANGER = new Set(['remove-car', 'remove-plate', 'ban', 'reset', 'broadcast', 'role', 'promo-delete', 'market-remove']);
+// Details of a log entry, then the reason typed in the confirm dialog.
 function details(a, d) {
   if (!d) return '';
   try {
@@ -100,13 +133,19 @@ function details(a, d) {
   } catch {
     return esc(d);
   }
+  const main = detailsMain(a, d);
+  const why = d.reason && a !== 'ban' && a !== 'reset' ? `<div class="why">причина: ${esc(d.reason)}</div>` : '';
+  return main + why;
+}
+function detailsMain(a, d) {
   switch (a) {
+    case 'broadcast': return `${esc(d.text)} <span class="muted small">· ${esc(AUDIENCE[d.audience] || d.audience)} · ${d.recipients} отрим.</span>`;
     case 'money': return `<span class="${d.amount >= 0 ? 'win' : 'bad'}">${d.amount >= 0 ? '+' : ''}${money(d.amount)}</span>${d.note ? ` · ${esc(d.note)}` : ''}`;
     case 'give-car': case 'remove-car': return esc(model(d.model).name);
     case 'part': return `${esc(partName(d.type, d.tier))} × ${d.count}`;
     case 'keys': return `${esc(caseName(d.caseId))} × ${d.count}`;
-    case 'set': return `${esc(d.field)} = ${d.value}`;
-    case 'ban': return esc(d.reason || '');
+    case 'set': return `${esc(FIELD_NAMES[d.field] || d.field)}: ${d.was != null ? `${esc(d.was)} → ` : ''}${esc(d.value)}`;
+    case 'ban': case 'unban': return esc(d.reason || '');
     case 'reset': return `прибрано ${d.cars} авто${d.reason ? ` · ${esc(d.reason)}` : ''}`;
     case 'message': return esc(d.text);
     case 'promo': return `${esc(d.code)} · ${money(d.amount)} × ${d.uses}`;
@@ -144,6 +183,7 @@ let renderSeq = 0;
 async function render() {
   const seq = ++renderSeq;
   document.querySelectorAll('#nav button').forEach((b) => b.classList.toggle('on', b.dataset.go === (state.view === 'user' ? 'users' : state.view)));
+  document.querySelector('#nav button.on')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   try {
     const html = await VIEWS[state.view]();
     if (seq !== renderSeq) return;
@@ -184,20 +224,78 @@ function login(msg) {
     start();
   });
 }
+// Quick search from the side bar: an exact ID / @username (or a single match) opens the card, otherwise the list.
+document.addEventListener('submit', async (e) => {
+  if (e.target.id !== 'qsearch') return;
+  e.preventDefault();
+  const q = $('#qs').value.trim();
+  if (!q) return;
+  const r = await act('users', { query: q, sort: 'seen' });
+  if (!r) return;
+  const low = q.replace(/^@/, '').toLowerCase();
+  const hit = r.list.find((u) => String(u.id) === low || (u.username || '').toLowerCase() === low) || (r.list.length === 1 ? r.list[0] : null);
+  $('#qs').value = '';
+  $('#qs').blur();
+  if (hit) go('user', { userId: hit.id, userTab: 'cars' });
+  else go('users', { query: q, sort: 'seen' });
+});
 H.logout = () => {
   store.set('');
   login('Ти вийшов.');
 };
 
 // ---------- overview ----------
+// One bar per day; the tip (CSS, from data-tip: plain text) shows the exact value on hover / tap.
+const dayLabel = (d) => `${d.slice(8, 10)}.${d.slice(5, 7)}`;
+function barChart(days, key, fmt = (n) => n) {
+  const max = Math.max(1, ...days.map((d) => d[key]));
+  return `<div class="chart" role="img"><div class="plot">${days.map((d) => `<div class="col" tabindex="0" data-tip="${esc(`${dayLabel(d.day)}: ${fmt(d[key])}`)}"><i style="height:${Math.max(d[key] ? 3 : 0, (d[key] / max) * 100)}%"></i></div>`).join('')}</div>
+    <div class="axis"><span>${dayLabel(days[0].day)}</span><span>${dayLabel(days[days.length - 1].day)}</span></div></div>`;
+}
+// Money created (up) and destroyed (down) per day around one zero line.
+function flowChart(days) {
+  const max = Math.max(1, ...days.flatMap((d) => [d.created, d.destroyed]));
+  return `<div class="legend"><span><i class="sw made"></i>створено</span><span><i class="sw gone"></i>вилучено</span></div>
+    <div class="chart flow"><div class="plot">${days.map((d) => `<div class="col" tabindex="0" data-tip="${esc(`${dayLabel(d.day)}: +${short(d.created)} / −${short(d.destroyed)} · чисто ${d.created - d.destroyed >= 0 ? '+' : '−'}${short(Math.abs(d.created - d.destroyed))}`)}">
+      <div class="up"><i class="made" style="height:${(d.created / max) * 100}%"></i></div><div class="down"><i class="gone" style="height:${(d.destroyed / max) * 100}%"></i></div></div>`).join('')}</div>
+    <div class="axis"><span>${dayLabel(days[0].day)}</span><span>${dayLabel(days[days.length - 1].day)}</span></div></div>`;
+}
+const topList = (list, value) => (list.length ? `<ol class="top">${list.map((u) => `<li class="click" data-user="${u.id}"><span class="nm">${esc(u.name)}${u.banned ? ' <span class="badge red">бан</span>' : ''}</span><b>${value(u)}</b></li>`).join('')}</ol>` : '<div class="empty">Поки нікого</div>');
 VIEWS.overview = async () => {
-  const o = await api('overview');
+  const [o, dsh] = await Promise.all([api('overview'), api('dashboard', { days: state.days || 14 })]);
   const stat = (label, value, sub = '') => `<div class="stat"><span>${label}</span><b>${value}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
   const maxCls = Math.max(1, ...Object.values(o.classes));
   const crashProfit = o.crash24h.bet - o.crash24h.paid;
-  return `<div class="head"><h1>Огляд</h1><button class="btn ghost sm" data-act="reload">${ic('refresh')} Оновити</button></div>
+  const days = dsh.days, total = (k) => days.reduce((s, d) => s + d[k], 0);
+  const net = total('created') - total('destroyed');
+  const cod = dsh.caseOfDay;
+  return `<div class="head"><h1>Огляд</h1>
+      <div class="seg">${[7, 14, 30].map((n) => `<button class="${(state.days || 14) === n ? 'on' : ''}" data-act="days" data-n="${n}">${n} дн</button>`).join('')}</div>
+      <button class="btn ghost sm" data-act="reload">${ic('refresh')} Оновити</button></div>
     <div class="cards">
+      ${stat('DAU сьогодні', dsh.dau, `WAU ${dsh.wau} · MAU ${dsh.mau}`)}
       ${stat('Гравців', o.users, `+${o.new24h} за добу`)}
+      ${stat('Зірки за період', `⭐ ${total('stars')}`, `${total('payments')} платежів`)}
+      ${stat('Економіка за період', `${net >= 0 ? '+' : '−'}${short(Math.abs(net))}`, `створено ${short(total('created'))} · вилучено ${short(total('destroyed'))}`)}
+      ${stat('Кейс дня', esc(caseName(cod.today)), `−${Math.round(cod.off * 100)}% · завтра: ${esc(caseName(cod.tomorrow))}`)}
+    </div>
+    <div class="grid2">
+      <div class="panel"><h2>Активні гравці (DAU)</h2>${barChart(days, 'dau')}</div>
+      <div class="panel"><h2>Нові гравці за день</h2>${barChart(days, 'newUsers')}</div>
+      <div class="panel"><h2>Відкрито кейсів за день</h2>${barChart(days, 'cases')}</div>
+      <div class="panel"><h2>Зірки за день</h2>${barChart(days, 'stars', (n) => `⭐ ${n}`)}</div>
+      <div class="panel wide"><h2>Здоров’я економіки <span class="sub">гривні, що з’явились і зникли за день</span></h2>${flowChart(days)}
+        <div class="small muted">Угоди між гравцями рахуються з обох боків, тож важлива різниця: якщо «створено» стабільно більше за «вилучено», гроші знецінюються. Гривень у гравців зараз: <b>${short(days[days.length - 1].supply)}</b>.</div></div>
+    </div>
+    <details class="panel"><summary>Таблиця по днях</summary><div class="tbl-wrap"><table><tr><th>День</th><th class="num">DAU</th><th class="num">Нові</th><th class="num">Кейси</th><th class="num">Зірки</th><th class="num">Створено</th><th class="num">Вилучено</th><th class="num">У гравців</th></tr>
+      ${[...days].reverse().map((d) => `<tr><td>${dayLabel(d.day)}</td><td class="num">${d.dau}</td><td class="num">${d.newUsers}</td><td class="num">${d.cases}</td><td class="num">${d.stars}</td><td class="num">${short(d.created)}</td><td class="num">${short(d.destroyed)}</td><td class="num">${short(d.supply)}</td></tr>`).join('')}</table></div></details>
+    <div class="grid3">
+      <div class="panel"><h2>Топ за статками</h2>${topList(dsh.top.rich, (u) => short(u.value + u.balance))}</div>
+      <div class="panel"><h2>Топ донатерів</h2>${topList(dsh.top.payers, (u) => `⭐ ${u.stars}`)}</div>
+      <div class="panel"><h2>Найактивніші за 7 днів</h2>${topList(dsh.top.active, (u) => `${u.drops} дропів`)}</div>
+    </div>
+    <h2 class="section">Зараз у грі</h2>
+    <div class="cards">
       ${stat('Активні 24 год', o.active24h, `за 7 днів: ${o.active7d}`)}
       ${stat('Гривень у гравців', short(o.money))}
       ${stat('Вартість усіх гаражів', short(o.value))}
@@ -213,11 +311,11 @@ VIEWS.overview = async () => {
       <div class="panel"><h2>Машини за класами</h2><div class="bars">${S.CLASS_ORDER.map((c) => `<div class="bar">${cls(c)}<i style="--c:${S.CLASSES[c].color};width:${(o.classes[c] / maxCls) * 100}%"></i><span class="num">${o.classes[c]}</span></div>`).join('')}</div>
         <h2 style="margin-top:18px">Найчастіші моделі</h2>
         <table>${o.topModels.map((m) => `<tr><td>${cls(model(m.model).cls)} ${esc(model(m.model).name)}</td><td class="num">${m.n}</td></tr>`).join('') || '<tr><td class="muted">—</td></tr>'}</table></div>
-      <div class="panel"><h2>Найбагатші</h2>${userTable(o.richest, true)}</div>
       <div class="panel"><h2>Нові гравці</h2>${userTable(o.newest, false)}</div>
     </div>`;
 };
 H.reload = () => render();
+H.days = (d) => ((state.days = Number(d.n)), render());
 function userTable(list, rich) {
   if (!list.length) return '<div class="empty">Гравців поки немає</div>';
   return `<div class="tbl-wrap"><table><tr><th>Гравець</th><th class="num">${rich ? 'Гараж + гривні' : 'Зареєстр.'}</th></tr>
@@ -236,11 +334,11 @@ VIEWS.users = async () => {
         <button class="btn">Знайти</button>
       </form>
       ${list.length ? `<div class="tbl-wrap"><table>
-        <tr><th>ID</th><th>Гравець</th><th class="num">Рівень</th><th class="num">Гривні</th><th class="num">Вартість гаража</th><th class="num">Авто</th><th class="num">Кейсів</th><th class="num">Час у грі</th><th>Запросив</th><th>Реєстрація</th><th>Був у грі</th><th></th></tr>
-        ${list.map((u) => `<tr class="click" data-user="${u.id}"><td class="muted">${u.id}</td><td><b>${esc(u.name)}</b>${u.username && u.firstName ? `<div class="muted small">${esc(u.firstName)}</div>` : ''}</td>
-          <td class="num">${u.level}</td><td class="num">${money(u.balance)}</td><td class="num">${money(u.value)}</td><td class="num">${u.cars}</td><td class="num">${u.cases}</td><td class="num nowrap">${playTime(u.playMs)}</td>
-          <td class="small">${u.referrer ? esc(u.referrer.name) : '<span class="muted">сам</span>'}</td><td class="small nowrap">${date(u.createdAt)}</td>
-          <td class="small">${ago(u.lastSeen)}</td><td>${u.banned ? '<span class="badge red">бан</span>' : ''}</td></tr>`).join('')}
+        <tr><th class="hide-m">ID</th><th>Гравець</th><th class="num">Рівень</th><th class="num">Гривні</th><th class="num hide-m">Вартість гаража</th><th class="num hide-m">Авто</th><th class="num hide-m">Кейсів</th><th class="num hide-m">Час у грі</th><th class="hide-m">Запросив</th><th class="hide-m">Реєстрація</th><th class="hide-m">Був у грі</th><th class="hide-m"></th></tr>
+        ${list.map((u) => `<tr class="click" data-user="${u.id}"><td class="muted hide-m">${u.id}</td><td><b>${esc(u.name)}</b>${u.banned ? ' <span class="badge red">бан</span>' : ''}${u.role ? ` <span class="badge amber">${esc(ROLE_NAMES[u.role] || u.role)}</span>` : ''}${u.username && u.firstName ? `<div class="muted small">${esc(u.firstName)}</div>` : ''}<div class="muted small show-m">${u.id} · ${ago(u.lastSeen)}</div></td>
+          <td class="num">${u.level}</td><td class="num">${short(u.balance)}</td><td class="num hide-m">${money(u.value)}</td><td class="num hide-m">${u.cars}</td><td class="num hide-m">${u.cases}</td><td class="num nowrap hide-m">${playTime(u.playMs)}</td>
+          <td class="small hide-m">${u.referrer ? esc(u.referrer.name) : '<span class="muted">сам</span>'}</td><td class="small nowrap hide-m">${date(u.createdAt)}</td>
+          <td class="small hide-m">${ago(u.lastSeen)}</td><td class="hide-m"></td></tr>`).join('')}
       </table></div>${pager(state.offset, 50, list.length, total)}` : '<div class="empty">Нікого не знайдено</div>'}
     </div>`;
 };
@@ -263,15 +361,28 @@ VIEWS.user = async () => {
   const tabs = [['cars', 'Машини', cars.length], ['friends', 'Запрошені', u.invited.length], ['plates', 'Номери', plates.length], ['parts', 'Деталі', parts.reduce((s, p) => s + p.count, 0)],
     ['keys', 'Ключі', keys.reduce((s, k) => s + k.count, 0)], ['drops', 'Дропи', drops.length], ['payments', 'Платежі', payments.length],
     ['events', 'Сповіщення', events.length], ['log', 'Дії адмінів', log.length]];
+  const starsPaid = payments.reduce((s, p) => s + p.stars, 0);
   return `<div class="crumb"><a data-go="users">‹ Усі гравці</a></div>
     <div class="head"><h1>${esc(u.name)}</h1>${u.role ? `<span class="badge amber">${ic('shield-check')} ${ROLE_NAMES[u.role]}</span>` : ''}${u.banned ? `<span class="badge red">${ic('lock')} заблокований${u.banReason ? `: ${esc(u.banReason)}` : ''}</span>` : ''}
+      ${u.legacy ? `<span class="badge blue" title="Грав у першу версію">${ic('clock')} гравець v1${u.legacy.stars ? ` · ⭐ ${u.legacy.stars}` : ''}</span>` : ''}
       <button class="btn ghost sm" data-act="reload">${ic('refresh')} Оновити</button></div>
-    <div class="panel"><div class="kv">
+    <div class="hero-row">
+      <div class="hero-num"><span>Гривні</span><b>${money(u.balance)}</b></div>
+      <div class="hero-num"><span>Гараж</span><b>${money(u.value)}</b></div>
+      <div class="hero-num"><span>Рівень</span><b>${u.level}</b></div>
+      <div class="hero-num"><span>Зірки (оплати)</span><b>⭐ ${starsPaid}</b></div>
+      <div class="hero-num"><span>Був у грі</span><b>${ago(u.lastSeen)}</b></div>
+    </div>
+    <details class="panel" ${state.userInfo ? 'open' : ''} data-remember="userInfo"><summary>Профіль і статистика</summary><div class="kv">
       <div><span>Telegram ID</span><b>${u.id}</b></div>
       <div><span>Username</span><b>${u.username ? '@' + esc(u.username) : '—'}</b></div>
       <div><span>Ім’я</span><b>${esc(u.firstName || '—')}</b></div>
-      <div><span>Гривні</span><b>${money(u.balance)}</b></div>
-      <div><span>Вартість гаража</span><b>${money(u.value)}</b></div>
+      <div><span>Статус</span><b>${u.banned ? '<span class="bad">заблокований</span>' : '<span class="win">активний</span>'}</b></div>
+      <div><span>Зірки на рахунку</span><b>⭐ ${u.stars || 0}</b></div>
+      <div><span>VIP</span><b>${u.vipUntil > Date.now() ? `до ${date(u.vipUntil)}` : '—'}</b></div>
+      <div><span>Днів у грі</span><b>${u.activeDays}</b></div>
+      <div><span>Гравець першої версії</span><b>${u.legacy ? `так${u.legacy.stars ? ` · донатив ⭐ ${u.legacy.stars}` : ''}${u.legacy.thanked ? ' · подяку отримав' : ''}` : 'ні'}</b></div>
+      <div><span>Уламки ключів</span><b>${cur.fragments.length ? cur.fragments.map((f) => `${esc(caseName(f.caseId))} ${f.count}`).join(', ') : '—'}</b></div>
       <div><span>Дохід / год</span><b>${money(income.rate)}</b></div>
       <div><span>Накопичено доходу</span><b>${money(income.pending)}</b></div>
       <div><span>Рівень</span><b>${u.level} <span class="muted small">${u.xp}/${u.xpNeed} XP</span></b></div>
@@ -285,16 +396,21 @@ VIEWS.user = async () => {
       <div><span>Прийшов від</span><b>${u.referrer ? `<a data-user="${u.referrer.id}">${esc(u.referrer.name)}</a>` : '—'}</b></div>
       <div><span>Реєстрація</span><b>${date(u.createdAt)}</b></div>
       <div><span>Був у грі</span><b>${ago(u.lastSeen)}</b></div>
-      <div><span>Час у грі</span><b>${playTime(u.stats.playMs)}</b></div>
+      <div><span>Час у грі</span><b>${playTime(u.playMs)}</b></div>
       <div><span>Досягнення</span><b>${u.achievements.claimed}/${u.achievements.total}${u.achievements.reached > u.achievements.claimed ? ` <span class="muted small">(ще ${u.achievements.reached - u.achievements.claimed} не забрано)</span>` : ''}</b></div>
-    </div></div>
-    <div class="panel"><h2>${ic('gauge')} Активність</h2>${activityHtml(cur.activity)}</div>
-    <div class="panel"><h2>${ic('adjustments')} Керування</h2>${controls(u)}</div>
+    </div></details>
     <div class="panel">
       <div class="tabs">${tabs.map(([k, t, n]) => `<button class="${state.userTab === k ? 'on' : ''}" data-act="userTab" data-k="${k}">${t}<span class="n">${n}</span></button>`).join('')}</div>
       ${USER_TABS[state.userTab]()}
-    </div>`;
+    </div>
+    <details class="panel" ${state.userAct ? 'open' : ''} data-remember="userAct"><summary>${ic('gauge')} Активність</summary>${activityHtml(cur.activity)}</details>
+    <div class="panel"><h2>${ic('adjustments')} Керування</h2>
+      <div class="small muted" style="margin-bottom:10px">Кожна зміна просить причину й підтвердження та записується в журнал дій.</div>${controls(u)}</div>`;
 };
+document.addEventListener('toggle', (e) => {
+  const k = e.target.dataset?.remember;
+  if (k) state[k] = e.target.open;
+}, true);
 // Live check while typing a plate: is the format valid, which class, and is it free.
 function plateVerdict(r) {
   if (r.error) return `<span class="bad">${esc(r.error)}</span>`;
@@ -322,11 +438,13 @@ AFTER.user = () => {
     }, 250);
   });
 };
-H.givePlate = (d, el) => {
-  if (!armed(el, `Видати ${el.dataset.text}?`)) return;
-  doAndReload('give-plate', { id: uid(), text: el.dataset.text, value: num('#plValue') || null, carId: Number($('#plCar').value) || null, note: $('#plNote').value.trim() }, (r) => `Номер ${r.text} видано`);
+const who = () => `<span class="who"><b>${esc(cur.user.name)}</b> <span class="muted">(${cur.user.id})</span></span>`;
+H.givePlate = (d, el) => mutate('give-plate', { id: uid(), text: el.dataset.text, value: num('#plValue') || null, carId: Number($('#plCar').value) || null, note: $('#plNote').value.trim() },
+  { title: 'Видати номер', summary: `${plate(el.dataset.text)} → ${who()}`, button: 'Видати' }, (r) => `Номер ${r.text} видано`);
+H.removePlate = (d) => {
+  const p = cur.plates.find((x) => x.id === Number(d.id));
+  mutate('remove-plate', { plateId: Number(d.id) }, { title: 'Забрати номер', summary: `${plate(p?.text)} у ${who()} — номер зникне з гри`, danger: true, button: 'Забрати' }, 'Номер забрано');
 };
-H.removePlate = (d, el) => armed(el, 'Забрати?') && doAndReload('remove-plate', { plateId: Number(d.id) }, 'Номер забрано');
 function activityHtml(a) {
   const pctOf = (x, n) => (n ? ` · ${Math.round((x / n) * 100)}%` : '');
   const crashProfit = a.crash.paid - a.crash.bet;
@@ -365,10 +483,9 @@ function roleBlock(u) {
     <select id="roleSel">${opts.map(([v, t]) => `<option value="${v}" ${(u.role || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
     <button class="btn sm" data-act="setRole">${ic('check')} Зберегти</button></div>`;
 }
-H.setRole = (d, el) => {
+H.setRole = () => {
   const role = $('#roleSel').value;
-  if (!armed(el, `Точно ${role ? ROLE_NAMES[role] : 'забрати права'}?`)) return;
-  doAndReload('role', { id: uid(), role }, 'Права оновлено');
+  mutate('role', { id: uid(), role }, { title: 'Права в адмін-панелі', summary: `${who()}: ${esc(ROLE_NAMES[cur.user.role] || 'гравець')} → <b>${esc(ROLE_NAMES[role] || 'гравець')}</b>`, danger: true, button: 'Змінити права' }, 'Права оновлено');
 };
 function controls(u) {
   const models = [...S.ALL_MODELS].sort((a, b) => S.CLASS_ORDER.indexOf(a.cls) - S.CLASS_ORDER.indexOf(b.cls) || a.price - b.price);
@@ -379,7 +496,7 @@ function controls(u) {
   return `<div class="actions">
     ${roleBlock(u)}
     <div class="act"><h3>${ic('cash')} Гривні</h3>
-      <input id="mAmount" inputmode="numeric" placeholder="Сума, напр. 100000">
+      <input id="mAmount" inputmode="decimal" placeholder="Сума: 100000, 250k, 1.5m">
       <input id="mNote" placeholder="Повідомлення гравцю (необов’язково)">
       <div class="row"><button class="btn green sm grow" data-act="money" data-sign="1">${ic('plus')} Нарахувати</button><button class="btn red sm grow" data-act="money" data-sign="-1">${ic('minus')} Списати</button></div></div>
     <div class="act"><h3>${ic('car')} Видати машину</h3>
@@ -417,32 +534,40 @@ function controls(u) {
       <textarea id="msgText" placeholder="Текст прийде в сповіщення гри та в бот"></textarea>
       <button class="btn ghost sm" data-act="message">Надіслати</button></div>
     <div class="act"><h3>${ic('refresh')} Обнулити прогрес</h3>
-      <input id="resetReason" maxlength="200" placeholder="Причина (побачить гравець, необов’язково)">
       <div class="small muted">Зникнуть усі машини, номери, деталі, гривні, рівень і колекція — як новий гравець. Лишаються акаунт, хто запросив, оплати й бан.</div>
       <button class="btn red sm" data-act="resetUser">${ic('refresh')} Обнулити гравця</button></div>
     <div class="act"><h3>${ic('lock')} Блокування</h3>
       ${u.banned ? `<div class="small">Гравець заблокований${u.banReason ? `: ${esc(u.banReason)}` : ''}. Не може грати, його лоти знято з ринку.</div>
         <button class="btn green sm" data-act="ban" data-v="0">Розблокувати</button>`
-        : `<input id="banReason" placeholder="Причина (необов’язково)"><div class="small muted">Гравець не зможе грати, його лоти знімуться з ринку.</div>
+        : `<div class="small muted">Гравець не зможе грати, його лоти знімуться з ринку.</div>
         <button class="btn red sm" data-act="ban" data-v="1">Заблокувати</button>`}</div>
   </div>`;
 }
 const uid = () => state.userId;
-const num = (sel) => Number(String($(sel).value).replace(/[\s_]/g, ''));
+// "1 000 000", "1_000_000", "1.5m", "250k" → number.
+function num(sel) {
+  const s = String($(sel).value).trim().toLowerCase().replace(/[\s_]/g, '').replace(',', '.');
+  const m = /^(-?\d+(?:\.\d+)?)(k|к|m|м|b|б)?$/.exec(s);
+  if (!m) return s ? NaN : 0;
+  return Math.round(Number(m[1]) * ({ k: 1e3, к: 1e3, m: 1e6, м: 1e6, b: 1e9, б: 1e9 }[m[2]] || 1));
+}
 async function doAndReload(name, body, ok) {
   if (await act(name, body, ok)) render();
 }
-H.money = (d, el) => {
+H.money = (d) => {
   const n = num('#mAmount');
-  if (!n || n < 0) return toast('Вкажи додатну суму', true);
+  if (!(n > 0)) return toast('Вкажи додатну суму', true);
   const amount = n * Number(d.sign);
-  if (!armed(el, `Точно ${amount > 0 ? '+' : ''}${short(amount)}?`)) return;
-  doAndReload('money', { id: uid(), amount, note: $('#mNote').value.trim() }, (r) => `Баланс: ${money(r.balance)}`);
+  const take = amount < 0;
+  const bal = cur.user.balance;
+  mutate('money', { id: uid(), amount, note: $('#mNote').value.trim() }, {
+    title: take ? 'Списати гривні' : 'Нарахувати гривні', danger: take, button: take ? 'Списати' : 'Нарахувати',
+    summary: `${who()}<div class="delta"><span>${money(bal)}</span> → <b class="${take ? 'bad' : 'win'}">${money(Math.max(0, bal + amount))}</b> <span class="${take ? 'bad' : 'win'}">(${take ? '−' : '+'}${money(Math.min(Math.abs(amount), take ? bal : Infinity))})</span></div>${take && -amount > bal ? '<div class="small muted">Більше, ніж є — баланс стане 0.</div>' : ''}`,
+  }, (r) => `Баланс: ${money(r.balance)}`);
 };
-H.giveCar = (d, el) => {
+H.giveCar = () => {
   const m = $('#gModel').value;
-  if (!armed(el, `Видати ${model(m).name}?`)) return;
-  doAndReload('give-car', { id: uid(), model: m, notify: $('#gNotify').checked }, `${model(m).name} видано`);
+  mutate('give-car', { id: uid(), model: m, notify: $('#gNotify').checked }, { title: 'Видати машину', summary: `${cls(model(m).cls)} <b>${esc(model(m).name)}</b> (${money(model(m).price)}) → ${who()}`, button: 'Видати' }, `${model(m).name} видано`);
 };
 // Which cases can drop this car (a guaranteed car comes out of the first of them the player opens).
 function rigCases(id) {
@@ -454,50 +579,60 @@ function rigCases(id) {
 document.addEventListener('change', (e) => {
   if (e.target.id === 'rModel') $('#rCases').innerHTML = rigCases(e.target.value);
 });
-H.luck = (d, el) => {
+H.luck = () => {
   const chance = num('#lChance'), opens = num('#lOpens');
   if (!(chance > 0 && chance <= 100)) return toast('Шанс від 1 до 100%', true);
   if (!(opens > 0)) return toast('Вкажи кількість відкриттів', true);
-  if (!armed(el, `Точно ${chance}% на ${opens} відкр.?`)) return;
-  doAndReload('luck', { id: uid(), chance, opens }, 'Підкрутку увімкнено');
+  mutate('luck', { id: uid(), chance, opens }, { title: 'Підкрутка удачі', summary: `${who()}: <b>${chance}%</b> на ${opens} відкриттів кейсів`, button: 'Увімкнути' }, 'Підкрутку увімкнено');
 };
-H.luckOff = () => doAndReload('luck', { id: uid(), chance: 0 }, 'Підкрутку вимкнено');
-H.rig = (d, el) => {
+H.luckOff = () => mutate('luck', { id: uid(), chance: 0 }, { title: 'Вимкнути підкрутку', summary: who(), button: 'Вимкнути' }, 'Підкрутку вимкнено');
+H.rig = () => {
   const m = $('#rModel').value;
-  if (!armed(el, `Точно ${model(m).name}?`)) return;
-  doAndReload('rig', { id: uid(), model: m }, `${model(m).name} випаде з наступного кейса`);
+  mutate('rig', { id: uid(), model: m }, { title: 'Гарантована машина', summary: `${cls(model(m).cls)} <b>${esc(model(m).name)}</b> випаде ${who()} з наступного кейса, де вона є`, button: 'Підкрутити' }, `${model(m).name} випаде з наступного кейса`);
 };
 H.rigCancel = (d, el, e) => {
   e?.preventDefault();
-  doAndReload('rig-cancel', { rigId: Number(d.id) }, 'Скасовано');
+  mutate('rig-cancel', { rigId: Number(d.id) }, { title: 'Скасувати гарантовану машину', summary: who(), button: 'Скасувати гарантію' }, 'Скасовано');
 };
+function giveTake(name, body, n, what) {
+  const take = n < 0;
+  return mutate(name, body, { title: take ? 'Забрати' : 'Видати', summary: `${what} × <b>${Math.abs(n)}</b> ${take ? 'у' : '→'} ${who()}`, danger: take, button: take ? 'Забрати' : 'Видати' }, take ? 'Забрано' : 'Видано');
+}
 H.part = (d) => {
   const n = num('#pCount') * Number(d.sign);
   if (!n) return toast('Вкажи кількість', true);
-  doAndReload('part', { id: uid(), type: $('#pType').value, tier: $('#pTier').value, count: n }, 'Деталі оновлено');
+  const type = $('#pType').value, tier = $('#pTier').value;
+  giveTake('part', { id: uid(), type, tier, count: n }, n, `${cls(tierCls(tier))} ${esc(partName(type, tier))}`);
 };
 H.keys = (d) => {
   const n = num('#kCount') * Number(d.sign);
   if (!n) return toast('Вкажи кількість', true);
-  doAndReload('keys', { id: uid(), caseId: $('#kCase').value, count: n }, 'Ключі оновлено');
+  const caseId = $('#kCase').value;
+  giveTake('keys', { id: uid(), caseId, count: n }, n, `${ic('key')} ${esc(caseName(caseId))}`);
 };
-H.set = (d) => doAndReload('set', { id: uid(), field: d.f, value: num('#set-' + d.f) }, 'Збережено');
+H.set = (d) => {
+  const value = num('#set-' + d.f);
+  const was = { level: cur.user.level, slots: cur.user.slots, showcase_slots: cur.user.showcaseSlots, cap_level: cur.user.capLevel }[d.f];
+  mutate('set', { id: uid(), field: d.f, value }, { title: 'Змінити параметр', summary: `${who()}: ${esc(FIELD_NAMES[d.f])} <b>${esc(was)} → ${esc(value)}</b>`, button: 'Зберегти' }, 'Збережено');
+};
 H.message = () => {
   const text = $('#msgText').value.trim();
   if (!text) return toast('Напиши текст', true);
   doAndReload('message', { id: uid(), text }, 'Надіслано');
 };
-H.ban = (d, el) => {
-  if (!armed(el, d.v === '1' ? 'Точно заблокувати?' : 'Точно розблокувати?')) return;
-  doAndReload('ban', { id: uid(), banned: d.v === '1', reason: $('#banReason')?.value.trim() || '' }, d.v === '1' ? 'Заблоковано' : 'Розблоковано');
+H.ban = (d) => {
+  const ban = d.v === '1';
+  mutate('ban', { id: uid(), banned: ban }, ban
+    ? { title: 'Заблокувати гравця', summary: `${who()} не зможе грати, його лоти знімуться з ринку й аукціонів.`, danger: true, button: 'Заблокувати', reasonLabel: 'Причина бану — піде в журнал і в картку гравця' }
+    : { title: 'Розблокувати гравця', summary: who(), button: 'Розблокувати' }, ban ? 'Заблоковано' : 'Розблоковано');
 };
-H.resetUser = (d, el) => {
-  if (!armed(el, `Точно обнулити ${esc(cur.user.name)}?`)) return;
-  doAndReload('reset', { id: uid(), reason: $('#resetReason').value.trim() }, (r) => `Гравця обнулено (прибрано ${r.cars} авто)`);
-};
-H.removeCar = (d, el) => {
-  if (!armed(el, 'Точно вилучити?')) return;
-  doAndReload('remove-car', { carId: Number(d.id) }, 'Авто вилучено, деталі й номер повернуто гравцю');
+H.resetUser = () => mutate('reset', { id: uid() }, { title: 'Обнулити прогрес', danger: true, button: 'Обнулити',
+  summary: `${who()}: зникнуть усі машини (${cur.cars.length}), номери, деталі, гривні (${money(cur.user.balance)}), рівень і колекція. Лишаються акаунт, хто запросив, оплати й бан.`,
+  reasonLabel: 'Причина — гравець побачить її в сповіщенні' }, (r) => `Гравця обнулено (прибрано ${r.cars} авто)`);
+H.removeCar = (d) => {
+  const c = cur.cars.find((x) => x.id === Number(d.id));
+  mutate('remove-car', { carId: Number(d.id) }, { title: 'Вилучити машину', danger: true, button: 'Вилучити',
+    summary: `${cls(model(c?.model).cls)} <b>${esc(model(c?.model).name)}</b> #${esc(d.id)} (${money(c?.value)}) у ${who()}. Деталі й номер повернуться гравцю, лот/аукціон закриється.` }, 'Авто вилучено, деталі й номер повернуто гравцю');
 };
 
 const STATUS = { garage: ['гараж', ''], showcase: ['вітрина', 'amber'], market: ['на ринку', 'green'], auction: ['на аукціоні', 'green'] };
@@ -530,7 +665,7 @@ const USER_TABS = {
   drops: () => (cur.drops.length ? `<table><tr><th>Коли</th><th>Кейс</th><th>Випало</th></tr>${cur.drops.map((d) => `<tr><td class="small nowrap">${date(d.at)}</td><td>${esc(caseName(d.caseId))}</td><td>${cls(d.cls)} ${esc(S.MODELS[d.item]?.name || (S.PARTS[d.item.split(':')[0]] ? partName(...d.item.split(':')) : d.item))}${d.forced ? ' <span class="badge amber">гарантія</span>' : ''}</td></tr>`).join('')}</table>` : '<div class="empty">Дропів ще не було</div>'),
   payments: () => (cur.payments.length ? `<table><tr><th>Коли</th><th>Пакет</th><th class="num">Зірки</th><th class="num">Гривні</th></tr>${cur.payments.map((p) => `<tr><td class="small nowrap">${date(p.at)}</td><td>${esc(p.pack)}</td><td class="num">⭐ ${p.stars}</td><td class="num">${money(p.amount)}</td></tr>`).join('')}</table>` : '<div class="empty">Покупок не було</div>'),
   events: () => (cur.events.length ? `<table>${cur.events.map((e) => `<tr><td class="small nowrap muted">${date(e.at)}</td><td>${esc(e.text)}</td></tr>`).join('')}</table>` : '<div class="empty">Сповіщень немає</div>'),
-  log: () => (cur.log.length ? `<table><tr><th>Коли</th><th>Хто</th><th>Дія</th><th>Деталі</th></tr>${cur.log.map((l) => `<tr><td class="small nowrap">${date(l.at)}</td><td class="small">${esc(l.admin)}</td><td>${ACTIONS[l.action] || esc(l.action)}</td><td>${details(l.action, l.details)}</td></tr>`).join('')}</table>` : '<div class="empty">Адміни нічого не змінювали</div>'),
+  log: () => (cur.log.length ? `<div class="row end"><a data-act="logFor" data-id="${cur.user.id}">Увесь журнал гравця з фільтрами ›</a></div><div class="tbl-wrap"><table class="log"><tr><th>Коли</th><th>Хто</th><th>Дія</th><th>Деталі</th></tr>${cur.log.map((l) => `<tr class="${DANGER.has(l.action) ? 'warn' : ''}"><td class="small nowrap">${date(l.at)}</td><td class="small">${esc(WHO[l.admin] || l.admin)}</td><td>${esc(ACTIONS[l.action] || l.action)}</td><td>${details(l.action, l.details)}</td></tr>`).join('')}</table></div>` : '<div class="empty">Адміни нічого не змінювали</div>'),
 };
 
 // ---------- referrals ----------
@@ -618,21 +753,19 @@ VIEWS.market = async () => {
       ${listings.length ? `<div class="tbl-wrap"><table><tr><th>Авто</th><th>Продавець</th><th class="num">Ціна</th><th class="num">Ціна / оцінка</th><th>Виставлено</th><th></th></tr>
         ${listings.map((l) => `<tr><td>${carCell(l.car)}</td><td>${userLink(l.seller)}</td><td class="num">${money(l.price)}</td>
           <td class="num ${l.price < l.car.value * 0.5 || l.price > l.car.value * 3 ? 'bad' : ''}">${Math.round((l.price / l.car.value) * 100)}%</td><td class="small">${ago(l.at)}</td>
-          <td><button class="btn red sm" data-act="unlist" data-kind="listing" data-id="${l.id}">Зняти</button></td></tr>`).join('')}</table></div>` : '<div class="empty">Лотів немає</div>'}
+          <td><button class="btn red sm" data-act="unlist" data-kind="listing" data-id="${l.id}" data-name="${esc(model(l.car.model).name)}">Зняти</button></td></tr>`).join('')}</table></div>` : '<div class="empty">Лотів немає</div>'}
     </div>
     <div class="panel"><h2>Аукціони <span class="sub">${auctions.length}</span></h2>
       ${auctions.length ? `<div class="tbl-wrap"><table><tr><th>Авто</th><th>Продавець</th><th class="num">Старт</th><th class="num">Ставка</th><th>Лідер</th><th>Кінець</th><th></th></tr>
         ${auctions.map((a) => `<tr><td>${carCell(a.car)}</td><td>${userLink(a.seller)}</td><td class="num">${money(a.startPrice)}</td><td class="num">${a.topBid ? `${money(a.topBid)} <span class="muted small">(${a.bids})</span>` : '—'}</td>
           <td>${a.leader ? userLink(a.leader) : '—'}</td><td class="small">${date(a.endsAt)}</td>
-          <td><button class="btn red sm" data-act="unlist" data-kind="auction" data-id="${a.id}">Зняти</button></td></tr>`).join('')}</table></div>` : '<div class="empty">Аукціонів немає</div>'}
+          <td><button class="btn red sm" data-act="unlist" data-kind="auction" data-id="${a.id}" data-name="${esc(model(a.car.model).name)}">Зняти</button></td></tr>`).join('')}</table></div>` : '<div class="empty">Аукціонів немає</div>'}
     </div>
     <div class="small muted">Знятий лот повертається в гараж продавця, ставка лідера аукціону — йому на рахунок. Червоним позначено підозрілі ціни (менше 50% або більше 300% оцінки).</div>`;
 };
-H.dealerRefresh = (d, el) => armed(el, 'Точно оновити?') && doAndReload('dealer/refresh', {}, 'Дилер виставив нові лоти');
-H.unlist = (d, el) => {
-  if (!armed(el)) return;
-  doAndReload('market/remove', { kind: d.kind, id: Number(d.id) }, 'Лот знято');
-};
+H.dealerRefresh = () => mutate('dealer/refresh', {}, { title: 'Нові лоти дилера', summary: 'Дилер замінить свої поточні лоти новими.', button: 'Оновити' }, 'Дилер виставив нові лоти');
+H.unlist = (d) => mutate('market/remove', { kind: d.kind, id: Number(d.id) }, { title: d.kind === 'listing' ? 'Зняти лот з ринку' : 'Зняти аукціон', danger: true, button: 'Зняти',
+  summary: `Лот #${esc(d.id)}${d.name ? ` · <b>${esc(d.name)}</b>` : ''}. Авто повернеться в гараж продавця${d.kind === 'auction' ? ', ставка лідера — йому на рахунок' : ''}.` }, 'Лот знято');
 
 // ---------- promo codes ----------
 VIEWS.promos = async () => {
@@ -658,9 +791,11 @@ VIEWS.promos = async () => {
 AFTER.promos = () => $('#promoForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const body = { code: $('#pcCode').value.trim(), amount: num('#pcAmount'), uses: num('#pcUses'), days: num('#pcDays') || null };
-  if (await act('promo/create', body, (r) => `Промокод ${r.code} створено`)) render();
+  if (!body.code || !(body.amount > 0) || !(body.uses > 0)) return toast('Заповни код, суму й кількість', true);
+  mutate('promo/create', body, { title: 'Новий промокод', button: 'Створити',
+    summary: `<b>${esc(body.code.toUpperCase())}</b>: ${money(body.amount)} × ${body.uses} = до <b>${money(body.amount * body.uses)}</b> нових гривень в економіці${body.days ? ` · ${body.days} дн` : ''}` }, (r) => `Промокод ${r.code} створено`);
 });
-H.delPromo = (d, el) => armed(el) && doAndReload('promo/delete', { code: d.code }, 'Видалено');
+H.delPromo = (d) => mutate('promo/delete', { code: d.code }, { title: 'Видалити промокод', summary: `<b>${esc(d.code)}</b> перестане діяти`, danger: true, button: 'Видалити' }, 'Видалено');
 
 // ---------- payments ----------
 VIEWS.payments = async () => {
@@ -692,13 +827,82 @@ H.supReply = (d) => {
 };
 
 // ---------- admin log ----------
+const WHO = { key: 'ключ ADMIN_KEY', local: 'локально (DEV)', bot: 'бот (/give, /promo)' };
+const dayStart = (v) => (v ? new Date(v + 'T00:00:00').getTime() : null);
 VIEWS.log = async () => {
-  const { list } = await api('log', { offset: state.offset });
-  return `<div class="head"><h1>Журнал дій</h1></div>
-    <div class="panel">${list.length ? `<div class="tbl-wrap"><table><tr><th>Коли</th><th>Хто</th><th>Дія</th><th>Гравець</th><th>Деталі</th></tr>
-      ${list.map((l) => `<tr><td class="small nowrap">${date(l.at)}</td><td class="small">${esc(l.admin)}</td><td>${ACTIONS[l.action] || esc(l.action)}</td>
+  const f = state.logF || {};
+  const r = await api('log', { offset: state.offset, admin: f.admin || null, action: f.action || null, target: f.target || null, text: f.text || null,
+    from: dayStart(f.from), to: f.to ? dayStart(f.to) + 86400e3 : null });
+  const opt = (v, t, cur) => `<option value="${esc(v)}" ${cur === v ? 'selected' : ''}>${esc(t)}</option>`;
+  return `<div class="head"><h1>Журнал дій <span class="muted" style="font-size:16px">${r.total}</span></h1></div>
+    <form class="panel filters" id="logForm">
+      <label>Хто<select id="lfAdmin">${opt('', 'усі', f.admin || '')}${r.admins.map((a) => opt(a.id, `${WHO[a.id] || a.name} · ${a.n}`, f.admin)).join('')}</select></label>
+      <label>Дія<select id="lfAction">${opt('', 'усі', f.action || '')}${r.actions.map((a) => opt(a, ACTIONS[a] || a, f.action)).join('')}</select></label>
+      <label>Гравець<input id="lfTarget" placeholder="ID або @username" value="${esc(f.target || '')}"></label>
+      <label>Текст<input id="lfText" placeholder="у деталях і причині" value="${esc(f.text || '')}"></label>
+      <label>Від<input id="lfFrom" type="date" value="${esc(f.from || '')}"></label>
+      <label>До<input id="lfTo" type="date" value="${esc(f.to || '')}"></label>
+      <div class="row end"><button type="button" class="btn ghost sm" data-act="logReset">Скинути</button><button class="btn sm">Показати</button></div>
+    </form>
+    <div class="panel">${r.list.length ? `<div class="tbl-wrap"><table class="log"><tr><th>Коли</th><th>Хто</th><th>Дія</th><th>Гравець</th><th>Деталі</th></tr>
+      ${r.list.map((l) => `<tr class="${DANGER.has(l.action) ? 'warn' : ''}"><td class="small nowrap">${date(l.at)}</td><td class="small">${esc(WHO[l.admin] || l.adminName)}${l.admin.startsWith('tg:') ? ` <span class="muted">${esc(l.admin.slice(3))}</span>` : ''}</td><td class="nowrap">${esc(ACTIONS[l.action] || l.action)}</td>
         <td>${l.target ? userLink({ id: l.target, name: l.targetName }) : '—'}</td><td>${details(l.action, l.details)}</td></tr>`).join('')}
-    </table></div>${pager(state.offset, 100, list.length, null)}` : '<div class="empty">Записів ще немає</div>'}</div>`;
+    </table></div>${pager(state.offset, 100, r.list.length, r.total)}` : '<div class="empty">Записів немає</div>'}</div>`;
+};
+AFTER.log = () => $('#logForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  state.logF = { admin: $('#lfAdmin').value, action: $('#lfAction').value, target: $('#lfTarget').value.trim(), text: $('#lfText').value.trim(), from: $('#lfFrom').value, to: $('#lfTo').value };
+  state.offset = 0;
+  render();
+});
+H.logReset = () => ((state.logF = {}), (state.offset = 0), render());
+// From a player card: their log entries.
+H.logFor = (d) => go('log', { logF: { target: d.id } });
+
+// ---------- broadcast through the bot ----------
+VIEWS.broadcast = async () => {
+  const aud = state.bcAud || 'active30';
+  const p = await api('broadcast/preview', { audience: aud });
+  const waitMin = Math.ceil(p.waitMs / 60e3);
+  return `<div class="head"><h1>Розсилка</h1></div>
+    <div class="grid2">
+      <div class="panel"><h2>Нове повідомлення</h2>
+        <div class="form">
+          <label>Кому<select id="bcAud">${Object.entries(AUDIENCE).map(([k, t]) => `<option value="${k}" ${aud === k ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+          <div class="small">Отримають: <b>${p.recipients}</b> гравців (без заблокованих)</div>
+          <label>Текст<textarea id="bcText" maxlength="1000" rows="5" placeholder="Що нового в грі…">${esc(state.bcText || '')}</textarea></label>
+          <div class="small muted"><span id="bcLen">${(state.bcText || '').length}</span>/1000 · повідомлення прийде в бот, у сповіщення та вікном у грі. Не частіше ніж раз на 10 хвилин; бот шле ~20 повідомлень за секунду.</div>
+          <div class="preview"><div class="small muted">Як побачить гравець</div><div class="bubble" id="bcPrev"></div></div>
+          ${p.waitMs > 0 ? `<div class="small bad">Наступна розсилка буде доступна через ${waitMin} хв.</div>` : ''}
+          <button class="btn danger" data-act="broadcast" ${p.waitMs > 0 ? 'disabled' : ''}>${ic('bell')} Надіслати ${p.recipients} гравцям</button>
+        </div></div>
+      <div class="panel"><h2>Останні розсилки</h2>${p.history.length ? p.history.map((h) => {
+        let d = {};
+        try { d = JSON.parse(h.details); } catch {}
+        return `<div class="hist"><div class="small muted">${date(h.at)} · ${esc(WHO[h.admin] || h.adminName)} · ${esc(AUDIENCE[d.audience] || '')} · ${d.recipients} отрим.</div><div class="pre">${esc(d.text)}</div>${d.reason ? `<div class="why">причина: ${esc(d.reason)}</div>` : ''}</div>`;
+      }).join('') : '<div class="empty">Розсилок ще не було</div>'}</div>
+    </div>`;
+};
+AFTER.broadcast = () => {
+  const t = $('#bcText');
+  const upd = () => {
+    state.bcText = t.value;
+    $('#bcLen').textContent = t.value.length;
+    $('#bcPrev').textContent = t.value.trim() ? `📢 ${t.value.trim()}` : '…';
+  };
+  t.addEventListener('input', upd);
+  upd();
+  $('#bcAud').addEventListener('change', (e) => ((state.bcAud = e.target.value), render()));
+};
+H.broadcast = async () => {
+  const text = (state.bcText || '').trim();
+  if (text.length < 3) return toast('Напиши текст розсилки', true);
+  const aud = state.bcAud || 'active30';
+  const p = await act('broadcast/preview', { audience: aud });
+  if (!p) return;
+  const r = await mutate('broadcast', { audience: aud, text }, { title: 'Надіслати розсилку', danger: true, button: `Надіслати ${p.recipients}`,
+    summary: `<div class="bubble">${esc('📢 ' + text)}</div><div>Отримають: <b>${p.recipients}</b> гравців (${esc(AUDIENCE[aud])}). Скасувати після відправки не можна.</div>` }, (x) => `Розсилку запущено: ${x.recipients} гравців`);
+  if (r) state.bcText = '';
 };
 
 // ---------- start ----------
@@ -708,6 +912,14 @@ async function start() {
     state.role = w.role;
     const who = { key: 'вхід за ключем', local: 'локальний доступ (DEV)' }[w.who] || `Telegram ${w.who.slice(3)}`;
     $('#who').innerHTML = `${esc(who)} · ${ROLE_NAMES[w.role] || ''}${w.who === 'key' ? ' · <a data-act="logout">вийти</a>' : ''}`;
+    // A helper doesn't see sections they have no rights for (the server refuses them anyway).
+    for (const b of document.querySelectorAll('#nav [data-admin-only]')) b.hidden = w.role === 'helper';
+    $('#qsearch').hidden = false;
+    api('support', { open: true }).then((s) => {
+      const n = $('#supN');
+      n.textContent = s.open;
+      n.hidden = !s.open;
+    }).catch(() => {});
     fetch('/api/config').then((r) => r.json()).then((c) => {
       setImages(c.images || {});
       if (state.view === 'user') render();

@@ -240,3 +240,236 @@ test('admin http: key, wrong-key lockout, dev local access, banned players block
     devApp.close();
   }
 });
+
+// ---------- panel rules: roles, confirm + reason, logging, search, player card, dashboard, broadcast ----------
+function panel() {
+  const db = openDb(':memory:');
+  let t = Date.parse('2026-10-20T10:00:00Z');
+  const sent = [], bc = [];
+  const g = createGame(db, { now: () => t, notify: (uid, text) => sent.push([uid, text]), admins: [1], broadcast: (ids, text) => bc.push([ids, text]) });
+  g.ensureUser({ id: 1, username: 'owner', first_name: 'Власник' });
+  g.ensureUser({ id: 2, username: 'adm', first_name: 'Адмін' });
+  g.ensureUser({ id: 3, username: 'help', first_name: 'Хелпер' });
+  g.ensureUser({ id: 10, username: 'Olena_Cars', first_name: 'Олена' });
+  g.ensureUser({ id: 11, username: null, first_name: 'Іван 100%' });
+  g.admin.role('tg:1', { id: 2, role: 'admin' });
+  g.admin.role('tg:1', { id: 3, role: 'helper' });
+  const ok = { confirm: true, reason: 'перевірка' };
+  return { db, g, sent, bc, ok, advance: (ms) => (t += ms), now: () => t };
+}
+
+test('admin panel: a helper can look and answer, but not give, take, ban or broadcast', () => {
+  const { g, ok } = panel();
+  assert.ok(g.adminCall('tg:3', 'users', { query: 'олена' }).list.length);
+  assert.equal(g.adminCall('tg:3', 'user', { id: 10 }).user.id, 10);
+  assert.ok(g.adminCall('tg:3', 'dashboard', {}).days.length);
+  g.adminCall('tg:3', 'message', { id: 10, text: 'Привіт' });
+  for (const [name, body] of [['money', { id: 10, amount: 1000 }], ['money', { id: 10, amount: -1000 }], ['ban', { id: 10, banned: true }],
+    ['broadcast', { text: 'всім' }], ['broadcast/preview', {}], ['give-car', { id: 10, model: 'vaz-2107' }], ['keys', { id: 10, caseId: 'rust', count: 1 }],
+    ['part', { id: 10, type: 'eng', tier: 'pro', count: 1 }], ['reset', { id: 10 }], ['promo/create', { code: 'XX1', amount: 1, uses: 1 }], ['payments', {}], ['role', { id: 11, role: 'helper' }]]) {
+    assert.throws(() => g.adminCall('tg:3', name, { ...body, ...ok }), /Немає прав/, name);
+  }
+  // Nobody without a role, and unknown methods are reported as such (undefined → 404 in the server).
+  assert.throws(() => g.adminCall('tg:10', 'users', {}), /Немає прав/);
+  assert.equal(g.adminCall('tg:2', 'nope', {}), undefined);
+  assert.equal(g.adminCall('tg:2', '__proto__', {}), undefined);
+  // An admin can do the rest.
+  g.adminCall('tg:2', 'money', { id: 10, amount: 1000, ...ok });
+});
+
+test('admin panel: every change needs confirm and a reason; both go to the log with who and whom', () => {
+  const { g, db, ok } = panel();
+  const bal = db.prepare('SELECT balance FROM users WHERE id = 10').get().balance;
+  assert.throws(() => g.adminCall('tg:2', 'money', { id: 10, amount: -500 }), /причину/);
+  assert.throws(() => g.adminCall('tg:2', 'money', { id: 10, amount: -500, reason: 'ok' }), /причину/, 'too short');
+  assert.throws(() => g.adminCall('tg:2', 'money', { id: 10, amount: -500, reason: 'баг з оплатою' }), /не підтверджено/);
+  assert.throws(() => g.adminCall('tg:2', 'money', { id: 10, amount: -500, reason: 'баг з оплатою', confirm: 'true' }), /не підтверджено/, 'only a real true');
+  assert.equal(db.prepare('SELECT balance FROM users WHERE id = 10').get().balance, bal, 'nothing changed');
+
+  const steps = [
+    ['money', { id: 10, amount: -500 }], ['money', { id: 10, amount: 700, note: 'Подарунок' }], ['give-car', { id: 10, model: 'vaz-2107' }],
+    ['part', { id: 10, type: 'eng', tier: 'pro', count: 2 }], ['part', { id: 10, type: 'eng', tier: 'pro', count: -5 }],
+    ['keys', { id: 10, caseId: 'rust', count: 3 }], ['set', { id: 10, field: 'slots', value: 9 }], ['luck', { id: 10, chance: 50, opens: 5 }],
+    ['ban', { id: 10, banned: true }], ['ban', { id: 10, banned: false }], ['promo/create', { code: 'TEST1', amount: 100, uses: 2 }], ['promo/delete', { code: 'TEST1' }],
+  ];
+  steps.forEach(([name, body], i) => g.adminCall('tg:2', name, { ...body, confirm: true, reason: `причина ${i}` }));
+  const carId = g.admin.user('tg:2', { id: 10 }).cars[0].id;
+  g.adminCall('tg:2', 'remove-car', { carId, ...ok });
+  g.adminCall('tg:2', 'reset', { id: 10, confirm: true, reason: 'мультиакаунт' });
+
+  const log = db.prepare('SELECT * FROM admin_log WHERE admin = ? ORDER BY id').all('tg:2');
+  assert.equal(log.length, steps.length + 2, 'one entry per action');
+  const logged = { 'promo/create': 'promo', 'promo/delete': 'promo-delete' };
+  log.slice(0, steps.length).forEach((l, i) => {
+    assert.equal(l.action, steps[i][0] === 'ban' && !steps[i][1].banned ? 'unban' : logged[steps[i][0]] || steps[i][0]);
+    assert.equal(JSON.parse(l.details).reason, `причина ${i}`, l.action);
+  });
+  assert.equal(log[0].target, 10);
+  assert.equal(JSON.parse(log[0].details).amount, -500);
+  assert.equal(JSON.parse(log[4].details).count, -2, 'logs what was really taken (2 of 5)');
+  assert.deepEqual([JSON.parse(log[6].details).was, JSON.parse(log[6].details).value], [S.START_SLOTS, 9], 'old and new value');
+  assert.equal(JSON.parse(log.at(-1).details).reason, 'мультиакаунт');
+  // The ban reason typed in the dialog is the ban reason on the player.
+  g.adminCall('tg:2', 'ban', { id: 11, banned: true, confirm: true, reason: 'чіти' });
+  assert.equal(g.admin.user('tg:2', { id: 11 }).user.banReason, 'чіти');
+  // message / support reply need no dialog but are still logged.
+  g.adminCall('tg:3', 'message', { id: 11, text: 'Привіт' });
+  assert.equal(db.prepare("SELECT admin FROM admin_log WHERE action = 'message'").get().admin, 'tg:3');
+});
+
+test('admin panel: bad field names and the bot commands are handled and logged', () => {
+  const { g, db, ok } = panel();
+  for (const field of ['constructor', '__proto__', 'toString', 'balance']) assert.throws(() => g.adminCall('tg:2', 'set', { id: 10, field, value: 1, ...ok }), /не можна/, field);
+  const bal = db.prepare('SELECT balance FROM users WHERE id = 10').get().balance;
+  g.adminGive(10, -1e12);
+  assert.equal(db.prepare('SELECT balance FROM users WHERE id = 10').get().balance, 0, '/give never goes below zero');
+  g.createPromo('botcode', 500, 3);
+  const log = db.prepare("SELECT action, details FROM admin_log WHERE admin = 'bot' ORDER BY id").all();
+  assert.deepEqual(log.map((l) => l.action), ['money', 'promo']);
+  assert.equal(JSON.parse(log[0].details).amount, -bal);
+});
+
+test('admin panel: player search by ID, @username and Cyrillic name; exact match first', () => {
+  const { g } = panel();
+  const s = (query) => g.adminCall('tg:3', 'users', { query }).list.map((u) => u.id);
+  assert.deepEqual(s('олена'), [10], 'Cyrillic, any case');
+  assert.deepEqual(s('ОЛЕНА'), [10]);
+  assert.deepEqual(s('@olena_cars'), [10]);
+  assert.deepEqual(s('OLENA'), [10]);
+  assert.equal(s('10')[0], 10, 'exact ID first');
+  assert.ok(s('1').includes(11));
+  assert.deepEqual(s('100%'), [11], '% is literal');
+  assert.deepEqual(s('_'), [10], '_ is literal');
+  assert.deepEqual(s('нікого'), []);
+});
+
+test('admin panel: player card has balance, cars with values, parts, plates, keys, payments, drops, referrals, legacy, ban and last seen', () => {
+  const { g, db, ok, advance } = panel();
+  g.ensureUser({ id: 12, username: 'friend', first_name: 'Друг' }, 'ref_10');
+  g.adminCall('tg:2', 'give-car', { id: 10, model: 'bmw-m3-e30', ...ok });
+  g.adminCall('tg:2', 'part', { id: 10, type: 'turbo', tier: 'sport', count: 2, ...ok });
+  g.adminCall('tg:2', 'keys', { id: 10, caseId: 'rust', count: 1, ...ok });
+  g.adminCall('tg:2', 'give-plate', { id: 10, text: 'AA 0001 AA', ...ok });
+  g.creditPayment({ chargeId: 'c1', userId: 10, packId: S.PACKS[0].id, stars: S.PACKS[0].stars });
+  g.api['case/open'](10, { caseId: 'starter' });
+  db.prepare('INSERT INTO legacy (id, referrer_id, stars, thanked) VALUES (10, 1, 75, 1)').run();
+  advance(60e3);
+  g.api.me(10, {});
+  const c = g.adminCall('tg:3', 'user', { id: 10 });
+  assert.ok(c.user.balance > 0);
+  assert.equal(c.user.username, 'Olena_Cars');
+  assert.ok(c.cars.some((x) => x.model === 'bmw-m3-e30' && x.value > 0));
+  assert.equal(c.parts.find((p) => p.type === 'turbo').count, 2);
+  assert.equal(c.plates[0].text, 'AA 0001 AA');
+  assert.equal(c.keys.find((k) => k.caseId === 'rust').count, 1);
+  assert.equal(c.payments[0].stars, S.PACKS[0].stars);
+  assert.ok(c.drops.length >= 1);
+  assert.deepEqual(c.user.invited.map((f) => f.id), [12]);
+  assert.equal(g.adminCall('tg:3', 'user', { id: 12 }).user.referrer.id, 10);
+  assert.deepEqual(c.user.legacy, { referrer: 1, stars: 75, thanked: true });
+  assert.equal(c.user.banned, false);
+  assert.ok(c.user.lastSeen > 0);
+  assert.ok(c.user.activeDays >= 1);
+  assert.ok('playMs' in c.user && 'stars' in c.user && Array.isArray(c.fragments));
+  assert.ok(c.log.length >= 4 && c.log.every((l) => l.admin === 'tg:2'));
+});
+
+test('admin panel: dashboard counts active players, new players, cases, stars and money in / out per day', () => {
+  const { g, db, ok, advance } = panel();
+  const d0 = g.adminCall('tg:2', 'dashboard', { days: 7 });
+  assert.equal(d0.days.length, 7);
+  const today0 = d0.days.at(-1);
+  assert.ok(today0.newUsers >= 5);
+  assert.ok(today0.created >= 5 * S.START_BALANCE, 'start money counts as created');
+  g.api['case/open'](10, { caseId: 'starter' });
+  g.creditPayment({ chargeId: 'p1', userId: 11, packId: S.PACKS[0].id, stars: S.PACKS[0].stars });
+  g.adminCall('tg:2', 'money', { id: 10, amount: -1000, ...ok });
+  const d1 = g.adminCall('tg:2', 'dashboard', { days: 7 });
+  const t = d1.days.at(-1);
+  assert.equal(t.cases, 1);
+  assert.equal(t.stars, S.PACKS[0].stars);
+  assert.ok(t.dau >= 2, 'opened a case or paid today');
+  assert.equal(t.destroyed - today0.destroyed >= 1000, true);
+  assert.equal(t.supply, db.prepare('SELECT SUM(balance) n FROM users').get().n, 'money supply today');
+  assert.equal(d1.top.payers[0].id, 11);
+  assert.ok(S.CASE_BY_ID[d1.caseOfDay.today]);
+  // Next day: yesterday's numbers stay, the supply line walks back by the net.
+  advance(86400e3);
+  const d2 = g.adminCall('tg:2', 'dashboard', { days: 7 });
+  assert.equal(d2.days.at(-2).cases, 1);
+  assert.equal(d2.days.at(-1).cases, 0);
+  assert.equal(d2.days.at(-2).supply, d2.days.at(-1).supply - (d2.days.at(-1).created - d2.days.at(-1).destroyed));
+});
+
+test('admin panel: broadcast — preview count, banned left out, delivered in game and through the bot, once per 10 minutes', () => {
+  const { g, db, bc, ok, advance } = panel();
+  g.adminCall('tg:2', 'ban', { id: 11, banned: true, ...ok });
+  const p = g.adminCall('tg:2', 'broadcast/preview', { audience: 'all' });
+  assert.equal(p.recipients, 4);
+  assert.throws(() => g.adminCall('tg:2', 'broadcast', { audience: 'all', text: 'Привіт' }), /причину/);
+  assert.throws(() => g.adminCall('tg:2', 'broadcast', { audience: 'everyone', text: 'Привіт', ...ok }), /аудиторія/);
+  assert.throws(() => g.adminCall('tg:2', 'broadcast', { audience: 'all', text: ' ', ...ok }), /текст/);
+  assert.equal(g.adminCall('tg:2', 'broadcast', { audience: 'all', text: 'Новий кейс!', ...ok }).recipients, 4);
+  assert.deepEqual(bc[0][0], [1, 2, 3, 10]);
+  assert.equal(bc[0][1], '📢 Новий кейс!');
+  assert.ok(g.api.events(10, {}).list.some((e) => e.text === '📢 Новий кейс!'));
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM gifts WHERE kind = 'message' AND note = 'Новий кейс!'").get().n, 4);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM events WHERE user_id = 11 AND text LIKE '📢%'").get().n, 0, 'banned left out');
+  const l = db.prepare("SELECT * FROM admin_log WHERE action = 'broadcast'").get();
+  assert.equal(l.admin, 'tg:2');
+  assert.equal(JSON.parse(l.details).reason, 'перевірка');
+  assert.throws(() => g.adminCall('tg:1', 'broadcast', { audience: 'all', text: 'Ще раз', ...ok }), /через \d+ хв/);
+  assert.ok(g.adminCall('tg:2', 'broadcast/preview', {}).waitMs > 0);
+  advance(10 * 60e3 + 1);
+  assert.equal(g.adminCall('tg:1', 'broadcast', { audience: 'active1', text: 'Ще раз', ...ok }).recipients, 4);
+});
+
+test('admin panel: log viewer filters by admin, action, player, date and text', () => {
+  const { g, ok, now } = panel();
+  g.adminCall('tg:2', 'money', { id: 10, amount: 100, confirm: true, reason: 'компенсація' });
+  g.adminCall('tg:1', 'ban', { id: 11, banned: true, ...ok });
+  const f = (b) => g.adminCall('tg:3', 'log', b);
+  assert.deepEqual(f({ admin: 'tg:2', action: 'money' }).list.map((l) => l.target), [10]);
+  assert.equal(f({ target: '@olena_cars' }).list[0].action, 'money');
+  assert.equal(f({ target: '11' }).list[0].action, 'ban');
+  assert.equal(f({ target: '@nobody' }).total, 0);
+  assert.equal(f({ text: 'КОМПЕНСАЦ' }).total, 1, 'text search in details and reason');
+  assert.equal(f({ from: now() + 1 }).total, 0);
+  const all = f({});
+  assert.ok(all.total >= 4);
+  assert.ok(all.admins.some((a) => a.id === 'tg:2' && a.name === '@adm'));
+  assert.ok(all.actions.includes('role') && all.actions.includes('ban'));
+  assert.equal(all.list.find((l) => l.admin === 'tg:2').adminName, '@adm');
+});
+
+test('admin http: changes need confirm + reason, proxied requests are not "local" in DEV, wrong keys are limited overall', async () => {
+  const devApp = createApp({ dbFile: ':memory:', dev: true, log: () => {} });
+  const port = await devApp.start(0);
+  const post = (p, body = {}, headers = {}) => fetch(`http://localhost:${port}${p}`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+  try {
+    devApp.game.ensureUser({ id: 5, first_name: 'П' });
+    let r = await post('/api/admin/money', { id: 5, amount: 100 });
+    assert.equal(r.status, 400);
+    assert.match((await r.json()).error, /причину/);
+    r = await post('/api/admin/money', { id: 5, amount: 100, reason: 'тест http', confirm: true });
+    assert.equal(r.status, 200);
+    assert.equal(devApp.db.prepare("SELECT admin FROM admin_log WHERE action = 'money'").get().admin, 'local');
+    assert.equal((await post('/api/admin/nope')).status, 404);
+    // Through a reverse proxy on the same machine, DEV must not hand out the admin panel.
+    assert.equal((await post('/api/admin/overview', {}, { 'x-forwarded-for': '203.0.113.9' })).status, 401);
+    assert.equal((await post('/api/admin/overview', {}, { 'x-real-ip': '203.0.113.9' })).status, 401);
+  } finally {
+    devApp.close();
+  }
+
+  const app = createApp({ dbFile: ':memory:', adminKey: 'a-long-secret-key-123', log: () => {} });
+  const p2 = await app.start(0);
+  const post2 = (headers) => fetch(`http://localhost:${p2}/api/admin/whoami`, { method: 'POST', headers });
+  try {
+    // 10 addresses (as a proxy would report them) × 10 wrong keys = 100 → key login locked for everyone for a while.
+    for (let ip = 0; ip < 10; ip++) for (let i = 0; i < 10; i++) assert.equal((await post2({ 'x-admin-key': 'bad', 'x-forwarded-for': `198.51.100.${ip}` })).status, 401);
+    assert.equal((await post2({ 'x-admin-key': 'a-long-secret-key-123', 'x-forwarded-for': '198.51.100.200' })).status, 429);
+  } finally {
+    app.close();
+  }
+});

@@ -96,10 +96,21 @@ export function createGame(db, opts = {}) {
       notify(uid, text);
     } catch {}
   }
-  const addMoney = (uid, n) => q('UPDATE users SET balance = balance + ? WHERE id = ?').run(Math.round(n), uid);
+  const addMoney = (uid, n) => {
+    const r = q('UPDATE users SET balance = balance + ? WHERE id = ?').run(Math.round(n), uid);
+    if (r.changes) moneyFlow(Math.round(n));
+    return r;
+  };
   function pay(uid, n) {
     if (!n) return;
     if (!q('UPDATE users SET balance = balance - ? WHERE id = ? AND balance >= ?').run(n, uid, n).changes) fail('Недостатньо гривень');
+    moneyFlow(-n);
+  }
+  // Economy health for the admin dashboard: hryvnias created (+) and destroyed (−) per Kyiv day.
+  function moneyFlow(n) {
+    if (!n) return;
+    q('INSERT INTO money_days (day, created, destroyed) VALUES (?, ?, ?) ON CONFLICT DO UPDATE SET created = created + excluded.created, destroyed = destroyed + excluded.destroyed')
+      .run(dayOf(now()), n > 0 ? n : 0, n < 0 ? -n : 0);
   }
   const addKeys = (uid, caseId, n) => q('INSERT INTO keys (user_id, case_id, count) VALUES (?, ?, ?) ON CONFLICT DO UPDATE SET count = count + excluded.count').run(uid, caseId, n);
   const addPart = (uid, type, tier, n = 1) => q('INSERT INTO parts (user_id, type, tier, count) VALUES (?, ?, ?, ?) ON CONFLICT DO UPDATE SET count = count + excluded.count').run(uid, type, tier, n);
@@ -328,6 +339,7 @@ export function createGame(db, opts = {}) {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(uid, uname, first, S.START_BALANCE, S.START_SLOTS, S.SHOWCASE_START, t, S.FUEL_MAX, t, newSeed(), crypto.randomBytes(8).toString('hex'), t, t, weekOf(t));
       addKeys(uid, 'starter', 1);
+      moneyFlow(S.START_BALANCE);
       if (legacyWelcome(uid)) return { created: true };
       const m = /^ref_(\d{1,20})$/.exec(startParam || '');
       const ref = m ? Number(m[1]) : null;
@@ -2552,11 +2564,9 @@ export function createGame(db, opts = {}) {
       return { amount: got };
     });
   }
+  // The bot's /give: same as the panel's money action (never below zero), logged as "bot".
   function adminGive(userId, amount) {
-    db.tx(() => {
-      userRow(userId);
-      addMoney(userId, int(amount, -1e13, 1e13, 'Сума'));
-    });
+    return db.tx(() => adminMoney('bot', { id: userId, amount }));
   }
   function stats() {
     return {
@@ -2569,9 +2579,19 @@ export function createGame(db, opts = {}) {
 
   // ---------- admin panel ----------
   // Every admin action is written to admin_log with who did it, so changes can be traced later.
+  // The reason typed in the panel's confirm dialog (adminCall) is added to whatever the action logs.
+  const actx = { reason: null };
   function alog(who, action, target, details) {
+    const d = actx.reason && !(details && details.reason) ? { ...(details || {}), reason: actx.reason } : details;
     q('INSERT INTO admin_log (admin, action, target, details, created_at) VALUES (?, ?, ?, ?, ?)')
-      .run(String(who), action, target ?? null, details == null ? null : JSON.stringify(details), now());
+      .run(String(who), action, target ?? null, d == null ? null : JSON.stringify(d), now());
+  }
+  // SQLite's lower() only folds ASCII; player names are mostly Cyrillic.
+  try {
+    db.function('ulower', { deterministic: true }, (v) => (v == null ? null : String(v).toLowerCase()));
+  } catch {}
+  function markDay(uid) {
+    q('INSERT OR IGNORE INTO user_days (day, user_id) VALUES (?, ?)').run(dayOf(now()), uid);
   }
   const isBanned = (uid) => !!q('SELECT banned FROM users WHERE id = ?').get(uid)?.banned;
   const userBrief = (u) => ({
@@ -2614,12 +2634,15 @@ export function createGame(db, opts = {}) {
   const USER_SORT = { value: 'u.total_value DESC', balance: 'u.balance DESC', seen: 'u.last_seen DESC', new: 'u.created_at DESC', level: 'u.level DESC, u.xp DESC', play: 'u.play_ms DESC' };
   function adminUsers({ query, sort, offset }) {
     const s = String(query ?? '').trim().replace(/^@/, '').toLowerCase().slice(0, 64);
-    const like = `%${s}%`;
-    const where = s ? 'WHERE CAST(u.id AS TEXT) LIKE ? OR lower(u.username) LIKE ? OR lower(u.first_name) LIKE ?' : '';
+    // LIKE wildcards typed by the admin are taken literally.
+    const like = `%${s.replace(/[\\%_]/g, (c) => '\\' + c)}%`;
+    const where = s ? "WHERE CAST(u.id AS TEXT) LIKE ? ESCAPE '\\' OR ulower(u.username) LIKE ? ESCAPE '\\' OR ulower(u.first_name) LIKE ? ESCAPE '\\'" : '';
     const args = s ? [like, like, like] : [];
     const off = offset ? int(offset, 0, 1e9, 'Зсув') : 0;
-    const list = q(`SELECT u.*, (SELECT COUNT(*) FROM cars c WHERE c.owner_id = u.id) cars FROM users u ${where} ORDER BY ${USER_SORT[sort] || USER_SORT.value} LIMIT 50 OFFSET ?`)
-      .all(...args, off).map(userBrief);
+    // An exact ID or @username comes first, whatever the sort.
+    const exact = s ? '(CAST(u.id AS TEXT) = ? OR ulower(u.username) = ?) DESC, ' : '';
+    const list = q(`SELECT u.*, (SELECT COUNT(*) FROM cars c WHERE c.owner_id = u.id) cars FROM users u ${where} ORDER BY ${exact}${USER_SORT[sort] || USER_SORT.value} LIMIT 50 OFFSET ?`)
+      .all(...args, ...(s ? [s, s] : []), off).map(userBrief);
     return { list, total: q(`SELECT COUNT(*) n FROM users u ${where}`).get(...args).n };
   }
   function adminUser({ id }) {
@@ -2639,7 +2662,12 @@ export function createGame(db, opts = {}) {
         invited: q('SELECT id, level, total_value, created_at, last_seen, ref_paid FROM users WHERE referrer_id = ? ORDER BY created_at DESC LIMIT 200').all(uid)
           .map((f) => ({ id: f.id, name: name(f.id), level: f.level, value: f.total_value, createdAt: f.created_at, lastSeen: f.last_seen, paid: !!f.ref_paid })),
         collection: q('SELECT COUNT(*) n FROM collection WHERE user_id = ?').get(uid).n,
+        stars: u.stars, vipUntil: u.vip_until, premiumSeason: u.premium_season,
+        // A player of the first (pre-reset) version: who invited them back then, Stars donated, thanked or not.
+        legacy: (() => { const l = q('SELECT referrer_id, stars, thanked FROM legacy WHERE id = ?').get(uid); return l ? { referrer: l.referrer_id, stars: l.stars, thanked: !!l.thanked } : null; })(),
+        activeDays: q('SELECT COUNT(*) n FROM user_days WHERE user_id = ?').get(uid).n,
       },
+      fragments: q('SELECT case_id caseId, count FROM fragments WHERE user_id = ? AND count > 0').all(uid),
       income: incomeState(u),
       activity: playerActivity(uid),
       cars: q('SELECT * FROM cars WHERE owner_id = ? ORDER BY id').all(uid).map((c) => ({ ...carOut(c), listing: listing[c.id] || null, auction: auction[c.id] || null })),
@@ -2649,7 +2677,7 @@ export function createGame(db, opts = {}) {
       payments: q('SELECT charge_id chargeId, pack, stars, amount, created_at at FROM payments WHERE user_id = ? ORDER BY created_at DESC LIMIT 50').all(uid),
       events: q('SELECT text, created_at at FROM events WHERE user_id = ? ORDER BY id DESC LIMIT 40').all(uid),
       drops: q('SELECT case_id caseId, item, cls, forced, created_at at FROM drops WHERE user_id = ? ORDER BY id DESC LIMIT 30').all(uid),
-      log: q('SELECT admin, action, details, created_at at FROM admin_log WHERE target = ? ORDER BY id DESC LIMIT 30').all(uid),
+      log: q('SELECT id, admin, action, details, created_at at FROM admin_log WHERE target = ? ORDER BY id DESC LIMIT 50').all(uid),
     };
   }
   // Everything a player has done, summed up from the game's own records (for the admin player card).
@@ -2689,7 +2717,7 @@ export function createGame(db, opts = {}) {
   // ---------- roles in the admin panel ----------
   // owner: in ADMIN_IDS (Railway variable) — can't be changed from the panel; admin: everything; helper: only
   // looking at players, answering support and writing messages (HELPER_ACTIONS).
-  const HELPER_ACTIONS = new Set(['overview', 'users', 'user', 'search', 'referrals', 'support', 'support/reply', 'message', 'market', 'log']);
+  const HELPER_ACTIONS = new Set(['overview', 'dashboard', 'users', 'user', 'search', 'check-plate', 'referrals', 'support', 'support/reply', 'message', 'market', 'log']);
   function roleOf(uid) {
     if (!uid) return null;
     if ((opts.admins || []).includes(uid)) return 'owner';
@@ -2761,6 +2789,7 @@ export function createGame(db, opts = {}) {
     const before = userRow(uid).balance;
     q('UPDATE users SET balance = MAX(0, balance + ?) WHERE id = ?').run(n, uid);
     const after = userRow(uid).balance;
+    moneyFlow(after - before);
     if (note) event(uid, `${n > 0 ? '🎁' : '⚠️'} ${String(note).slice(0, 300)} (${n > 0 ? '+' : ''}${S.fmt(after - before)})`);
     if (n > 0) gift(uid, 'money', { amount: after - before }, note);
     alog(who, 'money', uid, { amount: after - before, note: note || null });
@@ -2806,11 +2835,14 @@ export function createGame(db, opts = {}) {
     userRow(uid);
     if (!S.PARTS[type] || !S.TIER_BY_ID[tier]) fail('Невідома деталь');
     const n = int(count, -1000, 1000, 'Кількість');
+    if (!n) fail('Вкажи кількість');
+    const had = q('SELECT count FROM parts WHERE user_id = ? AND type = ? AND tier = ?').get(uid, type, tier)?.count || 0;
     if (n > 0) {
       addPart(uid, type, tier, n);
       gift(uid, 'part', { type, tier, count: n });
     } else q('UPDATE parts SET count = MAX(0, count + ?) WHERE user_id = ? AND type = ? AND tier = ?').run(n, uid, type, tier);
-    alog(who, 'part', uid, { type, tier, count: n });
+    // What really changed (taking 5 from someone who has 2 takes 2).
+    alog(who, 'part', uid, { type, tier, count: n > 0 ? n : -Math.min(had, -n) });
     return {};
   }
   function adminGiveKeys(who, { id, caseId, count }) {
@@ -2818,11 +2850,13 @@ export function createGame(db, opts = {}) {
     userRow(uid);
     if (!S.CASE_BY_ID[caseId]) fail('Невідомий кейс');
     const n = int(count, -1000, 1000, 'Кількість');
+    if (!n) fail('Вкажи кількість');
+    const had = q('SELECT count FROM keys WHERE user_id = ? AND case_id = ?').get(uid, caseId)?.count || 0;
     if (n > 0) {
       addKeys(uid, caseId, n);
       gift(uid, 'keys', { caseId, count: n });
     } else q('UPDATE keys SET count = MAX(0, count + ?) WHERE user_id = ? AND case_id = ?').run(n, uid, caseId);
-    alog(who, 'keys', uid, { caseId, count: n });
+    alog(who, 'keys', uid, { caseId, count: n > 0 ? n : -Math.min(had, -n) });
     return {};
   }
   const USER_FIELDS = {
@@ -2887,12 +2921,14 @@ export function createGame(db, opts = {}) {
   function adminSetUser(who, { id, field, value }) {
     const uid = int(id, 1, Number.MAX_SAFE_INTEGER, 'ID');
     userRow(uid);
-    const range = USER_FIELDS[field];
+    // Own keys only: 'constructor' / '__proto__' must not slip into the SQL below.
+    const range = Object.hasOwn(USER_FIELDS, String(field)) ? USER_FIELDS[field] : null;
     if (!range) fail('Це поле не можна змінювати');
     const v = int(value, range[0], range[1], 'Значення');
+    const was = userRow(uid)[field];
     bank(uid);
     q(`UPDATE users SET ${field} = ?${field === 'level' ? ', level_seen = ?' : ''} WHERE id = ?`).run(...(field === 'level' ? [v, v, uid] : [v, uid]));
-    alog(who, 'set', uid, { field, value: v });
+    alog(who, 'set', uid, { field, value: v, was });
     return {};
   }
   function adminBan(who, { id, banned, reason }) {
@@ -2912,7 +2948,7 @@ export function createGame(db, opts = {}) {
   // ban status, the fairness seed and drop history. Their open deals are closed first so nobody else loses money.
   function adminResetUser(who, { id, reason }) {
     const uid = int(id, 1, Number.MAX_SAFE_INTEGER, 'ID');
-    userRow(uid);
+    const balanceBefore = userRow(uid).balance;
     const t = now();
     for (const l of q('SELECT id FROM listings WHERE seller_id = ?').all(uid)) q('DELETE FROM listings WHERE id = ?').run(l.id);
     for (const a of q("SELECT * FROM auctions WHERE seller_id = ? AND status = 'open'").all(uid)) {
@@ -2949,9 +2985,10 @@ export function createGame(db, opts = {}) {
        cases_opened = 0, races = 0, wins = 0, merges = 0 WHERE id = ?`)
       .run(S.START_BALANCE, S.START_SLOTS, S.SHOWCASE_START, t, S.FUEL_MAX, t, weekOf(t), uid);
     addKeys(uid, 'starter', 1);
+    moneyFlow(S.START_BALANCE - balanceBefore);
     const why = String(reason ?? '').trim().slice(0, 200);
     event(uid, `♻️ Адміністрація обнулила твій прогрес${why ? `: ${why}` : ''}. Починай заново — стартовий кейс уже чекає!`);
-    alog(who, 'reset', uid, { cars: carIds.length, reason: why || null });
+    alog(who, 'reset', uid, { cars: carIds.length, balance: balanceBefore, reason: why || null });
     return { cars: carIds.length };
   }
   // Luck for a player: chance (0–100 %) that each of their next `opens` case rolls is thrown twice, the better kept.
@@ -3069,9 +3106,125 @@ export function createGame(db, opts = {}) {
       total: q('SELECT COUNT(*) n, COALESCE(SUM(stars), 0) stars FROM payments').get(),
     };
   }
-  function adminLog({ offset }) {
+  // The action log with filters: who did it, which action, which player (ID or @username), a date range, text in details.
+  function adminLog({ offset, admin: by, action, target, from, to, text }) {
     const off = offset ? int(offset, 0, 1e9, 'Зсув') : 0;
-    return { list: q('SELECT id, admin, action, target, details, created_at at FROM admin_log ORDER BY id DESC LIMIT 100 OFFSET ?').all(off).map((r) => ({ ...r, targetName: r.target ? name(r.target) : null })) };
+    const where = [], args = [];
+    if (by) where.push('admin = ?'), args.push(String(by).slice(0, 64));
+    if (action) where.push('action = ?'), args.push(String(action).slice(0, 32));
+    if (target != null && String(target).trim()) {
+      const t = String(target).trim().replace(/^@/, '').slice(0, 64);
+      const id = /^\d{1,16}$/.test(t) ? Number(t) : q('SELECT id FROM users WHERE ulower(username) = ?').get(t.toLowerCase())?.id;
+      where.push('target = ?'), args.push(id ?? -1);
+    }
+    if (from) where.push('created_at >= ?'), args.push(int(from, 0, 1e14, 'Дата'));
+    if (to) where.push('created_at < ?'), args.push(int(to, 0, 1e14, 'Дата'));
+    if (text && String(text).trim()) where.push("ulower(details) LIKE ? ESCAPE '\\'"), args.push(`%${String(text).trim().toLowerCase().slice(0, 64).replace(/[\\%_]/g, (c) => '\\' + c)}%`);
+    const w = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    return {
+      list: q(`SELECT id, admin, action, target, details, created_at at FROM admin_log ${w} ORDER BY id DESC LIMIT 100 OFFSET ?`).all(...args, off)
+        .map((r) => ({ ...r, targetName: r.target ? name(r.target) : null, adminName: adminName(r.admin) })),
+      total: q(`SELECT COUNT(*) n FROM admin_log ${w}`).get(...args).n,
+      admins: q('SELECT admin, COUNT(*) n FROM admin_log GROUP BY admin ORDER BY n DESC LIMIT 50').all().map((r) => ({ id: r.admin, name: adminName(r.admin), n: r.n })),
+      actions: q('SELECT DISTINCT action FROM admin_log ORDER BY action').all().map((r) => r.action),
+    };
+  }
+  // 'tg:123' → '@name'; 'key' / 'local' / 'bot' stay as they are.
+  const adminName = (who) => (String(who).startsWith('tg:') ? name(Number(String(who).slice(3))) : String(who));
+
+  // ---------- dashboard: activity, payments and economy health per Kyiv day ----------
+  // Minutes Kyiv is ahead of UTC at time t (2 or 3 hours), so SQL can bucket timestamps by Kyiv day.
+  function kyivOffset(t) {
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Kyiv', hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' })
+      .formatToParts(new Date(t)).map((x) => [x.type, x.value]));
+    return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute) - Math.floor(t / 60e3) * 60e3;
+  }
+  function adminDashboard({ days }) {
+    const n = days ? int(days, 7, 90, 'Днів') : 14;
+    const t = now();
+    const off = kyivOffset(t);
+    const list = [...new Set(Array.from({ length: n }, (_, i) => dayOf(t - (n - 1 - i) * 86400e3)))];
+    const first = list[0];
+    const since = t - (n + 1) * 86400e3;
+    const D = 'date((created_at + ?) / 1000, \'unixepoch\')';
+    const by = (rows) => Object.fromEntries(rows.map((r) => [r.d, r]));
+    const newU = by(q(`SELECT ${D} d, COUNT(*) n FROM users WHERE created_at >= ? GROUP BY d`).all(off, since));
+    const cases = by(q(`SELECT ${D} d, COUNT(*) n, COUNT(DISTINCT user_id) u FROM drops WHERE created_at >= ? GROUP BY d`).all(off, since));
+    const stars = by(q(`SELECT ${D} d, COUNT(*) n, COALESCE(SUM(stars), 0) stars, COUNT(DISTINCT user_id) u FROM payments WHERE created_at >= ? AND charge_id NOT LIKE 'legacy:%' GROUP BY d`).all(off, since));
+    // Active = opened the game (user_days, written by every call) or left a trace in drops / payments (older days).
+    const activeSql = (fromDay, fromT) => [`SELECT day d, user_id u FROM user_days WHERE day >= ?
+      UNION SELECT ${D} d, user_id u FROM drops WHERE created_at >= ? UNION SELECT ${D} d, user_id u FROM payments WHERE created_at >= ?`, [fromDay, off, fromT, off, fromT]];
+    const [aSql, aArgs] = activeSql(first, since);
+    const dau = by(q(`SELECT d, COUNT(DISTINCT u) n FROM (${aSql}) GROUP BY d`).all(...aArgs));
+    const distinct = (k) => {
+      const [sq, a] = activeSql(dayOf(t - (k - 1) * 86400e3), t - (k + 1) * 86400e3);
+      return q(`SELECT COUNT(DISTINCT u) n FROM (${sq}) WHERE d >= ?`).get(...a, dayOf(t - (k - 1) * 86400e3)).n;
+    };
+    const money = by(q('SELECT day d, created, destroyed FROM money_days WHERE day >= ?').all(first));
+    // Money in players' hands at the end of each day, walked back from today's total with each day's net change.
+    let supply = sum('SELECT COALESCE(SUM(balance), 0) n FROM users');
+    const series = list.map((d) => ({
+      day: d, dau: dau[d]?.n || 0, newUsers: newU[d]?.n || 0, cases: cases[d]?.n || 0, openers: cases[d]?.u || 0,
+      stars: stars[d]?.stars || 0, payments: stars[d]?.n || 0, payers: stars[d]?.u || 0,
+      created: money[d]?.created || 0, destroyed: money[d]?.destroyed || 0,
+    }));
+    for (let i = series.length - 1; i >= 0; i--) {
+      series[i].supply = supply;
+      supply -= series[i].created - series[i].destroyed;
+    }
+    const row = (u) => ({ id: u.id, name: name(u.id), level: u.level, value: u.total_value, balance: u.balance, banned: !!u.banned, lastSeen: u.last_seen });
+    const week = t - 7 * 86400e3;
+    return {
+      days: series, today: dayOf(t),
+      dau: dau[dayOf(t)]?.n || 0, wau: distinct(7), mau: distinct(30), users: sum('SELECT COUNT(*) n FROM users'),
+      caseOfDay: { today: S.caseOfDay(dayOf(t)), tomorrow: S.caseOfDay(dayOf(t + 86400e3)), off: S.CASE_OF_DAY.off },
+      top: {
+        rich: q('SELECT * FROM users WHERE banned = 0 ORDER BY total_value + balance DESC LIMIT 10').all().map(row),
+        payers: q("SELECT u.*, SUM(p.stars) stars, COUNT(*) n FROM payments p JOIN users u ON u.id = p.user_id WHERE p.charge_id NOT LIKE 'legacy:%' GROUP BY u.id ORDER BY stars DESC LIMIT 10").all()
+          .map((u) => ({ ...row(u), stars: u.stars, payments: u.n })),
+        active: q('SELECT u.*, COUNT(*) n FROM drops d JOIN users u ON u.id = d.user_id WHERE d.created_at >= ? GROUP BY u.id ORDER BY n DESC LIMIT 10').all(week)
+          .map((u) => ({ ...row(u), drops: u.n })),
+      },
+    };
+  }
+
+  // ---------- broadcast: one message to every (or every recently active) player, in the game and through the bot ----------
+  const BROADCAST_GAP_MS = 10 * 60e3, BROADCAST_AUDIENCE = { all: null, active30: 30, active7: 7, active1: 1 };
+  function broadcastWhere(audience) {
+    if (!Object.hasOwn(BROADCAST_AUDIENCE, String(audience))) fail('Невідома аудиторія');
+    const d = BROADCAST_AUDIENCE[audience];
+    return d ? ['banned = 0 AND last_seen >= ?', [now() - d * 86400e3]] : ['banned = 0', []];
+  }
+  function broadcastText(text) {
+    const t = String(text ?? '').trim().slice(0, 1000);
+    if (t.length < 3) fail('Напиши текст розсилки');
+    return t;
+  }
+  function lastBroadcast() {
+    return q("SELECT created_at FROM admin_log WHERE action = 'broadcast' ORDER BY id DESC LIMIT 1").get()?.created_at || 0;
+  }
+  function adminBroadcastPreview({ audience, text }) {
+    const [w, a] = broadcastWhere(audience || 'all');
+    const wait = Math.max(0, lastBroadcast() + BROADCAST_GAP_MS - now());
+    return { recipients: q(`SELECT COUNT(*) n FROM users WHERE ${w}`).get(...a).n, text: text == null ? null : String(text).trim().slice(0, 1000), waitMs: wait,
+      history: q("SELECT admin, details, created_at at FROM admin_log WHERE action = 'broadcast' ORDER BY id DESC LIMIT 10").all().map((r) => ({ ...r, adminName: adminName(r.admin) })) };
+  }
+  function adminBroadcast(who, { audience, text }) {
+    const t = broadcastText(text);
+    const wait = lastBroadcast() + BROADCAST_GAP_MS - now();
+    if (wait > 0) fail(`Наступна розсилка — через ${Math.ceil(wait / 60e3)} хв`);
+    const [w, a] = broadcastWhere(audience || 'all');
+    const ids = q(`SELECT id FROM users WHERE ${w} ORDER BY id`).all(...a).map((r) => r.id);
+    if (!ids.length) fail('Нікому надсилати');
+    const at = now();
+    // In the game: an event and the message window; the bot sends are paced by the server (opts.broadcast).
+    q(`INSERT INTO events (user_id, text, created_at) SELECT id, ?, ? FROM users WHERE ${w}`).run(`📢 ${t}`, at, ...a);
+    q(`INSERT INTO gifts (user_id, kind, data, note, created_at) SELECT id, 'message', '{}', ?, ? FROM users WHERE ${w}`).run(t, at, ...a);
+    alog(who, 'broadcast', null, { text: t, audience: audience || 'all', recipients: ids.length });
+    try {
+      opts.broadcast?.(ids, `📢 ${t}`);
+    } catch {}
+    return { recipients: ids.length };
   }
   // Admin handlers get (who, body); read-only ones ignore `who`. Each runs in one transaction.
   const adminHandlers = {
@@ -3085,6 +3238,7 @@ export function createGame(db, opts = {}) {
     promos: () => adminPromos(), 'promo/create': adminPromoCreate, 'promo/delete': adminPromoDelete,
     payments: (w, b) => adminPayments(b), log: (w, b) => adminLog(b), referrals: () => adminReferrals(),
     support: (w, b) => adminSupport(b), 'support/reply': adminSupportReply, role: adminSetRole,
+    dashboard: (w, b) => adminDashboard(b), 'broadcast/preview': (w, b) => adminBroadcastPreview(b), broadcast: adminBroadcast,
   };
   // Every admin call checks the caller's role (helpers may only use HELPER_ACTIONS).
   const admin = Object.fromEntries(Object.entries(adminHandlers).map(([k, fn]) => [k, (who, body = {}) => db.tx(() => {
@@ -3093,6 +3247,28 @@ export function createGame(db, opts = {}) {
     if (body?.id && k !== 'market/remove' && q('SELECT 1 FROM users WHERE id = ?').get(body.id)) recalc(body.id);
     return r;
   })]));
+  // Actions that change a player or the economy. From the panel (adminCall, used by the HTTP endpoint) each needs
+  // `confirm: true` (the confirm dialog) and a `reason` of 3+ characters, which goes into admin_log with the action.
+  // message / support/reply are not here: their text is the whole action and is logged as it is.
+  const ADMIN_MUTATING = new Set(['money', 'give-car', 'remove-car', 'part', 'keys', 'give-plate', 'remove-plate', 'set', 'ban', 'reset',
+    'luck', 'rig', 'rig-cancel', 'market/remove', 'dealer/refresh', 'promo/create', 'promo/delete', 'role', 'broadcast']);
+  function adminCall(who, name, body) {
+    if (!Object.hasOwn(admin, name)) return undefined;
+    const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+    if (!canDo(actorRole(who), name)) fail('Немає прав на цю дію');
+    let reason = null;
+    if (ADMIN_MUTATING.has(name)) {
+      reason = String(b.reason ?? '').trim().slice(0, 300);
+      if (reason.length < 3) fail('Вкажи причину (від 3 символів) — вона піде в журнал дій');
+      if (b.confirm !== true) fail('Дію не підтверджено');
+    }
+    actx.reason = reason;
+    try {
+      return admin[name](who, b);
+    } finally {
+      actx.reason = null;
+    }
+  }
 
   const handlers = {
     me: (u) => me(u),
@@ -3137,7 +3313,7 @@ export function createGame(db, opts = {}) {
       rollSeason(uid);
     }
     // Presence for "online" (trade hall, live PvP): written at most every 15 s so plain reads don't hit the disk.
-    q('UPDATE users SET last_seen = ? WHERE id = ? AND (last_seen IS NULL OR last_seen < ?)').run(now(), uid, now() - 15e3);
+    if (q('UPDATE users SET last_seen = ? WHERE id = ? AND (last_seen IS NULL OR last_seen < ?)').run(now(), uid, now() - 15e3).changes) markDay(uid);
     const r = fn(uid, body || {});
     if (!light) recalc(uid);
     return r;
@@ -3157,5 +3333,11 @@ export function createGame(db, opts = {}) {
   }
 
   importLegacy();
-  return { api, admin, push, pushCandidates: push.candidates, pushMark: push.mark, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, createPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)) };
+  // The bot's /promo is logged like the panel's (who = "bot").
+  const botPromo = (code, amount, uses, days) => db.tx(() => {
+    const c = createPromo(code, amount, uses, days);
+    alog('bot', 'promo', null, { code: c, amount: Number(amount), uses: Number(uses), days: days || null });
+    return c;
+  });
+  return { api, admin, adminCall, push, pushCandidates: push.candidates, pushMark: push.mark, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, createPromo: botPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)) };
 }

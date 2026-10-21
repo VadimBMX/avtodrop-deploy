@@ -19,8 +19,13 @@ const CSP = "default-src 'self'; script-src 'self' https://telegram.org; style-s
 export function createApp({ dbFile, token = '', dev = false, webappUrl = '', admins = [], adminKey = '', log = console.error } = {}) {
   const db = openDb(dbFile);
   let bot = null, sender = null, reminders = null;
-  // Instant events (trades, PvP, auctions, support) go first in the same rate-limited queue as the reminders.
-  const game = createGame(db, { notify: (uid, text) => sender?.enqueue(uid, text, { urgent: true }), admins });
+  // Instant events (trades, PvP, auctions, support) go first in the same rate-limited queue as the reminders;
+  // admin broadcasts use the same queue at normal priority.
+  const broadcast = (ids, text) => {
+    if (!sender) return;
+    for (const id of ids) sender.enqueue(id, text, { urgent: false });
+  };
+  const game = createGame(db, { notify: (uid, text) => sender?.enqueue(uid, text, { urgent: true }), admins, broadcast });
   if (token) {
     bot = createBot({ token, webappUrl, admins, game, log });
     sender = createSender({ send: bot.sendMessage, onBlocked: game.push.block, isBlocked: game.push.isBlocked, log });
@@ -72,17 +77,27 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
   }
   // Admin access: ADMIN_KEY in the x-admin-key header, a Telegram admin (ADMIN_IDS) inside the Mini App,
   // or, in DEV mode only, any request from this computer.
+  // Wrong keys: 10 per address per 10 minutes, and 100 in total across all addresses (behind a proxy many players
+  // share one address, and one attacker can have many).
+  const KEY_WINDOW = 10 * 60e3, KEY_PER_IP = 10, KEY_TOTAL = 100;
   const keyFails = new Map(); // ip → [windowStart, count]
-  const isLocal = (req) => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
+  const keyTotal = [0, 0];
+  // A request that came through a reverse proxy (Caddy on the same host) is not "this computer".
+  const isLocal = (req) => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress) && !req.headers['x-forwarded-for'] && !req.headers['x-real-ip'] && !req.headers.forwarded;
+  const clientIp = (req) => `${req.socket.remoteAddress || '?'}|${String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()}`;
   function adminIdentity(req) {
-    const ip = req.socket.remoteAddress || '?';
+    const ip = clientIp(req);
     const key = req.headers['x-admin-key'];
     if (key && adminKey) {
+      const t = Date.now();
+      if (t - keyTotal[0] > KEY_WINDOW) keyTotal.splice(0, 2, t, 0);
       const f = keyFails.get(ip);
-      if (f && Date.now() - f[0] < 10 * 60e3 && f[1] >= 10) return { error: 'Забагато невдалих спроб, зачекай 10 хвилин', code: 429 };
-      const a = Buffer.from(String(key)), b = Buffer.from(adminKey);
-      if (a.length === b.length && crypto.timingSafeEqual(a, b)) return { who: 'key' };
-      if (!f || Date.now() - f[0] > 10 * 60e3) keyFails.set(ip, [Date.now(), 1]);
+      if ((f && t - f[0] < KEY_WINDOW && f[1] >= KEY_PER_IP) || keyTotal[1] >= KEY_TOTAL) return { error: 'Забагато невдалих спроб, зачекай 10 хвилин', code: 429 };
+      const a = crypto.createHash('sha256').update(String(key)).digest(), b = crypto.createHash('sha256').update(adminKey).digest();
+      if (crypto.timingSafeEqual(a, b)) return { who: 'key' };
+      keyTotal[1]++;
+      if (keyFails.size > 10000) keyFails.clear();
+      if (!f || t - f[0] > KEY_WINDOW) keyFails.set(ip, [t, 1]);
       else f[1]++;
       return { error: 'Невірний ключ', code: 401 };
     }
@@ -100,11 +115,13 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     if (req.method !== 'POST') return send(res, 405, { error: 'POST only' });
     const id = adminIdentity(req);
     if (id.error) return send(res, id.code, { error: id.error });
+    if (limited('admin:' + id.who)) return send(res, 429, { error: 'Забагато запитів, зачекай секунду' });
     const body = await readBody(req);
-    if (name === 'whoami') return send(res, 200, { who: id.who, role: id.who.startsWith('tg:') ? game.roleOf(Number(id.who.slice(3))) : 'owner', dev, bot: bot?.username || null });
-    const fn = game.admin[name];
-    if (!fn) return send(res, 404, { error: 'Невідомий метод' });
-    return send(res, 200, fn(id.who, body) ?? {});
+    if (name === 'whoami') return send(res, 200, { who: id.who, role: id.who.startsWith('tg:') ? game.roleOf(Number(id.who.slice(3))) : 'owner', dev, bot: bot?.username || null, outbox: sender ? sender.size() : 0 });
+    // adminCall checks the role, and for actions that change something the confirm flag and the reason.
+    const out = game.adminCall(id.who, name, body);
+    if (out === undefined) return send(res, 404, { error: 'Невідомий метод' });
+    return send(res, 200, out ?? {});
   }
   const canAdmin = (req, uid) => !!game.roleOf(uid) || (dev && isLocal(req));
 
@@ -274,6 +291,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const port = await app.start(Number(process.env.PORT) || 3100);
   console.log(`АВТОДРОП: http://localhost:${port}${dev ? '  (DEV-режим: вхід без Telegram)' : ''}`);
   console.log(`Адмін-панель: http://localhost:${port}/admin.html`);
+  if (process.env.ADMIN_KEY && process.env.ADMIN_KEY.length < 16) console.warn('Увага: ADMIN_KEY коротший за 16 символів — зроби його довгим і випадковим.');
   if (dev && token) console.warn('Увага: DEV=1 разом із BOT_TOKEN — будь-хто може увійти як будь-який гравець. Не вмикай це на сервері.');
   for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => (app.close(), process.exit(0)));
 }
