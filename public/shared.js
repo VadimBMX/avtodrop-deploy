@@ -393,17 +393,22 @@ export const countryModels = (c) => ALL_MODELS.filter((m) => m.country === c && 
 // A case has a fixed price and class odds. Every class pool is cut to a price CORRIDOR around the case price: the
 // cheapest drop is worth at least `lo` of the price, the dearest at most `hi` times it. So a bad drop is a small loss,
 // never a wipe-out, and a jackpot is a few times the price, not a hundred. Inside a class cheaper cars drop more often
-// (weight ∝ 1/√price). On average a drop is worth ~1.3× (grey cases) to ~1.8× (gold/red) the price; instantly selling every drop pays back ~75–80%,
-// so open-and-sell never farms money (SELL_RATES), cases pay off by keeping cars.
+// (weight ∝ 1/√price). Owner decision (eco3): the case prices are the old ones while the B/A/S cars got dear, so the
+// grey/blue cases pay back ~0.8 on instant sale and the dear ones ×1.5–2.8 (accepted; see CASE_PRICE_MULT, FRESH_SELL).
 export const CASE_CORRIDOR = { lo: 0.5, hi: 12 };
 // Key fragments: every drop worth less than its case leaves a fragment of that case's key; FRAGMENTS_PER_KEY of them
 // make a free key. With ~40–80% of drops below the price, a free case comes every ~10–20 paid opens.
 export const FRAGMENTS_PER_KEY = 8;
 // Instant sale by class: grey 60%, blue 55%, purple 50%, gold 45%, red and secret 40%; no daily limit. With boost, luck,
-// the losing-streak save and key fragments counted, open-and-sell returns at most ~0.8 of the price for every case
-// (tools/sim-events.mjs «none»), and under 0.85 on the case of the day and during events (tools/sim-events.mjs).
+// the losing-streak save and key fragments counted, open-and-sell is ~0.8 for the cheap cases and ×1.5–2.8 for the dear
+// ones (owner decision, tools/sim-events.mjs; tools/sim-loop.mjs shows how fast a loop grows money).
 export const SELL_RATES = { D: 0.6, C: 0.55, B: 0.5, A: 0.45, S: 0.4, X: 0.4 };
-export const sellPriceOf = (model) => Math.floor(MODELS[model].price * SELL_RATES[MODELS[model].cls]);
+// Safety valve 1 (off: rate 1). A car obtained less than `hours` ago sells instantly at `rate` × its usual price, so
+// «open and sell at once» can be cooled down without touching players who sell older cars. E.g. { rate: 0.6, hours: 24 }.
+export const FRESH_SELL = { rate: 1, hours: 24 };
+// ageMs: how long ago the car was obtained (unknown = an old car, the full rate).
+export const sellPriceOf = (model, ageMs = Infinity) =>
+  Math.floor(MODELS[model].price * SELL_RATES[MODELS[model].cls] * (ageMs < FRESH_SELL.hours * 3600e3 ? FRESH_SELL.rate : 1));
 
 // Inside a class, cheaper cars drop more often (weight ∝ 1/√price), like in the original.
 export function modelWeights(list) {
@@ -432,25 +437,25 @@ export const CASES = [
   // icon = id of a symbol in public/icons.svg
   { id: 'starter', name: 'Стартовий', icon: 'gift', group: 'gift', weights: { D: 100 }, starter: true },
   // Rarity cases: a ladder of prices, each about 2.5× the one before, so there is always a next step.
-  // Prices and odds are fitted (sell rates 60/55/50/45/40%) so open-and-sell stays ≤ ~0.78 on a plain day, ≤ ~0.82
-  // on the case of the day and during events (static, tools/sim-events.mjs measures it for real).
-  { id: 'rust', name: 'Іржавий гараж', icon: 'tool', group: 'rarity', price: 65000, weights: { D: 97.2, C: 2.8 }, pity2: false },
-  { id: 'city', name: 'Міський', icon: 'building-skyscraper', group: 'rarity', price: 370000, weights: { C: 97, B: 3 } },
-  { id: 'tuning', name: 'Тюнінг-ательє', icon: 'tool', group: 'rarity', price: 1000000, weights: { C: 82.5, B: 17.2, A: 0.3 }, hi: 16 },
-  { id: 'sport', name: 'Спорткар', icon: 'flag-3', group: 'rarity', price: 4400000, weights: { B: 90.5, A: 9.5 } },
-  { id: 'premium', name: 'Преміум', icon: 'diamond', group: 'rarity', price: 13000000, weights: { B: 42.8, A: 54, S: 3.2 } },
-  { id: 'elite', name: 'Еліта', icon: 'crown', group: 'rarity', price: 24000000, weights: { A: 88.3, S: 11.7 }, hi: 13 },
+  // Old prices (owner decision, eco3) with the odds of eco2; `hi` keeps the dear cars (Bolide 300M, AMG One …) in the
+  // pools now that the corridor is relative to a lower price.
+  { id: 'rust', name: 'Іржавий гараж', icon: 'tool', group: 'rarity', price: 60000, weights: { D: 97.2, C: 2.8 }, pity2: false },
+  { id: 'city', name: 'Міський', icon: 'building-skyscraper', group: 'rarity', price: 300000, weights: { C: 97, B: 3 } },
+  { id: 'tuning', name: 'Тюнінг-ательє', icon: 'tool', group: 'rarity', price: 900000, weights: { C: 82.5, B: 17.2, A: 0.3 }, hi: 18 },
+  { id: 'sport', name: 'Спорткар', icon: 'flag-3', group: 'rarity', price: 2000000, weights: { B: 90.5, A: 9.5 }, hi: 23 },
+  { id: 'premium', name: 'Преміум', icon: 'diamond', group: 'rarity', price: 5000000, weights: { B: 42.8, A: 54, S: 3.2 }, hi: 61 },
+  { id: 'elite', name: 'Еліта', icon: 'crown', group: 'rarity', price: 10000000, weights: { A: 88.3, S: 11.7 }, hi: 31 },
 ];
 // Country cases start cheap and have a wider ceiling (hi), so the country's dear cars — the ones its collection needs —
 // can still drop from its own case, rarely. Ukraine's gold Soviet rarities drop only from here (homeOnly).
 const COUNTRY_CASES = {
-  UA: { price: 74000, weights: { D: 98.2, C: 1.746, A: 0.054 }, hi: 450 },
-  JP: { price: 510000, weights: { C: 96.76, B: 3.06, A: 0.162, S: 0.018 }, hi: 240 },
-  DE: { price: 390000, weights: { C: 98.32, B: 1.554, A: 0.118, S: 0.008 }, hi: 560 },
-  CN: { price: 320000, weights: { C: 97.776, B: 2.08, A: 0.108, S: 0.036 }, hi: 400 },
-  US: { price: 5200000, weights: { B: 82.3, A: 17.06, S: 0.64 }, hi: 60 },
-  GB: { price: 11000000, weights: { B: 73.46, A: 25.12, S: 1.42 }, hi: 48 },
-  IT: { price: 11000000, weights: { B: 74, A: 24.7, S: 1.3 }, hi: 32 },
+  UA: { price: 55000, weights: { D: 98.2, C: 1.746, A: 0.054 }, hi: 460 },
+  JP: { price: 450000, weights: { C: 96.76, B: 3.06, A: 0.162, S: 0.018 }, hi: 400 },
+  DE: { price: 400000, weights: { C: 98.32, B: 1.554, A: 0.118, S: 0.008 }, hi: 560 },
+  CN: { price: 480000, weights: { C: 97.776, B: 2.08, A: 0.108, S: 0.036 }, hi: 400 },
+  US: { price: 2400000, weights: { B: 82.3, A: 17.06, S: 0.64 }, hi: 130 },
+  GB: { price: 3100000, weights: { B: 73.46, A: 25.12, S: 1.42 }, hi: 90 },
+  IT: { price: 3200000, weights: { B: 74, A: 24.7, S: 1.3 }, hi: 55 },
 };
 for (const c of MAIN_COUNTRIES) {
   const cc = COUNTRY_CASES[c];
@@ -501,6 +506,9 @@ export function effectiveWeights(cs) {
   }
   return sh;
 }
+// Safety valve 2 (off: {}). Price multiplier per case id, e.g. { elite: 1.6, 'c-gb': 2 }: the case costs more but drops
+// exactly the same cars (the pool and odds are fixed at the old price), so open-and-sell falls by that factor.
+export const CASE_PRICE_MULT = {};
 for (const cs of CASES) {
   if (cs.starter) cs.price = 0;
   // Country cases have no lower bound: every car of the country in the case's classes drops from its own case
@@ -511,6 +519,8 @@ for (const cs of CASES) {
     .filter((m) => cs.starter ? m.cls === 'D' && m.country === 'UA' : m.price >= lo && m.price <= hi);
   // A class the corridor leaves empty is dropped from the odds (nothing to give there).
   for (const cls of Object.keys(cs.weights)) if (!cs.pool(cls).length) delete cs.weights[cls];
+  // Safety valve 2 (off: empty). The price goes up after the pool is fixed, so the same cars drop for more money.
+  if (!cs.starter && CASE_PRICE_MULT[cs.id] > 0) cs.price = niceRound(cs.price * CASE_PRICE_MULT[cs.id]);
   cs.ev = Math.round(caseEV(effectiveWeights(cs), cs.pool)); // average value of a drop (luck compares drops against it)
   cs.sellEv = Math.round(caseEV(effectiveWeights(cs), cs.pool, (m) => sellPriceOf(m.id)));
 }

@@ -174,7 +174,7 @@ export function createGame(db, opts = {}) {
     const plate = carPlate(c.id);
     const st = S.carStats({ model: c.model, parts, plateValue: plate?.value || 0 });
     const t = tankState(c);
-    return { id: c.id, model: c.model, status: c.status, parts, plate, tank: t.tank, tankNext: t.next, ...st };
+    return { id: c.id, model: c.model, status: c.status, parts, plate, tank: t.tank, tankNext: t.next, sell: S.sellPriceOf(c.model, now() - c.created_at), ...st };
   }
   const carValueOf = (c) => S.carValue({ model: c.model, parts: carParts(c.id), plateValue: carPlate(c.id)?.value || 0 });
   function ownCar(uid, id, statuses = ['garage']) {
@@ -558,7 +558,7 @@ export function createGame(db, opts = {}) {
     let got = 0;
     for (const id of ids) {
       const c = noSecret(ownCar(uid, id, ['garage', 'showcase']));
-      got += S.sellPriceOf(c.model);
+      got += S.sellPriceOf(c.model, now() - c.created_at);
       stripCar(uid, c.id);
       q('DELETE FROM cars WHERE id = ?').run(c.id);
       q('DELETE FROM rivals WHERE car_id = ?').run(c.id);

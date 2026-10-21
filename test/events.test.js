@@ -1,5 +1,5 @@
 // Game events (S.EVENTS): the weekly calendar, the effects on the server with a fake clock, the admin overrides,
-// the bot reminder, and the economy rule — open-and-sell stays under EVENT_CAPS.sellMax during every event.
+// the bot reminder, and the economy rule — open-and-sell stays under a sanity cap during every event (owner kept the old case prices, see eco3).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { openDb } from '../src/db.js';
@@ -291,7 +291,10 @@ test('reminder: «event started» once, in the first hours, within the daily lim
   assert.ok(!g2.pushCandidates({ inactiveDays: 14, idleMin: 30, maxPerDay: 2, seasonWarnH: 24 }).some((c) => c.ready.some((r) => r.kind === 'event')));
 });
 
-test('economy: open-and-sell under 0.85 of the price paid for every case during every event (exact odds)', () => {
+// Owner's decision (eco3): the old case prices stay even though open-and-sell of the dear cases is above 1 (×1.5–2.8).
+// The rule left is a sanity cap: no case pays back more than OPEN_SELL_CAP of the price during any event.
+const OPEN_SELL_CAP = 3;
+test('economy: open-and-sell under the sanity cap for every case during every event (exact odds)', () => {
   // Exact for the country discount (boost, fragments and streak save are all off there); for the luck weekend the
   // streak save still works, +5% covers it (tools/sim-events.mjs measures it at 0–3%).
   for (const cs of S.CASES.filter((c) => !c.starter)) {
@@ -300,18 +303,18 @@ test('economy: open-and-sell under 0.85 of the price paid for every case during 
     for (const fx of fxs) for (const day of ['2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08', '2026-11-09', '2026-11-10']) {
       const deal = S.caseDeal(cs, day, fx);
       const sell = staticSell(cs, deal) * (deal.save ? 1.05 : 1);
-      assert.ok(sell < S.EVENT_CAPS.sellMax, `${cs.id} ${fx.ids.join('+')} ${day}: ${sell.toFixed(3)}`);
+      assert.ok(sell < OPEN_SELL_CAP, `${cs.id} ${fx.ids.join('+')} ${day}: ${sell.toFixed(3)}`);
     }
   }
   for (const p of plateCheck()) assert.ok(p.during < S.EVENT_CAPS.sellMax, `plates ${p.id}: ${p.during.toFixed(3)}`);
 });
 
-test('economy: luck weekend through the real API — every rarity case under 0.85 (fixed seeds)', () => {
+test('economy: luck weekend through the real API — every rarity case under the sanity cap (fixed seeds)', () => {
   for (const cs of S.CASES.filter((c) => c.group === 'rarity')) {
     const [, t0, prep] = scenarios(cs).find(([name]) => name === 'luck');
     const r = runCase(cs, t0, 1500, prep, 'test');
     assert.equal(r.price, cs.price, 'no case of the day at the weekend');
-    assert.ok(r.sell / r.paid < S.EVENT_CAPS.sellMax, `${cs.id}: ${(r.sell / r.paid).toFixed(3)}`);
+    assert.ok(r.sell / r.paid < OPEN_SELL_CAP, `${cs.id}: ${(r.sell / r.paid).toFixed(3)}`);
   }
   // The country discount through the API: the price paid is −15% and no fragment keys come.
   const cs = S.CASE_BY_ID['c-jp'];

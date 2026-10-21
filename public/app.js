@@ -691,7 +691,7 @@ TABS.garage = () => {
   const cars = all.filter((c) => !state.garageCls || M(c.model).cls === state.garageCls).sort(sorts[sort]);
   const total = all.reduce((s, c) => s + c.value, 0);
   const sel = state.selling;
-  const selTotal = sel ? sellTotal(cars.filter((c) => sel.has(c.id)).map((c) => c.model)) : 0;
+  const selTotal = sel ? sellTotal(cars.filter((c) => sel.has(c.id))) : 0;
   const free = Math.max(0, me.slots - all.length);
   const SORT_NAMES = { value: 'За ціною', class: 'За класом', new: 'Нові' };
   return seg + `${overfullHtml()}
@@ -850,7 +850,7 @@ H.plateDetach = async (d) => {
 };
 H.carSellMenu = (d) => {
   const c = me.cars.find((x) => x.id === Number(d.id));
-  const quick = sellPrice(c.model);
+  const quick = sellPrice(c);
   sheet('Продаж', `<div class="list">
     <button class="li" data-act="sellOne" data-id="${c.id}"><span class="ic">${ic('bolt')}</span><div class="grow"><b>Продати одразу · ${S.short(quick)}</b><div class="small muted">${Math.round(S.SELL_RATES[M(c.model).cls] * 100)}% ціни моделі. Деталі й номер повернуться тобі</div></div></button>
     <button class="li" data-act="listMarket" data-id="${c.id}"><span class="ic">${ic('building-store')}</span><div class="grow"><b>На ринок</b><div class="small muted">Свою ціну, комісія ${S.FEE * 100}%. Машина йде разом з деталями й номером</div></div></button>
@@ -859,7 +859,7 @@ H.carSellMenu = (d) => {
 };
 H.sellOne = async (d) => {
   const c = me.cars.find((x) => x.id === Number(d.id));
-  if (!(await confirmBox(`Продати ${M(c.model).name} за ${S.fmt(sellPrice(c.model))}?`))) return;
+  if (!(await confirmBox(`Продати ${M(c.model).name} за ${S.fmt(sellPrice(c))}?`))) return;
   if (await act('sell', { carIds: [c.id] }, (r) => `+${S.fmt(r.got)}`)) closeModal();
 };
 H.listMarket = (d) => {
@@ -905,8 +905,9 @@ function weightedModel(cs) {
   return list[Math.floor(Math.random() * list.length)].id;
 }
 // Dropped cars can be sold right from the result, so junk doesn't clog the garage.
-const sellPrice = (model) => S.sellPriceOf(model);
-const sellTotal = (models) => models.reduce((s, m) => s + S.sellPriceOf(m), 0);
+// The server sends car.sell (the instant-sale price right now, S.FRESH_SELL included); the model price is the fallback.
+const sellPrice = (car) => car.sell ?? S.sellPriceOf(car.model);
+const sellTotal = (cars) => cars.reduce((s, c) => s + sellPrice(c), 0);
 const dropAlive = (r) => !r.sold && me.cars.some((c) => c.id === r.car.id && c.status === 'garage');
 const reelCard = (model) => `<div class="car r${S.rankOf(M(model).cls)}" style="--c:${S.CLASSES[M(model).cls].color}">${clsBadge(M(model).cls, 'tl')}<div class="art">${carArt(model)}</div><div class="nm tiny ellipsis">${esc(M(model).name)}</div><div class="price tiny" style="color:${S.CLASSES[M(model).cls].color}">${S.short(M(model).price)}</div></div>`;
 // ---------- game events (S.EVENTS): chips with a timer, the «Події» card, the deal for a case right now ----------
@@ -959,14 +960,14 @@ TABS.cases = () => {
       <div class="result-name r${rank} ${fresh ? 'pop' : ''} ${rank >= 3 ? 'shimmer' : ''}" style="--c:${color}">${esc(m.name)}</div>
       <div class="rarity-row ${fresh ? 'pop2' : ''}"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span><span class="chip">${flag(car.model)} ${S.COUNTRIES[m.country].name}</span>${forced ? ' <span class="chip">гарантія</span>' : ''}${d[0].fragment ? ` <span class="chip frag">${ic('key')} +фрагмент</span>` : ''}</div>
       <div class="drop-value ${fresh ? 'pop2' : ''}"><span>Вартість</span><b id="dropValue">${S.fmt(car.value)}</b>${mult ? `<span class="xmult ${mult >= 1 ? 'up' : ''}">×${dec(mult, mult >= 10 ? 0 : 1)}</span>` : ''}</div>
-      ${d[0].sold ? `<div class="small win center">Продано за ${S.fmt(sellPrice(car.model))}</div>` : ''}`;
+      ${d[0].sold ? `<div class="small win center">Продано за ${S.fmt(sellPrice(car))}</div>` : ''}`;
   } else if (d?.length) {
     const fresh = state.fx?.type === 'case';
     const best = d.reduce((a, r) => Math.max(a, S.rankOf(M(r.car.model).cls)), 0);
     stage = `<div class="multi n${d.length}">${d.map((r, i) => {
       const rk = S.rankOf(M(r.car.model).cls);
       const c = S.CLASSES[M(r.car.model).cls].color;
-      const sell = dropAlive(r) ? `<button class="dropsell" data-act="sellDrop" data-id="${r.car.id}">${ic('cash')}${S.short(sellPrice(r.car.model))}</button>`
+      const sell = dropAlive(r) ? `<button class="dropsell" data-act="sellDrop" data-id="${r.car.id}">${ic('cash')}${S.short(sellPrice(r.car))}</button>`
         : r.sold ? '<div class="dropsell done">Продано</div>' : '';
       return `<div class="dcell r${rk} ${fresh ? 'flip-in' : ''} ${rk >= 1 ? 'rare' : ''} ${rk === best && best >= 2 ? 'best' : ''} ${r.sold ? 'sold' : ''}" style="--c:${c};animation-delay:${i * 180}ms">${r.sold ? carTile(r.car, { act: 'none' }) : carTile(r.car, { act: 'car', isNew: r.isNew })}${sell}</div>`;
     }).join('')}</div>
@@ -996,7 +997,7 @@ TABS.cases = () => {
     ${free < n ? '<div class="tiny muted center mt">Продай авто або купи місце в гаражі</div>' : ''}
     ${d ? (() => {
       const alive = d.filter(dropAlive);
-      const sum = sellTotal(alive.map((r) => r.car.model));
+      const sum = sellTotal(alive.map((r) => r.car));
       const sellBtn = alive.length ? `<button class="btn ghost btn2" data-act="sellDrops"><span>${ic('cash')} ${alive.length > 1 ? 'Продати все' : 'Продати'}</span><small>${S.short(sum)}</small></button>` : '';
       return `<div class="btns mt"><button class="btn outline" data-act="toGarage">У гараж</button>${sellBtn}</div>`;
     })() : ''}
@@ -1045,7 +1046,7 @@ H.sellDrop = (d, el) => armed(el, 'Точно?') && sellDrops([Number(d.id)]);
 H.sellDrops = (d, el) => {
   if (!state.drop) return; // a tap on a stale button after the drop was cleared
   const ids = state.drop.filter(dropAlive).map((r) => r.car.id);
-  const sum = sellTotal(state.drop.filter(dropAlive).map((r) => r.car.model));
+  const sum = sellTotal(state.drop.filter(dropAlive).map((r) => r.car));
   if (armed(el, `Точно продати? · ${S.short(sum)}`)) sellDrops(ids);
 };
 H.pickCount = (d) => (state.count = Number(d.n), render());
@@ -3219,7 +3220,7 @@ PAGES.battle = async () => {
   };
   const cell = (d, side, i) => {
     const car = !hide && mine(side, i);
-    return `<div class="bcell">${dropCard(d, hide)}${car ? `<button class="dropsell" data-act="battleSell" data-id="${car.id}">${ic('cash')}${S.short(sellPrice(car.model))}</button>` : ''}</div>`;
+    return `<div class="bcell">${dropCard(d, hide)}${car ? `<button class="dropsell" data-act="battleSell" data-id="${car.id}">${ic('cash')}${S.short(sellPrice(car))}</button>` : ''}</div>`;
   };
   return `<div class="small muted center">${caseLabel(b.caseId)} ×${b.count} · банк ${S.short(b.price * 2)}</div>
     <div class="bgrid mt">${head(b.creator, r.creator.total, 'A')}${head(b.opponent, r.opponent.total, 'B')}
@@ -3247,7 +3248,7 @@ function overfullHtml() {
   const extra = used - me.slots;
   if (extra <= 0) return '';
   const cheapest = me.cars.filter((c) => c.status === 'garage' && !M(c.model).secret).sort((a, b) => a.value - b.value).slice(0, extra);
-  const sum = cheapest.reduce((s, c) => s + sellPrice(c.model), 0);
+  const sum = cheapest.reduce((s, c) => s + sellPrice(c), 0);
   return `<div class="card warnbox mt"><b>${ic('info-circle')} Гараж переповнений: ${used}/${me.slots}</b>
     <div class="small">Продай ${extra} ${extra === 1 ? 'машину' : extra < 5 ? 'машини' : 'машин'} або купи місце. Поки що дохід приносять лише ${me.slots} найкращих, а нові кейси відкрити не можна.</div>
     ${cheapest.length === extra ? `<button class="btn sm ghost mt" data-act="sellExtras" data-ids="${cheapest.map((c) => c.id).join(',')}">${ic('cash')} Продати ${extra} найдешевших · ${S.short(sum)}</button>` : ''}</div>`;

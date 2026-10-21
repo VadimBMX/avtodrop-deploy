@@ -225,9 +225,10 @@ test('cases: every drop of a rarity case is worth at least half the price, fragm
       // Country cases have no floor on purpose: every car of the country must drop from its own case.
       if (cs.group === 'rarity') for (const m of pool) assert.ok(m.price >= cs.price * S.CASE_CORRIDOR.lo, `${cs.id}: ${m.name} ${m.price} < half of ${cs.price}`);
     }
-    // Static EV (without the hidden boost and fragments): 60% instant sale of grey cars caps the cheap cases at ~1.2×.
-    assert.ok(cs.ev > cs.price * 1.15 && cs.ev < cs.price * 2.2, `${cs.id} ev ${cs.ev / cs.price}`);
-    assert.ok(cs.sellEv < cs.price, `${cs.id}: selling every drop pays back less than the price`);
+    // Static EV (without the hidden boost and fragments). Owner's decision (eco3): old case prices with the dear cars, so
+    // the B/A/S cases give 3–5× the price and c-cn ~0.9×; only a sanity range is left.
+    assert.ok(cs.ev > cs.price * 0.8 && cs.ev < cs.price * 6, `${cs.id} ev ${cs.ev / cs.price}`);
+    assert.ok(cs.sellEv < cs.price * 3, `${cs.id}: instant sale of every drop under the sanity cap`);
   }
   const { db, mk, call } = setup();
   mk(1);

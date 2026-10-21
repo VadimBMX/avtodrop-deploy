@@ -68,3 +68,28 @@ test('race prizes come from the car model, not from parts or plates', () => {
   const after = g.api['race/rivals'](1, { carId: car }).list.map((r) => r.prize);
   assert.deepEqual(after, before);
 });
+
+test('safety valves are off by default; the fresh-sale valve cuts the instant sale of new cars only', () => {
+  assert.deepEqual(S.CASE_PRICE_MULT, {});
+  assert.equal(S.FRESH_SELL.rate, 1);
+  let t = Date.parse('2026-10-19T10:00:00Z');
+  const db = openDb(':memory:');
+  const g = createGame(db, { now: () => t, notify: () => {} });
+  g.ensureUser({ id: 1, first_name: 'A' });
+  g.giveCar(1, 'zaz-lanos');
+  const old = g.giveCar(1, 'lexus-lfa').id;
+  t += 48 * 3600e3;
+  const fresh = g.giveCar(1, 'lexus-lfa').id;
+  const full = S.sellPriceOf('lexus-lfa');
+  const prev = { ...S.FRESH_SELL };
+  try {
+    S.FRESH_SELL.rate = 0.5;
+    const cars = Object.fromEntries(g.api.me(1).cars.map((c) => [c.id, c.sell]));
+    assert.equal(cars[old], full, 'an old car sells at the full rate');
+    assert.equal(cars[fresh], Math.floor(S.MODELS['lexus-lfa'].price * S.SELL_RATES.S * 0.5), 'the app shows the cut price');
+    assert.equal(g.api.sell(1, { carIds: [fresh] }).got, cars[fresh]);
+    assert.equal(g.api.sell(1, { carIds: [old] }).got, full);
+  } finally {
+    Object.assign(S.FRESH_SELL, prev);
+  }
+});
