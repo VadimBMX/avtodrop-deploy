@@ -141,5 +141,15 @@
  },
  "bmw-325i-e30": {
   "off": "dark burgundy photo, black trim strips inside the body: light colours blotchy"
+ },
+ "bugatti-bolide": {
+  "off": "black carbon body: wheels and carbon get painted"
+ },
+ "bugatti-veyron-16-4": {
+  "off": "two-tone photo: only the light half is found, glass gets painted"
+ },
+ "bmw-x5-m-e70-monte-carlo-blue": {
+  "hue_tol": 50,
+  "c_floor": 0.08
  }
 }
