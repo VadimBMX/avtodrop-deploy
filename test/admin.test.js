@@ -9,7 +9,7 @@ function setup() {
   const db = openDb(':memory:');
   let t = Date.parse('2026-10-14T10:00:00Z');
   const sent = [];
-  const g = createGame(db, { now: () => t, notify: (uid, text) => sent.push([uid, text]) });
+  const g = createGame(db, { now: () => t, notify: (uid, text) => sent.push([uid, text]), allUnlocked: true });
   const mk = (id, username) => (g.ensureUser({ id, username, first_name: 'U' + id }), id);
   const call = (uid, name, body = {}) => g.api[name](uid, body);
   const rich = (id) => db.prepare('UPDATE users SET balance = 1e12, slots = 40 WHERE id = ?').run(id);

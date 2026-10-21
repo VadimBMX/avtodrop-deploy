@@ -120,7 +120,7 @@ const tierCls = (tier) => S.TIER_BY_ID[tier]?.cls || 'D';
 const ACTIONS = {
   money: 'Гроші', 'give-car': 'Видано авто', 'remove-car': 'Вилучено авто', part: 'Деталі', keys: 'Ключі', set: 'Параметр',
   ban: 'Бан', unban: 'Розбан', reset: 'Обнулено', 'dealer-refresh': 'Нові лоти дилера', 'give-plate': 'Видано номер', 'remove-plate': 'Забрано номер', message: 'Повідомлення', 'market-remove': 'Знято лот', promo: 'Промокод', 'promo-delete': 'Видалено промокод', support: 'Відповідь підтримки', role: 'Права',
-  luck: 'Підкрутка', rig: 'Гарантована машина', 'rig-cancel': 'Скасовано гарантовану машину', broadcast: 'Розсилка',
+  luck: 'Підкрутка', rig: 'Гарантована машина', 'rig-cancel': 'Скасовано гарантовану машину', broadcast: 'Розсилка', 'casino-mode': 'Режим казино',
 };
 const FIELD_NAMES = { level: 'Рівень', slots: 'Місць у гаражі', showcase_slots: 'Місць на вітрині', cap_level: 'Рівень сховища', xp: 'XP' };
 const AUDIENCE = { all: 'усім гравцям', active30: 'активним за 30 днів', active7: 'активним за 7 днів', active1: 'активним за добу' };
@@ -913,6 +913,32 @@ H.broadcast = async () => {
     summary: `<div class="bubble">${esc('📢 ' + text)}</div><div>Отримають: <b>${p.recipients}</b> гравців (${esc(AUDIENCE[aud])}). Скасувати після відправки не можна.</div>` }, (x) => `Розсилку запущено: ${x.recipients} гравців`);
   if (r) state.bcText = '';
 };
+
+// ---------- game settings: the casino switch (owner only) and the unlock ladder ----------
+const CASINO_HINT = {
+  on: 'Краш, міни, рулетка й слоти — як зараз. Відкривається на рівні з драбини нижче.',
+  wheel: 'Лише рулетка (як «колесо» в DZ). Краш, міни й слоти зникають; запущені міни розраховуються одразу.',
+  off: 'Казино немає ніде: вхід з «Апгрейду» зникає, сервер відмовляє в ставках. Запущені міни розраховуються одразу (виплата за відкритими клітинками або повернення ставки).',
+};
+VIEWS.settings = async () => {
+  const s = await api('settings');
+  const owner = state.role === 'owner';
+  return `<div class="head"><h1>Налаштування гри</h1></div>
+    <div class="grid2">
+      <div class="panel"><h2>Казино <span class="sub">зараз: ${esc(s.modes[s.casino])}${s.casinoSaved ? '' : ' (типово з коду)'}</span></h2>
+        <p class="small muted">Політики Telegram щодо азартних механік — ризик для бота (див. звіт). Типове значення в коді: <b>${esc(s.modes[s.casinoDefault])}</b> (S.CASINO_DEFAULT). Змінити може лише власник.</p>
+        <div class="list">${Object.entries(s.modes).map(([k, t]) => `<div class="row" style="gap:10px;align-items:flex-start;margin:8px 0">
+          <button class="btn ${k === s.casino ? '' : 'ghost'} sm" data-act="casinoMode" data-k="${k}" ${owner && k !== s.casino ? '' : 'disabled'}>${k === s.casino ? '✓ ' : ''}${esc(t)}</button>
+          <span class="small muted">${esc(CASINO_HINT[k] || '')}</span></div>`).join('')}</div>
+        ${owner ? '' : '<div class="small muted">Перемикач доступний лише власнику (ADMIN_IDS / ключ).</div>'}
+        ${s.history.length ? `<h2 style="margin-top:14px">Історія</h2>${s.history.map((h) => `<div class="small muted">${date(h.at)} · ${esc(WHO[h.admin] || h.adminName)} · ${esc(s.modes[h.details?.from] || '?')} → <b>${esc(s.modes[h.details?.to] || '?')}</b>${h.details?.reason ? ` · ${esc(h.details.reason)}` : ''}</div>`).join('')}` : ''}</div>
+      <div class="panel"><h2>Відкриття за рівнем <span class="sub">S.UNLOCKS у shared.js</span></h2>
+        <p class="small muted">Рівень 1: кейси, гараж, драг, щоденні бонус і завдання. Решта відкривається з рівнем; хто вже користувався функцією до появи драбини — зберіг доступ. Адміни й власник бачать усе.</p>
+        <table>${s.unlocks.map((u) => `<tr><td>${esc(u.name)}</td><td class="num">рів. ${u.level}</td></tr>`).join('')}</table></div>
+    </div>`;
+};
+H.casinoMode = (d) => mutate('casino-mode', { mode: d.k }, { title: 'Режим казино', danger: d.k !== 'on', button: 'Змінити',
+  summary: `<div>Новий режим: <b>${esc({ on: 'Усі ігри', wheel: 'Лише рулетка', off: 'Вимкнено' }[d.k])}</b></div><div class="small muted">${esc(CASINO_HINT[d.k])}</div>` }, 'Режим казино змінено');
 
 // ---------- start ----------
 async function start() {

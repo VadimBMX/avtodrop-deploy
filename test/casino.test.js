@@ -9,7 +9,7 @@ const pay = (b, m) => Math.floor(Math.round(b * m * 100) / 100);
 function setup(t0 = Date.parse('2026-10-14T10:00:00Z')) {
   const db = openDb(':memory:');
   let t = t0;
-  const g = createGame(db, { now: () => t });
+  const g = createGame(db, { now: () => t, allUnlocked: true });
   const call = (uid, name, body = {}) => g.api[name](uid, body);
   const balance = (uid) => db.prepare('SELECT balance FROM users WHERE id = ?').get(uid).balance;
   // High level so level-up gifts (from casino XP) don't disturb exact balance checks.

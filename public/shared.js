@@ -1360,6 +1360,45 @@ export const XP = { win: 25, race: 10, newCar: 20, daily: 30, task: 30, quest: 6
 export const CAPPED_XP = ['case', 'plate', 'merge', 'install', 'upgrade', 'casino'];
 export const DAILY_XP_CAP = 300;
 
+// ---------- progressive unlock ----------
+// What opens at which level, so a newcomer isn't met by twenty screens at once. Level 1 always has the core loop:
+// car cases, the garage, drag races, the daily bonus and tasks (plus profile, collection, rating, shop, support).
+// Pace with xpForLevel (tools/sim-unlock.mjs, active minutes of a typical newcomer): L2 ≈ 5 min, L3 ≈ 25–30 min
+// (end of the first session), L4 ≈ day 2, L5 ≈ day 3–6, L6 ≈ a week, L8 ≈ 2–3 weeks, L10 ≈ 3–5 weeks.
+// Locked items stay visible with a lock and «Відкриється на рівні N»; the server refuses them too (game.js GATES).
+// A player keeps a feature he already used before the ladder existed (users.feats, see db.js); admins and the owner
+// are never locked.
+export const UNLOCKS = [
+  { key: 'parts', level: 2, name: 'Деталі й склад', icon: 'tool', text: 'Кейси з деталями, установка й злиття — машина їде швидше' },
+  { key: 'drift', level: 3, name: 'Дрифт', icon: 'tornado', text: 'Другий режим гонок: траса дня й три суперники' },
+  { key: 'plates', level: 3, name: 'Номери', icon: 'license', text: 'Генеруй номерні знаки — рідкісні коштують мільйони' },
+  { key: 'paint', level: 4, name: 'Фарбування', icon: 'palette', text: 'Колір кузова й ліврея для твоїх машин' },
+  { key: 'tradein', level: 4, name: 'Трейд-ін', icon: 'refresh', text: '3 машини одного класу → 1, з шансом класу вище' },
+  { key: 'market', level: 4, name: 'Ринок', icon: 'building-store', text: 'Дилер і лоти інших гравців: машини, деталі, номери' },
+  { key: 'pvp', level: 5, name: 'PvP-заїзди', icon: 'flag-3', text: 'Драг проти живих гравців на ставку' },
+  { key: 'trades', level: 5, name: 'Обміни', icon: 'arrows-exchange', text: 'Трейд-зал і обміни з іншими гравцями' },
+  { key: 'auction', level: 5, name: 'Аукціони', icon: 'hammer', text: 'Виставляй машини на торги й роби ставки' },
+  { key: 'battles', level: 6, name: 'Кейс-батли', icon: 'flame', text: 'Відкривай кейси наввипередки з іншим гравцем' },
+  { key: 'upgrade', level: 8, name: 'Апгрейд', icon: 'arrow-big-up-lines', text: 'Ризикни машинами заради дорожчої' },
+  { key: 'casino', level: 10, name: 'Казино', icon: 'cards', text: 'Краш, міни, рулетка, слоти — на ігрові гривні' },
+];
+export const UNLOCK_BY_KEY = Object.fromEntries(UNLOCKS.map((u) => [u.key, u]));
+export const unlockLevel = (key) => UNLOCK_BY_KEY[key]?.level || 1;
+// Unlocks a level-up from `from` to `to` brings (both ends: from < level ≤ to).
+export const unlocksBetween = (from, to) => UNLOCKS.filter((u) => u.level > from && u.level <= to);
+// The casino as a whole (Telegram's rules on gambling-like games are a risk, see reports): the owner switches it in the
+// admin panel (meta 'casino_mode'); this is the default until he does. 'on' — all four games; 'wheel' — only the
+// roulette wheel; 'off' — no casino anywhere (entry points gone, the API refuses new bets; running games can still
+// be finished and cashed out).
+export const CASINO_MODES = { on: 'Усі ігри', wheel: 'Лише рулетка', off: 'Вимкнено' };
+export const CASINO_DEFAULT = 'on';
+export const CASINO_GAMES = { crash: 'on', mines: 'on', slots: 'on', roulette: 'wheel' }; // the lowest mode a game is open in
+export const casinoGameOpen = (mode, game) => mode === 'on' || (mode === 'wheel' && CASINO_GAMES[game] === 'wheel');
+// Open features of a player: by level, by earlier use (feats) or for staff; the casino also needs the owner's switch.
+export function unlockedKeys({ level = 1, feats = [], staff = false, casino = CASINO_DEFAULT } = {}) {
+  return UNLOCKS.filter((u) => (u.key !== 'casino' || casino !== 'off') && (staff || level >= u.level || feats.includes(u.key))).map((u) => u.key);
+}
+
 // 14 days; a missed day loses nothing — the next claim simply continues the series (it starts over every season).
 export const DAILY_BONUS = [
   { money: 15000 },
@@ -1379,28 +1418,31 @@ export const DAILY_BONUS = [
 ];
 export const REWARD_CASE_HOURS = 4;
 
+// In the order the features open (UNLOCKS, `feature`): level-1 things first, parts at level 2, the plate after level 3.
+// NEWBIE_ORDER_V1 is the order before the ladder — db/game migrate players who were in the middle of it.
 export const NEWBIE_TASKS = [
   { key: 'open_starter', text: 'Відкрий стартовий кейс', money: 10000 },
   { key: 'collect', text: 'Забери дохід гаража', money: 20000 },
-  { key: 'part_case', text: 'Відкрий кейс з деталями', money: 25000 },
-  { key: 'install', text: 'Встанови деталь на машину', money: 30000 },
   { key: 'race', text: 'Проїдь заїзд', money: 30000 },
   { key: 'win', text: 'Виграй заїзд', money: 40000 },
-  { key: 'plate', text: 'Згенеруй номер', money: 40000 },
   { key: 'open_case', text: 'Відкрий кейс з машиною', money: 50000 },
-  { key: 'merge', text: 'Злий 3 деталі в одну', money: 75000 },
+  { key: 'part_case', text: 'Відкрий кейс з деталями', money: 25000, feature: 'parts' },
+  { key: 'install', text: 'Встанови деталь на машину', money: 30000, feature: 'parts' },
+  { key: 'merge', text: 'Злий 3 деталі в одну', money: 75000, feature: 'parts' },
   { key: 'level3', text: 'Досягни 3 рівня', money: 150000 },
+  { key: 'plate', text: 'Згенеруй номер', money: 40000, feature: 'plates' },
 ];
+export const NEWBIE_ORDER_V1 = ['open_starter', 'collect', 'part_case', 'install', 'race', 'win', 'plate', 'open_case', 'merge', 'level3'];
 export const QUESTS = {
   open: { text: 'Відкрий {n} кейсів з машинами', range: [3, 8] },
   race: { text: 'Проїдь {n} заїздів', range: [3, 6] },
   win: { text: 'Виграй {n} заїздів', range: [2, 4] },
   perfect: { text: 'Зроби {n} ідеальних перемикань', range: [4, 10] },
-  parts: { text: 'Відкрий {n} кейсів з деталями', range: [3, 8] },
-  merge: { text: 'Злий деталі {n} раз', range: [1, 3] },
+  parts: { text: 'Відкрий {n} кейсів з деталями', range: [3, 8], feature: 'parts' },
+  merge: { text: 'Злий деталі {n} раз', range: [1, 3], feature: 'parts' },
   collect: { text: 'Забери дохід гаража {n} раз', range: [2, 3] },
-  pvp: { text: 'Зіграй {n} PvP-заїзд', range: [1, 2] },
-  market: { text: 'Купи або продай авто на ринку', range: [1, 1] },
+  pvp: { text: 'Зіграй {n} PvP-заїзд', range: [1, 2], feature: 'pvp' },
+  market: { text: 'Купи або продай авто на ринку', range: [1, 1], feature: 'market' },
 };
 
 // ---------- weekly route ----------
@@ -1411,11 +1453,11 @@ export const WEEKLY_QUESTS = {
   open: { text: 'Відкрий {n} кейсів з машинами', range: [20, 30] },
   win: { text: 'Виграй {n} заїздів', range: [12, 20] },
   collect: { text: 'Забери дохід гаража {n} раз', range: [8, 12] },
-  merge: { text: 'Злий деталі {n} раз', range: [4, 6] },
+  merge: { text: 'Злий деталі {n} раз', range: [4, 6], feature: 'parts' },
   country: { text: 'Відкрий {n} кейсів країн', range: [3, 5] },
   perfect: { text: 'Зроби {n} ідеальних перемикань', range: [25, 40] },
-  drift: { text: 'Проїдь {n} дрифт-заїздів', range: [4, 6] },
-  parts: { text: 'Відкрий {n} кейсів з деталями', range: [8, 12] },
+  drift: { text: 'Проїдь {n} дрифт-заїздів', range: [4, 6], feature: 'drift' },
+  parts: { text: 'Відкрий {n} кейсів з деталями', range: [8, 12], feature: 'parts' },
 };
 export const WEEKLY_COUNT = 4;
 export const WEEKLY_FRAG = 2;

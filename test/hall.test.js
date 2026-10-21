@@ -6,7 +6,7 @@ import { createGame } from '../src/game.js';
 function setup() {
   const db = openDb(':memory:');
   let t = Date.parse('2026-10-14T10:00:00Z');
-  const g = createGame(db, { now: () => t, notify: () => {} });
+  const g = createGame(db, { now: () => t, notify: () => {}, allUnlocked: true });
   const mk = (id, username) => (g.ensureUser({ id, username, first_name: 'U' + id }), id);
   const call = (uid, name, body = {}) => g.api[name](uid, body);
   // level 99: no level-up gifts land in the balance during the test

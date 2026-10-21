@@ -286,6 +286,28 @@ const MIGRATIONS = [
   'ALTER TABLE users ADD COLUMN comeback_cap_until INTEGER NOT NULL DEFAULT 0',
   // Livery on the car's body (S.LIVERIES), NULL = none.
   'ALTER TABLE cars ADD COLUMN livery TEXT',
+  // Progressive unlock (S.UNLOCKS): features a player keeps open below their level. Filled once, when the ladder
+  // arrives, so nobody loses what they already used: level 5+ keeps everything; below that each feature with a trace
+  // of use; upgrade and slots/roulette leave no trace, so they stay open from level 3 (crash/mines games count too).
+  ["ALTER TABLE users ADD COLUMN feats TEXT NOT NULL DEFAULT '[]'",
+    `UPDATE users SET feats = (SELECT json_group_array(k) FROM (
+       SELECT 'parts' k WHERE users.level >= 5 OR users.merges > 0 OR EXISTS (SELECT 1 FROM parts WHERE user_id = users.id AND count > 0)
+         OR EXISTS (SELECT 1 FROM car_parts cp JOIN cars c ON c.id = cp.car_id WHERE c.owner_id = users.id)
+       UNION ALL SELECT 'drift' WHERE users.level >= 5 OR EXISTS (SELECT 1 FROM drift_runs WHERE user_id = users.id)
+       UNION ALL SELECT 'plates' WHERE users.level >= 5 OR users.plate_best > 0 OR EXISTS (SELECT 1 FROM plates WHERE owner_id = users.id)
+       UNION ALL SELECT 'paint' WHERE users.level >= 5 OR EXISTS (SELECT 1 FROM cars WHERE owner_id = users.id AND (paint IS NOT NULL OR livery IS NOT NULL))
+       UNION ALL SELECT 'tradein' WHERE users.level >= 5 OR EXISTS (SELECT 1 FROM drops WHERE user_id = users.id AND case_id = 'tradein')
+       UNION ALL SELECT 'market' WHERE users.level >= 5 OR EXISTS (SELECT 1 FROM listings WHERE seller_id = users.id)
+         OR EXISTS (SELECT 1 FROM item_listings WHERE seller_id = users.id) OR EXISTS (SELECT 1 FROM item_sales WHERE seller_id = users.id OR buyer_id = users.id)
+         OR EXISTS (SELECT 1 FROM dealer_buys WHERE user_id = users.id)
+       UNION ALL SELECT 'pvp' WHERE users.level >= 5 OR EXISTS (SELECT 1 FROM pvp WHERE creator_id = users.id OR opponent_id = users.id)
+       UNION ALL SELECT 'trades' WHERE users.level >= 5 OR EXISTS (SELECT 1 FROM trades WHERE from_id = users.id OR to_id = users.id)
+         OR EXISTS (SELECT 1 FROM trade_rooms WHERE host_id = users.id OR guest_id = users.id)
+       UNION ALL SELECT 'auction' WHERE users.level >= 5 OR EXISTS (SELECT 1 FROM auctions WHERE seller_id = users.id OR top_bidder = users.id)
+       UNION ALL SELECT 'battles' WHERE users.level >= 5 OR EXISTS (SELECT 1 FROM battles WHERE creator_id = users.id OR opponent_id = users.id)
+       UNION ALL SELECT 'upgrade' WHERE users.level >= 3
+       UNION ALL SELECT 'casino' WHERE users.level >= 3 OR EXISTS (SELECT 1 FROM crash_games WHERE user_id = users.id)
+         OR EXISTS (SELECT 1 FROM mines_games WHERE user_id = users.id)))`],
 ];
 
 export function openDb(file) {

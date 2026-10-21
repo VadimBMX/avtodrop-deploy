@@ -7,7 +7,7 @@ import * as S from '../public/shared.js';
 function setup() {
   const db = openDb(':memory:');
   let t = Date.parse('2026-10-14T10:00:00Z');
-  const g = createGame(db, { now: () => t, notify: () => {} });
+  const g = createGame(db, { now: () => t, notify: () => {}, allUnlocked: true });
   const mk = (id) => (g.ensureUser({ id, first_name: 'U' + id }), id);
   const call = (uid, name, body = {}) => g.api[name](uid, body);
   const rich = (id) => db.prepare('UPDATE users SET balance = 1e13, slots = 40, level = 99, level_seen = 99 WHERE id = ?').run(id);

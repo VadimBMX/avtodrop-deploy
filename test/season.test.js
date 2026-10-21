@@ -8,7 +8,7 @@ function setup(t0 = Date.parse('2026-10-21T10:00:00Z')) {
   const db = openDb(':memory:');
   let t = t0;
   const sent = [];
-  const g = createGame(db, { now: () => t, notify: (uid, text) => sent.push([uid, text]), random: () => 0.5 });
+  const g = createGame(db, { now: () => t, notify: (uid, text) => sent.push([uid, text]), random: () => 0.5, allUnlocked: true });
   const mk = (id) => (g.ensureUser({ id, first_name: 'U' + id }), id);
   const call = (uid, name, body = {}) => g.api[name](uid, body);
   return { db, g, mk, call, sent, advance: (ms) => (t += ms), at: () => t };

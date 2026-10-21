@@ -23,7 +23,7 @@ function setup({ t0 = T0, failWith = null } = {}) {
     sent.push({ at: clock.t, chatId, text, extra });
   };
   let sender;
-  const g = createGame(db, { now, notify: (uid, text) => sender.enqueue(uid, text, { urgent: true }) });
+  const g = createGame(db, { now, notify: (uid, text) => sender.enqueue(uid, text, { urgent: true }), allUnlocked: true });
   sender = createSender({ send, now, sleep: async (ms) => (clock.t += Math.max(1, ms)), onBlocked: g.push.block, isBlocked: g.push.isBlocked, log: () => {} });
   const markup = { inline_keyboard: [[{ text: '🎁 Відкрити гру', web_app: { url: 'https://x.test/' } }]] };
   const rem = createReminders({ game: g, sender, now, markup, log: () => {} });

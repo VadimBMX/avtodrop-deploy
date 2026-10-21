@@ -283,6 +283,64 @@ export function createGame(db, opts = {}) {
     }
     q('UPDATE users SET level = ?, xp = ? WHERE id = ?').run(level, cur, uid);
   }
+  // ---------- progressive unlock (S.UNLOCKS) and the casino switch ----------
+  // The owner's casino switch (admin 'casino-mode'), S.CASINO_DEFAULT until he sets it.
+  const casinoMode = () => (Object.hasOwn(S.CASINO_MODES, metaGet('casino_mode') ?? '') ? metaGet('casino_mode') : S.CASINO_DEFAULT);
+  // Owner and admins see everything; opts.allUnlocked opens everything for tests and sims of late features.
+  const isStaff = (uid) => !!opts.allUnlocked || ['owner', 'admin'].includes(roleOf(uid));
+  function openKeys(u) {
+    return S.unlockedKeys({ level: u.level, feats: JSON.parse(u.feats || '[]'), staff: isStaff(u.id), casino: casinoMode() });
+  }
+  const isOpen = (uid, key) => openKeys(userRow(uid)).includes(key);
+  function needFeature(uid, key) {
+    if (key === 'casino' && casinoMode() === 'off') fail('Казино вимкнено');
+    if (!isOpen(uid, key)) fail(`${S.UNLOCK_BY_KEY[key].name}: відкриється на рівні ${S.unlockLevel(key)}`);
+  }
+  // A deal or an invite needs the other player to have the feature open too.
+  function needFeatureOf(other, key) {
+    if (!isOpen(other, key)) fail(`У гравця ще не відкриті «${S.UNLOCK_BY_KEY[key].name}» (рівень ${S.unlockLevel(key)})`);
+  }
+  // API calls that start or make a locked action. Reads, cancels, cash-outs and finishing a started run stay open,
+  // so nothing is ever stuck (a listing can be withdrawn, a running crash or mines game cashed out).
+  const GATES = {
+    'parts/open': 'parts', 'parts/merge': 'parts', 'parts/install': 'parts',
+    'drift/rivals': 'drift', 'drift/start': 'drift',
+    'plate/generate': 'plates', 'plate/attach': 'plates',
+    'car/paint': 'paint', 'car/livery': 'paint',
+    'dealer/tradein': 'tradein',
+    'market/sell': 'market', 'market/buy': 'market', 'market/item-sell': 'market', 'market/item-buy': 'market',
+    'pvp/create': 'pvp', 'pvp/accept': 'pvp', 'pvp/request': 'pvp', 'pvp/answer': 'pvp',
+    'trade/create': 'trades', 'trade/accept': 'trades', 'room/create': 'trades', 'room/join': 'trades', 'room/invite': 'trades', 'hall/chat': 'trades',
+    'auction/create': 'auction', 'auction/bid': 'auction',
+    'battle/create': 'battles', 'battle/join': 'battles',
+    upgrade: 'upgrade',
+    'casino/slots': 'casino', 'casino/roulette': 'casino', 'casino/crash/start': 'casino', 'casino/mines/start': 'casino',
+  };
+  const CASINO_GAME_OF = { 'casino/slots': 'slots', 'casino/roulette': 'roulette', 'casino/crash/start': 'crash', 'casino/mines/start': 'mines' };
+  function gate(uid, name) {
+    const key = GATES[name];
+    if (!key) return;
+    needFeature(uid, key);
+    if (CASINO_GAME_OF[name] && !S.casinoGameOpen(casinoMode(), CASINO_GAME_OF[name])) fail('Ця гра зараз недоступна — відкрита лише рулетка');
+  }
+  // Newbie tasks before the ladder had another order (S.NEWBIE_ORDER_V1). Once per database: a player in the middle
+  // keeps the step count of the tasks he finished that still come first in the new order; tasks he already claimed
+  // further on are marked 'nb:<key>' and skipped (not paid twice).
+  function migrateNewbieOrder() {
+    if (metaGet('newbie_order_2')) return;
+    db.tx(() => {
+      const order = S.NEWBIE_TASKS.map((x) => x.key);
+      for (const u of q('SELECT id, newbie_step, newbie_flags FROM users WHERE newbie_step > 0 AND newbie_step < ?').all(order.length)) {
+        const done = new Set(S.NEWBIE_ORDER_V1.slice(0, u.newbie_step));
+        let step = 0;
+        while (step < order.length && done.has(order[step])) step++;
+        const f = JSON.parse(u.newbie_flags);
+        for (const k of order.slice(step)) if (done.has(k) && !f.includes('nb:' + k)) f.push('nb:' + k);
+        q('UPDATE users SET newbie_step = ?, newbie_flags = ? WHERE id = ?').run(step, JSON.stringify(f), u.id);
+      }
+      metaSet('newbie_order_2', Date.now());
+    });
+  }
   function flag(uid, key) {
     const u = q('SELECT newbie_flags FROM users WHERE id = ?').get(uid);
     const f = JSON.parse(u.newbie_flags);
@@ -296,13 +354,16 @@ export function createGame(db, opts = {}) {
     if (!task) return null;
     const flags = JSON.parse(u.newbie_flags);
     const ready = task.key === 'level3' ? u.level >= 3 : flags.includes(task.key);
-    return { step: u.newbie_step, total: S.NEWBIE_TASKS.length, ...task, ready };
+    // A task whose feature is still locked says when it opens (the app shows a lock instead of a "go" button).
+    const lockedTill = task.feature && !ready && !openKeys(u).includes(task.feature) ? S.unlockLevel(task.feature) : 0;
+    return { step: u.newbie_step, total: S.NEWBIE_TASKS.length, ...task, ready, lockedTill };
   }
   function ensureQuests(uid) {
     const day = dayOf(now());
     if (q('SELECT COUNT(*) n FROM quests WHERE user_id = ? AND day = ?').get(uid, day).n) return day;
     const h = sha256(`${uid}:${day}`);
-    const keys = Object.keys(S.QUESTS);
+    const open = openKeys(userRow(uid));
+    const keys = Object.keys(S.QUESTS).filter((k) => !S.QUESTS[k].feature || open.includes(S.QUESTS[k].feature));
     const picked = [];
     for (let i = 0; picked.length < 3 && i < 30; i++) {
       const k = keys[parseInt(h.slice(i * 2, i * 2 + 2), 16) % keys.length];
@@ -329,7 +390,8 @@ export function createGame(db, opts = {}) {
     const week = weekOf(now());
     if (q('SELECT COUNT(*) n FROM weekly_quests WHERE user_id = ? AND week = ?').get(uid, week).n) return week;
     const h = sha256(`${uid}:w:${week}`);
-    const keys = Object.keys(S.WEEKLY_QUESTS);
+    const open = openKeys(userRow(uid));
+    const keys = Object.keys(S.WEEKLY_QUESTS).filter((k) => !S.WEEKLY_QUESTS[k].feature || open.includes(S.WEEKLY_QUESTS[k].feature));
     const picked = [];
     for (let i = 0; picked.length < S.WEEKLY_COUNT && i < 30; i++) {
       const k = keys[parseInt(h.slice(i * 2, i * 2 + 2), 16) % keys.length];
@@ -512,6 +574,7 @@ export function createGame(db, opts = {}) {
       stars: u.stars, vipUntil: u.vip_until, vip: u.vip_until > now(), starterBought: !!u.starter_bought,
       season: (({ claimed, ...s }) => s)(seasonInfo(u)), badges: badgesOf(uid),
       legacy: isLegacy(uid), // played the first version: «Гравець з перших днів» badge in the profile
+      unlocked: openKeys(u), casino: casinoMode(), // S.UNLOCKS keys open to this player; the owner's casino switch
       now: now(),
     };
   }
@@ -2069,6 +2132,7 @@ export function createGame(db, opts = {}) {
   function tradeCreate(uid, { to, give, get, giveMoney, getMoney }) {
     const toId = findPlayer(to);
     if (toId === uid) fail('Не можна обмінюватися з собою');
+    needFeatureOf(toId, 'trades');
     const g = idList(give, 10), r = idList(get, 10);
     const gm = int(giveMoney ?? 0, 0, 1e13, 'Сума'), rm = int(getMoney ?? 0, 0, 1e13, 'Сума');
     if (!g.length && !r.length) fail('Додай хоча б одне авто');
@@ -2308,6 +2372,8 @@ export function createGame(db, opts = {}) {
   function roomInvite(uid, { to }) {
     const toId = int(to, 1, Number.MAX_SAFE_INTEGER, 'ID');
     if (toId === uid) fail('Не можна запросити себе');
+    userRow(toId);
+    needFeatureOf(toId, 'trades');
     checkInvite(uid, toId);
     const { id } = roomCreate(uid, {});
     const r = q('SELECT * FROM trade_rooms WHERE id = ?').get(id);
@@ -2597,7 +2663,11 @@ export function createGame(db, opts = {}) {
     const st = newbieState(u);
     if (!st) fail('Усі завдання новачка виконано');
     if (!st.ready) fail('Завдання ще не виконано');
-    q('UPDATE users SET newbie_step = newbie_step + 1 WHERE id = ?').run(uid);
+    // Skip the tasks already claimed in the old order (migrateNewbieOrder).
+    const f = JSON.parse(u.newbie_flags);
+    let next = u.newbie_step + 1;
+    while (S.NEWBIE_TASKS[next] && f.includes('nb:' + S.NEWBIE_TASKS[next].key)) next++;
+    q('UPDATE users SET newbie_step = ? WHERE id = ?').run(next, uid);
     addMoney(uid, st.money);
     xp(uid, 'task');
     return { got: st.money };
@@ -3581,7 +3651,7 @@ export function createGame(db, opts = {}) {
     q('DELETE FROM plates WHERE owner_id = ?').run(uid);
     q('DELETE FROM races WHERE user_id = ? AND status = ?').run(uid, 'running');
     q(`UPDATE users SET balance = ?, slots = ?, showcase_slots = ?, cap_level = 0, income_at = ?, banked = 0, fuel = ?, fuel_at = ?,
-       level = 1, level_seen = 1, xp = 0, xp_day = NULL, xp_day_capped = 0, newbie_step = 0, newbie_flags = '[]',
+       level = 1, level_seen = 1, xp = 0, xp_day = NULL, xp_day_capped = 0, newbie_step = 0, newbie_flags = '[]', feats = '[]',
        streak = 0, streak_day = NULL, reward_case_at = 0, total_value = 0, week_id = ?, week_start_value = 0, last_week_id = NULL, last_week_growth = NULL,
        cases_opened = 0, races = 0, wins = 0, merges = 0 WHERE id = ?`)
       .run(S.START_BALANCE, S.START_SLOTS, S.SHOWCASE_START, t, S.FUEL_MAX, t, weekOf(t), uid);
@@ -3888,6 +3958,37 @@ export function createGame(db, opts = {}) {
     saveEventOv({ forced: evOv.forced.map((f) => (f.key === e.key ? { ...f, end: t } : f)), stopped: e.forced ? evOv.stopped : { ...evOv.stopped, [e.key]: t } });
     return {};
   }
+  // ---------- game settings: the casino switch (owner only) and the unlock ladder (read-only, S.UNLOCKS) ----------
+  function adminSettings() {
+    const saved = metaGet('casino_mode');
+    return {
+      casino: casinoMode(), casinoDefault: S.CASINO_DEFAULT, casinoSaved: Object.hasOwn(S.CASINO_MODES, saved ?? '') ? saved : null, modes: S.CASINO_MODES,
+      unlocks: S.UNLOCKS.map(({ key, level, name }) => ({ key, level, name })),
+      history: q("SELECT admin, details, created_at at FROM admin_log WHERE action = 'casino-mode' ORDER BY id DESC LIMIT 10").all()
+        .map((r) => ({ ...r, details: JSON.parse(r.details || 'null'), adminName: adminName(r.admin) })),
+    };
+  }
+  function adminCasinoMode(who, { mode }) {
+    if (actorRole(who) !== 'owner') fail('Казино вмикає й вимикає лише власник гри');
+    if (!Object.hasOwn(S.CASINO_MODES, String(mode))) fail('Невідомий режим');
+    const from = casinoMode();
+    metaSet('casino_mode', mode);
+    // Mines games still running when mines close: nobody can reach them in the app any more, so they are settled now —
+    // cashed out at the current multiplier, or the bet back when no cell was opened. (A crash round ends by itself.)
+    let settled = 0;
+    if (!S.casinoGameOpen(mode, 'mines')) {
+      for (const g of q("SELECT * FROM mines_games WHERE status = 'running'").all()) {
+        const opened = JSON.parse(g.revealed).length;
+        const back = opened ? payout(g.bet, S.minesMult(g.mines, opened)) : g.bet;
+        addMoney(g.user_id, back);
+        q("UPDATE mines_games SET status = 'won' WHERE id = ?").run(g.id);
+        event(g.user_id, `🎰 Гру «Міни» закрито адміністрацією — тобі повернуто ${S.fmt(back)}`);
+        settled++;
+      }
+    }
+    alog(who, 'casino-mode', null, { from, to: mode, settled });
+    return { casino: mode, settled };
+  }
   // Admin handlers get (who, body); read-only ones ignore `who`. Each runs in one transaction.
   const adminHandlers = {
     overview: () => adminOverview(), users: (w, b) => adminUsers(b), user: (w, b) => adminUser(b),
@@ -3902,6 +4003,7 @@ export function createGame(db, opts = {}) {
     support: (w, b) => adminSupport(b), 'support/reply': adminSupportReply, role: adminSetRole,
     dashboard: (w, b) => adminDashboard(b), 'broadcast/preview': (w, b) => adminBroadcastPreview(b), broadcast: adminBroadcast,
     'game-events': () => adminGameEvents(), 'game-events/start': adminEventStart, 'game-events/stop': adminEventStop,
+    settings: () => adminSettings(), 'casino-mode': adminCasinoMode,
   };
   // Every admin call checks the caller's role (helpers may only use HELPER_ACTIONS).
   const admin = Object.fromEntries(Object.entries(adminHandlers).map(([k, fn]) => [k, (who, body = {}) => db.tx(() => {
@@ -3915,7 +4017,7 @@ export function createGame(db, opts = {}) {
   // message / support/reply are not here: their text is the whole action and is logged as it is.
   const ADMIN_MUTATING = new Set(['money', 'give-car', 'grant-premium', 'remove-car', 'part', 'keys', 'give-plate', 'remove-plate', 'set', 'ban', 'reset',
     'luck', 'rig', 'rig-cancel', 'market/remove', 'dealer/refresh', 'promo/create', 'promo/delete', 'role', 'broadcast',
-    'game-events/start', 'game-events/stop']);
+    'game-events/start', 'game-events/stop', 'casino-mode']);
   function adminCall(who, name, body) {
     if (!Object.hasOwn(admin, name)) return undefined;
     const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
@@ -3982,6 +4084,7 @@ export function createGame(db, opts = {}) {
       rollSeason(uid);
     }
     checkComeback(uid); // normally done at sign-in (ensureUser); here too for callers that skip it
+    gate(uid, k); // progressive unlock and the casino switch (GATES)
     // Presence for "online" (trade hall, live PvP): written at most every 15 s so plain reads don't hit the disk.
     if (q('UPDATE users SET last_seen = ? WHERE id = ? AND (last_seen IS NULL OR last_seen < ?)').run(now(), uid, now() - 15e3).changes) markDay(uid);
     const r = fn(uid, body || {});
@@ -4005,6 +4108,7 @@ export function createGame(db, opts = {}) {
   }
 
   importLegacy();
+  migrateNewbieOrder();
   // The bot's /promo is logged like the panel's (who = "bot").
   const botPromo = (code, amount, uses, days) => db.tx(() => {
     const c = createPromo(code, amount, uses, days);

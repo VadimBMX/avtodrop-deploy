@@ -351,6 +351,7 @@ function renderHeader() {
   $('#title').textContent = state.page ? PAGE_TITLES[state.page] : TITLES[state.tab];
   $('#title').classList.toggle('long', $('#title').textContent.length > 8);
   for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('on', b.dataset.tab === state.tab && !state.page);
+  for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('locked', !!TAB_FEATURE[b.dataset.tab] && !isOpen(TAB_FEATURE[b.dataset.tab]));
   if (tg?.initData && tg.BackButton) state.page ? tg.BackButton.show() : tg.BackButton.hide();
 }
 function go(page) {
@@ -401,8 +402,9 @@ async function refresh(rerender = true) {
 // During the first steps a level-up doesn't open a window over the path: a toast says it, the gift is already given.
 async function levelToast() {
   const lvl = me.level;
+  const opened = newUnlocks();
   me.levelSeen = lvl;
-  toast(`Рівень ${lvl}! ${rewardText(S.levelReward(lvl))}`);
+  toast(`Рівень ${lvl}! ${rewardText(S.levelReward(lvl))}${opened.length ? ` · Відкрито: ${opened.map((u) => u.name).join(', ')}` : ''}`);
   try {
     await api('level/seen');
   } catch {}
@@ -414,11 +416,13 @@ async function render() {
   const seq = ++renderSeq;
   if (me?.guide === 'starter' && me.keys.starter && !state.drop) state.caseId = 'starter';
   const fn = state.page ? PAGES[state.page] : TABS[state.tab];
+  const feat = state.page ? PAGE_FEATURE[state.page] : TAB_FEATURE[state.tab];
+  const locked = feat && !isOpen(feat);
   try {
-    const html = await fn();
+    const html = locked ? lockedView(feat) : await fn();
     if (seq !== renderSeq) return;
     $('#view').innerHTML = html;
-    AFTER[state.page || state.tab]?.();
+    if (!locked) AFTER[state.page || state.tab]?.();
     paintGuide();
   } catch (e) {
     $('#view').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
@@ -427,6 +431,31 @@ async function render() {
 const AFTER = {};
 const TABS = {};
 const PAGES = {};
+
+// ---------- progressive unlock (S.UNLOCKS; the server says what is open in me.unlocked) ----------
+// Locked things stay in sight with a lock and the level they open at, so there's something to look forward to.
+const isOpen = (key) => !S.UNLOCK_BY_KEY[key] || !!me.unlocked?.includes(key);
+const casinoOff = () => me.casino === 'off';
+const lockChip = (key) => `<span class="lockchip">${ic('lock')} рів. ${S.unlockLevel(key)}</span>`;
+// Pages and the tab behind a feature: opening them while locked shows the lock card instead.
+const PAGE_FEATURE = { plates: 'plates', market: 'market', tradein: 'tradein', trades: 'trades', tradeNew: 'trades', room: 'trades', battles: 'battles', battle: 'battles', upgrade: 'upgrade', casino: 'casino' };
+const TAB_FEATURE = { shop: 'parts' };
+function lockBody(key) {
+  const u = S.UNLOCK_BY_KEY[key];
+  if (key === 'casino' && casinoOff()) return `<div class="center lockcard"><span class="lockic">${ic('lock')}</span><b class="big">${u.name}</b><div class="muted mt">Казино зараз вимкнено.</div></div>`;
+  const next = S.UNLOCKS.filter((x) => x.level > me.level && x.key !== key).slice(0, 3);
+  return `<div class="center lockcard"><span class="lockic">${ic(u.icon)}<i>${ic('lock')}</i></span><b class="big">${u.name}</b><div class="muted">${esc(u.text)}</div>
+    <div class="chip mt">${ic('lock')} Відкриється на рівні ${u.level}</div>
+    <div class="progress mt"><i style="width:${Math.min(100, ((me.level - 1 + me.xp / me.xpNeed) / (u.level - 1)) * 100)}%"></i></div>
+    <div class="tiny muted mt">Ти на рівні ${me.level}. Досвід дають гонки, завдання, нові машини й кейси.</div></div>
+    ${next.length ? `<div class="h2"><span>Далі відкриються</span></div><div class="list">${next.map((x) => `<div class="li"><span class="ic">${ic(x.icon)}</span><div class="grow"><b>${x.name}</b><div class="tiny muted">${esc(x.text)}</div></div>${lockChip(x.key)}</div>`).join('')}</div>` : ''}`;
+}
+function lockedSheet(key) {
+  haptic('light');
+  sheet('', lockBody(key));
+}
+H.locked = (d) => lockedSheet(d.k);
+const lockedView = (key) => `<div class="card">${lockBody(key)}</div>`;
 
 // ---------- trade-in (S.TRADE_IN) ----------
 PAGES.tradein = () => {
@@ -482,15 +511,21 @@ AFTER.tradein = () => {
 };
 
 // ---------- level up, profile, rewards ----------
+// What the level-ups since the last one seen opened (S.UNLOCKS), the casino left out while the owner keeps it off.
+const newUnlocks = () => S.unlocksBetween(me.levelSeen, me.level).filter((u) => isOpen(u.key));
 function showLevelUp() {
   const rw = S.levelReward(me.level);
+  const opened = newUnlocks();
   // Seen as soon as it is shown: closing with ✕ or a tap outside must not bring it back on the next refresh.
   me.levelSeen = me.level;
   api('level/seen').catch(() => {});
+  const nextU = S.UNLOCKS.find((u) => u.level > me.level && isOpen(u.key) === false && !(u.key === 'casino' && casinoOff()));
   sheet('', `<div class="center"><div class="ring">${ring(me.level, 1, 1, 84)}<span class="face">${me.level}</span></div>
     <div class="big mt">Рівень ${me.level}!</div><div class="muted">подарунок уже в тебе</div>
     <div class="card mt"><b class="win">${esc(rewardText(rw))}</b></div>
-    <button class="btn" data-act="levelOk">Чудово</button></div>`);
+    ${opened.length ? `<div class="h2 unlocked-h"><span>${ic('sparkles')} Відкрито</span></div><div class="list unlocked">${opened.map((u) => `<div class="li"><span class="ic tint" style="--c:#ffc400">${ic(u.icon)}</span><div class="grow left"><b>${u.name}</b><div class="tiny muted">${esc(u.text)}</div></div></div>`).join('')}</div>` : ''}
+    ${nextU ? `<div class="tiny muted mt">Далі: ${nextU.name} — на рівні ${nextU.level}</div>` : ''}
+    <button class="btn mt" data-act="levelOk">Чудово</button></div>`);
   haptic('success');
   celebrateSheet($('#sheet .ring'), ['#f5b301', '#ffd500', '#ffffff', '#34c759']);
 }
@@ -597,10 +632,15 @@ function openProfile() {
     <div class="btns mt"><button class="btn ghost btn2" data-act="shareCard"><span>${ic('share')} Поділитися</span><small>картка гравця</small></button><button class="btn ghost btn2" data-act="go" data-page="season"><span>${ic('ticket')} Пропуск</span><small>рівень ${me.season.level}/${S.SEASON.levels}</small></button></div>
     <div class="card xpcard mt"><div class="row between"><span class="hook-t">${ic('sparkles')} До ${me.level + 1} рівня</span><b>${S.fmt(me.xp).replace(' ₴', '')}<small> / ${S.fmt(me.xpNeed).replace(' ₴', '')}</small></b></div>
       <div class="progress mt"><i style="width:${(me.xp / me.xpNeed) * 100}%"></i></div>
-      <div class="row between tiny muted mt"><span>Подарунок за рівень: <b class="win">+${S.short(S.levelReward(me.level + 1).money)}</b></span><span>сьогодні ${me.xpToday}/${S.DAILY_XP_CAP} за кейси й деталі</span></div></div>
+      <div class="row between tiny muted mt"><span>Подарунок за рівень: <b class="win">+${S.short(S.levelReward(me.level + 1).money)}</b></span><span>сьогодні ${me.xpToday}/${S.DAILY_XP_CAP} за кейси й деталі</span></div>
+      ${(() => {
+        const nx = S.UNLOCKS.filter((u) => !isOpen(u.key) && !(u.key === 'casino' && casinoOff()));
+        const lvl = nx[0]?.level;
+        return lvl ? `<div class="tiny muted mt">${ic('lock')} На рівні ${lvl} відкриється: <b>${nx.filter((u) => u.level === lvl).map((u) => u.name).join(', ')}</b></div>` : '';
+      })()}</div>
     ${n ? `<div class="h2"><span>Завдання новачка</span><span>${n.step + 1}/${n.total}</span></div>
       <div class="card row"><div class="grow"><b>${esc(n.text)}</b><div class="small muted">+${S.fmt(n.money)} · +${S.XP.task} досвіду</div></div>
-      <button class="btn sm" data-act="newbieClaim" ${n.ready ? '' : 'disabled'}>${n.ready ? 'Забрати' : 'Виконай'}</button></div>` : ''}
+      <button class="btn sm" data-act="newbieClaim" ${n.ready ? '' : 'disabled'}>${n.ready ? 'Забрати' : n.lockedTill ? `${ic('lock')} рів. ${n.lockedTill}` : 'Виконай'}</button></div>` : ''}
     <div class="h2"><span>Статистика</span></div>
     <div class="stat"><div><b>${me.used}</b><span>у гаражі</span></div><div><b>${have}/${total}</b><span>колекція</span></div><div><b>${me.stats.races ? Math.round((me.stats.wins / me.stats.races) * 100) : 0}%</b><span>перемог</span></div>
     <div><b>${me.stats.wins}/${me.stats.races}</b><span>перемог/гонок</span></div><div><b>${me.stats.merges}</b><span>злиттів</span></div><div><b>${playTime(me.stats.playMs)}</b><span>у грі</span></div></div>
@@ -787,7 +827,7 @@ function carSheet(id) {
       <button class="li" data-act="carPlate" data-id="${c.id}"><span class="ic">${ic('license')}</span><div class="grow"><b>Номер</b><div class="small muted">${c.plate ? `+${S.short(c.plate.value)} до вартості` : 'немає'}</div></div>${c.plate ? plate(c.plate.text, 'sm') : '<span class="chev">›</span>'}</button>
       ${PAINT.canPaint(c.model) || c.look ? `<button class="li" data-act="carPaint" data-id="${c.id}"><span class="ic">${ic('palette')}</span><div class="grow"><b>Фарбування</b><div class="small muted">${c.look ? [S.PAINT_BY_ID[c.look.paint]?.name, S.LIVERY_BY_ID[c.look.livery] && 'ліврея «' + S.LIVERY_BY_ID[c.look.livery].name + '»'].filter(Boolean).join(' · ') : 'заводський колір'}</div></div>${c.look?.paint ? `<span class="sw-dot ${S.PAINT_BY_ID[c.look.paint].finish}" style="--sw:${S.PAINT_BY_ID[c.look.paint].hex}"></span>` : '<span class="chev">›</span>'}</button>` : ''}
     </div>
-    <div class="h2 tune-h"><span>Тюнінг <b>${partCount(c)}</b>/${partSlots(c)}</span><span>${m.ev ? `${ic('bolt')} електро · ` : ''}деталі від ${S.TIERS[minTier].name}</span></div>
+    <div class="h2 tune-h"><span>Тюнінг <b>${partCount(c)}</b>/${partSlots(c)}</span><span>${isOpen('parts') ? '' : lockChip('parts') + ' '}${m.ev ? `${ic('bolt')} електро · ` : ''}деталі від ${S.TIERS[minTier].name}</span></div>
     <div class="tune">${S.partKeysOf(c.model).map((k) => {
       const t = c.parts[k];
       return `<button class="ptile ${t ? 'on' : 'empty'}" data-act="carSlot" data-id="${c.id}" data-type="${k}" ${t ? `style="--c:${S.CLASSES[tierCls(t)].color}"` : ''}>${partArt(k, t, t ? 'sm' : 'sm empty')}
@@ -811,6 +851,7 @@ H.raceWith = (d) => {
   render();
 };
 H.carSlot = (d) => {
+  if (!isOpen('parts')) return lockedSheet('parts');
   const c = me.cars.find((x) => x.id === Number(d.id));
   const type = d.type;
   const minTier = S.minTierFor(M(c.model).cls);
@@ -843,6 +884,7 @@ H.toPartCases = (d) => {
 };
 H.carPlate = (d) => {
   const c = me.cars.find((x) => x.id === Number(d.id));
+  if (!isOpen('plates') && !c.plate && !me.plates.length) return lockedSheet('plates');
   const free = me.plates.filter((p) => !p.carId);
   sheet('Номер', `${c.plate ? `<div class="center">${plate(c.plate.text, 'lg')}<div class="mt">${clsBadge(c.plate.cls)} <b>${S.fmt(c.plate.value)}</b></div></div><button class="btn ghost mt" data-act="plateDetach" data-pid="${c.plate.id}" data-id="${c.id}">Зняти номер</button>` : ''}
     <div class="h2"><span>Мої номери</span></div>
@@ -861,8 +903,8 @@ H.carSellMenu = (d) => {
   const quick = sellPrice(c);
   sheet('Продаж', `<div class="list">
     <button class="li" data-act="sellOne" data-id="${c.id}"><span class="ic">${ic('bolt')}</span><div class="grow"><b>Продати одразу · ${S.short(quick)}</b><div class="small muted">${Math.round(S.SELL_RATES[M(c.model).cls] * 100)}% ціни моделі. Деталі й номер повернуться тобі</div></div></button>
-    <button class="li" data-act="listMarket" data-id="${c.id}"><span class="ic">${ic('building-store')}</span><div class="grow"><b>На ринок</b><div class="small muted">Свою ціну, комісія ${S.FEE * 100}%. Машина йде разом з деталями й номером</div></div></button>
-    <button class="li" data-act="listAuction" data-id="${c.id}"><span class="ic">${ic('hammer')}</span><div class="grow"><b>На аукціон</b><div class="small muted">Торги 1–24 год, ставка в останню хвилину продовжує</div></div></button>
+    <button class="li" data-act="listMarket" data-id="${c.id}"><span class="ic">${ic('building-store')}</span><div class="grow"><b>На ринок</b><div class="small muted">Свою ціну, комісія ${S.FEE * 100}%. Машина йде разом з деталями й номером</div></div>${isOpen('market') ? '' : lockChip('market')}</button>
+    <button class="li" data-act="listAuction" data-id="${c.id}"><span class="ic">${ic('hammer')}</span><div class="grow"><b>На аукціон</b><div class="small muted">Торги 1–24 год, ставка в останню хвилину продовжує</div></div>${isOpen('auction') ? '' : lockChip('auction')}</button>
   </div>`, () => carSheet(c.id));
 };
 H.sellOne = async (d) => {
@@ -871,6 +913,7 @@ H.sellOne = async (d) => {
   if (await act('sell', { carIds: [c.id] }, (r) => `+${S.fmt(r.got)}`)) closeModal();
 };
 H.listMarket = (d) => {
+  if (!isOpen('market')) return lockedSheet('market');
   const c = me.cars.find((x) => x.id === Number(d.id));
   sheet('На ринок', `${carRow(c)}<div class="small muted mt">Оцінка: ${S.fmt(c.value)} · комісія ${S.FEE * 100}%</div>
     <label class="fld mt" for="price">Ціна, ₴</label><input id="price" inputmode="numeric" value="${grp(c.value * 0.8)}"><button class="btn mt" data-act="doListMarket" data-id="${c.id}">Виставити</button>`, () => H.carSellMenu(d));
@@ -883,6 +926,7 @@ H.doListMarket = async (d) => {
   }
 };
 H.listAuction = (d) => {
+  if (!isOpen('auction')) return lockedSheet('auction');
   const c = me.cars.find((x) => x.id === Number(d.id));
   sheet('Аукціон', `${carRow(c)}<div class="small muted mt">Оцінка: ${S.fmt(c.value)} · крок ставки 5% · комісія ${S.FEE * 100}%</div>
     <label class="fld mt" for="start">Стартова ціна, ₴</label><input id="start" inputmode="numeric" value="${grp(c.value * 0.5)}">
@@ -899,18 +943,21 @@ H.doAuction = async (d) => {
 };
 
 // ---------- car cases ----------
+// A reel card drawn by the case's real odds: the class by the odds the case screen shows right now (caseNow: the
+// case of the day / game events, the same table the server rolls), the model inside the class by S.modelWeights
+// (dearer models rarer), as the server's pickModel does. No class is swapped up: the strip looks like what drops.
 function weightedModel(cs) {
-  const e = Object.entries(cs.weights);
+  const e = Object.entries(caseNow(cs).weights).filter(([c, w]) => w > 0 && cs.pool(c).length);
   let x = Math.random() * e.reduce((s, [, w]) => s + w, 0);
-  let cls = e[0][0];
+  let cls = e[e.length - 1][0];
   for (const [c, w] of e) if ((x -= w) < 0) {
     cls = c;
     break;
   }
-  // Show the reel a bit "richer" than the real odds so rare cars flash by.
-  if (Math.random() < 0.3 && e[1]) cls = e[Math.min(e.length - 1, 1 + Math.floor(Math.random() * 2))][0];
-  const list = cs.pool(cls);
-  return list[Math.floor(Math.random() * list.length)].id;
+  const list = cs.pool(cls), mw = S.modelWeights(list);
+  let y = Math.random() * mw.reduce((s, w) => s + w, 0);
+  for (let i = 0; i < list.length; i++) if ((y -= mw[i]) < 0) return list[i].id;
+  return list[list.length - 1].id;
 }
 // Dropped cars can be sold right from the result, so junk doesn't clog the garage.
 // The server sends car.sell (the instant-sale price right now, S.FRESH_SELL included); the model price is the fallback.
@@ -1233,27 +1280,29 @@ AFTER.cases = () => {
     });
   }
 };
+// Honest strip: the winner is exactly what the server rolled; every other card, its neighbours included, is a fresh
+// draw by the case's odds (weightedModel). The suspense stays (slow-down; a B+ win hangs a card short, then creeps on),
+// but there are no planted rare neighbours: a near-miss happens only as often as the odds make one — when the real
+// neighbour is rarer than the drop, the reel stops leaning a little towards it.
 function spin(cs, winner, reelOpts = {}) {
-  const pool = Object.keys(cs.weights);
-  const loss = M(winner).price < cs.price;
-  // Near-miss tease (visual only, the drop is already decided): a rarer car sits right next to the winner; on a
-  // losing drop it is the case's top class and the reel leans towards it, so it stops "almost" on the jackpot.
-  const side = Math.random() < 0.5 ? -1 : 1;
-  const tease = (i, W) => {
-    if (Math.abs(i - W) !== 1 || pool.length < 2 || (!loss && Math.random() < 0.4)) return weightedModel(cs);
-    const cls = loss && i - W === side ? pool[pool.length - 1] : pool[Math.min(pool.length - 1, Math.max(1, pool.indexOf(M(winner).cls) + 1))];
-    const list = cs.pool(cls);
-    return list[Math.floor(Math.random() * list.length)].id;
+  const strip = [];
+  const at = (i, W) => (i === W ? winner : (strip[i] ??= weightedModel(cs)));
+  const lean = (W) => {
+    const r = S.rankOf(M(winner).cls), prev = S.rankOf(M(at(W - 1, W)).cls), next = S.rankOf(M(at(W + 1, W)).cls);
+    if (Math.max(prev, next) <= r) return 0;
+    return prev === next ? (Math.random() < 0.5 ? -1 : 1) : prev > next ? -1 : 1;
   };
-  return spinReel({ cardAt: (i, W) => reelCard(i === W ? winner : tease(i, W)), color: S.CLASSES[M(winner).cls].color, rank: S.rankOf(M(winner).cls), lean: loss ? side : 0, ...reelOpts });
+  return spinReel({ cardAt: (i, W) => reelCard(at(i, W)), color: S.CLASSES[M(winner).cls].color, rank: S.rankOf(M(winner).cls), lean, ...reelOpts });
 }
 // The horizontal case reel shared by car and part cases: cardAt(i, W) builds card i, W is the winner's index.
 // wrap/reel default to the single big reel; several small reels (×3/×6) pass their own, each a bit longer (`extra`)
 // so they stop one after another, and all but the first stay `quiet` (no haptics, no flash).
+// lean: -1 / 1 stops a little towards that neighbour, or a function of W giving it (after the strip is known).
 function spinReel({ cardAt, color, rank, lean = 0, wrap = $('#reelWrap'), reel = $('#reel'), extra = 0, quiet = false }) {
   return new Promise((resolve) => {
     if (!reel) return resolve();
     const N = 46, W = 34;
+    if (typeof lean === 'function') lean = lean(W);
     reel.innerHTML = Array.from({ length: N }, (_, i) => cardAt(i, W)).join('');
     const card = reel.children[1].offsetLeft - reel.children[0].offsetLeft; // card width + gap, big or mini reel
     const cardW = reel.children[0].offsetWidth;
@@ -1362,7 +1411,8 @@ function spinMany(host, n, spinOne) {
 TABS.race = async () => {
   if (state.race && state.race.phase !== 'idle') return raceScreen();
   if (state.drift) return driftScreen();
-  const seg = `<div class="seg">${[['race', 'Драг-заїзд'], ['career', "Кар'єра"], ['drift', 'Дрифт'], ['pvp', 'PvP']].map(([k, t]) => `<button class="${state.raceView === k ? 'on' : ''}" data-act="raceView" data-k="${k}">${t}</button>`).join('')}</div>${eventStrip(['race', 'fuel'])}`;
+  if (!isOpen(state.raceView)) state.raceView = 'race';
+  const seg = `<div class="seg">${[['race', 'Драг-заїзд'], ['career', "Кар'єра"], ['drift', 'Дрифт'], ['pvp', 'PvP']].map(([k, t]) => `<button class="${state.raceView === k ? 'on' : ''} ${isOpen(k) ? '' : 'locked'}" data-act="raceView" data-k="${k}">${isOpen(k) ? '' : ic('lock')}${t}</button>`).join('')}</div>${eventStrip(['race', 'fuel'])}`;
   const garage = me.cars.filter((c) => c.status === 'garage');
   if (!garage.length) return seg + emptyBox('flag-3', 'Немає на чому їхати', 'Для гонки потрібна хоча б одна машина в гаражі', '<button class="btn sm" data-act="toCases">Відкрити кейс</button>');
   if (!garage.some((c) => c.id === state.raceCar)) state.raceCar = [...garage].sort((a, b) => b.tank - a.tank || a.et - b.et)[0].id;
@@ -1419,7 +1469,7 @@ AFTER.race = () => {
   const dx = cur.getBoundingClientRect().left - pick.getBoundingClientRect().left;
   if (dx < 16 || dx + cur.offsetWidth > pick.clientWidth - 16) pick.scrollLeft += dx - 16;
 };
-H.raceView = (d) => (state.raceView = d.k, render());
+H.raceView = (d) => (isOpen(d.k) ? (state.raceView = d.k, render()) : lockedSheet(d.k));
 H.pickRaceCar = (d) => (state.raceCar = Number(d.id), render());
 
 H.startRace = async (d) => {
@@ -2658,7 +2708,8 @@ async function pvpAutopilot(id, carId) {
 
 // ---------- workshop ----------
 TABS.shop = () => {
-  const seg = `<div class="seg">${[['cases', 'Кейси'], ['stock', `Склад${me.parts.length ? ' · ' + me.parts.reduce((s, p) => s + p.count, 0) : ''}`], ['paint', 'Фарбування']].map(([k, t]) => `<button class="${state.shopView === k ? 'on' : ''}" data-act="shopView" data-k="${k}">${t}</button>`).join('')}</div>`;
+  const seg = `<div class="seg">${[['cases', 'Кейси'], ['stock', `Склад${me.parts.length ? ' · ' + me.parts.reduce((s, p) => s + p.count, 0) : ''}`], ['paint', 'Фарбування']].map(([k, t]) => `<button class="${state.shopView === k ? 'on' : ''} ${isOpen(k) ? '' : 'locked'}" data-act="shopView" data-k="${k}">${isOpen(k) ? '' : ic('lock')}${t}</button>`).join('')}</div>`;
+  if (!isOpen(state.shopView)) state.shopView = 'cases';
   if (state.shopView === 'stock') return seg + stockView();
   if (state.shopView === 'paint') return seg + paintView();
   const pc = S.PART_CASE_BY_ID[state.partCase];
@@ -2760,6 +2811,7 @@ async function sellParts(list) {
   await refresh();
 }
 H.shopView = (d) => {
+  if (!isOpen(d.k)) return lockedSheet(d.k);
   state.shopView = d.k;
   state.partDrop = null;
   render();
@@ -2980,6 +3032,7 @@ H.paintReset = async () => {
   if (c && (await act('car/paint-reset', { carId: c.id }, 'Повернуто заводський вигляд'))) state.paintDraft = null, render();
 };
 H.carPaint = (d) => {
+  if (!isOpen('paint')) return lockedSheet('paint');
   state.tab = 'shop';
   state.page = null;
   state.shopView = 'paint';
@@ -3000,8 +3053,13 @@ function claimableCollection() {
 }
 TABS.menu = () => {
   // Grouped rows like iOS Settings: coloured square icon, name, a short value on the right, a red counter when needed.
-  const row = (page, icon, title, c, sub = '', count = 0, act = 'go') => `<button class="li" data-act="${act}" data-page="${page}">
+  const row = (page, icon, title, c, sub = '', count = 0, act = 'go') => {
+    const k = PAGE_FEATURE[page];
+    if (k && !isOpen(k)) return `<button class="li locked" data-act="locked" data-k="${k}">
+    <span class="mi" style="--c:${c}">${ic(icon)}</span><b>${title}</b>${lockChip(k)}<span class="chev">${ic('chevron-right')}</span></button>`;
+    return `<button class="li" data-act="${act}" data-page="${page}">
     <span class="mi" style="--c:${c}">${ic(icon)}</span><b>${title}</b>${count ? `<span class="cnt" style="margin-left:auto">${count}</span>` : sub ? `<span class="sub">${sub}</span>` : '<span style="margin-left:auto"></span>'}<span class="chev">${ic('chevron-right')}</span></button>`;
+  };
   const group = (title, rows) => `<div class="mgroup">${title}</div><div class="list menu-list">${rows.join('')}</div>`;
   // Icon tiles take a tint from the game's own palette (class colours, timing-board yellow, steel), not iOS colours.
   const Y = '#ffc400', BL = '#3b82f6', PU = '#a855f7', RD = '#ef4444', GR = '#2fd27a', AM = '#f59e0b', ST = '#8a94a7';
@@ -4053,7 +4111,7 @@ async function dailyQuests() {
   const { list } = await api('quests');
   const n = me.newbie;
   return `${n ? `<div class="h2"><span>Завдання новачка</span><span>${n.step + 1}/${n.total}</span></div>
-    <div class="card row"><div class="grow"><b>${esc(n.text)}</b><div class="small muted">+${S.fmt(n.money)} · +${S.XP.task} досвіду</div></div><button class="btn sm" data-act="newbieQuest" ${n.ready ? '' : 'disabled'}>${n.ready ? 'Забрати' : 'Виконай'}</button></div>` : ''}
+    <div class="card row"><div class="grow"><b>${esc(n.text)}</b><div class="small muted">+${S.fmt(n.money)} · +${S.XP.task} досвіду</div></div><button class="btn sm" data-act="newbieQuest" ${n.ready ? '' : 'disabled'}>${n.ready ? 'Забрати' : n.lockedTill ? `${ic('lock')} рів. ${n.lockedTill}` : 'Виконай'}</button></div>` : ''}
     <div class="h2"><span>На сьогодні</span><span>оновлюються опівночі</span></div>
     ${list.map((x) => questCard({ text: countFix(x.text), progress: x.progress, target: x.target, claimed: x.claimed, reward: `${ic('gift')} ${S.fmt(x.reward)} · +${S.XP.quest} досвіду`,
       btn: x.progress < x.target ? '' : `<button class="btn sm" data-act="questClaim" data-k="${x.key}">Забрати</button>` })).join('')}`;
@@ -4333,6 +4391,7 @@ H.playerCard = async (d, el, e, showcase) => {
 H.playerShowcase = (d) => H.playerCard(d, null, null, true);
 H.noop = () => {};
 H.tradeWith = async (d) => {
+  if (!isOpen('trades')) return lockedSheet('trades');
   const p = await api('player', { id: Number(d.id) });
   state.trade = { partner: p, give: new Set(), get: new Set() };
   state.tab = 'menu';
@@ -4433,7 +4492,10 @@ H.doUpgrade = async () => {
 };
 const upgradeBase = PAGES.upgrade;
 // The casino is reachable only from here (not from the menu).
-PAGES.upgrade = () => upgradeBase() + `<button class="li mt" data-act="go" data-page="casino" style="justify-content:center;color:var(--muted)">${ic('cards')} Казино на удачу — краш, міни, рулетка, слоти</button>`;
+// Switched off by the owner: no way in at all; below its level: the lock card.
+PAGES.upgrade = () => upgradeBase() + (casinoOff() ? '' : isOpen('casino')
+  ? `<button class="li mt" data-act="go" data-page="casino" style="justify-content:center;color:var(--muted)">${ic('cards')} Казино на удачу — ${me.casino === 'wheel' ? 'рулетка' : 'краш, міни, рулетка, слоти'} · 18+</button>`
+  : `<button class="li mt locked" data-act="locked" data-k="casino" style="justify-content:center;color:var(--muted)">${ic('lock')} Казино · відкриється на рівні ${S.unlockLevel('casino')}</button>`);
 AFTER.upgrade = () => {
   if (state.fx?.type !== 'upgrade' || !state.up.result) return;
   state.fx = null;
@@ -4470,10 +4532,14 @@ function casinoWinFx(mult, target) {
   haptic(mult >= 3 ? 'heavy' : 'success');
   FX.celebrate(winRank(mult), mult >= 10 ? '#ffd500' : '#22c55e', { target });
 }
+// Responsible play: on every casino screen (Telegram's rules on gambling-like games — see the reports).
+const casinoWarn = `<div class="casino-warn">${ic('info-circle')}<div><b>18+ · лише ігрові гривні</b><div class="tiny">Гривні не виводяться й не обмінюються на реальні гроші чи призи. Казино завжди має перевагу 3–5% — на дистанції воно виграє. Грай заради фану й роби перерви.</div></div></div>`;
 PAGES.casino = async () => {
+  const games = [['crash', 'rocket', 'Краш'], ['mines', 'bomb', 'Міни'], ['roulette', 'chart-donut', 'Рулетка'], ['slots', 'cherry', 'Слоти']].filter(([k]) => S.casinoGameOpen(me.casino, k));
+  if (!games.some(([k]) => k === state.cas.game)) state.cas.game = games[0][0];
   const G = state.cas.game;
-  const seg = `<div class="seg">${[['crash', 'rocket', 'Краш'], ['mines', 'bomb', 'Міни'], ['roulette', 'chart-donut', 'Рулетка'], ['slots', 'cherry', 'Слоти']].map(([k, icon, t]) => `<button class="${G === k ? 'on' : ''}" data-act="casGame" data-k="${k}">${ic(icon)}${t}</button>`).join('')}</div>`;
-  const note = '<div class="tiny muted center mt">Гра на ігрові гривні, без виводу. Казино завжди має невелику перевагу (3–5%) — грай заради фану.</div>';
+  const seg = (games.length > 1 ? `<div class="seg">${games.map(([k, icon, t]) => `<button class="${G === k ? 'on' : ''}" data-act="casGame" data-k="${k}">${ic(icon)}${t}</button>`).join('')}</div>` : '') + casinoWarn;
+  const note = '<div class="tiny muted center mt">18+ · Гра на ігрові гривні, без виводу. Казино завжди має невелику перевагу (3–5%) — грай заради фану.</div>';
   if (G === 'crash') return seg + await crashView() + note;
   if (G === 'mines') return seg + await minesView() + note;
   if (G === 'roulette') return seg + rouletteView() + note;

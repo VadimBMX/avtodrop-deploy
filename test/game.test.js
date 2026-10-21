@@ -12,7 +12,7 @@ function setup(t0 = Date.parse('2026-10-14T10:00:00Z')) {
   let t = t0;
   let r = 0.5;
   const sent = [];
-  const g = createGame(db, { now: () => t, notify: (uid, text) => sent.push([uid, text]), random: () => r, partCooldownMs: 0 });
+  const g = createGame(db, { now: () => t, notify: (uid, text) => sent.push([uid, text]), random: () => r, partCooldownMs: 0, allUnlocked: true });
   const clock = { advance: (ms) => (t += ms) };
   const mk = (id, username) => (g.ensureUser({ id, username, first_name: 'U' + id }), id);
   const call = (uid, name, body = {}) => g.api[name](uid, body);
@@ -404,7 +404,7 @@ test('http api: auth, dev header, errors, static files', async () => {
 test('part cases: a 10 s pause between openings, checked by the server', () => {
   const db = openDb(':memory:');
   let t = Date.parse('2026-10-14T10:00:00Z');
-  const g = createGame(db, { now: () => t });
+  const g = createGame(db, { now: () => t, allUnlocked: true });
   g.ensureUser({ id: 1, first_name: 'A' });
   db.prepare('UPDATE users SET balance = 1e12 WHERE id = 1').run();
   const pc = S.PART_CASES.find((c) => !c.randomOnly) || S.PART_CASES[0];

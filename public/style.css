@@ -2484,3 +2484,23 @@ button.li:active { background-color: #ffffff08; }
   .dr-tree, .dr-msg { transition: none; }
 }
 @keyframes drPopFade { 0% { opacity: 0; } 10%, 75% { opacity: 1; } 100% { opacity: 0; } }
+/* ---------- progressive unlock (S.UNLOCKS) and casino note ---------- */
+.lockchip { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; padding: 2px 7px; border-radius: 5px; background: #ffffff0d; color: var(--muted); font: 600 11px var(--f-body); white-space: nowrap; flex: none; }
+.li.locked { opacity: .62; }
+.li.locked .mi { filter: grayscale(1); }
+.li.locked .sub { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
+.li.locked .sub + .lockchip { margin-left: 6px; }
+.seg button.locked { color: var(--muted); opacity: .7; }
+.seg button.locked .i { font-size: 12px; margin-right: 3px; }
+.tabs button.locked { opacity: .55; }
+.tabs button.locked::after { content: ''; position: absolute; top: 6px; right: calc(50% - 17px); width: 9px; height: 9px; border-radius: 50%; background: var(--muted) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 11V8a5 5 0 0 1 10 0v3' fill='none' stroke='%230b0c0f' stroke-width='3'/%3E%3Crect x='5' y='11' width='14' height='10' rx='2' fill='%230b0c0f'/%3E%3C/svg%3E") center / 7px no-repeat; }
+.lockcard { padding: 8px 4px 4px; }
+.lockcard .big { display: block; margin-top: 8px; }
+.lockcard .progress { max-width: 260px; margin-left: auto; margin-right: auto; }
+.lockic { position: relative; display: inline-grid; place-items: center; width: 64px; height: 64px; border-radius: 18px; background: var(--card2); color: var(--accent); font-size: 32px; }
+.lockic i { position: absolute; right: -6px; bottom: -6px; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--bg); border: 2px solid var(--line2); color: var(--muted); font-size: 13px; }
+.list.unlocked .li { text-align: left; }
+.unlocked-h { justify-content: center; color: var(--accent); }
+.casino-warn { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0; padding: 10px 12px; border-radius: var(--r); background: #f5b3010f; border: 1px solid #f5b30140; color: var(--text); font-size: 13px; }
+.casino-warn > .i { color: var(--accent); font-size: 18px; flex: none; margin-top: 1px; }
+.casino-warn .tiny { color: var(--muted); margin-top: 2px; line-height: 1.35; }

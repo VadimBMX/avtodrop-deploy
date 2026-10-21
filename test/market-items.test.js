@@ -13,7 +13,7 @@ function setup(t0 = Date.parse('2026-10-21T10:00:00Z')) {
   const db = openDb(':memory:');
   let t = t0;
   const clock = { now: () => t, add: (ms) => (t += ms) };
-  const g = createGame(db, { now: clock.now, notify: () => {}, random: () => 0.5 });
+  const g = createGame(db, { now: clock.now, notify: () => {}, random: () => 0.5, allUnlocked: true });
   const mk = (id, balance = 1e9) => {
     g.ensureUser({ id, first_name: 'U' + id });
     db.prepare('UPDATE users SET balance = ?, slots = 40 WHERE id = ?').run(balance, id);

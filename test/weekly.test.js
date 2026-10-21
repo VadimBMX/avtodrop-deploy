@@ -12,7 +12,7 @@ const T0 = Date.parse('2026-10-14T10:00:00Z');
 function setup(t0 = T0) {
   const db = openDb(':memory:');
   const clock = { t: t0 };
-  const g = createGame(db, { now: () => clock.t, random: () => 0.5 });
+  const g = createGame(db, { now: () => clock.t, random: () => 0.5, allUnlocked: true });
   const mk = (id) => (g.ensureUser({ id, username: 'u' + id, first_name: 'U' + id }), id);
   const user = (id) => db.prepare('SELECT * FROM users WHERE id = ?').get(id);
   const set = (id, sql, ...args) => db.prepare(`UPDATE users SET ${sql} WHERE id = ?`).run(...args, id);

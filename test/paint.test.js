@@ -9,7 +9,7 @@ const MODEL = 'vaz-2107';
 const OFF = 'ssc-tuatara';
 function setup() {
   const db = openDb(':memory:');
-  const g = createGame(db, { now: () => Date.parse('2026-10-14T10:00:00Z'), random: () => 0.5, partCooldownMs: 0, paintable: new Set([MODEL, 'bmw-m5-cs']) });
+  const g = createGame(db, { now: () => Date.parse('2026-10-14T10:00:00Z'), random: () => 0.5, partCooldownMs: 0, paintable: new Set([MODEL, 'bmw-m5-cs']), allUnlocked: true });
   const call = (uid, name, body = {}) => g.api[name](uid, body);
   const mk = (id) => (g.ensureUser({ id, username: 'u' + id, first_name: 'U' }), db.prepare('UPDATE users SET balance = 1e9, slots = 40 WHERE id = ?').run(id), id);
   const give = (uid, model) => Number(db.prepare('INSERT INTO cars (owner_id, model, tank, tank_at, created_at) VALUES (?, ?, 5, 0, 0)').run(uid, model, ).lastInsertRowid);
