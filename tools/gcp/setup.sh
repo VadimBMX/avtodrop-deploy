@@ -100,8 +100,16 @@ EOF
 
 systemctl daemon-reload
 systemctl enable -q avtodrop caddy
-systemctl restart avtodrop
 systemctl reload caddy || systemctl restart caddy
+if [ ! -s $DATA/avtodrop.db ]; then
+  systemctl stop avtodrop 2>/dev/null || true
+  echo
+  echo "Усе встановлено, але бази ще немає — гру НЕ запускаю, щоб бот не конфліктував з Railway."
+  echo "Коли база буде знята з Railway: поклади avtodrop.db поруч і знову запусти: sudo bash setup.sh"
+  echo "Адреса гри буде: https://$HOST"
+  exit 0
+fi
+systemctl restart avtodrop
 
 echo "== Перевірка"
 for i in $(seq 1 15); do curl -fs http://127.0.0.1:3100/healthz >/dev/null && break; sleep 1; done
