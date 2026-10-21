@@ -526,7 +526,7 @@ export function createGame(db, opts = {}) {
       incomingTrades: q("SELECT COUNT(*) n FROM trades WHERE to_id = ? AND status = 'open'").get(uid).n
         + q("SELECT COUNT(*) n FROM trade_rooms WHERE invited_id = ? AND status = 'open' AND host_seen > ?").get(uid, now() - 45e3).n,
       noInvites: !!u.no_invites, pushOn: !u.push_off, pushBlocked: !!u.push_blocked,
-      luck: luckOf(u.id),
+      luck: luckOf(u.id), rescueAt: rescueNext(u),
       stars: u.stars, vipUntil: u.vip_until, vip: u.vip_until > now(), starterBought: !!u.starter_bought,
       season: (({ claimed, ...s }) => s)(seasonInfo(u)), badges: badgesOf(uid),
       legacy: isLegacy(uid), // played the first version: «Гравець з перших днів» badge in the profile
@@ -680,8 +680,9 @@ export function createGame(db, opts = {}) {
   // The second guarantee's counter lives in the same table under "<case>:2".
   // A truly broke player (money + garage) gets the most luck; otherwise it comes from recent case results.
   function luckOf(uid) {
-    const u = q('SELECT balance, total_value, luck_spent, luck_got, luck_bonus, luck_bonus_left FROM users WHERE id = ?').get(uid);
-    const own = S.luckChance(u.luck_spent, u.luck_got, S.isBroke(u.balance, u.total_value));
+    const u = q('SELECT balance, total_value, luck_spent, luck_got, luck_bonus, luck_bonus_left, cases_opened FROM users WHERE id = ?').get(uid);
+    let own = S.luckChance(u.luck_spent, u.luck_got, S.isBroke(u.balance, u.total_value));
+    if (u.cases_opened < S.LUCK.newbieOpens) own = Math.max(own, S.LUCK.newbie); // a newcomer's first opens
     return u.luck_bonus_left > 0 ? Math.max(own, u.luck_bonus) : own;
   }
   // Admin-set car for this case, if one is waiting and this case can drop it.
@@ -741,8 +742,12 @@ export function createGame(db, opts = {}) {
       .run(uid, cs.id, model, cls, sha256(f.server_seed), f.client_seed, f.nonce, forced || (lucky ? 2 : 0), now());
     return { model, cls, forced, lucky };
   }
-  // Out of money and cars: a free rusty-garage case every LUCK.rescueHours, so the game can go on.
-  const rescueReady = (u) => u.balance < S.CASE_BY_ID.rust.price && S.isBroke(u.balance, u.total_value) && u.rescue_at + S.LUCK.rescueHours * 3600e3 <= now();
+  // Not enough money for any case: a free rusty-garage case, so the game can go on — every LUCK.rescueHours when truly
+  // broke, every LUCK.softHours when only a few cheap cars are left (null: no rescue for this player now).
+  const rescueHours = (u) => (u.balance >= S.CASE_BY_ID.rust.price ? null : S.isBroke(u.balance, u.total_value) ? S.LUCK.rescueHours
+    : u.balance + u.total_value < S.LUCK.softBelow ? S.LUCK.softHours : null);
+  const rescueNext = (u) => { const h = rescueHours(u); return h == null ? null : u.rescue_at + h * 3600e3; };
+  const rescueReady = (u) => { const t = rescueNext(u); return t != null && t <= now(); };
   function rescueClaim(uid) {
     if (!rescueReady(userRow(uid))) fail('Допомога зараз недоступна');
     addKeys(uid, 'rust', 1);

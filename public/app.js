@@ -937,6 +937,37 @@ function eventsCard(compact, skip = []) {
     ${act.map((e) => row(e, true)).join('')}${next.length ? `<div class="ev-sub tiny muted">Далі</div>${next.map((e) => row(e, false)).join('')}` : ''}</div>`;
 }
 H.eventsOpen = () => sheet('Події', `${eventsCard(false)}<div class="tiny muted mt">Події йдуть самі за розкладом (київський час): «Країна тижня» — щотижня, з понеділка; у вівторок і четвер — «Щасливі номери» та «Подвійне паливо»; на вихідних — «Вихідні удачі» або «Гоночний уїкенд», через тиждень.</div>`);
+// No money for even the cheapest case and no keys: instead of a dead end, every way to get going again.
+function brokeCard() {
+  const cheapest = S.CASE_BY_ID.rust.price;
+  if (me.balance >= cheapest || Object.values(me.keys || {}).some((k) => k > 0)) return '';
+  const now = serverNow();
+  const row = (icon, title, sub, right) => `<div class="broke-row"><span class="broke-ic">${ic(icon)}</span><span class="broke-tx"><b>${title}</b><span class="tiny muted">${sub}</span></span>${right}</div>`;
+  const rows = [];
+  if (me.rescueAt != null) rows.push(now >= me.rescueAt
+    ? row('clover', 'Безкоштовний «Іржавий гараж»', 'Допомога, коли немає грошей', '<button class="btn sm yellow" data-act="rescueClaim">Забрати</button>')
+    : row('clover', 'Безкоштовний «Іржавий гараж»', 'Допомога, коли немає грошей', `<span class="chip" data-until="${me.rescueAt - clockOffset}"></span>`));
+  rows.push(now >= me.rewardCaseAt
+    ? row('box', 'Кейс нагород', 'Раз на кілька годин', '<button class="btn sm" data-act="claimRewardCase">Відкрити</button>')
+    : row('box', 'Кейс нагород', 'Раз на кілька годин', `<span class="chip" data-until="${me.rewardCaseAt - clockOffset}"></span>`));
+  if (me.dailyReady) rows.push(row('gift', 'Щоденний бонус', 'Забери сьогоднішній', '<button class="btn sm" data-act="claimDaily">Забрати</button>'));
+  rows.push(row('flag-3', 'Гонки', 'Вигравай заїзди — отримуй гроші', '<button class="btn sm ghost" data-act="brokeTab" data-tab="race">Їхати</button>'));
+  rows.push(row('target-arrow', 'Завдання на сьогодні', 'Гроші за прості дії', '<button class="btn sm ghost" data-act="go" data-page="quests">Глянути</button>'));
+  const sellable = (me.cars || []).filter((c) => c.status === 'garage');
+  if (sellable.length) {
+    const best = sellable.reduce((a, c) => (sellPrice(c) > sellPrice(a) ? c : a));
+    rows.push(row('cash', 'Продати машину', `${esc(M(best.model).name)} — ${S.fmt(sellPrice(best))}`, '<button class="btn sm ghost" data-act="brokeTab" data-tab="garage">Гараж</button>'));
+  }
+  if (me.income?.pending > 0) rows.push(row('coin', 'Дохід гаража', `Набралось ${S.fmt(me.income.pending)}`, '<button class="btn sm ghost" data-act="collect">Забрати</button>'));
+  return `<div class="card broke mt"><div class="broke-h">${ic('info-circle')} Немає грошей на кейс? <span class="tiny muted">найдешевший — ${S.fmt(cheapest)}</span></div>${rows.join('')}</div>`;
+}
+H.brokeTab = (d) => document.querySelector(`#tabs button[data-tab="${d.tab}"]`)?.click();
+H.rescueClaim = async () => {
+  if (await act('rescue/claim', {}, 'Безкоштовний кейс уже чекає!', { rerender: false })) {
+    state.tab = 'cases'; state.page = null; state.caseId = 'rust'; state.count = 1; state.drop = null;
+    render();
+  }
+};
 TABS.cases = () => {
   const cs = S.CASE_BY_ID[state.caseId];
   const keys = me.keys[cs.id] || 0;
@@ -996,6 +1027,7 @@ TABS.cases = () => {
       return `<button class="btn opencase ${deal.off ? 'yellow' : ''}" data-act="openCase">${paid ? `<span class="oc-l">${d && state.dropCase === cs.id ? 'Відкрити ще' : 'Відкрити'}</span><span class="oc-p">${S.fmt(price * paid)}${deal.off ? ` <s>${S.short(cs.price * paid)}</s>` : ''}${keys ? ` + ${ic('key')}${Math.min(keys, n)}` : ''}</span>` : cs.starter ? 'Відкрити безкоштовно' : `Відкрити ключем ${ic('key')} ${n}`}</button>`;
     })()}
     ${cs.starter ? '<div class="tiny muted center mt">Подарунок новачку</div>' : ''}
+    ${cs.starter ? '' : brokeCard()}
     ${free < n ? '<div class="tiny muted center mt">Продай авто або купи місце в гаражі</div>' : ''}
     ${d ? (() => {
       const alive = d.filter(dropAlive);

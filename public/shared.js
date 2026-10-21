@@ -472,7 +472,11 @@ for (const c of MAIN_COUNTRIES) {
 export const BOOST = 0.15;
 // Losing streak: after `streak` drops in a row worth less than the case price, the next roll is thrown up to
 // `tries` times until a car worth the price comes; after `hardStreak` it is guaranteed (the cheapest such car).
-export const LUCK = { decay: 0.95, threshold: 0.3, max: 0.5, broke: 0.6, brokeCash: 100000, brokeBelow: 500000, rescueHours: 12, streak: 6, tries: 2, hardStreak: 10 };
+// newbie: a player's first `newbieOpens` case opens get at least `newbie` luck, so the start is not a losing streak.
+// Rescue: a free «Іржавий гараж» every rescueHours when truly broke, or every softHours when there is not enough money
+// for any case and money plus garage stays under softBelow (a few cheap cars that would sell for little).
+export const LUCK = { decay: 0.95, threshold: 0.3, max: 0.5, broke: 0.6, brokeCash: 100000, brokeBelow: 500000, rescueHours: 12, softHours: 24, softBelow: 1500000,
+  newbie: 0.5, newbieOpens: 10, streak: 6, tries: 2, hardStreak: 10 };
 export const isBroke = (balance, garageValue) => balance < LUCK.brokeCash && balance + garageValue < LUCK.brokeBelow;
 // expected / got: fading sums of the opened cases' expected values and of the drops' values.
 export function luckChance(expected, got, broke = false) {

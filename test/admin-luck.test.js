@@ -8,7 +8,7 @@ function setup() {
   const db = openDb(':memory:');
   const g = createGame(db, { now: () => Date.parse('2026-10-19T10:00:00Z'), notify: () => {} });
   g.ensureUser({ id: 1, first_name: 'U1' });
-  db.prepare('UPDATE users SET balance = 1e13, slots = 100000, level = 99, level_seen = 99 WHERE id = 1').run();
+  db.prepare('UPDATE users SET balance = 1e13, slots = 100000, level = 99, level_seen = 99, cases_opened = 100 WHERE id = 1').run();
   return { db, g, call: (name, body = {}) => g.api[name](1, body) };
 }
 

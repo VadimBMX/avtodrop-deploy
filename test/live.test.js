@@ -104,6 +104,7 @@ test('invites: do-not-disturb and anti-spam limits', () => {
 test('luck builds up after bad drops, only ever helps, and a broke player gets a free case', () => {
   const { db, mk, call } = setup();
   mk(1);
+  db.prepare('UPDATE users SET cases_opened = 100 WHERE id = 1').run(); // past the newcomer's first opens
   assert.equal(call(1, 'me').luck, 0, 'no luck without bad drops');
   db.prepare('UPDATE users SET luck_spent = 10000000, luck_got = 500000 WHERE id = 1').run();
   const luck = call(1, 'me').luck;
@@ -129,15 +130,33 @@ test('luck builds up after bad drops, only ever helps, and a broke player gets a
   assert.throws(() => call(1, 'rescue/claim'), /недоступна/);
 });
 
-test('a newcomer with the start balance has no luck; the rescue banner keeps one key until claimed', () => {
+test('a newcomer gets the first-opens luck (not the broke one); the rescue banner keeps one key until claimed', () => {
   const { db, g, call } = setup();
   g.ensureUser({ id: 9, first_name: 'New' }); // start balance, no cars
-  assert.equal(g.api.me(9).luck, 0, 'not broke with the start money');
+  assert.equal(g.api.me(9).luck, S.LUCK.newbie, 'first opens: newcomer luck, not broke with the start money');
+  db.prepare('UPDATE users SET cases_opened = ? WHERE id = 9').run(S.LUCK.newbieOpens);
+  assert.equal(g.api.me(9).luck, 0, 'gone after the first opens');
   db.prepare('UPDATE users SET balance = 1000 WHERE id = 9').run();
   const k1 = g.api.pulse(9).claims.find((c) => c.kind === 'rescue')?.key;
   const k2 = g.api.pulse(9).claims.find((c) => c.kind === 'rescue')?.key;
   assert.ok(k1 && k1 === k2, 'same banner key on every poll');
   void call;
+});
+
+test('rescue: a few cheap cars but no money for a case gives a free rusty case once a day', () => {
+  const { db, g, clock, call } = setup();
+  g.ensureUser({ id: 9, first_name: 'New' });
+  // 25k money + cars worth more than the broke limit (not "truly broke"), still under the soft limit.
+  db.prepare('UPDATE users SET balance = 25000, total_value = ? WHERE id = 9').run(S.LUCK.brokeBelow);
+  assert.ok(call(9, 'me').rescueAt <= clock.now(), 'ready now');
+  call(9, 'rescue/claim');
+  assert.equal(call(9, 'me').keys.rust, 1);
+  assert.throws(() => call(9, 'rescue/claim'), /недоступна/);
+  clock.add(S.LUCK.softHours * 3600e3);
+  call(9, 'rescue/claim');
+  // Enough garage to sell instead: no rescue.
+  db.prepare('UPDATE users SET total_value = ? WHERE id = 9').run(S.LUCK.softBelow);
+  assert.equal(call(9, 'me').rescueAt, null);
 });
 
 test('rating: equal results rank the same in the list and in "my place"', () => {
