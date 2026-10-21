@@ -8,3 +8,5 @@ docs/
 design-backup/
 node_modules/
 *.log
+data-test/
+.env.test

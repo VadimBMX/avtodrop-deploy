@@ -1,7 +1,7 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb } from './src/db.js';
@@ -217,6 +217,26 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     });
   }
 
+  // DEV only: start / stop / read the owner's test copy (tools/live-test.mjs: own bot, own DB, own tunnel).
+  function devTestLive(res, action) {
+    const root = path.dirname(fileURLToPath(import.meta.url));
+    const statusFile = path.join(root, 'data-test', 'status.json');
+    const read = () => { try { return JSON.parse(fs.readFileSync(statusFile, 'utf8')); } catch { return null; } };
+    const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+    const cur = read();
+    if (action === 'start') {
+      if (cur?.pid && alive(cur.pid) && cur.state !== 'stopped') return send(res, 200, { ok: true, already: true, ...cur });
+      const child = spawn(process.execPath, [path.join(root, 'tools', 'live-test.mjs')], { cwd: root, detached: true, stdio: 'ignore', windowsHide: true });
+      child.unref();
+      return send(res, 200, { ok: true, started: child.pid });
+    }
+    if (action === 'stop') {
+      if (cur?.pid && alive(cur.pid)) { try { process.kill(cur.pid); } catch {} }
+      return send(res, 200, { ok: true, stopped: cur?.pid || null });
+    }
+    send(res, 200, { ok: true, ...(cur || { state: 'none' }), alive: !!(cur?.pid && alive(cur.pid)) });
+  }
+
   const server = http.createServer(async (req, res) => {
     const { pathname } = new URL(req.url, 'http://x');
     try {
@@ -225,6 +245,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
       // DEV only, from this computer: Railway CLI status / deploy (same as `railway up --detach` in the game folder).
       if ((pathname === '/api/dev/railway-status' || pathname === '/api/dev/deploy') && dev && isLocal(req) && req.method === 'POST') return devRailway(res, pathname.endsWith('deploy') ? ['up', '--detach'] : ['status']);
       if ((pathname === '/api/dev/cars' || pathname === '/api/dev/normalize') && dev && isLocal(req) && req.method === 'POST') return devCars(res, pathname.endsWith('normalize') ? 'normalize_cars.py' : 'prepare_cars.py');
+      if (pathname.startsWith('/api/dev/test-live/') && dev && isLocal(req) && req.method === 'POST') return devTestLive(res, pathname.slice(19));
       if (pathname.startsWith('/api/admin/')) return await handleAdmin(req, res, pathname.slice(11));
       if (pathname.startsWith('/api/')) return await handleApi(req, res, pathname.slice(5));
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed', 'text/plain');
