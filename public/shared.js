@@ -438,6 +438,8 @@ for (const pc of PART_CASES) {
 }
 export const PART_CASE_BY_ID = Object.fromEntries(PART_CASES.map((c) => [c.id, c]));
 export const PICK_PART_EXTRA = 0.15;
+// Pause between two openings of part cases (server-checked), so the whole stock can't be emptied in seconds.
+export const PART_COOLDOWN_MS = 10000;
 
 // ---------- plates (Ukrainian format "AA 1234 BC") ----------
 // Official Ukrainian region codes: the 2004 series and the additional 2013 series for each region.

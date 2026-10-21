@@ -499,6 +499,10 @@ function controls(u) {
       <input id="mAmount" inputmode="decimal" placeholder="Сума: 100000, 250k, 1.5m">
       <input id="mNote" placeholder="Повідомлення гравцю (необов’язково)">
       <div class="row"><button class="btn green sm grow" data-act="money" data-sign="1">${ic('plus')} Нарахувати</button><button class="btn red sm grow" data-act="money" data-sign="-1">${ic('minus')} Списати</button></div></div>
+    ${state.role === 'owner' ? `<div class="act"><h3>${ic('crown')} Пропуск і VIP <span class="muted small">лише власник</span></h3>
+      <div class="small muted">Пропуск: ${u.premiumSeason === S.seasonOf(Date.now()) ? '<b class="win">є в цьому сезоні</b>' : 'немає'} · VIP: ${u.vipUntil > Date.now() ? `до ${date(u.vipUntil)}` : 'немає'}</div>
+      <div class="row"><button class="btn sm grow" data-act="grantPass" ${u.premiumSeason === S.seasonOf(Date.now()) ? 'disabled' : ''}>${ic('gift')} Преміум-пропуск</button></div>
+      <div class="row"><input id="vipDays" class="grow" inputmode="numeric" value="7" placeholder="Днів"><button class="btn sm" data-act="grantVip">${ic('crown')} VIP на N днів</button></div></div>` : ''}
     <div class="act"><h3>${ic('car')} Видати машину</h3>
       <select id="gModel">${S.CLASS_ORDER.map((c) => `<optgroup label="Клас ${c} · ${S.CLASSES[c].name}">${models.filter((m) => m.cls === c).map((m) => `<option value="${m.id}">${esc(m.name)} — ${short(m.price)}${m.secret ? ' (секретна)' : ''}</option>`).join('')}</optgroup>`).join('')}</select>
       <label class="row small muted"><input type="checkbox" id="gNotify" checked style="width:auto"> Повідомити гравця</label>
@@ -564,6 +568,11 @@ H.money = (d) => {
     title: take ? 'Списати гривні' : 'Нарахувати гривні', danger: take, button: take ? 'Списати' : 'Нарахувати',
     summary: `${who()}<div class="delta"><span>${money(bal)}</span> → <b class="${take ? 'bad' : 'win'}">${money(Math.max(0, bal + amount))}</b> <span class="${take ? 'bad' : 'win'}">(${take ? '−' : '+'}${money(Math.min(Math.abs(amount), take ? bal : Infinity))})</span></div>${take && -amount > bal ? '<div class="small muted">Більше, ніж є — баланс стане 0.</div>' : ''}`,
   }, (r) => `Баланс: ${money(r.balance)}`);
+};
+H.grantPass = () => mutate('grant-premium', { id: uid(), what: 'pass' }, { title: 'Видати преміум-пропуск', summary: `Преміум-пропуск поточного сезону → ${who()}`, button: 'Видати' }, 'Пропуск видано');
+H.grantVip = () => {
+  const d = Number($('#vipDays').value) || 7;
+  mutate('grant-premium', { id: uid(), what: 'vip', days: d }, { title: 'Видати VIP', summary: `VIP на <b>${d}</b> дн. → ${who()}`, button: 'Видати' }, `VIP на ${d} дн. видано`);
 };
 H.giveCar = () => {
   const m = $('#gModel').value;

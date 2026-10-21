@@ -473,3 +473,16 @@ test('admin http: changes need confirm + reason, proxied requests are not "local
     app.close();
   }
 });
+
+test('admin panel: only the owner grants the premium pass and VIP', () => {
+  const { db, g, ok } = panel();
+  assert.throws(() => g.adminCall('tg:2', 'grant-premium', { id: 10, what: 'pass', ...ok }), /лише власник/);
+  assert.throws(() => g.adminCall('tg:3', 'grant-premium', { id: 10, what: 'pass', ...ok }), /Немає прав/);
+  assert.throws(() => g.adminCall('tg:1', 'grant-premium', { id: 10, what: 'pass' }), /причину/);
+  const r = g.adminCall('tg:1', 'grant-premium', { id: 10, what: 'pass', ...ok });
+  assert.equal(db.prepare('SELECT premium_season s FROM users WHERE id = 10').get().s, r.season);
+  assert.throws(() => g.adminCall('tg:1', 'grant-premium', { id: 10, what: 'pass', ...ok }), /вже є/);
+  const v = g.adminCall('tg:1', 'grant-premium', { id: 10, what: 'vip', days: 3, ...ok });
+  assert.ok(v.until > Date.parse('2026-10-22T10:00:00Z'));
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM admin_log WHERE action = 'grant-premium'").get().n, 2);
+});

@@ -754,9 +754,14 @@ export function createGame(db, opts = {}) {
   const revealedSeeds = (uid) => q('SELECT seed, seed_hash seedHash, revealed_at at FROM revealed_seeds WHERE user_id = ? ORDER BY revealed_at DESC LIMIT 20').all(uid);
 
   // ---------- parts ----------
+  // Last part-case opening per player (in memory: a restart only forgives one pause).
+  const partOpenedAt = new Map();
+  const partCooldown = opts.partCooldownMs ?? S.PART_COOLDOWN_MS;
   function openParts(uid, { caseId, type, count }) {
     const pc = S.PART_CASE_BY_ID[caseId];
     if (!pc) fail('Невідомий кейс');
+    const wait = (partOpenedAt.get(uid) || 0) + partCooldown - now();
+    if (wait > 0) fail(`Зачекай ${Math.ceil(wait / 1000)} с перед наступним відкриттям`);
     if (type != null && !S.PART_KEYS.includes(type)) fail('Невідома деталь');
     if (type && pc.randomOnly) fail('У цьому кейсі лише випадкові деталі');
     const n = int(count ?? 1, 1, 10, 'Кількість');
@@ -777,7 +782,8 @@ export function createGame(db, opts = {}) {
     xp(uid, 'case', n);
     track(uid, 'parts', n);
     flag(uid, 'part_case');
-    return { results, price: price * n };
+    partOpenedAt.set(uid, now());
+    return { results, price: price * n, nextAt: now() + partCooldown };
   }
   function merge(uid, { type, tier }) {
     if (!S.PART_KEYS.includes(type) || !S.TIER_BY_ID[tier]) fail('Невідома деталь');
@@ -3202,6 +3208,30 @@ export function createGame(db, opts = {}) {
     alog(who, 'give-car', uid, { model, carId: c.id });
     return c;
   }
+  // Premium pass of the current season or VIP days, as a gift. Owner only (not admins): these are paid Stars items.
+  function adminGrantPremium(who, { id, what, days }) {
+    if (actorRole(who) !== 'owner') fail('Пропуск і VIP може видавати лише власник');
+    const uid = int(id, 1, Number.MAX_SAFE_INTEGER, 'ID');
+    const u = userRow(uid);
+    if (what === 'pass') {
+      const season = S.seasonOf(now());
+      if (u.premium_season === season) fail('У гравця вже є преміум-пропуск цього сезону');
+      q('UPDATE users SET premium_season = ? WHERE id = ?').run(season, uid);
+      event(uid, '🎁 Адміністрація подарувала тобі преміум-пропуск сезону!');
+      alog(who, 'grant-premium', uid, { what, season });
+      return { what, season };
+    }
+    if (what === 'vip') {
+      const d = int(days ?? 7, 1, 365, 'Днів');
+      bank(uid);
+      const until = Math.max(u.vip_until || 0, now()) + d * 86400e3;
+      q('UPDATE users SET vip_until = ? WHERE id = ?').run(until, uid);
+      event(uid, `🎁 Адміністрація подарувала тобі VIP на ${d} дн.!`);
+      alog(who, 'grant-premium', uid, { what, days: d, until });
+      return { what, until };
+    }
+    fail('Невідомо, що видати');
+  }
   // Takes a car out of the game: closes its market lot, auction (refunding the leader) and PvP challenge first.
   function adminRemoveCar(who, { carId }) {
     const c = carRow(int(carId, 1, Number.MAX_SAFE_INTEGER, 'ID авто'));
@@ -3687,7 +3717,7 @@ export function createGame(db, opts = {}) {
   // Admin handlers get (who, body); read-only ones ignore `who`. Each runs in one transaction.
   const adminHandlers = {
     overview: () => adminOverview(), users: (w, b) => adminUsers(b), user: (w, b) => adminUser(b),
-    money: adminMoney, 'give-car': adminGiveCar, 'remove-car': adminRemoveCar, part: adminGivePart, keys: adminGiveKeys,
+    money: adminMoney, 'give-car': adminGiveCar, 'grant-premium': adminGrantPremium, 'remove-car': adminRemoveCar, part: adminGivePart, keys: adminGiveKeys,
     'give-plate': adminGivePlate, 'remove-plate': adminRemovePlate, search: (w, b) => adminSearch(b), 'check-plate': (w, b) => checkPlate(b.text),
     set: adminSetUser, ban: adminBan, message: adminMessage, reset: adminResetUser,
     luck: adminLuck, rig: adminRig, 'rig-cancel': adminRigCancel,
@@ -3709,7 +3739,7 @@ export function createGame(db, opts = {}) {
   // Actions that change a player or the economy. From the panel (adminCall, used by the HTTP endpoint) each needs
   // `confirm: true` (the confirm dialog) and a `reason` of 3+ characters, which goes into admin_log with the action.
   // message / support/reply are not here: their text is the whole action and is logged as it is.
-  const ADMIN_MUTATING = new Set(['money', 'give-car', 'remove-car', 'part', 'keys', 'give-plate', 'remove-plate', 'set', 'ban', 'reset',
+  const ADMIN_MUTATING = new Set(['money', 'give-car', 'grant-premium', 'remove-car', 'part', 'keys', 'give-plate', 'remove-plate', 'set', 'ban', 'reset',
     'luck', 'rig', 'rig-cancel', 'market/remove', 'dealer/refresh', 'promo/create', 'promo/delete', 'role', 'broadcast',
     'game-events/start', 'game-events/stop']);
   function adminCall(who, name, body) {

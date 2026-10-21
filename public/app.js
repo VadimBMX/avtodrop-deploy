@@ -2047,7 +2047,9 @@ TABS.shop = () => {
     <div class="stage pstage" style="${d?.length > 3 ? 'height:auto;min-height:200px' : ''}">${stage}</div>
     <div class="seg">${[1, 3, 5, 10].map((k) => `<button class="${k === state.partCount ? 'on' : ''}" data-act="partCount" data-n="${k}">×${k}</button>`).join('')}</div>
     ${price * state.partCount > me.balance ? `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(price * state.partCount - me.balance)}</button>`
-      : `<button class="btn" data-act="openParts" ${state.opening ? 'disabled' : ''}>${d ? 'Відкрити ще' : 'Відкрити'}${state.partCount > 1 ? ' ×' + state.partCount : ''} · ${S.fmt(price * state.partCount)}</button>`}
+      : (state.partNext || 0) > serverNow()
+        ? `<button class="btn" disabled>Наступне відкриття через <span data-until="${state.partNext - clockOffset}"></span></button>`
+        : `<button class="btn" data-act="openParts" ${state.opening ? 'disabled' : ''}>${d ? 'Відкрити ще' : 'Відкрити'}${state.partCount > 1 ? ' ×' + state.partCount : ''} · ${S.fmt(price * state.partCount)}</button>`}
     ${d ? `<div class="btns mt"><button class="btn outline" data-act="shopView" data-k="stock">На склад</button>${alive.length ? `<button class="btn ghost btn2" data-act="sellDropParts"><span>${ic('cash')} Продати все</span><small>${S.short(sum)}</small></button>` : ''}</div>` : ''}
     <div class="card row between mt"><span>Швидке відкриття</span><button class="toggle ${state.fast ? 'on' : ''}" data-act="toggleFast"></button></div>
     <div class="tiny muted center">${state.partType ? `Випадає лише «${S.PARTS[state.partType].name}», кейс на ${S.PICK_PART_EXTRA * 100}% дорожчий.` : 'Деталь випадає випадкова — обери конкретну вгорі, щоб збирати лише її.'} Три однакові деталі зливаються в одну рівнем вище на складі.</div>`;
@@ -2132,6 +2134,10 @@ H.openParts = async (d, el) => {
   let r;
   try {
     r = await api('parts/open', { caseId: state.partCase, type: state.partType, count: state.partCount });
+    // The server allows the next part case only after a pause; the button counts down and comes back by itself.
+    state.partNext = r.nextAt;
+    clearTimeout(state.partTimer);
+    state.partTimer = setTimeout(() => !state.opening && render(), Math.max(0, r.nextAt - serverNow()) + 100);
   } catch (e) {
     state.opening = false;
     el.disabled = false;
