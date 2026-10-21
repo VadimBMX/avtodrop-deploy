@@ -230,18 +230,20 @@ test('cases: every drop is worth at least half the price, fragments turn into a 
   const { db, mk, call } = setup();
   mk(1);
   db.prepare('UPDATE users SET balance = 1e12, slots = 1000 WHERE id = 1').run();
-  let keys = 0, frag = 0;
+  let keys = 0, frag = 0, last = 0;
   for (let i = 0; i < 60; i++) {
     const r = call(1, 'case/open', { caseId: 'rust', count: 1 });
     keys += r.newKeys;
+    last = r.newKeys;
     frag += r.fragments;
     if (r.results[0].fragment) assert.ok(S.MODELS[r.results[0].car.model].price < 60000);
   }
   assert.ok(frag > 10 && frag < 45, `fragments ${frag}`);
   assert.equal(keys, Math.floor(frag / S.FRAGMENTS_PER_KEY));
   assert.equal(call(1, 'me').fragments.rust || 0, frag % S.FRAGMENTS_PER_KEY);
-  // Each free key was spent by the next open (keys go first), and a key-open leaves no fragment.
-  assert.equal(call(1, 'me').keys.rust || 0, 0);
+  // Each free key was spent by the next open (keys go first), and a key-open leaves no fragment;
+  // only a key collected by the very last open is still waiting.
+  assert.equal(call(1, 'me').keys.rust || 0, last);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM drops WHERE case_id = 'rust'").get().n, 60);
 });
 
