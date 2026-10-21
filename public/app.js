@@ -241,7 +241,14 @@ function dots(weights, map = (k) => k) {
   const total = Object.values(weights).reduce((a, b) => a + b, 0);
   return `<div class="dots">${Object.entries(weights).map(([k, w]) => `<span style="--c:${S.CLASSES[map(k)].color}">${pct((w / total) * 100)}</span>`).join('')}</div>`;
 }
-const partCount = (c) => S.partKeysOf(c.model).filter((k) => c.parts?.[k]).length;
+// Odds as one segmented strip in class colours, plus the chance of the rarest class (the one people open the case for).
+function oddsBar(weights) {
+  const e = S.CLASS_ORDER.filter((c) => weights[c]).map((c) => [c, weights[c]]);
+  const total = e.reduce((a, [, w]) => a + w, 0);
+  const [tc, tw] = e[e.length - 1];
+  return `<span class="odds"><span class="odds-bar">${e.map(([c, w]) => `<i style="flex:${Math.max(w / total, 0.03)};background:${S.CLASSES[c].color}"></i>`).join('')}</span><span class="odds-top" style="color:${S.CLASSES[tc].color}">${tc} ${pct((tw / total) * 100)}</span></span>`;
+}
+const partCount = (c) =>S.partKeysOf(c.model).filter((k) => c.parts?.[k]).length;
 const partSlots = (c) => S.partKeysOf(c.model).length;
 function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false } = {}) {
   const m = M(c.model);
@@ -566,28 +573,42 @@ TABS.garage = () => {
   const pending = pendingNow();
   const fill = i.rate ? Math.min(100, (pending / (i.rate * i.capH)) * 100) : 0;
   const nextCap = S.CAP_LEVELS[me.capLevel + 1];
-  const cars = me.cars.filter((c) => c.status !== 'showcase').sort((a, b) => b.value - a.value);
-  const total = cars.reduce((s, c) => s + c.value, 0);
+  const all = me.cars.filter((c) => c.status !== 'showcase');
+  const rk = (c) => S.rankOf(M(c.model).cls);
+  const sorts = { value: (a, b) => b.value - a.value, class: (a, b) => rk(b) - rk(a) || b.value - a.value, new: (a, b) => b.id - a.id };
+  const sort = sorts[state.garageSort] ? state.garageSort : 'value';
+  const present = S.CLASS_ORDER.filter((k) => all.some((c) => M(c.model).cls === k)).reverse();
+  if (state.garageCls && !present.includes(state.garageCls)) state.garageCls = null;
+  const cars = all.filter((c) => !state.garageCls || M(c.model).cls === state.garageCls).sort(sorts[sort]);
+  const total = all.reduce((s, c) => s + c.value, 0);
   const sel = state.selling;
   const selTotal = sel ? sellTotal(cars.filter((c) => sel.has(c.id)).map((c) => c.model)) : 0;
-  const free = Math.max(0, me.slots - cars.length);
+  const free = Math.max(0, me.slots - all.length);
+  const SORT_NAMES = { value: 'За ціною', class: 'За класом', new: 'Нові' };
   return seg + `${overfullHtml()}
-  <div class="card">
-    <div class="row between small muted"><span>Дохід гаража</span><span>${S.short(i.rate)} / год</span></div>
+  <div class="card income">
+    <div class="row between small muted"><span>${ic('coin')} Дохід гаража</span><span class="rate"><b>${S.short(i.rate)}</b> / год</span></div>
     <div class="big" id="pending">${S.fmt(pending)}</div>
-    <div class="progress mt"><i id="capBar" style="width:${fill}%"></i></div>
+    <div class="progress cap mt"><i id="capBar" style="width:${fill}%"></i></div>
     <button class="btn mt" data-act="collect" ${pending < 1 ? 'disabled' : ''}>Забрати</button>
     ${i.comebackUntil ? `<div class="tiny center mt" style="color:#30d158">${ic('gift')} Подарунок повернення: +${S.COMEBACK.capHours} год сховища ще <span data-until="${i.comebackUntil - clockOffset}"></span></div>` : ''}
     <div class="tiny muted center mt">Копиться до ${i.capH} год, потім зупиняється${nextCap ? ` · <a data-act="upgradeCap" style="color:#f5b301">сховище до ${nextCap.hours} год за ${S.short(nextCap.cost)}</a>` : ''}</div>
   </div>
-  <div class="h2"><span>Машини ${cars.length}/${me.slots}</span><span>${S.short(total)}</span></div>
-  ${cars.length > 1 ? `<div class="row between" style="margin:-2px 2px 10px"><span class="small muted">${sel ? `Обрано ${sel.size} · ${S.fmt(selTotal)}` : 'Продаж: 32–50% ціни моделі, деталі й номер повертаються'}</span>
-    <span class="row">${sel ? `<button class="btn sm red" data-act="sellSel" ${sel.size ? '' : 'disabled'}>Продати</button>` : ''}<button class="btn sm ghost" data-act="sellMode">${sel ? 'Скасувати' : 'Продати'}</button></span></div>` : ''}
+  <div class="h2 garage-h"><span>Машини <b>${all.length}</b>/${me.slots}</span><span>${S.short(total)}</span></div>
+  ${all.length > 1 ? `${present.length > 1 ? `<div class="chips gfilter"><button class="${state.garageCls ? '' : 'on'}" data-act="gFilter" data-k="">Усі</button>${present.map((k) => `<button class="${state.garageCls === k ? 'on' : ''}" data-act="gFilter" data-k="${k}" style="--c:${S.CLASSES[k].color}"><i></i>${k}<small>${all.filter((c) => M(c.model).cls === k).length}</small></button>`).join('')}</div>` : ''}
+    <div class="row between sellbar">${sel ? `<span class="small muted">${sel.size ? `Обрано ${sel.size} · ${S.fmt(selTotal)}` : 'Обери машини. Продаж: 32–50% ціни моделі, деталі й номер повертаються'}</span>` : `<button class="gsort" data-act="gSort">${ic('adjustments')}${SORT_NAMES[sort]}</button>`}
+    <span class="row">${sel ? `<button class="btn sm red" data-act="sellSel" ${sel.size ? '' : 'disabled'}>Продати</button>` : ''}<button class="btn sm ghost" data-act="sellMode">${sel ? 'Скасувати' : `${ic('cash')} Продати кілька`}</button></span></div>` : ''}
   <div class="grid">${cars.map((c) => carTile(c, { sel: sel?.has(c.id), act: sel ? 'selToggle' : 'car' })).join('')}
-    ${free ? `<button class="slot free" data-act="toCases"><b>+ ${free}</b><span>${plural(free, ['вільне місце', 'вільні місця', 'вільних місць'])}</span><span class="tiny">до кейсів →</span></button>` : ''}
-    ${me.slots < S.MAX_SLOTS ? `<button class="slot buy" data-act="buySlot">+<span>Місце в гаражі</span><b>${S.short(S.slotCost(me.slots))}</b></button>` : ''}</div>`;
+    ${free && !state.garageCls ? `<button class="slot free" data-act="toCases"><span class="slot-plus">${ic('plus')}</span><b>${free} ${plural(free, ['вільне місце', 'вільні місця', 'вільних місць'])}</b><span class="tiny">Відкрити кейс ${ic('arrow-right')}</span></button>` : ''}
+    ${me.slots < S.MAX_SLOTS && !state.garageCls ? `<button class="slot buy" data-act="buySlot"><span class="slot-plus">${ic('building-warehouse')}</span><span>Місце в гаражі</span><b>${S.short(S.slotCost(me.slots))}</b></button>` : ''}</div>`;
 };
 H.gView = (d) => (state.garageView = d.k, render());
+H.gFilter = (d) => (state.garageCls = d.k || null, render());
+H.gSort = () => {
+  const order = ['value', 'class', 'new'];
+  state.garageSort = order[(order.indexOf(state.garageSort || 'value') + 1) % order.length];
+  render();
+};
 H.toCases = () => (state.tab = 'cases', render());
 H.collect = () => act('collect', {}, (r) => `+${S.fmt(r.got)}`);
 // Purchases confirm with a second tap on the same button (no pop-up), so several slots can be bought in a row.
@@ -639,20 +660,22 @@ function carSheet(id) {
   const m = M(c.model);
   const minTier = S.minTierFor(m.cls);
   const locked = c.status === 'market' || c.status === 'auction';
+  const rank = S.rankOf(m.cls), color = S.CLASSES[m.cls].color;
   sheet(esc(m.name), `
-    <div class="center">${clsBadge(m.cls)} <span class="chip">${S.CLASSES[m.cls].name}</span> <span class="chip">${S.COUNTRIES[m.country].flag} ${S.COUNTRIES[m.country].name}</span> <span class="chip">${m.year}</span></div>
-    <div class="hero" style="--c:${S.CLASSES[m.cls].color}"><div class="art">${carArt(c.model, { glow: S.rankOf(m.cls) >= 3 })}</div>${c.plate ? `<div class="plate-on">${plate(c.plate.text)}</div>` : ''}</div>
-    <div class="stat four"><div><b>${c.hp}</b><span>к.с.${c.hp > m.hp ? ` <span class="win">+${c.hp - m.hp}</span>` : ''}</span></div><div><b>${dec(c.et, 2)}</b><span>0–402 м, с</span></div><div><b>${S.short(c.value)}</b><span>вартість</span></div><div><b>${S.short(c.income)}</b><span>дохід / год</span></div></div>
+    <div class="rarity-row sheet-tags"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span><span class="chip">${S.COUNTRIES[m.country].flag} ${S.COUNTRIES[m.country].name}</span><span class="chip">${m.year}</span></div>
+    <div class="hero r${rank}" style="--c:${color}"><div class="art">${carArt(c.model, { glow: rank >= 3 })}</div>${c.plate ? `<div class="plate-on">${plate(c.plate.text)}</div>` : ''}</div>
+    <div class="stat four"><div><b>${c.hp}${c.hp > m.hp ? `<em class="win">+${c.hp - m.hp}</em>` : ''}</b><span>к.с.</span></div><div><b>${dec(c.et, 2)}</b><span>0–402 м, с</span></div><div class="val"><b>${S.short(c.value)}</b><span>вартість</span></div><div><b>${S.short(c.income)}</b><span>дохід / год</span></div></div>
     ${locked ? `<div class="card mt center muted">Авто виставлено на ${c.status === 'market' ? 'ринок' : 'аукціон'} — керуй ним у «Меню → Ринок → Мої лоти».</div>` : `
     <div class="list mt">
       <button class="li" data-act="carShowcase" data-id="${c.id}"><span class="ic">${ic('building-arch')}</span><div class="grow"><b>${c.status === 'showcase' ? 'Повернути в гараж' : 'Виставити на вітрину'}</b><div class="small muted">${c.status === 'showcase' ? 'знову приноситиме дохід' : `вільно місць: ${me.showcaseSlots - me.cars.filter((x) => x.status === 'showcase').length}`}</div></div><span class="chev">›</span></button>
       <button class="li" data-act="carPlate" data-id="${c.id}"><span class="ic">${ic('license')}</span><div class="grow"><b>Номер</b><div class="small muted">${c.plate ? `+${S.short(c.plate.value)} до вартості` : 'немає'}</div></div>${c.plate ? plate(c.plate.text, 'sm') : '<span class="chev">›</span>'}</button>
     </div>
-    <div class="h2"><span>Тюнінг · ${partCount(c)}/${partSlots(c)}</span><span>${m.ev ? `${ic('bolt')} електро · ` : ''}деталі від ${S.TIERS[minTier].name}</span></div>
-    <div class="list">${S.partKeysOf(c.model).map((k) => {
+    <div class="h2 tune-h"><span>Тюнінг <b>${partCount(c)}</b>/${partSlots(c)}</span><span>${m.ev ? `${ic('bolt')} електро · ` : ''}деталі від ${S.TIERS[minTier].name}</span></div>
+    <div class="tune">${S.partKeysOf(c.model).map((k) => {
       const t = c.parts[k];
-      return `<button class="li" data-act="carSlot" data-id="${c.id}" data-type="${k}">${partArt(k, t, t ? 'sm' : 'sm empty')}<div class="grow"><b>${S.PARTS[k].name}</b><div class="small muted">${t ? S.partEffect(k, t) : S.PARTS[k].hint}</div></div>
-        ${t ? clsBadge(tierCls(t)) + ` <b>${S.TIER_BY_ID[t].name}</b>` : '<span class="muted small">Порожньо ›</span>'}</button>`;
+      return `<button class="ptile ${t ? 'on' : 'empty'}" data-act="carSlot" data-id="${c.id}" data-type="${k}" ${t ? `style="--c:${S.CLASSES[tierCls(t)].color}"` : ''}>${partArt(k, t, t ? 'sm' : 'sm empty')}
+        <span class="ptile-tx"><b>${S.PARTS[k].name}</b><span>${t ? S.partEffect(k, t) : S.PARTS[k].hint}</span></span>
+        ${t ? `<span class="ptile-tier">${clsBadge(tierCls(t))}${S.TIER_BY_ID[t].name}</span>` : `<span class="ptile-add">${ic('plus')}</span>`}</button>`;
     }).join('')}</div>
     ${c.status === 'garage' ? `<div class="btns"><button class="btn yellow" data-act="raceWith" data-id="${c.id}">${ic('flag-3')} Гонка</button>${m.secret ? '' : `<button class="btn ghost" data-act="carSellMenu" data-id="${c.id}">${ic('cash')} Продати</button>`}</div>
       ${m.secret ? '<div class="tiny muted center mt">Секретна машина — нагорода за колекцію. Її не можна продати, обміняти чи поставити в апгрейд.</div>' : ''}` : ''}`}`);
@@ -793,26 +816,38 @@ TABS.cases = () => {
     const m = M(car.model);
     const rank = S.rankOf(m.cls), color = S.CLASSES[m.cls].color;
     const fresh = state.fx?.type === 'case';
+    // Value against the price of the case it came from: ×2,4 reads instantly as "won", ×0,3 as "try again".
+    const from = S.CASE_BY_ID[state.dropCase] || cs;
+    const mult = from.price ? car.value / from.price : 0;
     stage = `<div class="reveal-wrap r${rank}" id="revealWrap" style="--c:${color}"><div class="art ${fresh ? 'reveal' : ''}" id="dropArt">${carArt(car.model, { glow: rank >= 2 })}</div></div>
-      <div class="result-name ${fresh ? 'pop' : ''} ${rank >= 3 ? 'shimmer' : ''}" style="--c:${color}">${esc(m.name)}</div>
-      <div class="mt ${fresh ? 'pop2' : ''}">${clsBadge(m.cls)} <span class="chip" style="color:${color}">${S.CLASSES[m.cls].name}</span> <span class="chip">${flag(car.model)} ${S.COUNTRIES[m.country].name}</span>${forced ? ' <span class="chip">гарантія</span>' : ''}${d[0].fragment ? ` <span class="chip" style="color:var(--accent)">${ic('key')} +фрагмент</span>` : ''}</div>
-      <div class="small muted mt ${fresh ? 'pop2' : ''}">${isNew ? `<span style="color:var(--accent)">${ic('sparkles')} Нова в колекції</span> · ` : ''}Вартість <b id="dropValue">${S.fmt(car.value)}</b>${d[0].sold ? ` · <span class="win">продано за ${S.fmt(sellPrice(car.model))}</span>` : ''}</div>`;
+      ${isNew ? `<div class="newtag ${fresh ? 'pop' : ''}">${ic('sparkles')} Нова в колекції</div>` : ''}
+      <div class="result-name r${rank} ${fresh ? 'pop' : ''} ${rank >= 3 ? 'shimmer' : ''}" style="--c:${color}">${esc(m.name)}</div>
+      <div class="rarity-row ${fresh ? 'pop2' : ''}"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span><span class="chip">${flag(car.model)} ${S.COUNTRIES[m.country].name}</span>${forced ? ' <span class="chip">гарантія</span>' : ''}${d[0].fragment ? ` <span class="chip frag">${ic('key')} +фрагмент</span>` : ''}</div>
+      <div class="drop-value ${fresh ? 'pop2' : ''}"><span>Вартість</span><b id="dropValue">${S.fmt(car.value)}</b>${mult ? `<span class="xmult ${mult >= 1 ? 'up' : ''}">×${dec(mult, mult >= 10 ? 0 : 1)}</span>` : ''}</div>
+      ${d[0].sold ? `<div class="small win center">Продано за ${S.fmt(sellPrice(car.model))}</div>` : ''}`;
   } else if (d?.length) {
     const fresh = state.fx?.type === 'case';
-    stage = `<div class="multi">${d.map((r, i) => {
+    const best = d.reduce((a, r) => Math.max(a, S.rankOf(M(r.car.model).cls)), 0);
+    stage = `<div class="multi n${d.length}">${d.map((r, i) => {
+      const rk = S.rankOf(M(r.car.model).cls);
       const c = S.CLASSES[M(r.car.model).cls].color;
       const sell = dropAlive(r) ? `<button class="dropsell" data-act="sellDrop" data-id="${r.car.id}">${ic('cash')}${S.short(sellPrice(r.car.model))}</button>`
         : r.sold ? '<div class="dropsell done">Продано</div>' : '';
-      return `<div class="${fresh ? 'flip-in' : ''} ${S.rankOf(M(r.car.model).cls) >= 1 ? 'rare' : ''} ${r.sold ? 'sold' : ''}" style="--c:${c};animation-delay:${i * 180}ms">${r.sold ? carTile(r.car, { act: 'none' }) : carTile(r.car, { act: 'car', isNew: r.isNew })}${sell}</div>`;
-    }).join('')}</div>`;
+      return `<div class="dcell r${rk} ${fresh ? 'flip-in' : ''} ${rk >= 1 ? 'rare' : ''} ${rk === best && best >= 2 ? 'best' : ''} ${r.sold ? 'sold' : ''}" style="--c:${c};animation-delay:${i * 180}ms">${r.sold ? carTile(r.car, { act: 'none' }) : carTile(r.car, { act: 'car', isNew: r.isNew })}${sell}</div>`;
+    }).join('')}</div>
+    <div class="multi-sum ${fresh ? 'pop2' : ''}"><span>${d.length} ${plural(d.length, ['машина', 'машини', 'машин'])}${d.some((r) => r.isNew) ? ` · <span class="newc">${ic('sparkles')} ${(() => { const k = d.filter((r) => r.isNew).length; return `${k} ${plural(k, ['нова', 'нові', 'нових'])}`; })()}</span>` : ''}</span><b>Разом ${S.short(d.reduce((s, r) => s + r.car.value, 0))}</b></div>`;
   } else {
     stage = `<div class="reel-wrap" id="reelWrap"><div class="reel" id="reel">${Array.from({ length: 6 }, () => reelCard(weightedModel(cs))).join('')}</div></div>`;
   }
   const pity = S.pityClasses(cs);
   const guarantee = [[pity.first, S.PITY - (me.pity[cs.id] || 0)], [pity.second, S.PITY2 - (me.pity[cs.id + ':2'] || 0)]]
     .filter(([cls]) => cls).map(([cls, left]) => `${clsBadge(cls)} або краще через ${left}`).join(' · ');
+  const top = S.CLASS_ORDER.filter((c) => cs.weights[c]).pop();
   return `<div class="feed" id="dropFeed"></div>
-    <div class="row between"><button class="picker" data-act="casePicker">${caseIcon(cs)} ${esc(cs.name)} ▾</button>${dayCase ? `<span class="chip dayc">${ic('flame')} Кейс дня −${S.CASE_OF_DAY.off * 100}%</span>` : ''}<button class="iconbtn" data-act="odds">i</button></div>
+    <div class="casebar"><button class="picker" data-act="casePicker" style="--c:${S.CLASSES[top].color}"><span class="picker-ic">${caseIcon(cs)}</span>
+      <span class="picker-tx"><b>${esc(cs.name)}</b><span class="picker-sub">${oddsBar(cs.weights)}${dayCase ? `<span class="chip dayc">${ic('flame')} Кейс дня −${S.CASE_OF_DAY.off * 100}%</span>` : ''}</span></span>
+      <span class="picker-chev">${ic('chevron-right')}</span></button>
+      <button class="iconbtn" data-act="odds" aria-label="Що всередині">${ic('info-circle')}</button></div>
     <div class="stage ${d?.length ? 'lit' : ''}" id="stage" style="${d?.length > 1 ? 'height:auto;min-height:230px;' : ''}${d?.length ? `--c:${S.CLASSES[M(d.reduce((a, r) => (S.rankOf(M(r.car.model).cls) > S.rankOf(M(a.car.model).cls) ? r : a)).car.model).cls].color}` : ''}">${stage}</div>
     ${cs.starter ? '' : `<div class="seg">${[1, 3, 6].map((k) => `<button class="${k === n ? 'on' : ''}" data-act="pickCount" data-n="${k}">×${k}</button>`).join('')}</div>`}
     ${(() => {
@@ -820,7 +855,7 @@ TABS.cases = () => {
       if (free < n) return '<button class="btn" disabled>Гараж заповнений</button>';
       // Not enough money: say so on the button, with how much is missing.
       if (paid && short > 0) return `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(short)}</button>`;
-      return `<button class="btn ${dayCase ? 'yellow' : ''}" data-act="openCase">${paid ? `${d && state.dropCase === cs.id ? 'Відкрити ще' : d ? `Відкрити «${esc(cs.name)}»` : 'Відкрити'} · ${S.fmt(price * paid)}${dayCase ? ` <s class="muted" style="font-weight:500">${S.short(cs.price * paid)}</s>` : ''}${keys ? ` + ${ic('key')}${Math.min(keys, n)}` : ''}` : cs.starter ? 'Відкрити безкоштовно' : `Відкрити ключем ${ic('key')} ${n}`}</button>`;
+      return `<button class="btn opencase ${dayCase ? 'yellow' : ''}" data-act="openCase">${paid ? `<span class="oc-l">${d && state.dropCase === cs.id ? 'Відкрити ще' : d ? `Відкрити «${esc(cs.name)}»` : 'Відкрити'}</span><span class="oc-p">${S.fmt(price * paid)}${dayCase ? ` <s>${S.short(cs.price * paid)}</s>` : ''}${keys ? ` + ${ic('key')}${Math.min(keys, n)}` : ''}</span>` : cs.starter ? 'Відкрити безкоштовно' : `Відкрити ключем ${ic('key')} ${n}`}</button>`;
     })()}
     ${cs.starter ? '<div class="tiny muted center mt">Подарунок новачку</div>' : ''}
     ${free < n ? '<div class="tiny muted center mt">Продай авто або купи місце в гаражі</div>' : ''}
@@ -830,15 +865,15 @@ TABS.cases = () => {
       const sellBtn = alive.length ? `<button class="btn ghost btn2" data-act="sellDrops"><span>${ic('cash')} ${alive.length > 1 ? 'Продати все' : 'Продати'}</span><small>${S.short(sum)}</small></button>` : '';
       return `<div class="btns mt"><button class="btn outline" data-act="toGarage">У гараж</button>${sellBtn}</div>`;
     })() : ''}
-    <div class="card row between mt"><span>Швидке відкриття</span><button class="toggle ${state.fast ? 'on' : ''}" data-act="toggleFast"></button></div>
     ${cs.starter ? '' : (() => {
       const fr = me.fragments?.[cs.id] || 0, need = S.FRAGMENTS_PER_KEY;
       const pity1 = pity.first ? S.PITY - (me.pity[cs.id] || 0) : 0;
       return `<div class="card hooks mt">
-        <div class="hook"><div class="row between"><span>${ic('key')} Фрагменти ключа</span><b>${fr}/${need}</b></div><div class="frag-bar"><i style="width:${(fr / need) * 100}%"></i></div><div class="tiny muted">Кожна машина дешевша за кейс дає фрагмент · ${need} фрагментів = безкоштовне відкриття${keys ? ` · у тебе ${ic('key')} ${keys}` : ''}</div></div>
-        ${pity.first ? `<div class="hook"><div class="row between"><span>${ic('shield-check')} Гарантія ${clsBadge(pity.first)} або краще</span><b>через ${pity1}</b></div><div class="frag-bar"><i style="width:${((S.PITY - pity1) / S.PITY) * 100}%;background:${S.CLASSES[pity.first].color}"></i></div></div>` : ''}
+        <div class="hook"><div class="row between"><span class="hook-t">${ic('key')} Фрагменти ключа</span><b>${fr}<small>/${need}</small></b></div><div class="pips">${Array.from({ length: need }, (_, i) => `<i class="${i < fr ? 'on' : ''}"></i>`).join('')}</div><div class="tiny muted">Кожна машина дешевша за кейс дає фрагмент · ${need} фрагментів = безкоштовне відкриття${keys ? ` · у тебе ${ic('key')} ${keys}` : ''}</div></div>
+        ${pity.first ? `<div class="hook" style="--c:${S.CLASSES[pity.first].color}"><div class="row between"><span class="hook-t">${ic('shield-check')} Гарантія ${clsBadge(pity.first)} або краще</span><b>через ${pity1}</b></div><div class="frag-bar pity"><i style="width:${((S.PITY - pity1) / S.PITY) * 100}%"></i></div></div>` : ''}
       </div>`;
-    })()}`;
+    })()}
+    <div class="fastrow"><span>${ic('bolt')} Швидке відкриття <small>без рулетки</small></span><button class="toggle ${state.fast ? 'on' : ''}" data-act="toggleFast" aria-label="Швидке відкриття"></button></div>`;
 };
 H.toGarage = () => {
   state.drop = null;
@@ -883,8 +918,8 @@ H.casePicker = () => {
   const group = (g, title) => {
     const list = S.CASES.filter((c) => c.group === g && (!c.starter || me.keys[c.id]));
     if (!list.length) return '';
-    return `<div class="h2"><span>${title}</span></div><div class="list">${list.map((c) => `<button class="li ${c.id === state.caseId ? 'on' : ''}" data-act="pickCase" data-id="${c.id}">
-      <span class="ic">${caseIcon(c)}</span><div class="grow"><b>${esc(c.name)}${c.id === me.caseOfDay ? ` <span class="chip dayc">${ic('flame')} −${S.CASE_OF_DAY.off * 100}%</span>` : ''}</b>${dots(c.weights)}</div><div class="center"><b>${c.starter ? 'Безкоштовно' : c.id === me.caseOfDay ? `<span style="color:var(--accent)">${S.short(dayPrice(c))}</span>` : S.short(c.price)}</b>${me.keys[c.id] && !c.starter ? `<div class="tiny win">${ic('key')} ${me.keys[c.id]}</div>` : ''}</div></button>`).join('')}</div>`;
+    return `<div class="h2"><span>${title}</span></div><div class="list cases-list">${list.map((c) => `<button class="li ${c.id === state.caseId ? 'on' : ''}" data-act="pickCase" data-id="${c.id}" style="--c:${S.CLASSES[S.CLASS_ORDER.filter((k) => c.weights[k]).pop()].color}">
+      <span class="ic">${caseIcon(c)}</span><div class="grow"><b>${esc(c.name)}${c.id === me.caseOfDay ? ` <span class="chip dayc">${ic('flame')} −${S.CASE_OF_DAY.off * 100}%</span>` : ''}</b>${oddsBar(c.weights)}${dots(c.weights)}</div><div class="center"><b>${c.starter ? 'Безкоштовно' : c.id === me.caseOfDay ? `<span style="color:var(--accent)">${S.short(dayPrice(c))}</span>` : S.short(c.price)}</b>${me.keys[c.id] && !c.starter ? `<div class="tiny win">${ic('key')} ${me.keys[c.id]}</div>` : ''}</div></button>`).join('')}</div>`;
   };
   sheet('Вибір кейсу', group('gift', 'Подарунок новачку') + group('rarity', 'За рідкістю') + group('country', 'За країнами'));
 };
@@ -1032,6 +1067,8 @@ function spinReel({ cardAt, color, rank, lean = 0, wrap = $('#reelWrap'), reel =
       const w = reel.children[W];
       w.style.setProperty('--c', color);
       w.classList.add('winner');
+      wrap.style.setProperty('--c', color);
+      wrap.classList.add('stopped', `r${rank}`); // the rest of the strip dims, the gate takes the winner's colour
       haptic(rank >= 2 ? 'heavy' : quiet ? 'light' : 'medium');
       if (rank >= 4 && !quiet) FX.flash(color, 0.12, 400);
     }, dur + 100);
