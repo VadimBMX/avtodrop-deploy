@@ -54,7 +54,11 @@ export function celebrate(result, { casePrice = 0, onShare } = {}) {
     const rank = Math.max(3, S.rankOf(m.cls)), dream = !!result.dream;
     const color = dream && rank < 4 ? '#ffc400' : S.CLASSES[m.cls].color;
     const t = TUNE[Math.min(5, rank)];
-    const mult = casePrice ? car.value / casePrice : 0;
+    // Honest numbers (reports/audit.md №1): the big figure is the sale — what the dealer pays right now — and «×N від
+    // ціни кейсу» is that against the case (green only when it pays back); the collection price follows in grey. A
+    // secret car can't be sold: its collection price is the figure.
+    const sale = S.saleOf(car), main = sale ?? car.value;
+    const mult = casePrice && sale != null ? sale / casePrice : 0;
     const el = document.createElement('div');
     el.className = `wow r${rank}${dream ? ' dream' : ''}${reduced ? ' still' : ''}`;
     el.style.setProperty('--c', color);
@@ -67,7 +71,8 @@ export function celebrate(result, { casePrice = 0, onShare } = {}) {
           <div class="wow-refl" aria-hidden="true">${carArt(car.model, { look: car.look })}</div><div class="wow-car">${carArt(car.model, { look: car.look })}</div></div>
         <div class="wow-tags"><span class="stamp r${S.rankOf(m.cls)}" style="--c:${S.CLASSES[m.cls].color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span>${result.isNew ? `<span class="wow-new">${ic('sparkles')} Нова в колекції</span>` : ''}</div>
         <div class="wow-name">${esc(m.name)}</div>
-        <div class="wow-val"><b class="wow-num">${S.fmt(car.value)}</b>${mult ? `<span class="wow-mult ${mult >= 1 ? 'up' : ''}">×${(mult >= 10 ? mult.toFixed(0) : mult.toFixed(1)).replace('.', ',')} <small>від ціни кейсу</small></span>` : ''}</div>
+        <div class="wow-val"><span class="wow-lbl">${sale == null ? 'Колекційна ціна' : 'Продаж'}</span><b class="wow-num">${S.fmt(main)}</b>${mult ? `<span class="wow-mult ${mult >= 1 ? 'up' : ''}">${S.multText(mult)} <small>від ціни кейсу</small></span>` : ''}
+          <span class="wow-coll">${sale == null ? 'трофей колекції — не продається' : `Колекційна ціна ${S.fmt(car.value)}${casePrice ? ` · ${S.multText(car.value / casePrice)} у колекції` : ''}`}</span></div>
         ${dream ? `<div class="wow-dream">${ic('trophy')} Мрію здійснено! Обери наступну в гаражі</div>` : ''}
         <div class="wow-acts"><button class="btn yellow wow-share" type="button">${ic('share')} Поділитися</button></div>
         <div class="wow-tap">Торкнись, щоб продовжити</div>
@@ -111,7 +116,7 @@ export function celebrate(result, { casePrice = 0, onShare } = {}) {
       haptic('heavy');
       later(160, () => haptic(rank >= 4 ? 'heavy' : 'medium'));
       later(380, () => haptic('success'));
-      FX.tween(el.querySelector('.wow-num'), 0, car.value, 1100, S.fmt, 250);
+      FX.tween(el.querySelector('.wow-num'), 0, main, 1100, S.fmt, 250);
     });
     later(900, () => el.classList.add('ready'));
     later(1000, () => FX.confetti([color, '#ffd500', '#ffffff', rank >= 5 ? '#22d3ee' : '#2f7bff'], t.confetti));
@@ -158,9 +163,10 @@ function roundRect(c, x, y, w, h, r) {
   c.arcTo(x, y, x + w, y, r);
   c.closePath();
 }
-// model + value (+ mult, who, bot) → Blob (image/jpeg). The car photo comes from the same origin, so the canvas
+// model + value (+ sale, mult, who, bot) → Blob (image/jpeg). sale: what the car sells for (null: a secret car);
+// mult: the sale against the case price. The car photo comes from the same origin, so the canvas
 // stays exportable; without a photo the drawn silhouette (SVG) is used.
-export async function shareCard({ model, value, mult = 0, who = '', bot = '' }) {
+export async function shareCard({ model, value, sale = null, mult = 0, who = '', bot = '' }) {
   const m = S.MODELS[model];
   const W = 1080, H = 1920;
   const cv = document.createElement('canvas');
@@ -309,9 +315,25 @@ export async function shareCard({ model, value, mult = 0, who = '', bot = '' }) 
   c.shadowBlur = 30;
   const y = fitText(c, m.name, W / 2, 1390, 960, 116);
   c.restore();
-  c.fillStyle = '#c3cad6';
-  c.font = '600 46px Manrope, sans-serif';
-  c.fillText(`Вартість ${S.fmt(value || m.price)}${mult >= 1.5 ? `  ·  ×${mult >= 10 ? mult.toFixed(0) : mult.toFixed(1).replace('.', ',')} від кейсу` : ''}`, W / 2, y + 24);
+  // Honest numbers: the sale first (×N of the case only when the sale pays it back), the collection price under it in
+  // grey; a two-line name leaves room for one compact line only (the call-to-action box starts at 1670).
+  const coll = `Колекційна ціна ${S.fmt(value || m.price)}`;
+  if (sale == null) {
+    c.fillStyle = '#c3cad6';
+    c.font = '600 46px Manrope, sans-serif';
+    c.fillText(coll, W / 2, y + 24);
+  } else if (y + 84 > 1640) {
+    c.fillStyle = '#c3cad6';
+    c.font = '600 40px Manrope, sans-serif';
+    c.fillText(`Продаж ${S.short(sale)}  ·  колекційна ${S.short(value || m.price)}`, W / 2, y + 24);
+  } else {
+    c.fillStyle = '#ffffff';
+    c.font = '700 50px Manrope, sans-serif';
+    c.fillText(`Продаж ${S.fmt(sale)}${mult >= 1 ? `  ·  ${S.multText(mult)} від кейсу` : ''}`, W / 2, y + 24);
+    c.fillStyle = '#8b919c';
+    c.font = '600 38px Manrope, sans-serif';
+    c.fillText(coll, W / 2, y + 84);
+  }
   // call to action
   roundRect(c, 110, 1670, W - 220, 150, 28);
   c.fillStyle = '#ffc400';

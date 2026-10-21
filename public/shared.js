@@ -505,6 +505,41 @@ export const originSellOf = (origin) => (origin && ORIGIN_SELL[origin]) || 1;
 export const sellPriceOf = (model, ageMs = Infinity, origin = null) =>
   Math.floor(MODELS[model].price * (MODELS[model].homeOnly ? HOME_SELL_RATE : SELL_RATES[MODELS[model].cls] * originSellOf(origin)) * (ageMs < FRESH_SELL.hours * 3600e3 ? FRESH_SELL.rate : 1));
 
+// ---------- honest numbers (reports/audit.md №1, №14) ----------
+// The main money figure of a car everywhere is its SALE: what the dealer pays right now (the server sends it as
+// car.sell — SELL_RATES × the per-case share ORIGIN_SELL, FRESH_SELL included). The «колекційна ціна» (carValue: the
+// model plus installed parts and plate) is what the garage value, the rating, income and collections count; it is
+// shown second, in grey. Parts and the plate are never part of a sale — selling returns them to the warehouse and the
+// player — so a card names them apart. Secret cars can't be sold: null.
+export function saleOf(car) {
+  const m = MODELS[car?.model];
+  if (!m || m.secret) return null;
+  return car.sell ?? sellPriceOf(car.model, Infinity, car.origin);
+}
+// What a fresh drop of `model` out of case `cs` sells for (the reel, «Що всередині»). The starter case keeps the full rate.
+export const dropSaleOf = (model, cs) => sellPriceOf(model, 0, cs && !cs.starter ? cs.id : null);
+// Installed parts and the plate of a car: counted in its collection price, not in its sale.
+export function extrasOf(car) {
+  const parts = MODELS[car?.model] ? partKeysOf(car.model).reduce((s, k) => s + (TIER_BY_ID[car.parts?.[k]]?.price || 0), 0) : 0;
+  return { parts, plate: car?.plate?.value ?? car?.plateValue ?? 0 };
+}
+// «×0,48» · «×1,8» · «×12»: a multiplier against a case price.
+export function multText(x) {
+  const d = x >= 9.95 ? 0 : x >= 0.995 ? 1 : 2;
+  return '×' + x.toFixed(d).replace('.', ',');
+}
+// The dream car (№14) without a bar that money fills: from the real drop chance in its best case — how many openings
+// it takes on average (1 / chance) and what they cost, and the chance to get it with the money and keys the player
+// has right now. null: no case drops it.
+export function dreamOutlook(modelId, { balance = 0, keys = {} } = {}) {
+  const ch = dreamChances(modelId)[0];
+  if (!ch) return null;
+  const cs = CASE_BY_ID[ch.caseId], p = ch.pct / 100;
+  const opens = Math.max(1, Math.round(1 / p));
+  const can = Math.max(0, Math.floor(balance / cs.price)) + (keys[cs.id] || 0);
+  return { caseId: cs.id, pct: ch.pct, opens, spend: opens * cs.price, can, chanceNow: 1 - Math.pow(1 - p, can) };
+}
+
 // Inside a class, cheaper cars drop more often (weight ∝ 1/√price), like in the original.
 export function modelWeights(list) {
   return list.map((m) => 1 / Math.sqrt(m.price));
@@ -1715,7 +1750,7 @@ export const ACHIEVEMENTS = [
   { key: 'rarest', title: 'Мисливець', icon: 'diamond', goals: [2, 3, 4, 5], rewards: [10000, 75000, 750000, 2000000],
     labels: ['Отримай епічну (B) машину', 'Отримай легендарну (A) машину', 'Отримай міфічну (S) машину', 'Отримай секретну машину'] },
   { key: 'secrets', title: 'Секретні справи', icon: 'lock', text: 'Збери {n} секретних машин', goals: [1, 3, 6], rewards: [1000000, 4000000, 12000000] },
-  { key: 'garage', title: 'Магнат', icon: 'building-warehouse', text: 'Гараж вартістю {n}', money: true, goals: [1e6, 250e6, 2.5e9, 25e9], rewards: [5000, 100000, 1000000, 5000000] },
+  { key: 'garage', title: 'Магнат', icon: 'building-warehouse', text: 'Колекційна ціна гаража {n}', money: true, goals: [1e6, 250e6, 2.5e9, 25e9], rewards: [5000, 100000, 1000000, 5000000] },
   { key: 'level', title: 'Ветеран', icon: 'star', text: 'Досягни {n} рівня', goals: [5, 10, 20, 30], rewards: [10000, 60000, 500000, 2500000] },
   { key: 'play', title: 'Свій у гаражі', icon: 'clock', text: 'Проведи в грі {n} год', hours: true, goals: [1, 10, 50, 200],
     rewards: [5000, { money: 25000, fuel: 1 }, { money: 100000, fuel: 1 }, { money: 300000, fuel: 1 }] },
@@ -2503,5 +2538,5 @@ export function shareCaption(modelId) {
   const m = MODELS[modelId];
   if (!m) return '🏁 АВТОДРОП — кейси зі справжніми авто. Перший кейс безкоштовно 👇';
   const cls = CLASSES[m.cls];
-  return `🏁 Я вибив ${m.cls === 'X' ? 'секретну' : cls.name.toLowerCase().replace(/ий$/, 'у')} ${m.name} в АВТОДРОП! Вартість ${short(m.price)}.\nВідкрий свій перший кейс безкоштовно 👇`;
+  return `🏁 Я вибив ${m.cls === 'X' ? 'секретну' : cls.name.toLowerCase().replace(/ий$/, 'у')} ${m.name} в АВТОДРОП! Колекційна ціна ${short(m.price)}.\nВідкрий свій перший кейс безкоштовно 👇`;
 }

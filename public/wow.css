@@ -120,3 +120,6 @@
 .dream-grid .dream-tile .tr .i { width: 15px; height: 15px; }
 /* claim / event banners wait while the takeover is on screen */
 body:has(.wow) #banners { visibility: hidden; }
+/* Чесні цифри: «Продаж» над сумою, колекційна ціна сірим рядком під нею */
+.wow-lbl { flex-basis: 100%; text-align: center; font: 600 12px var(--f-body); letter-spacing: .8px; text-transform: uppercase; color: #c3cad6; opacity: .8; margin-bottom: -4px; }
+.wow-coll { flex-basis: 100%; text-align: center; font: 500 13px var(--f-body); color: #8b919c; }

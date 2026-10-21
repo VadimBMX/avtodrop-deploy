@@ -2973,3 +2973,30 @@ button.li:active { background-color: #ffffff08; }
 .grid.sc-season { position: relative; isolation: isolate; padding: 10px; border-radius: 14px;
   background: radial-gradient(ellipse 80% 60% at 50% 0%, #5b3df055, transparent 70%), linear-gradient(180deg, #120c2a, #07090d 85%); box-shadow: inset 0 0 0 1px #ffc40033; }
 .grid.sc-season::before { content: 'СЕЗОН ' attr(data-season); position: absolute; z-index: -1; right: 12px; bottom: 4px; font: 800 34px/1 var(--f-disp); letter-spacing: 1px; color: #ffc40017; transform: skewX(-8deg); pointer-events: none; }
+/* Чесні цифри (audit №1/№14): продаж — головна цифра, колекційна ціна — сірим */
+.car .hn-sale { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.car .hn-sale .i { width: 13px; height: 13px; color: #4be08f; flex: none; }
+.car .meta.sellp { opacity: .85; }
+.hn-rsale b { color: var(--text); font-weight: 700; }
+.hn-coll { color: var(--muted); opacity: .8; }
+.garage-h .hn-gsum { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; text-align: right; color: var(--muted); font: inherit; letter-spacing: inherit; text-transform: none; padding: 0; background: none; }
+.garage-h .hn-gsum > span { font: 600 13px var(--f-body); }
+.garage-h .hn-gsum b { font: 700 15px var(--f-disp); color: var(--text); }
+.garage-h .hn-gsum small { display: inline-flex; align-items: center; gap: 3px; font: 500 11px var(--f-body); opacity: .8; }
+.garage-h .hn-gsum small .i { width: 12px; height: 12px; }
+.drop-value .hn-lbl { display: inline-flex; align-items: center; gap: 4px; }
+.drop-value .hn-lbl .i { width: 15px; height: 15px; color: #4be08f; }
+.drop-sell .hn-coll { font-size: 12.5px; }
+.hn-note { color: var(--muted); }
+.hn-dnote { margin-top: 4px; }
+.hn-dream .dream-bar { margin-top: 5px; }
+.hn-gloss b { color: var(--text); }
+.sheet .stat .val .sellp { white-space: normal; }
+.hub-val small.hn-hub { letter-spacing: .2px; }
+/* ×3/×6: the sale is on the button under each card, the card keeps the collection price on one grey line */
+.multi .dcell > .car .meta.row:has(.hn-sale) { display: none; }
+.multi .dcell > .car .meta.sellp { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+@media (max-width: 370px) {
+  .garage-h .hn-gsum > span { font-size: 12px; }
+  .garage-h .hn-gsum b { font-size: 14px; }
+}
