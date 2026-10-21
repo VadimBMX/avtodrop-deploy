@@ -3485,6 +3485,27 @@ export function createGame(db, opts = {}) {
       })(),
     };
   }
+  // Owners (ADMIN_IDS) and everyone with a panel role.
+  const staffIds = () => [...new Set([...(opts.admins || []), ...q("SELECT id FROM users WHERE role IN ('admin', 'helper')").all().map((r) => r.id)])];
+  // Release notes for the team: on start, every changelog entry not announced yet goes to the owners, admins and
+  // helpers in one message (src/changelog.json, newest first). A fresh database announces only the newest entry.
+  function announceUpdates(log = [], { send = notify } = {}) {
+    const list = Array.isArray(log) ? log.filter((e) => e && e.id && Array.isArray(e.items)) : [];
+    if (!list.length) return { sent: 0 };
+    const last = metaGet('changelog_sent');
+    const idx = last ? list.findIndex((e) => e.id === last) : 1;
+    const fresh = list.slice(0, idx < 0 ? list.length : idx);
+    if (!fresh.length) return { sent: 0 };
+    metaSet('changelog_sent', list[0].id);
+    const text = ['🆕 Вийшло оновлення АВТОДРОП', ...fresh.map((e) => `\n${e.title ? `${e.title}\n` : ''}${e.items.map((i) => `• ${i}`).join('\n')}`)].join('\n').slice(0, 3900);
+    const ids = staffIds();
+    for (const id of ids) {
+      try {
+        send(id, text);
+      } catch {}
+    }
+    return { sent: ids.length, entries: fresh.length };
+  }
   // ---------- roles in the admin panel ----------
   // owner: in ADMIN_IDS (Railway variable) — can't be changed from the panel; admin: everything; helper: only
   // looking at players, answering support and writing messages (HELPER_ACTIONS).
@@ -3519,7 +3540,7 @@ export function createGame(db, opts = {}) {
     if (q('SELECT COUNT(*) n FROM support WHERE user_id = ? AND answer IS NULL').get(uid).n >= SUPPORT_OPEN_MAX) fail('Дочекайся відповіді на попередні повідомлення');
     const id = Number(q('INSERT INTO support (user_id, text, created_at) VALUES (?, ?, ?)').run(uid, t, now()).lastInsertRowid);
     // The owner(s) and everyone with a panel role (admin, helper) hear about it; the writer never pings themself.
-    const staff = new Set([...(opts.admins || []), ...q("SELECT id FROM users WHERE role IN ('admin', 'helper')").all().map((r) => r.id)]);
+    const staff = new Set(staffIds());
     staff.delete(uid);
     for (const a of staff) {
       try {
@@ -4248,5 +4269,5 @@ export function createGame(db, opts = {}) {
     alog('bot', 'promo', null, { code: c, amount: Number(amount), uses: Number(uses), days: days || null });
     return c;
   });
-  return { api, admin, adminCall, push, pushCandidates: push.candidates, pushMark: push.mark, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, createPromo: botPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)) };
+  return { api, admin, adminCall, announceUpdates, push, pushCandidates: push.candidates, pushMark: push.mark, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, createPromo: botPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)) };
 }

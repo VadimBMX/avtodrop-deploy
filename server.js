@@ -33,6 +33,12 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     bot = createBot({ token, webappUrl, admins, game, log });
     sender = createSender({ send: bot.sendMessage, onBlocked: game.push.block, isBlocked: game.push.isBlocked, log });
     reminders = createReminders({ game, sender, markup: () => bot.playButton('🎁 Відкрити гру'), log });
+    // Tell the team what changed in this release (once per changelog entry).
+    try {
+      game.announceUpdates(JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'changelog.json'), 'utf8')));
+    } catch (e) {
+      log('changelog:', e.message);
+    }
   }
 
   // Static files: gzip/brotli once per file version, ?v=<hash> URLs cached for a year, the rest revalidated (src/static.js).

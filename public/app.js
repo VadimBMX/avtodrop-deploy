@@ -397,6 +397,7 @@ function renderHeader() {
 }
 function go(page) {
   state.page = page;
+  if (page === 'quests') state.questTabPicked = false;
   closeModal();
   window.scrollTo(0, 0);
   render();
@@ -428,9 +429,11 @@ $('#avatar').addEventListener('click', () => openProfile());
 H.go = (d) => go(d.page);
 
 async function refresh(rerender = true) {
-  const qr = me?.questReady;
+  const qr = me?.questReady, qs = me?.questSplit;
   me = await api('me');
   me.questReady = qr; // quests aren't in `me`: kept from the last pulse / menu fetch
+  me.questSplit = qs;
+  if (state.page === 'quests') pulseSoon();
   if (state.hub) state.hub.at = 0; // the menu's live numbers refetch on its next render
   clockOffset = me.now - Date.now();
   if (rerender) render();
@@ -4486,11 +4489,24 @@ H.sendTrade = async () => {
 };
 
 // ---------- quests ----------
-PAGES.quests = async () => {
-  const seg = `<div class="seg">${[['day', 'Сьогодні'], ['week', 'Тиждень']].map(([k, t]) => `<button class="${(state.questTab || 'day') === k ? 'on' : ''}" data-act="questTab" data-k="${k}">${t}</button>`).join('')}</div>`;
-  return seg + (state.questTab === 'week' ? await weeklyPage() : await dailyQuests());
+const questSeg = () => {
+  const n = me.questSplit || {};
+  return `<div class="seg" id="questSeg">${[['day', 'Сьогодні'], ['week', 'Тиждень']].map(([k, t]) => `<button class="${(state.questTab || 'day') === k ? 'on' : ''}" data-act="questTab" data-k="${k}">${t}${n[k] ? `<span class="seg-n" aria-label="можна забрати: ${n[k]}">${n[k]}</span>` : ''}</button>`).join('')}</div>`;
 };
-H.questTab = (d) => (state.questTab = d.k, render());
+function paintQuestSeg() {
+  const el = $('#questSeg');
+  if (el) el.outerHTML = questSeg();
+}
+PAGES.quests = async () => {
+  // Opened from the menu with rewards only on the weekly tab: go straight there.
+  if (!state.questTabPicked) {
+    const n = me.questSplit || {};
+    if (!n.day && n.week) state.questTab = 'week';
+    else if (n.day && !n.week) state.questTab = 'day';
+  }
+  return questSeg() + (state.questTab === 'week' ? await weeklyPage() : await dailyQuests());
+};
+H.questTab = (d) => (state.questTab = d.k, state.questTabPicked = true, render());
 // ---------- weekly route: 4 tasks for fragments + chests for active days ----------
 const WD = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
 const fragWord = (n) => plural(n, ['фрагмент', 'фрагменти', 'фрагментів']);
@@ -5581,6 +5597,12 @@ H.giftOk = async () => {
   await refresh();
 };
 const busyForBanners = () => state.opening || (state.race && state.race.phase !== 'done') || battleTimers.length || WOW.isOpen();
+// After a claim on the quests page: ask the server again right away so the tab counters drop without waiting.
+let pulseTimer = 0;
+function pulseSoon() {
+  clearTimeout(pulseTimer);
+  pulseTimer = setTimeout(() => pulse().catch(() => {}), 300);
+}
 async function pulse() {
   if (document.hidden || !me) return;
   let p;
@@ -5591,6 +5613,11 @@ async function pulse() {
   }
   clockOffset = p.now - Date.now();
   const qReady = p.claims.filter((c) => c.kind === 'quest' || c.kind === 'weekly' || c.kind === 'wchest').length;
+  // Where the rewards are: the «Сьогодні» / «Тиждень» tabs of Завдання get their own counters.
+  const split = { day: p.claims.filter((c) => c.kind === 'quest' || c.kind === 'newbie').length, week: p.claims.filter((c) => c.kind === 'weekly' || c.kind === 'wchest').length };
+  const splitChanged = split.day !== me.questSplit?.day || split.week !== me.questSplit?.week;
+  me.questSplit = split;
+  if (splitChanged && state.page === 'quests') paintQuestSeg();
   if (p.balance !== me.balance || p.unread !== me.unread || p.achReady !== me.achReady || qReady !== (me.questReady || 0)) {
     me.balance = p.balance;
     me.unread = p.unread;

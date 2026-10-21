@@ -2804,3 +2804,6 @@ button.li:active { background-color: #ffffff08; }
 .wg-meter .wash-meter { flex: 1; }
 .wg-pct { width: 44px; text-align: right; font: 700 16px var(--f-disp); }
 .wg-foot { margin-top: 12px; }
+
+/* Завдання: how many rewards wait on each tab */
+.seg button .seg-n { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 6px; padding: 0 5px; border-radius: 9px; background: var(--red, #ef4444); color: #fff; font: 700 11px/1 var(--f-body, inherit); vertical-align: 2px; }
