@@ -3,13 +3,14 @@
 export const CURRENCY = '₴';
 
 export const CLASSES = {
-  // Each class starts about 2× above the one below: a rare drop is worth several times its case, never a hundred times,
-  // so the cheap end of a case is never worthless next to its price (see CASE_CORRIDOR).
+  // Each class starts at least 1.33× above the top of the one below: a rare drop is worth several times its case, never
+  // a hundred times, so the cheap end of a case is never worthless next to its price (see CASE_CORRIDOR). The upper
+  // classes are wide, so dream cars feel dear (hypercars up to 300M); D/C stay cheap for beginners.
   D: { name: 'Звичайний', color: '#9aa4b2', lo: 40000, hi: 100000 },
   C: { name: 'Рідкісний', color: '#3b82f6', lo: 200000, hi: 600000 },
-  B: { name: 'Епічний', color: '#a855f7', lo: 1200000, hi: 3500000 },
-  A: { name: 'Легендарний', color: '#f59e0b', lo: 7000000, hi: 18000000 },
-  S: { name: 'Міфічний', color: '#ef4444', lo: 40000000, hi: 120000000 },
+  B: { name: 'Епічний', color: '#a855f7', lo: 2000000, hi: 8000000 },
+  A: { name: 'Легендарний', color: '#f59e0b', lo: 12000000, hi: 45000000 },
+  S: { name: 'Міфічний', color: '#ef4444', lo: 60000000, hi: 300000000 },
   X: { name: 'Секретний', color: '#22d3ee', lo: 0, hi: 0 },
 };
 export const CLASS_ORDER = ['D', 'C', 'B', 'A', 'S', 'X'];
@@ -34,7 +35,7 @@ export const COUNTRIES = {
 export const MAIN_COUNTRIES = ['UA', 'JP', 'DE', 'IT', 'US', 'GB', 'CN'];
 
 // [name, class, hp, kg, body, country, year, 'ev'?] — 'ev' marks an electric car (it takes the electric parts).
-// Prices come from the class range by power-to-weight; nothing is fixed, so adding a car reflows its class.
+// Prices come from the class range by power-to-weight and PRESTIGE (below); nothing is fixed, so adding a car reflows its class.
 const RAW = [
   ['ЗАЗ-965 «Горбатий»', 'D', 27, 640, 'hatch', 'UA', 1960],
   ['ЗАЗ-968М «Запорожець»', 'D', 41, 840, 'hatch', 'UA', 1980],
@@ -188,20 +189,20 @@ const RAW = [
   ['Yangwang U8', 'A', 1197, 3460, 'suv', 'CN', 2023, 'ev'],
   ['Hongqi S9', 'S', 1400, 1900, 'super', 'CN', 2023],
   ['NIO EP9', 'S', 1360, 1735, 'super', 'CN', 2017, 'ev'],
-  ['Yangwang U9', 'S', 1287, 2475, 'super', 'CN', 2024, 'ev'],
+  ['Yangwang U9', 'A', 1287, 2475, 'super', 'CN', 2024, 'ev'],
 ];
 
 // Secret cars: one per main country, given for collecting every car of that country. Value ≈ 1.5–2× what finishing
 // that collection costs on average with the country case (the rarest models decide it: Ukraine's four gold cars
 // at 0.5% together, Italy's four mythics), so a quick collection can't hand out a fortune and a long hunt is worth it.
 const SECRETS = [
-  ['АВТОДРОП Прототип «Синьо-жовтий»', 2000, 1200, 'super', 'UA', 2026, 200000000],
-  ['Toyota GR Super Sport', 1000, 1250, 'super', 'JP', 2024, 250000000],
-  ['Mercedes-Benz CLK GTR', 612, 1000, 'super', 'DE', 1999, 400000000],
-  ['Pagani Zonda R', 750, 1070, 'super', 'IT', 2009, 600000000],
-  ['Hennessey Venom F5', 1817, 1360, 'super', 'US', 2022, 400000000],
-  ['McLaren F1', 627, 1138, 'super', 'GB', 1995, 500000000],
-  ['Yangwang U9 Xtreme', 3000, 2480, 'super', 'CN', 2025, 350000000, 'ev'],
+  ['АВТОДРОП Прототип «Синьо-жовтий»', 2000, 1200, 'super', 'UA', 2026, 500000000],
+  ['Toyota GR Super Sport', 1000, 1250, 'super', 'JP', 2024, 625000000],
+  ['Mercedes-Benz CLK GTR', 612, 1000, 'super', 'DE', 1999, 1000000000],
+  ['Pagani Zonda R', 750, 1070, 'super', 'IT', 2009, 1500000000],
+  ['Hennessey Venom F5', 1817, 1360, 'super', 'US', 2022, 1000000000],
+  ['McLaren F1', 627, 1138, 'super', 'GB', 1995, 1250000000],
+  ['Yangwang U9 Xtreme', 3000, 2480, 'super', 'CN', 2025, 875000000, 'ev'],
 ];
 
 // Stable id from the name, so cars can be added anywhere in the list without breaking saved games.
@@ -211,16 +212,159 @@ export function slug(s) {
     .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
-// Price grows log-linearly with power-to-weight inside each class.
+// Prestige: what a car means to a player beyond its power-to-weight — icon status, real-world value and rarity, era.
+// −3 (mass-market, or fast only on paper: heavy EV sedans, new budget crossovers) … +3 (legend: R34, AE86, F40-type
+// icons, cult Soviet classics). Not listed = 0. It only reorders cars inside their class: the class keeps the same
+// ladder of prices (lo…hi), so case corridors, average drop value and income per class stay as they were.
+export const PRESTIGE_STEP = 0.2;
+const PRESTIGE = {
+  // ---- D ----
+  'Fiat 500': 3,                 // cult classic (1957–75), collectible, far above its 13 hp
+  'ЗАЗ-965 «Горбатий»': 2,       // Soviet/Ukrainian cult classic, collectible
+  'ГАЗ-24 «Волга»': 3,           // status car of the USSR, a classic for UA players
+  'ВАЗ-2101 «Копійка»': 1,       // the first Zhiguli, cult
+  'ВАЗ-2121 «Нива»': 1,          // holds value, legendary off-roader
+  'ЗАЗ-968М «Запорожець»': 1,    // cult, meme value
+  'Honda Civic EK': 1,           // JDM cult
+  'Daewoo Matiz': -2,            // the cheapest-car meme
+  'Fiat Uno': -2,
+  'ЗАЗ-1102 «Таврія»': -2,
+  'ЗАЗ Sens': -2,
+  'ЗАЗ-1103 «Славута»': -1,
+  'ВАЗ-2109': -1,
+  'Opel Vectra A': -2,
+  'Ford Sierra': -2,
+  'Volkswagen Passat B3': -2,
+  'Geely Coolray': -2,           // new budget crossover: top of D only by hp
+  'Haval Jolion': -1,
+  'Chery Tiggo 7 Pro': -1,
+  'BYD Dolphin': 1,              // new EV, real price above old cars
+  'Nissan Leaf': 0,
+  'Toyota Yaris': 0,
+  'Volkswagen Polo': 1,
+  // ---- C ----
+  'Lancia Delta HF Integrale': 3, // rally legend, dearest real-world C
+  'Toyota Corolla AE86': 3,      // Initial D icon
+  'Mitsubishi Lancer Evolution VI': 2, // Tommi Mäkinen
+  'ВАЗ-2105 VFTS': 3,            // rally Lada, UA/Soviet legend
+  'ГАЗ-24-24 «Волга» V8': 3,     // KGB chase car, rare
+  'Mercedes-Benz 190E 2.3-16': 2,
+  'Toyota Land Cruiser 80': 3,   // holds value, legend; last only by power-to-weight
+  'Mazda MX-5 NA': 2,
+  'Toyota Mark II JZX100': 1,
+  'Nissan 200SX S13': 1,
+  'Peugeot 205 GTI': 1,
+  'BMW 325i E30': 1,
+  'Renault Clio V6': 1,
+  'Toyota Supra MK3': 0,
+  'Volvo 240 Turbo': 0,
+  'Audi 80 quattro': 1,
+  'Tesla Model Y': -2,           // mass-market EV crossover
+  'Li Auto L9': -1,
+  'BYD Seal': 0,
+  'BYD Atto 3': 0,
+  'Geely Monjaro': 0,
+  'Jeep Wrangler': -1,
+  'BMW X5 E70': -1,
+  'Ford Mustang GT (2005)': -1,
+  'Volkswagen Golf GTI Mk7': -1,
+  'Mini Cooper S': -1,
+  // ---- B ----
+  'Nissan Skyline GT-R R34': 3,  // Fast & Furious / Gran Turismo icon, $150–300k today
+  'Toyota Supra A80': 3,
+  'Honda NSX NA1': 3,
+  'Mazda RX-7 FD': 3,
+  'BMW M3 E30': 3,               // homologation classic, dearer than any new M
+  'Ford Mustang (1967)': 2,
+  'BMW M3 E46': 1,
+  'Nissan Silvia S15': 1,
+  'Lotus Exige S': 0,
+  'Mitsubishi Lancer Evolution IX': 0,
+  'Subaru Impreza WRX STI': 0,
+  'Tesla Model 3 Performance': -2, // mass EV sedan
+  'BYD Han': -1,
+  'Zeekr 001': -1,
+  'Kia EV6 GT': -2,
+  'Hyundai Ioniq 5 N': -1,
+  'NIO ET7': -2,
+  'BMW i4 M50': -1,
+  'Rivian R1T': -1,
+  'Xiaomi SU7 Max': -2,
+  'Toyota GR Yaris': -1,
+  'Volkswagen Golf R': -1,
+  'Alfa Romeo Giulia Quadrifoglio': -1, // $80k sedan, top of B only by hp
+  'Chevrolet Camaro SS': -1,
+  'Dodge Challenger SRT Hellcat': -2, // $70k muscle car: top of B only by hp
+  // ---- A ----
+  'Ford GT': 3,                  // 1350 built, $1M today
+  'Ferrari 458 Italia': 3,
+  'Lamborghini Huracán EVO': 2,
+  'Aston Martin DBS Superleggera': 2,
+  'Porsche 911 Turbo S': 2,
+  'Dodge Viper ACR': 1,
+  'McLaren 570S': 1,
+  'Audi R8 V10 Plus': 1,
+  'Mercedes-AMG GT R': 1,
+  'Lamborghini Urus': 2,
+  'Nissan GT-R R35': 1,
+  'Mercedes-AMG G63': 1,
+  'ВАЗ-2108 Group B': 0,         // home-only rarity, keeps mid-A
+  'ГАЗ-13 «Чайка»': 1,           // Soviet state limousine
+  'ЗІЛ-41047': 1,                // Politburo limousine
+  'ГАЗ-24-95 «Волга» 4x4': 1,    // 5 built for Brezhnev
+  'Chevrolet Corvette C8': -1,   // $70k car, mid of A only by hp
+  'Tesla Model S Plaid': -2,     // $90k family sedan, A only for drag pace
+  'Lucid Air Sapphire': -2,      // luxury EV sedan
+  'Zeekr 001 FR': -2,            // $110k wagon
+  'Xiaomi SU7 Ultra': -2,        // $75k sedan: was the dearest A, above Ford GT
+  'Yangwang U8': -1,
+  'Yangwang U9': -2,             // $230k BYD supercar: moved S → A (not a hypercar)
+  'Tesla Cybertruck Cyberbeast': -1,
+  'GMC Hummer EV': -1,
+  'Audi RS e-tron GT': -1,
+  'Shelby GT500': -1,
+  'BMW M5 CS': 0,
+  'Porsche Taycan Turbo S': -1,
+  // ---- S ----
+  'Bugatti Bolide': 3,
+  'Ferrari LaFerrari': 3,
+  'Bugatti Chiron Super Sport': 2,
+  'Koenigsegg Agera RS': 2,
+  'Pagani Huayra': 3,
+  'McLaren P1': 3,
+  'Porsche 918 Spyder': 3,
+  'Bugatti Veyron 16.4': 3,
+  'Aston Martin Valkyrie': 2,
+  'Mercedes-AMG One': 3, // F1 engine, $3M+ today
+  'Lexus LFA': 3,
+  'Koenigsegg Jesko': 1,
+  'McLaren Senna': 0,
+  'Lamborghini Aventador SVJ': 2, // poster car, the competitor's top player car
+  'Ferrari SF90 Stradale': -1,   // series plug-in hybrid, $500k
+  'SSC Tuatara': -2,             // fastest on paper, little heritage
+  'Lotus Evija': -2,
+  'Rimac Nevera': -2,
+  'Hongqi S9': -2,               // near-concept, unknown to players
+  'NIO EP9': -1,
+};
+export const prestigeOf = (name) => PRESTIGE[name] || 0;
+
+// Price grows log-linearly with the car's place in its class. The place comes from a score: power-to-weight
+// (log, scaled 0…1 inside the class) plus PRESTIGE_STEP × prestige, so specs order cars of equal standing and
+// prestige lifts an icon over a newer but faster nobody. Ties go to power-to-weight.
 export const MODELS = {};
 for (const cls of ['D', 'C', 'B', 'A', 'S']) {
-  const list = RAW.filter((r) => r[1] === cls).sort((a, b) => a[2] / a[3] - b[2] / b[3]);
+  const pw = (r) => Math.log(r[2] / r[3]);
+  const rows = RAW.filter((r) => r[1] === cls);
+  const pwLo = Math.min(...rows.map(pw)), pwHi = Math.max(...rows.map(pw));
+  const score = (r) => (pwHi > pwLo ? (pw(r) - pwLo) / (pwHi - pwLo) : 0) + PRESTIGE_STEP * prestigeOf(r[0]);
+  const list = rows.sort((a, b) => score(a) - score(b) || pw(a) - pw(b));
   const { lo, hi } = CLASSES[cls];
   list.forEach((r, k) => {
     const t = list.length > 1 ? k / (list.length - 1) : 0;
     const price = Math.round((lo * Math.pow(hi / lo, t)) / 1000) * 1000;
     const id = slug(r[0]);
-    MODELS[id] = { id, name: r[0], cls, hp: r[2], kg: r[3], body: r[4], country: r[5], year: r[6], price, ev: r[7] === 'ev' };
+    MODELS[id] = { id, name: r[0], cls, hp: r[2], kg: r[3], body: r[4], country: r[5], year: r[6], price, ev: r[7] === 'ev', prestige: prestigeOf(r[0]) };
   });
 }
 for (const [name, hp, kg, body, country, year, price, ev] of SECRETS) {
@@ -231,7 +375,7 @@ for (const [name, hp, kg, body, country, year, price, ev] of SECRETS) {
 // filter, `img` + `filter`) or its own photo, never in a case. Like a secret car it can't be sold, traded or burned in an upgrade,
 // and it doesn't count in collections; it stays in the garage for good — the proof you were there that season.
 export const SEASON_CARS = [
-  { season: 1, name: 'BMW X5 M E70 «Monte Carlo Blue»', hp: 555, kg: 2380, body: 'suv', country: 'DE', year: 2010, price: 40000000 },
+  { season: 1, name: 'BMW X5 M E70 «Monte Carlo Blue»', hp: 555, kg: 2380, body: 'suv', country: 'DE', year: 2010, price: 150000000 },
 ];
 for (const c of SEASON_CARS) {
   const id = slug(c.name);
@@ -249,16 +393,16 @@ export const countryModels = (c) => ALL_MODELS.filter((m) => m.country === c && 
 // A case has a fixed price and class odds. Every class pool is cut to a price CORRIDOR around the case price: the
 // cheapest drop is worth at least `lo` of the price, the dearest at most `hi` times it. So a bad drop is a small loss,
 // never a wipe-out, and a jackpot is a few times the price, not a hundred. Inside a class cheaper cars drop more often
-// (weight ∝ 1/√price). On average a drop is worth ~1.7–2× the price; instantly selling every drop pays back ~60–70%,
+// (weight ∝ 1/√price). On average a drop is worth ~1.3× (grey cases) to ~1.8× (gold/red) the price; instantly selling every drop pays back ~75–80%,
 // so open-and-sell never farms money (SELL_RATES), cases pay off by keeping cars.
 export const CASE_CORRIDOR = { lo: 0.5, hi: 12 };
 // Key fragments: every drop worth less than its case leaves a fragment of that case's key; FRAGMENTS_PER_KEY of them
-// make a free key. With ~40–45% of drops below the price, a free case comes every ~18–20 paid opens.
+// make a free key. With ~40–80% of drops below the price, a free case comes every ~10–20 paid opens.
 export const FRAGMENTS_PER_KEY = 8;
-// Instant sale by class: grey 50%, blue 45%, purple 42%, gold 37%, red 32%; no daily limit. With boost, luck, the
-// losing-streak save and key fragments counted, open-and-sell returns 0.69–0.79 of the price for every case (tools/sim-cases.mjs),
-// so even the case of the day (CASE_OF_DAY.off cheaper) never farms money.
-export const SELL_RATES = { D: 0.5, C: 0.45, B: 0.42, A: 0.37, S: 0.32, X: 0.32 };
+// Instant sale by class: grey 60%, blue 55%, purple 50%, gold 45%, red and secret 40%; no daily limit. With boost, luck,
+// the losing-streak save and key fragments counted, open-and-sell returns at most ~0.8 of the price for every case
+// (tools/sim-events.mjs «none»), and under 0.85 on the case of the day and during events (tools/sim-events.mjs).
+export const SELL_RATES = { D: 0.6, C: 0.55, B: 0.5, A: 0.45, S: 0.4, X: 0.4 };
 export const sellPriceOf = (model) => Math.floor(MODELS[model].price * SELL_RATES[MODELS[model].cls]);
 
 // Inside a class, cheaper cars drop more often (weight ∝ 1/√price), like in the original.
@@ -288,27 +432,29 @@ export const CASES = [
   // icon = id of a symbol in public/icons.svg
   { id: 'starter', name: 'Стартовий', icon: 'gift', group: 'gift', weights: { D: 100 }, starter: true },
   // Rarity cases: a ladder of prices, each about 2.5× the one before, so there is always a next step.
-  { id: 'rust', name: 'Іржавий гараж', icon: 'tool', group: 'rarity', price: 60000, weights: { D: 93, C: 7 }, pity2: false },
-  { id: 'city', name: 'Міський', icon: 'building-skyscraper', group: 'rarity', price: 300000, weights: { C: 92.5, B: 7.5 } },
-  { id: 'tuning', name: 'Тюнінг-ательє', icon: 'tool', group: 'rarity', price: 900000, weights: { C: 45, B: 53.5, A: 1.5 } },
-  { id: 'sport', name: 'Спорткар', icon: 'flag-3', group: 'rarity', price: 2000000, weights: { B: 86, A: 14 } },
-  { id: 'premium', name: 'Преміум', icon: 'diamond', group: 'rarity', price: 5000000, weights: { B: 46, A: 51, S: 3 } },
-  { id: 'elite', name: 'Еліта', icon: 'crown', group: 'rarity', price: 10000000, weights: { A: 89, S: 11 } },
+  // Prices and odds are fitted (sell rates 60/55/50/45/40%) so open-and-sell stays ≤ ~0.78 on a plain day, ≤ ~0.82
+  // on the case of the day and during events (static, tools/sim-events.mjs measures it for real).
+  { id: 'rust', name: 'Іржавий гараж', icon: 'tool', group: 'rarity', price: 65000, weights: { D: 97.2, C: 2.8 }, pity2: false },
+  { id: 'city', name: 'Міський', icon: 'building-skyscraper', group: 'rarity', price: 370000, weights: { C: 97, B: 3 } },
+  { id: 'tuning', name: 'Тюнінг-ательє', icon: 'tool', group: 'rarity', price: 1000000, weights: { C: 82.5, B: 17.2, A: 0.3 }, hi: 16 },
+  { id: 'sport', name: 'Спорткар', icon: 'flag-3', group: 'rarity', price: 4400000, weights: { B: 90.5, A: 9.5 } },
+  { id: 'premium', name: 'Преміум', icon: 'diamond', group: 'rarity', price: 13000000, weights: { B: 42.8, A: 54, S: 3.2 } },
+  { id: 'elite', name: 'Еліта', icon: 'crown', group: 'rarity', price: 24000000, weights: { A: 88.3, S: 11.7 }, hi: 13 },
 ];
 // Country cases start cheap and have a wider ceiling (hi), so the country's dear cars — the ones its collection needs —
 // can still drop from its own case, rarely. Ukraine's gold Soviet rarities drop only from here (homeOnly).
 const COUNTRY_CASES = {
-  UA: { price: 55000, weights: { D: 95, C: 4.85, A: 0.15 }, hi: 250 },
-  JP: { price: 450000, weights: { C: 82, B: 17, A: 0.9, S: 0.1 }, hi: 240 },
-  DE: { price: 400000, weights: { C: 88, B: 11.1, A: 0.84, S: 0.06 }, hi: 200 },
-  CN: { price: 480000, weights: { C: 88.9, B: 10.4, A: 0.54, S: 0.18 }, hi: 300 },
-  US: { price: 2400000, weights: { B: 88.8, A: 10.8, S: 0.4 }, hi: 50 },
-  GB: { price: 3100000, weights: { B: 83.2, A: 15.9, S: 0.9 }, hi: 35 },
-  IT: { price: 3200000, weights: { B: 80, A: 19, S: 1 }, hi: 30 },
+  UA: { price: 74000, weights: { D: 98.2, C: 1.746, A: 0.054 }, hi: 450 },
+  JP: { price: 510000, weights: { C: 96.76, B: 3.06, A: 0.162, S: 0.018 }, hi: 240 },
+  DE: { price: 390000, weights: { C: 98.32, B: 1.554, A: 0.118, S: 0.008 }, hi: 560 },
+  CN: { price: 320000, weights: { C: 97.776, B: 2.08, A: 0.108, S: 0.036 }, hi: 400 },
+  US: { price: 5200000, weights: { B: 82.3, A: 17.06, S: 0.64 }, hi: 60 },
+  GB: { price: 11000000, weights: { B: 73.46, A: 25.12, S: 1.42 }, hi: 48 },
+  IT: { price: 11000000, weights: { B: 74, A: 24.7, S: 1.3 }, hi: 32 },
 };
 for (const c of MAIN_COUNTRIES) {
   const cc = COUNTRY_CASES[c];
-  CASES.push({ id: 'c-' + c.toLowerCase(), name: COUNTRIES[c].name, icon: 'world', group: 'country', country: c, price: cc.price, weights: cc.weights, hi: cc.hi });
+  CASES.push({ id: 'c-' + c.toLowerCase(), name: COUNTRIES[c].name, icon: 'world', group: 'country', country: c, price: cc.price, weights: { ...cc.weights }, hi: cc.hi });
 }
 // Luck: a real run of bad luck builds up luck. The game keeps fading totals (over ~20 opens) of what the opened cases
 // should have given on average (their expected value) and what the drops were actually worth; when drops come to
@@ -357,7 +503,9 @@ export function effectiveWeights(cs) {
 }
 for (const cs of CASES) {
   if (cs.starter) cs.price = 0;
-  const lo = cs.price * CASE_CORRIDOR.lo, hi = cs.price * (cs.hi || CASE_CORRIDOR.hi);
+  // Country cases have no lower bound: every car of the country in the case's classes drops from its own case
+  // (the cheap Land Cruiser 80 or BYD Atto 3 too), so a country collection never depends on another case.
+  const lo = cs.country ? 0 : cs.price * CASE_CORRIDOR.lo, hi = cs.price * (cs.hi || CASE_CORRIDOR.hi);
   cs.pool = (cls) => byClass(cls)
     .filter((m) => (cs.country ? m.country === cs.country : !m.homeOnly))
     .filter((m) => cs.starter ? m.cls === 'D' && m.country === 'UA' : m.price >= lo && m.price <= hi);
@@ -367,8 +515,9 @@ for (const cs of CASES) {
   cs.sellEv = Math.round(caseEV(effectiveWeights(cs), cs.pool, (m) => sellPriceOf(m.id)));
 }
 export const CASE_BY_ID = Object.fromEntries(CASES.map((c) => [c.id, c]));
-// Case of the day: one rarity case (never the starter) is CASE_OF_DAY.off cheaper for the whole Kyiv day.
-export const CASE_OF_DAY = { off: 0.1 };
+// Case of the day: one rarity case (never the starter) is CASE_OF_DAY.off cheaper for the whole Kyiv day; its hidden
+// boost is CASE_OF_DAY.boost instead of BOOST (that is what keeps the discount from farming money).
+export const CASE_OF_DAY = { off: 0.1, boost: 0 };
 const DAY_CASES = CASES.filter((c) => c.group === 'rarity');
 export function caseOfDay(day) {
   let h = 0;
@@ -510,9 +659,10 @@ export function carValue(car) {
 }
 // Garage income per hour, as a share of the car's value, by class: cheap cars earn a bigger share so a new player
 // isn't stuck waiting, expensive cars a smaller one so the late game doesn't print money.
-// D 5% (a 60k car → 3k/h), C 3%, B 1.3%, A 0.5%, S 0.25%, secret cars 0.15%: a kept drop pays its case back in ~2–3 days
-// of play (owner chose a softer cut than tools/sim.mjs suggests).
-export const CLASS_INCOME = { D: 0.05, C: 0.03, B: 0.013, A: 0.005, S: 0.0025, X: 0.0015 };
+// D 5% (a 60k car → 3k/h), C 3%, B 1.3%, A 0.5%, S 0.25%, secret cars (and parts/plates on top of a car) 0.06%: a kept
+// drop pays its case back in ~2–3 days of play (owner chose a softer cut than tools/sim.mjs suggests). Secret cars are
+// 2.5× dearer since the wide class ranges, so their rate is 2.5× lower and they earn as before.
+export const CLASS_INCOME = { D: 0.05, C: 0.03, B: 0.013, A: 0.005, S: 0.0025, X: 0.0006 };
 export const incomeRateOf = (model) => CLASS_INCOME[MODELS[model].cls];
 // Income per hour of a car: its class rate on the car itself; installed parts and the plate earn only the lowest
 // rate (X), so dear parts on a cheap high-rate car can't print money.
@@ -1095,8 +1245,9 @@ export const WEEK_CHEST = [
   { days: 7, key: 1 },
 ];
 // The key that fits a level; low levels get cheap keys so fresh second accounts can't farm dear cars to pass on.
-// Steps are set so a 7/7 week stays at 6–20% of the week's daily-task money on every level (premium only from 30).
-export const levelKey = (lvl) => (lvl < 5 ? 'rust' : lvl < 10 ? 'city' : lvl < 16 ? 'tuning' : lvl < 30 ? 'sport' : 'premium');
+// Steps are set so a 7/7 week stays under 20% of the week's daily-task money on every level (sport from 28; the
+// premium key — 13M since the wide class ranges — is too dear for a weekly chest).
+export const levelKey = (lvl) => (lvl < 5 ? 'rust' : lvl < 10 ? 'city' : lvl < 28 ? 'tuning' : 'sport');
 export const levelPartTier = (lvl) => (lvl < 10 ? 'stock' : lvl < 20 ? 'street' : 'sport');
 
 // ---------- comeback ----------
@@ -1113,9 +1264,9 @@ export const COLLECTION_MILESTONES = [
   { n: 20, money: 150000 },
   { n: 30, money: 350000, slots: 1 },
   { n: 45, money: 1100000 },
-  { n: 60, money: 3000000, slots: 1 },
-  { n: 80, money: 8000000 },
-  { n: ALL_MODELS.filter((m) => !m.secret).length, money: 30000000, slots: 2, label: 'Уся колекція' },
+  { n: 60, money: 5000000, slots: 1 },
+  { n: 80, money: 15000000 },
+  { n: ALL_MODELS.filter((m) => !m.secret).length, money: 75000000, slots: 2, label: 'Уся колекція' },
 ];
 // ---------- achievements ----------
 // Each achievement has up to four tiers (bronze → diamond). Progress is counted from what the player has done —
@@ -1148,7 +1299,7 @@ export const ACHIEVEMENTS = [
   { key: 'rarest', title: 'Мисливець', icon: 'diamond', goals: [2, 3, 4, 5], rewards: [10000, 75000, 750000, 2000000],
     labels: ['Отримай епічну (B) машину', 'Отримай легендарну (A) машину', 'Отримай міфічну (S) машину', 'Отримай секретну машину'] },
   { key: 'secrets', title: 'Секретні справи', icon: 'lock', text: 'Збери {n} секретних машин', goals: [1, 3, 6], rewards: [1000000, 4000000, 12000000] },
-  { key: 'garage', title: 'Магнат', icon: 'building-warehouse', text: 'Гараж вартістю {n}', money: true, goals: [1e6, 100e6, 1e9, 10e9], rewards: [5000, 100000, 1000000, 5000000] },
+  { key: 'garage', title: 'Магнат', icon: 'building-warehouse', text: 'Гараж вартістю {n}', money: true, goals: [1e6, 250e6, 2.5e9, 25e9], rewards: [5000, 100000, 1000000, 5000000] },
   { key: 'level', title: 'Ветеран', icon: 'star', text: 'Досягни {n} рівня', goals: [5, 10, 20, 30], rewards: [10000, 60000, 500000, 2500000] },
   { key: 'play', title: 'Свій у гаражі', icon: 'clock', text: 'Проведи в грі {n} год', hours: true, goals: [1, 10, 50, 200],
     rewards: [5000, { money: 25000, fuel: 1 }, { money: 100000, fuel: 1 }, { money: 300000, fuel: 1 }] },
@@ -1184,8 +1335,9 @@ export function achRewardText(rw) {
   return out.join(' + ');
 }
 
-// Money for finishing a country collection (on top of its secret car): 11% of that secret car's value.
-export const COUNTRY_REWARD = Object.fromEntries(MAIN_COUNTRIES.map((c) => [c, Math.round((MODELS[SECRET_BY_COUNTRY[c]].price * 0.11) / 10000) * 10000]));
+// Money for finishing a country collection (on top of its secret car): 4.4% of that secret car's value (the same sums
+// as 11% before the secret cars became 2.5× dearer).
+export const COUNTRY_REWARD = Object.fromEntries(MAIN_COUNTRIES.map((c) => [c, Math.round((MODELS[SECRET_BY_COUNTRY[c]].price * 0.044) / 10000) * 10000]));
 
 // ---------- collection sets ----------
 // Themed sets that cut across countries. A set counts models ever found (the collection table — bought or traded cars
@@ -1598,7 +1750,8 @@ export function caseDeal(cs, day, fx = NO_EVENTS) {
   const deal = { price: cs.price, weights: cs.weights, boost: BOOST, fragments: true, save: true, off: 0, why: null };
   if (cs.starter) return { ...deal, price: 0, boost: 0, fragments: false };
   if (cs.group === 'rarity') {
-    if (!fx.noCaseOfDay && cs.id === caseOfDay(day)) Object.assign(deal, { price: casePrice(cs, day), off: CASE_OF_DAY.off, why: 'day' });
+    // The case of the day pays for its discount out of the hidden boost (the shown odds stay as they are).
+    if (!fx.noCaseOfDay && cs.id === caseOfDay(day)) Object.assign(deal, { price: casePrice(cs, day), off: CASE_OF_DAY.off, boost: CASE_OF_DAY.boost, why: 'day' });
     if (fx.topMult > 1) Object.assign(deal, { weights: luckWeights(cs.weights, fx.topMult), boost: EVENTS.luck.boost, why: deal.why || 'luck' });
   } else if (cs.group === 'country' && fx.countries.includes(cs.country)) {
     Object.assign(deal, { price: Math.round((cs.price * (1 - fx.caseOff)) / 1000) * 1000, off: fx.caseOff, boost: EVENTS.country.boost, fragments: EVENTS.country.fragments, save: EVENTS.country.save, why: 'country' });

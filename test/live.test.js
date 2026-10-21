@@ -116,8 +116,9 @@ test('luck builds up after bad drops, only ever helps, and a broke player gets a
   }
   const drops = db.prepare("SELECT cls, forced FROM drops WHERE case_id = 'c-jp'").all();
   const good = drops.filter((d) => S.rankOf(d.cls) >= S.rankOf('B')).length / drops.length;
-  const eff = S.effectiveWeights(S.CASE_BY_ID['c-jp']);
-  assert.ok(good > (eff.B + eff.A + eff.S) * 1.15, `lucky purple-or-better ${good}`);
+  // Against the plain odds (the pity guarantee fires less often when luck already lifts the class).
+  const w = S.CASE_BY_ID['c-jp'].weights, tw = Object.values(w).reduce((a, b) => a + b, 0);
+  assert.ok(good > ((w.B + w.A + w.S) / tw) * 1.15, `lucky purple-or-better ${good}`);
   assert.ok(drops.some((d) => d.forced === 2), 'lucky drops are marked');
   // Broke: no money, nothing in the garage worth much → a free rusty case every 12 h.
   db.prepare('UPDATE users SET balance = 1000, total_value = 0 WHERE id = 1').run();

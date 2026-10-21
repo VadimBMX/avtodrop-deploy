@@ -216,15 +216,17 @@ test('plates: a chosen region gives a plate of that region at its price; ІІ ex
   assert.ok(call(1, 'plate/generate', { gen: 'basic' }).plate.text);
 });
 
-test('cases: every drop is worth at least half the price, fragments turn into a free key', () => {
+test('cases: every drop of a rarity case is worth at least half the price, fragments turn into a free key', () => {
   for (const cs of S.CASES) {
     if (cs.starter) continue;
     for (const cls of Object.keys(cs.weights)) {
       const pool = cs.pool(cls);
       assert.ok(pool.length, `${cs.id}/${cls}`);
-      for (const m of pool) assert.ok(m.price >= cs.price * S.CASE_CORRIDOR.lo, `${cs.id}: ${m.name} ${m.price} < half of ${cs.price}`);
+      // Country cases have no floor on purpose: every car of the country must drop from its own case.
+      if (cs.group === 'rarity') for (const m of pool) assert.ok(m.price >= cs.price * S.CASE_CORRIDOR.lo, `${cs.id}: ${m.name} ${m.price} < half of ${cs.price}`);
     }
-    assert.ok(cs.ev > cs.price * 1.3 && cs.ev < cs.price * 2.2, `${cs.id} ev ${cs.ev / cs.price}`);
+    // Static EV (without the hidden boost and fragments): 60% instant sale of grey cars caps the cheap cases at ~1.2×.
+    assert.ok(cs.ev > cs.price * 1.15 && cs.ev < cs.price * 2.2, `${cs.id} ev ${cs.ev / cs.price}`);
     assert.ok(cs.sellEv < cs.price, `${cs.id}: selling every drop pays back less than the price`);
   }
   const { db, mk, call } = setup();
@@ -236,7 +238,7 @@ test('cases: every drop is worth at least half the price, fragments turn into a 
     keys += r.newKeys;
     last = r.newKeys;
     frag += r.fragments;
-    if (r.results[0].fragment) assert.ok(S.MODELS[r.results[0].car.model].price < 60000);
+    if (r.results[0].fragment) assert.ok(S.MODELS[r.results[0].car.model].price < S.CASE_BY_ID.rust.price);
   }
   assert.ok(frag > 10 && frag < 45, `fragments ${frag}`);
   assert.equal(keys, Math.floor(frag / S.FRAGMENTS_PER_KEY));

@@ -14,8 +14,8 @@ const sellBack = (cs) => {
   return v / cs.price;
 };
 
-test('instant sale: grey 50%, blue 45%, purple 42%, gold 37%, red 32%, no daily limit', () => {
-  assert.deepEqual(S.SELL_RATES, { D: 0.5, C: 0.45, B: 0.42, A: 0.37, S: 0.32, X: 0.32 });
+test('instant sale: grey 60%, blue 55%, purple 50%, gold 45%, red 40%, no daily limit', () => {
+  assert.deepEqual(S.SELL_RATES, { D: 0.6, C: 0.55, B: 0.5, A: 0.45, S: 0.4, X: 0.4 });
   const db = openDb(':memory:');
   const g = createGame(db, { now: () => Date.parse('2026-10-19T10:00:00Z'), notify: () => {} });
   g.ensureUser({ id: 1, first_name: 'A' });
@@ -28,9 +28,19 @@ test('instant sale: grey 50%, blue 45%, purple 42%, gold 37%, red 32%, no daily 
 test('class ladder: every class is clearly dearer than the one below, secrets above the S floor', () => {
   for (let i = 1; i < 5; i++) {
     const lo = S.CLASSES[S.CLASS_ORDER[i]].lo, prevHi = S.CLASSES[S.CLASS_ORDER[i - 1]].hi;
-    assert.ok(lo >= prevHi * 2, `${S.CLASS_ORDER[i]} starts well above ${S.CLASS_ORDER[i - 1]}`);
+    assert.ok(lo >= prevHi * 1.33, `${S.CLASS_ORDER[i]} starts well above ${S.CLASS_ORDER[i - 1]}`);
   }
-  for (const m of S.ALL_MODELS.filter((x) => x.secret && !x.season)) assert.ok(m.price >= S.CLASSES.S.lo * 2, m.name);
+  for (const m of S.ALL_MODELS.filter((x) => x.secret && !x.season)) assert.ok(m.price > S.CLASSES.S.hi, m.name);
+});
+
+test('every regular car drops from some case, and from its country case when that case has its class', () => {
+  const inCase = (cs, m) => cs.weights[m.cls] && cs.pool(m.cls).some((x) => x.id === m.id);
+  for (const m of S.ALL_MODELS.filter((x) => !x.secret)) {
+    assert.ok(S.CASES.some((cs) => !cs.starter && inCase(cs, m)), m.name);
+    const own = S.CASE_BY_ID['c-' + m.country.toLowerCase()];
+    if (own && own.weights[m.cls]) assert.ok(inCase(own, m), `${m.name} in its country case`);
+  }
+  for (const id of ['toyota-land-cruiser-80', 'byd-atto-3']) assert.ok(S.MODELS[id], id);
 });
 
 test('parts and plates do not turn a cheap car into a money printer', () => {

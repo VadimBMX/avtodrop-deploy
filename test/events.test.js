@@ -79,7 +79,7 @@ test('effects: definitions within the caps, all events at once still clamped', (
   assert.equal(S.fuelSegments(t, t + H, null, S.VIP.fuelMult)[0].rate, C.fuelTotal);
   // Luck weights: top class ×1.3, total unchanged, other classes in proportion.
   const w = S.luckWeights(S.CASE_BY_ID.elite.weights, 1.3);
-  assert.equal(w.S, 14.3);
+  assert.equal(w.S, Math.round(S.CASE_BY_ID.elite.weights.S * 1.3 * 1000) / 1000);
   assert.ok(Math.abs(w.A + w.S - 100) < 0.01);
   assert.deepEqual(S.luckWeights({ D: 100 }, 1.3), { D: 100 });
   assert.equal(S.luckWeights({ C: 10, B: 90 }, 1.3).B, 50, 'at most half of the total');
@@ -154,7 +154,7 @@ test('server: country of the week −15% without fragments; outside it the full 
   const b0 = user().balance;
   const r = call('case/open', { caseId: 'c-us', count: 6 });
   assert.equal(b0 - user().balance, 6 * Math.round((cs.price * 0.85) / 1000) * 1000);
-  assert.equal(r.price, 2040000);
+  assert.equal(r.price, Math.round((cs.price * 0.85) / 1000) * 1000);
   assert.equal(r.event, 'country');
   assert.equal(r.fragments, 0, 'no fragments from the discounted case');
   // Another country case: full price, fragments as usual.
