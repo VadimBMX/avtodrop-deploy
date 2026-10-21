@@ -137,7 +137,8 @@ test('paint: masks exist for the paintable cars and match their photos', () => {
     assert.ok(fs.existsSync(new URL(`../public/paint/${id}.png`, import.meta.url)), id);
     assert.ok(fs.existsSync(new URL(`../public/cars/${id}.webp`, import.meta.url)), id);
     const m = meta.cars[id];
-    assert.ok(m.wheels.length >= 1 && m.p.length === 3, id);
+    // green-key cars (m.base) may have no detected wheels: the green mask alone excludes the tyres
+    assert.ok((m.wheels.length >= 1 || m.base) && m.p.length === 3, id);
     // a regenerated photo needs `npm run paint-masks` (the game would show it unpainted otherwise)
     assert.deepEqual(webpSize(fs.readFileSync(new URL(`../public/cars/${id}.webp`, import.meta.url))), [m.w, m.h], `${id}: photo changed, rerun npm run paint-masks`);
   }
