@@ -7,71 +7,64 @@
    38,
    99
   ],
+  "glass_auto": false,
   "remove": [
    [
     [
-     0.115,
-     0.085
+     0.118,
+     0.095
     ],
     [
-     0.275,
-     0.085
+     0.268,
+     0.095
     ],
     [
-     0.275,
-     0.37
+     0.268,
+     0.333
     ],
     [
-     0.115,
-     0.37
+     0.118,
+     0.333
     ]
    ],
    [
     [
-     0.295,
-     0.085
+     0.298,
+     0.095
     ],
     [
-     0.44,
-     0.085
+     0.437,
+     0.095
     ],
     [
-     0.44,
-     0.37
+     0.437,
+     0.338
     ],
     [
-     0.295,
-     0.37
+     0.298,
+     0.338
     ]
    ],
    [
     [
-     0.465,
-     0.085
+     0.468,
+     0.095
     ],
     [
-     0.595,
-     0.085
+     0.592,
+     0.095
     ],
     [
-     0.613,
-     0.16
+     0.608,
+     0.2
     ],
     [
-     0.606,
-     0.27
+     0.603,
+     0.338
     ],
     [
-     0.597,
-     0.3
-    ],
-    [
-     0.597,
-     0.375
-    ],
-    [
-     0.465,
-     0.375
+     0.468,
+     0.338
     ]
    ]
   ]
@@ -84,10 +77,270 @@
   "hue_tol": 45
  },
  "nissan-leaf": {
-  "hue_tol": 45
+  "hue_tol": 50,
+  "c_floor": 0.08,
+  "off": "blue-tinted glass matches the paint: windows painted, specks"
+ },
+ "hennessey-venom-f5": {
+  "hue_tol": 50,
+  "c_floor": 0.08,
+  "off": "glass gets painted, specks"
+ },
+ "haval-jolion": {
+  "hue_tol": 50,
+  "c_floor": 0.08,
+  "off": "glass gets painted, specks"
+ },
+ "jeep-wrangler": {
+  "hue_tol": 50,
+  "c_floor": 0.08,
+  "hole_max": 0.003
+ },
+ "audi-r8-v10-plus": {
+  "hue_tol": 50,
+  "c_floor": 0.08,
+  "hole_max": 0.003
+ },
+ "mazda-mx-5-na": {
+  "hue_tol": 50,
+  "c_floor": 0.08,
+  "hole_max": 0.003
+ },
+ "mclaren-senna": {
+  "hue_tol": 50,
+  "c_floor": 0.08,
+  "hole_max": 0.003
+ },
+ "mclaren-f1": {
+  "hue_tol": 50,
+  "c_floor": 0.08,
+  "hole_max": 0.003
+ },
+ "lamborghini-urus": {
+  "hue_tol": 50,
+  "c_floor": 0.08,
+  "hole_max": 0.003
+ },
+ "byd-atto-3": {
+  "hue_tol": 50,
+  "c_floor": 0.08,
+  "hole_max": 0.003
+ },
+ "peugeot-205-gti": {
+  "hue_tol": 50,
+  "c_floor": 0.08,
+  "hole_max": 0.003
+ },
+ "volkswagen-golf-gti-mk5": {
+  "hue_tol": 50,
+  "c_floor": 0.08,
+  "hole_max": 0.003
+ },
+ "mitsubishi-lancer-evolution-vi": {
+  "chroma_min": 40,
+  "l_band": [
+   35,
+   99
+  ],
+  "neutral_c": 22,
+  "off": "light-blue photo: glass painted or patches stay blue"
+ },
+ "skoda-octavia-tour": {
+  "chroma_min": 40,
+  "l_band": [
+   35,
+   99
+  ],
+  "neutral_c": 22,
+  "off": "light-blue photo: glass gets painted"
+ },
+ "zeekr-001-fr": {
+  "chroma_min": 40,
+  "l_band": [
+   35,
+   99
+  ],
+  "neutral_c": 22
+ },
+ "porsche-taycan-turbo-s": {
+  "chroma_min": 40,
+  "l_band": [
+   35,
+   99
+  ],
+  "neutral_c": 22,
+  "off": "light-blue photo: sills and lower panels stay blue"
+ },
+ "rimac-nevera": {
+  "chroma_min": 40,
+  "l_band": [
+   35,
+   99
+  ],
+  "neutral_c": 22,
+  "off": "two-tone photo: glass painted, blue patches stay"
+ },
+ "volvo-240-turbo": {
+  "chroma_min": 40,
+  "l_band": [
+   35,
+   99
+  ],
+  "neutral_c": 22
+ },
+ "vaz-2101-kopiika": {
+  "chroma_min": 40,
+  "l_band": [
+   35,
+   99
+  ],
+  "neutral_c": 22,
+  "off": "window frames stay light blue, vent glass painted"
+ },
+ "zaz-965-horbatyi": {
+  "chroma_min": 40,
+  "l_band": [
+   35,
+   99
+  ],
+  "neutral_c": 22,
+  "off": "light-blue photo: roof strip and arch lips stay blue"
+ },
+ "porsche-911-turbo-s": {
+  "l_band": [
+   30,
+   99
+  ],
+  "neutral_c": 20
+ },
+ "nissan-200sx-s13": {
+  "l_band": [
+   30,
+   99
+  ],
+  "neutral_c": 20,
+  "off": "silver highlights stay white on dark paints"
+ },
+ "volkswagen-golf-ii": {
+  "l_band": [
+   30,
+   99
+  ],
+  "neutral_c": 20,
+  "off": "silver photo: rear pillar and hatch stay silver"
+ },
+ "toyota-gr-yaris": {
+  "l_band": [
+   30,
+   99
+  ],
+  "neutral_c": 20,
+  "add": [
+   [
+    [
+     0.217,
+     0.3835
+    ],
+    [
+     0.2152,
+     0.3996
+    ],
+    [
+     0.2101,
+     0.4132
+    ],
+    [
+     0.2025,
+     0.4223
+    ],
+    [
+     0.1935,
+     0.4255
+    ],
+    [
+     0.1845,
+     0.4223
+    ],
+    [
+     0.1769,
+     0.4132
+    ],
+    [
+     0.1718,
+     0.3996
+    ],
+    [
+     0.17,
+     0.3835
+    ],
+    [
+     0.1718,
+     0.3674
+    ],
+    [
+     0.1769,
+     0.3538
+    ],
+    [
+     0.1845,
+     0.3447
+    ],
+    [
+     0.1935,
+     0.3415
+    ],
+    [
+     0.2025,
+     0.3447
+    ],
+    [
+     0.2101,
+     0.3538
+    ],
+    [
+     0.2152,
+     0.3674
+    ]
+   ]
+  ]
+ },
+ "moskvych-412": {
+  "l_band": [
+   30,
+   99
+  ],
+  "neutral_c": 20
+ },
+ "yangwang-u9-xtreme": {
+  "l_band": [
+   30,
+   99
+  ],
+  "neutral_c": 20,
+  "off": "grey photo: large unpainted patches"
+ },
+ "tesla-cybertruck-cyberbeast": {
+  "l_band": [
+   30,
+   99
+  ],
+  "neutral_c": 20,
+  "off": "stainless body: blotchy, glass painted"
  },
  "subaru-impreza-wrx-sti": {
-  "hue_tol": 45
+  "hue_tol": 45,
+  "wheels": [
+   [
+    185,
+    283,
+    71
+   ],
+   [
+    716.0,
+    280.0,
+    74.0
+   ]
+  ]
  },
  "lamborghini-aventador-svj": {
   "hue_tol": 50,
@@ -99,9 +352,9 @@
     78.8
    ],
    [
-    699.5,
-    275.2,
-    78.8
+    705,
+    285,
+    70
    ]
   ]
  },
@@ -113,7 +366,8 @@
  },
  "bmw-x5-e70": {
   "c_floor": 0.08,
-  "hue_tol": 40
+  "hue_tol": 40,
+  "off": "dark photo: jagged arches and windows on light paints"
  },
  "avtodrop-prototyp-syno-zhovtyi": {
   "off": "two-tone national livery is the car itself"
@@ -150,9 +404,535 @@
  },
  "bmw-x5-m-e70-monte-carlo-blue": {
   "hue_tol": 50,
-  "c_floor": 0.08
+  "c_floor": 0.08,
+  "off": "dark blue photo: glass painted, ragged pillars"
  },
  "haz-24-24-volha-v8": {
   "off": "black + chrome photo: glass and roof come out patchy"
+ },
+ "fiat-uno": {
+  "l_band": [
+   28,
+   99
+  ],
+  "remove": [
+   [
+    [
+     0.208,
+     0.088
+    ],
+    [
+     0.387,
+     0.088
+    ],
+    [
+     0.387,
+     0.368
+    ],
+    [
+     0.208,
+     0.368
+    ]
+   ]
+  ]
+ },
+ "geely-monjaro": {
+  "remove": [
+   [
+    [
+     0.292,
+     0.085
+    ],
+    [
+     0.44,
+     0.085
+    ],
+    [
+     0.44,
+     0.25
+    ],
+    [
+     0.292,
+     0.25
+    ]
+   ]
+  ]
+ },
+ "zaz-968m-zaporozhets": {
+  "wheels": [
+   [
+    185,
+    287,
+    59
+   ],
+   [
+    710,
+    278,
+    68
+   ]
+  ],
+  "remove": [
+   [
+    [
+     0.455,
+     0.09
+    ],
+    [
+     0.6,
+     0.09
+    ],
+    [
+     0.6,
+     0.338
+    ],
+    [
+     0.455,
+     0.338
+    ]
+   ]
+  ]
+ },
+ "toyota-corolla-e120": {
+  "remove": [
+   [
+    [
+     0.284,
+     0.212
+    ],
+    [
+     0.3,
+     0.212
+    ],
+    [
+     0.3,
+     0.29
+    ],
+    [
+     0.262,
+     0.29
+    ]
+   ],
+   [
+    [
+     0.32,
+     0.19
+    ],
+    [
+     0.44,
+     0.188
+    ],
+    [
+     0.44,
+     0.214
+    ],
+    [
+     0.32,
+     0.216
+    ]
+   ],
+   [
+    [
+     0.905,
+     0.515
+    ],
+    [
+     0.93,
+     0.5
+    ],
+    [
+     0.965,
+     0.51
+    ],
+    [
+     0.985,
+     0.56
+    ],
+    [
+     0.975,
+     0.61
+    ],
+    [
+     0.93,
+     0.6
+    ],
+    [
+     0.905,
+     0.55
+    ]
+   ]
+  ]
+ },
+ "zaz-sens": {
+  "remove": [
+   [
+    [
+     0.93,
+     0.53
+    ],
+    [
+     0.95,
+     0.52
+    ],
+    [
+     0.968,
+     0.545
+    ],
+    [
+     0.985,
+     0.6
+    ],
+    [
+     0.975,
+     0.615
+    ],
+    [
+     0.95,
+     0.61
+    ],
+    [
+     0.932,
+     0.57
+    ]
+   ],
+   [
+    [
+     0.555,
+     0.17
+    ],
+    [
+     0.6,
+     0.2
+    ],
+    [
+     0.655,
+     0.37
+    ],
+    [
+     0.555,
+     0.38
+    ]
+   ]
+  ]
+ },
+ "vaz-2121-nyva": {
+  "remove": [
+   [
+    [
+     0.2,
+     0.06
+    ],
+    [
+     0.395,
+     0.06
+    ],
+    [
+     0.395,
+     0.287
+    ],
+    [
+     0.2,
+     0.287
+    ]
+   ]
+  ],
+  "add": [
+   [
+    [
+     0.16,
+     0.035
+    ],
+    [
+     0.215,
+     0.035
+    ],
+    [
+     0.205,
+     0.1
+    ],
+    [
+     0.195,
+     0.3
+    ],
+    [
+     0.105,
+     0.3
+    ],
+    [
+     0.125,
+     0.2
+    ]
+   ]
+  ]
+ },
+ "tesla-model-s-plaid": {
+  "remove": [
+   [
+    [
+     0.22,
+     0.355
+    ],
+    [
+     0.235,
+     0.33
+    ],
+    [
+     0.3,
+     0.29
+    ],
+    [
+     0.45,
+     0.27
+    ],
+    [
+     0.45,
+     0.4
+    ],
+    [
+     0.29,
+     0.405
+    ],
+    [
+     0.25,
+     0.385
+    ]
+   ]
+  ],
+  "add": [
+   [
+    [
+     0.13,
+     0.41
+    ],
+    [
+     0.175,
+     0.36
+    ],
+    [
+     0.215,
+     0.32
+    ],
+    [
+     0.222,
+     0.355
+    ],
+    [
+     0.25,
+     0.388
+    ],
+    [
+     0.29,
+     0.405
+    ],
+    [
+     0.29,
+     0.42
+    ],
+    [
+     0.13,
+     0.42
+    ]
+   ]
+  ]
+ },
+ "nissan-gt-r-r35": {
+  "wheels": [
+   [
+    151,
+    258,
+    68
+   ],
+   [
+    675.0,
+    251.4,
+    71.5
+   ]
+  ]
+ },
+ "zaz-1103-slavuta": {
+  "wheels": [
+   [
+    170,
+    303,
+    55
+   ],
+   [
+    737.5,
+    289.8,
+    67.2
+   ]
+  ]
+ },
+ "bugatti-chiron-super-sport": {
+  "wheels": [
+   [
+    182.0,
+    278.7,
+    70.3
+   ],
+   [
+    720,
+    278,
+    70
+   ]
+  ]
+ },
+ "nio-ep9": {
+  "remove": [
+   [
+    [
+     0.405,
+     0.475
+    ],
+    [
+     0.43,
+     0.435
+    ],
+    [
+     0.47,
+     0.41
+    ],
+    [
+     0.56,
+     0.405
+    ],
+    [
+     0.62,
+     0.425
+    ],
+    [
+     0.66,
+     0.47
+    ],
+    [
+     0.6,
+     0.505
+    ],
+    [
+     0.42,
+     0.505
+    ]
+   ]
+  ],
+  "off": "canopy glass gets tinted"
+ },
+ "alfa-romeo-giulia-quadrifoglio": {
+  "off": "dark red photo: jagged edges and coloured flecks on light paints"
+ },
+ "aston-martin-valkyrie": {
+  "off": "canopy glass gets painted"
+ },
+ "audi-80-quattro": {
+  "off": "grey photo: glass and roof partly painted, ragged edges"
+ },
+ "audi-rs4-b7": {
+  "off": "silver photo: highlights stay silver, patchy on red/black"
+ },
+ "bmw-i4-m50": {
+  "off": "grey photo: upper body stays grey, glass partly painted"
+ },
+ "bmw-m5-cs": {
+  "off": "dark photo: jagged roofline halo and grey blotches on light paints"
+ },
+ "byd-dolphin": {
+  "off": "reflections stay blue: specks all over the body"
+ },
+ "byd-han": {
+  "off": "dark green photo: front window painted, jagged edges"
+ },
+ "byd-seal": {
+  "off": "pink reflections and glass trim painted, ragged edges"
+ },
+ "chery-tiggo-7-pro": {
+  "off": "grey photo: large unpainted grey patches"
+ },
+ "chevrolet-aveo": {
+  "off": "grey photo: unpainted patches, glass partly painted"
+ },
+ "ford-gt": {
+  "off": "highlights stay grey, patchy"
+ },
+ "ford-mustang-1967": {
+  "off": "glass gets painted"
+ },
+ "gmc-hummer-ev": {
+  "off": "jagged edges and dark halo on light paints"
+ },
+ "haz-24-95-volha-4x4": {
+  "off": "dark green photo: roof and pillars patchy, specks"
+ },
+ "honda-civic-ek": {
+  "off": "glass gets painted"
+ },
+ "honda-civic-type-r-ep3": {
+  "off": "glass gets painted"
+ },
+ "honda-nsx-na1": {
+  "off": "windscreen and rear glass get tinted"
+ },
+ "hongqi-s9": {
+  "off": "dark photo: large unpainted patches on light paints"
+ },
+ "kia-ev6-gt": {
+  "off": "grey patches left on the body"
+ },
+ "koenigsegg-jesko": {
+  "off": "unpainted patches and ragged edges"
+ },
+ "lancia-delta-hf-integrale": {
+  "off": "ragged window frames"
+ },
+ "lexus-is-f": {
+  "off": "dark photo: ragged edges and dark blotches"
+ },
+ "li-auto-l9": {
+  "off": "glass painted, blue highlights stay"
+ },
+ "lotus-evija": {
+  "off": "ragged edges and black blotches on light paints"
+ },
+ "lucid-air-sapphire": {
+  "off": "blue specks along the waist, ragged roofline"
+ },
+ "mercedes-benz-190e-2-3-16": {
+  "off": "ragged edges"
+ },
+ "nissan-silvia-s15": {
+  "off": "dark photo: jagged edges on light paints"
+ },
+ "nissan-skyline-gt-r-r34": {
+  "off": "specks on the body"
+ },
+ "opel-vectra-a": {
+  "off": "dark photo: ragged arches"
+ },
+ "pagani-huayra": {
+  "off": "carbon/body mix: large unpainted patches"
+ },
+ "pagani-zonda-r": {
+  "off": "carbon/body mix: glass painted, patches"
+ },
+ "rivian-r1t": {
+  "off": "jagged dark halo at windows and arches"
+ },
+ "shelby-gt500": {
+  "off": "blue arch lip stays, white stripes, ragged"
+ },
+ "tesla-model-y": {
+  "off": "dark photo: jagged edges on light paints"
+ },
+ "toyota-gr-super-sport": {
+  "off": "ragged edges, unpainted patches"
+ },
+ "volkswagen-golf-r": {
+  "off": "dark blue photo: jagged rear and front edges"
+ },
+ "volkswagen-polo": {
+  "off": "dark green photo: jagged window edges"
+ },
+ "yangwang-u9": {
+  "off": "dark purple photo: ragged edges"
+ },
+ "zaz-lanos": {
+  "off": "dark blue photo: ragged edges"
  }
 }

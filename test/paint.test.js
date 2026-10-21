@@ -130,7 +130,8 @@ test('paint: an old CSS colour still shows, an unknown one counts as factory; se
 test('paint: masks exist for the paintable cars and match their photos', () => {
   const set = paintableModels();
   const meta = JSON.parse(fs.readFileSync(new URL('../public/paint/meta.json', import.meta.url), 'utf8'));
-  assert.ok(set.size >= 100, `paintable ${set.size}`);
+  // sanity floor only: after the October QA pass ~80 of 150 photos paint cleanly, the rest are `off` in hints.json
+  assert.ok(set.size >= 60, `paintable ${set.size}`);
   for (const id of set) {
     assert.ok(S.MODELS[id], `meta for unknown model ${id}`);
     assert.ok(fs.existsSync(new URL(`../public/paint/${id}.png`, import.meta.url)), id);
