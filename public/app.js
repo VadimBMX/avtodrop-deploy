@@ -5764,3 +5764,14 @@ H.dreamClear = async () => {
   closeModal();
   await act('dream/set', { model: null }, 'Мрію прибрано');
 };
+
+// Telegram photo blocked or gone: show the player's initial instead of a broken image (header, menu hub, profile).
+// error does not bubble, so listen in the capture phase.
+document.addEventListener('error', (e) => {
+  const img = e.target;
+  if (!(img instanceof HTMLImageElement)) return;
+  const face = img.closest('.face.photo');
+  if (!face) return;
+  face.classList.remove('photo');
+  face.textContent = String(me?.firstName || me?.username || '?').replace(/^@/, '').trim().charAt(0).toUpperCase() || '?';
+}, true);
