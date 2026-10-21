@@ -1093,8 +1093,10 @@ TABS.cases = () => {
       <div class="result-name r${rank} ${fresh ? 'pop' : ''} ${rank >= 3 ? 'shimmer' : ''}" style="--c:${color}">${esc(m.name)}</div>
       <div class="rarity-row ${fresh ? 'pop2' : ''}"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span>${originChip(car.model)}${forced ? ' <span class="chip">гарантія</span>' : ''}${d[0].fragment ? ` <span class="chip frag">${ic('key')} +фрагмент</span>` : ''}</div>
       <div class="drop-value ${fresh ? 'pop2' : ''}"><span>Вартість</span><b id="dropValue">${S.fmt(car.value)}</b>${mult ? `<span class="xmult ${mult >= 1 ? 'up' : ''}">×${dec(mult, mult >= 10 ? 0 : 1)} від ціни кейсу</span>` : ''}</div>
-      <div class="drop-sell ${fresh ? 'pop2' : ''}"><span>${ic('cash')} продаж <b>${S.short(sp)}</b></span></div>
-      ${d[0].sold ? `<div class="small win center">Продано за ${S.fmt(sellPrice(car))}</div>` : ''}`;
+      <div class="drop-sell ${fresh ? 'pop2' : ''}">${d[0].sold
+        // Same line, same height: an extra «Продано» row pushed the buttons down right under a second tap.
+        ? `<span class="win">${ic('check')} Продано за <b>${S.short(sp)}</b></span>`
+        : `<span>${ic('cash')} продаж <b>${S.short(sp)}</b></span>`}</div>`;
   } else if (d?.length) {
     const fresh = state.fx?.type === 'case';
     const best = d.reduce((a, r) => Math.max(a, S.rankOf(M(r.car.model).cls)), 0);
