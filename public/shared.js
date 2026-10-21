@@ -467,15 +467,15 @@ export const countryModels = (c) => ALL_MODELS.filter((m) => m.country === c && 
 // A case has a fixed price and class odds. Every class pool is cut to a price CORRIDOR around the case price: the
 // cheapest drop is worth at least `lo` of the price, the dearest at most `hi` times it. So a bad drop is a small loss,
 // never a wipe-out, and a jackpot is a few times the price, not a hundred. Inside a class cheaper cars drop more often
-// (weight ∝ 1/√price). Owner decision (eco3): the case prices are the old ones while the B/A/S cars got dear, so the
-// grey/blue cases pay back ~0.8 on instant sale and the dear ones ×1.5–2.8 (accepted; see CASE_PRICE_MULT, FRESH_SELL).
+// (weight ∝ 1/√price). Owner decisions: eco3 — the old case prices with the dear B/A/S cars; caseev — prices never
+// change, the odds went up, and ORIGIN_SELL keeps open-and-sell ~0.9 (reports/caseev.md).
 export const CASE_CORRIDOR = { lo: 0.5, hi: 12 };
 // Key fragments: every drop worth less than its case leaves a fragment of that case's key; FRAGMENTS_PER_KEY of them
 // make a free key. With ~40–80% of drops below the price, a free case comes every ~10–20 paid opens.
 export const FRAGMENTS_PER_KEY = 8;
-// Instant sale by class: grey 60%, blue 55%, purple 50%, gold 45%, red and secret 40%; no daily limit. With boost, luck,
-// the losing-streak save and key fragments counted, open-and-sell is ~0.8 for the cheap cases and ×1.5–2.8 for the dear
-// ones (owner decision, tools/sim-events.mjs; tools/sim-loop.mjs shows how fast a loop grows money).
+// Instant sale by class: grey 60%, blue 55%, purple 50%, gold 45%, red and secret 40%; no daily limit; a car out of a
+// case gets ORIGIN_SELL of that. With boost, luck, the losing-streak save and key fragments counted, open-and-sell is
+// 0.82–0.92 on a plain day and under ~1 on deal days (tools/sim-cases.mjs, tools/sim-events.mjs, test/caseev.test.js).
 export const SELL_RATES = { D: 0.6, C: 0.55, B: 0.5, A: 0.45, S: 0.4, X: 0.4 };
 // Collector cars (homeOnly: the gold Soviet rarities) sell instantly for this share of their value instead (1,2–2,3 M,
 // still 22–41× the 55k case), so a gold car every ~230 opens keeps the case's open-and-sell at ~1.00 (tools/sim-ua.mjs).
@@ -485,8 +485,19 @@ export const isCollector = (model) => !!MODELS[model]?.homeOnly;
 // «open and sell at once» can be cooled down without touching players who sell older cars. E.g. { rate: 0.6, hours: 24 }.
 export const FRESH_SELL = { rate: 1, hours: 24 };
 // ageMs: how long ago the car was obtained (unknown = an old car, the full rate).
-export const sellPriceOf = (model, ageMs = Infinity) =>
-  Math.floor(MODELS[model].price * (MODELS[model].homeOnly ? HOME_SELL_RATE : SELL_RATES[MODELS[model].cls]) * (ageMs < FRESH_SELL.hours * 3600e3 ? FRESH_SELL.rate : 1));
+// Buy-back by origin (reports/caseev.md). The case odds went up (owner: «гра має бути легшою», prices stay), so a car
+// that came out of a case — opened or won in a case battle — sells for ORIGIN_SELL[case] × its usual rate. That keeps
+// open-and-sell ~0.9 of the price (under 1 on deal days) while the garage value, income and collections of those cars
+// stay whole. Cars from before this change, the dealer, rewards, the starter case and the collector cars (they have
+// HOME_SELL_RATE) keep the full rate; an upgrade or trade-in result inherits the lowest share of the cars put in.
+export const ORIGIN_SELL = {
+  rust: 0.8, city: 0.62, tuning: 0.75, sport: 0.6, premium: 0.57, elite: 0.6,
+  'c-ua': 0.7, 'c-jp': 0.85, 'c-de': 0.85, 'c-cn': 1, 'c-us': 0.58, 'c-gb': 0.45, 'c-it': 0.42,
+};
+export const originSellOf = (origin) => (origin && ORIGIN_SELL[origin]) || 1;
+// origin: the case id the car came out of (cars.origin), or null.
+export const sellPriceOf = (model, ageMs = Infinity, origin = null) =>
+  Math.floor(MODELS[model].price * (MODELS[model].homeOnly ? HOME_SELL_RATE : SELL_RATES[MODELS[model].cls] * originSellOf(origin)) * (ageMs < FRESH_SELL.hours * 3600e3 ? FRESH_SELL.rate : 1));
 
 // Inside a class, cheaper cars drop more often (weight ∝ 1/√price), like in the original.
 export function modelWeights(list) {
@@ -518,12 +529,15 @@ export const CASES = [
   // Old prices (owner decision, eco3) with the odds of eco2; `hi` keeps the dear cars (Bolide 300M, AMG One …) in the
   // pools now that the corridor is relative to a lower price.
   // pity: the guarantee steps [class, n] (see pitySteps; tuned per case in reports/pity.md / tools/sim-cases.mjs).
-  { id: 'rust', name: 'Іржавий гараж', icon: 'tool', group: 'rarity', price: 60000, weights: { D: 96.4, C: 3.4, B: 0.18, A: 0.02 }, pity: [['C', 25]], hi: 2000 },
-  { id: 'city', name: 'Міський', icon: 'building-skyscraper', group: 'rarity', price: 300000, weights: { C: 95.5, B: 4.3, A: 0.18, S: 0.02 }, pity: [['B', 30]], hi: 1000 },
-  { id: 'tuning', name: 'Тюнінг-ательє', icon: 'tool', group: 'rarity', price: 900000, weights: { C: 80, B: 19, A: 0.95, S: 0.05 }, pity: [['A', 200]], hi: 340 },
-  { id: 'sport', name: 'Спорткар', icon: 'flag-3', group: 'rarity', price: 2000000, weights: { B: 93, A: 6.8, S: 0.2 }, pity: [['A', 30]], hi: 150 },
-  { id: 'premium', name: 'Преміум', icon: 'diamond', group: 'rarity', price: 5000000, weights: { B: 58, A: 40.5, S: 1.5 }, pity: [['S', 130]], hi: 61 },
-  { id: 'elite', name: 'Еліта', icon: 'crown', group: 'rarity', price: 10000000, weights: { A: 94, S: 6 }, pity: [['S', 30]], hi: 31 },
+  // Odds (reports/caseev.md, owner: «гра має бути легшою», prices stay): every class above the floor ~1.3–2× more often
+  // (rust blue 1 in ~12, city purple 1 in ~11 …), each step still felt (test/pity.test.js: 5–60 %); the instant sale
+  // of these drops is paid for by ORIGIN_SELL.
+  { id: 'rust', name: 'Іржавий гараж', icon: 'tool', group: 'rarity', price: 60000, weights: { D: 93.56, C: 6, B: 0.4, A: 0.04 }, pity: [['C', 25]], hi: 2000 },
+  { id: 'city', name: 'Міський', icon: 'building-skyscraper', group: 'rarity', price: 300000, weights: { C: 92.61, B: 7, A: 0.35, S: 0.04 }, pity: [['B', 30]], hi: 1000 },
+  { id: 'tuning', name: 'Тюнінг-ательє', icon: 'tool', group: 'rarity', price: 900000, weights: { C: 74.83, B: 24, A: 1.1, S: 0.07 }, pity: [['A', 200]], hi: 340 },
+  { id: 'sport', name: 'Спорткар', icon: 'flag-3', group: 'rarity', price: 2000000, weights: { B: 92.15, A: 7.6, S: 0.25 }, pity: [['A', 30]], hi: 150 },
+  { id: 'premium', name: 'Преміум', icon: 'diamond', group: 'rarity', price: 5000000, weights: { B: 55.2, A: 43, S: 1.8 }, pity: [['S', 130]], hi: 61 },
+  { id: 'elite', name: 'Еліта', icon: 'crown', group: 'rarity', price: 10000000, weights: { A: 92.5, S: 7.5 }, pity: [['S', 30]], hi: 31 },
 ];
 // Country cases start cheap and have a wider ceiling (hi), so the country's dear cars — the ones its collection needs —
 // can still drop from its own case, rarely. Ukraine's gold Soviet rarities drop only from here (homeOnly).
@@ -532,13 +546,16 @@ const COUNTRY_CASES = {
   // 0.054% → 0.15% plus a gold step after 300 that gives a car still missing from the collection ({ missing }): 1 gold
   // per ~230 opens (~40% before the step) and ≤ 4 × 300 opens for all four. Paid for by the collector sell rate
   // (HOME_SELL_RATE) and a smaller blue share (C 1.746 → 1.3; 1 would make the blue step fire in >60% of runs).
-  UA: { price: 55000, weights: { D: 98.55, C: 1.3, A: 0.15 }, pity: [['C', 35], ['A', 300, { missing: true }]], hi: 460 },
-  JP: { price: 450000, weights: { C: 96.76, B: 3.06, A: 0.162, S: 0.018 }, pity: [['B', 30]], hi: 400 },
-  DE: { price: 400000, weights: { C: 98.32, B: 1.554, A: 0.118, S: 0.008 }, pity: [['B', 30]], hi: 570 },
-  CN: { price: 480000, weights: { C: 97.776, B: 2.08, A: 0.108, S: 0.036 }, pity: [['B', 30]], hi: 400 },
-  US: { price: 2400000, weights: { B: 85.6, A: 14, S: 0.4 }, pity: [['S', 300]], hi: 130 },
-  GB: { price: 3100000, weights: { B: 79.3, A: 20, S: 0.7 }, pity: [['S', 250]], hi: 91 },
-  IT: { price: 3200000, weights: { B: 79.3, A: 20, S: 0.7 }, pity: [['S', 250]], hi: 58 },
+  // reports/caseev.md (owner: «за годину 2 сині»): blue 1.3 → 6.5 (1 in ~12 opens), gold 0.15 → 0.3 (1 in ~190 with the
+  // step); the blue cars sell for ORIGIN_SELL['c-ua']. There are no purple (B) Ukrainian cars, so no purple here.
+  // JP/DE/CN: purple ×2–4 (1 in 7–12 opens), gold ×2. US/GB/IT already beat the competitor per open: only S a bit up.
+  UA: { price: 55000, weights: { D: 93.2, C: 6.5, A: 0.3 }, pity: [['C', 35], ['A', 300, { missing: true }]], hi: 460 },
+  JP: { price: 450000, weights: { C: 92.67, B: 7, A: 0.3, S: 0.03 }, pity: [['B', 30]], hi: 400 },
+  DE: { price: 400000, weights: { C: 93.68, B: 6, A: 0.3, S: 0.02 }, pity: [['B', 30]], hi: 570 },
+  CN: { price: 480000, weights: { C: 93.7, B: 6, A: 0.25, S: 0.05 }, pity: [['B', 30]], hi: 400 },
+  US: { price: 2400000, weights: { B: 83.4, A: 16, S: 0.6 }, pity: [['S', 300]], hi: 130 },
+  GB: { price: 3100000, weights: { B: 79.1, A: 20, S: 0.9 }, pity: [['S', 250]], hi: 91 },
+  IT: { price: 3200000, weights: { B: 79.1, A: 20, S: 0.9 }, pity: [['S', 250]], hi: 58 },
 };
 for (const c of MAIN_COUNTRIES) {
   const cc = COUNTRY_CASES[c];
@@ -612,7 +629,7 @@ for (const cs of CASES) {
   // Safety valve 2 (off: empty). The price goes up after the pool is fixed, so the same cars drop for more money.
   if (!cs.starter && CASE_PRICE_MULT[cs.id] > 0) cs.price = niceRound(cs.price * CASE_PRICE_MULT[cs.id]);
   cs.ev = Math.round(caseEV(effectiveWeights(cs), cs.pool)); // average value of a drop (luck compares drops against it)
-  cs.sellEv = Math.round(caseEV(effectiveWeights(cs), cs.pool, (m) => sellPriceOf(m.id)));
+  cs.sellEv = Math.round(caseEV(effectiveWeights(cs), cs.pool, (m) => sellPriceOf(m.id, Infinity, cs.id)));
 }
 export const CASE_BY_ID = Object.fromEntries(CASES.map((c) => [c.id, c]));
 // Case of the day: one rarity case (never the starter) is CASE_OF_DAY.off cheaper for the whole Kyiv day; its hidden
@@ -2005,7 +2022,7 @@ export function guideStep(p) {
 // Scheduled game events. The calendar is a weekly rotation computed from the date (Europe/Kyiv), so nobody has to start
 // anything by hand. An admin can start an event now or stop a running one (admin `events/start`, `events/stop`); those
 // overrides ({ forced: [...], stopped: { key: at } }) are the only state. Every effect is clamped by EVENT_CAPS. The case
-// effects are paid for out of the hidden boost and the key fragments, so open-and-sell stays under EVENT_CAPS.sellMax
+// effects are paid for out of the hidden boost and the key fragments, so open-and-sell stays under ~1
 // of the price actually paid during any event (test/events.test.js, tools/sim-events.mjs).
 export const EVENTS = {
   luck: { name: 'Вихідні удачі', icon: 'clover', color: '#30d158', days: 2, topMult: 1.3, boost: 0,
@@ -2023,7 +2040,8 @@ export const EVENT_IDS = Object.keys(EVENTS);
 // Hard limits, whatever the definitions or the admin overrides say.
 //   topMult — the top class of a rarity case at most ×1.3; fuelMult — the event refills at most ×2, fuelTotal — with VIP at
 //   most ×3; prizeMult — race prizes at most +25%; caseOff / plateOff — discounts; forced — admin starts: at most 3 at once,
-//   1–72 h; sellMax — open-and-sell of any case during any event returns less than this share of the price paid.
+//   1–72 h; sellMax — a plate generation during its event sells back less than this share of the price paid (cases:
+//   under ~1 during any event via ORIGIN_SELL, test/caseev.test.js).
 export const EVENT_CAPS = { topMult: 1.3, fuelMult: 2, fuelTotal: 3, prizeMult: 1.25, caseOff: 0.15, plateOff: 0.2, forcedMax: 3, forcedHours: [1, 72], sellMax: 0.85 };
 // Never at the same time: double fuel means more races, and the race weekend pays more for each.
 export const EVENT_EXCLUSIVE = [['fuel', 'race']];
@@ -2118,7 +2136,7 @@ export function luckWeights(w, mult) {
 // A case right now: its price (case of the day or the country of the week), class weights, the hidden boost and whether
 // paid opens leave key fragments (and whether the losing-streak save works). The luck weekend replaces the hidden boost
 // and the case of the day; the country discount replaces the boost, the fragments and the streak save — that is what
-// keeps open-and-sell under EVENT_CAPS.sellMax (tools/sim-events.mjs).
+// keeps open-and-sell under ~1 (tools/sim-events.mjs, test/caseev.test.js).
 export function caseDeal(cs, day, fx = NO_EVENTS) {
   const deal = { price: cs.price, weights: cs.weights, boost: BOOST, fragments: true, save: true, off: 0, why: null };
   if (cs.starter) return { ...deal, price: 0, boost: 0, fragments: false };

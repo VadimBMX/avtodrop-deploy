@@ -953,7 +953,7 @@ H.carSellMenu = (d) => {
   const c = me.cars.find((x) => x.id === Number(d.id));
   const quick = sellPrice(c);
   sheet('Продаж', `<div class="list">
-    <button class="li" data-act="sellOne" data-id="${c.id}"><span class="ic">${ic('bolt')}</span><div class="grow"><b>Продати одразу · ${S.short(quick)}</b><div class="small muted">${Math.round(S.SELL_RATES[M(c.model).cls] * 100)}% ціни моделі. Деталі й номер повернуться тобі</div></div></button>
+    <button class="li" data-act="sellOne" data-id="${c.id}"><span class="ic">${ic('bolt')}</span><div class="grow"><b>Продати одразу · ${S.short(quick)}</b><div class="small muted">${Math.round((quick / M(c.model).price) * 100)}% ціни моделі${S.originSellOf(c.origin) < 1 ? ` (з кейсу «${esc(S.CASE_BY_ID[c.origin]?.name || c.origin)}» — викуп ×${dec(S.originSellOf(c.origin), 2)})` : ''}. Деталі й номер повернуться тобі</div></div></button>
     <button class="li" data-act="listMarket" data-id="${c.id}"><span class="ic">${ic('building-store')}</span><div class="grow"><b>На ринок</b><div class="small muted">Свою ціну, комісія ${S.FEE * 100}%. Машина йде разом з деталями й номером</div></div>${isOpen('market') ? '' : lockChip('market')}</button>
     <button class="li" data-act="listAuction" data-id="${c.id}"><span class="ic">${ic('hammer')}</span><div class="grow"><b>На аукціон</b><div class="small muted">Торги 1–24 год, ставка в останню хвилину продовжує</div></div>${isOpen('auction') ? '' : lockChip('auction')}</button>
   </div>`, () => carSheet(c.id));
@@ -1012,7 +1012,7 @@ function weightedModel(cs) {
 }
 // Dropped cars can be sold right from the result, so junk doesn't clog the garage.
 // The server sends car.sell (the instant-sale price right now, S.FRESH_SELL included); the model price is the fallback.
-const sellPrice = (car) => car.sell ?? S.sellPriceOf(car.model);
+const sellPrice = (car) => car.sell ?? S.sellPriceOf(car.model, Infinity, car.origin);
 const sellTotal = (cars) => cars.reduce((s, c) => s + sellPrice(c), 0);
 const dropAlive = (r) => !r.sold && me.cars.some((c) => c.id === r.car.id && c.status === 'garage');
 const reelCard = (model) => `<div class="car r${S.rankOf(M(model).cls)}" style="--c:${S.CLASSES[M(model).cls].color}">${clsBadge(M(model).cls, 'tl')}<div class="art">${carArt(model)}</div><div class="nm tiny ellipsis">${esc(M(model).name)}</div><div class="price tiny" style="color:${S.CLASSES[M(model).cls].color}">${S.short(M(model).price)}</div></div>`;
@@ -1146,7 +1146,7 @@ TABS.cases = () => {
     ${cs.starter ? '' : (() => {
       const fr = me.fragments?.[cs.id] || 0, need = S.FRAGMENTS_PER_KEY;
       return `<div class="card hooks mt">
-        <div class="hook"><div class="row between"><span class="hook-t">${ic('key')} Фрагменти ключа</span><b>${fr}<small>/${need}</small></b></div><div class="pips">${Array.from({ length: need }, (_, i) => `<i class="${i < fr ? 'on' : ''}"></i>`).join('')}</div><div class="tiny muted">Кожна машина дешевша за кейс дає фрагмент · ${need} фрагментів = безкоштовне відкриття${keys ? ` · у тебе ${ic('key')} ${keys}` : ''}</div></div>
+        <div class="hook"><div class="row between"><span class="hook-t">${ic('key')} Фрагменти ключа</span><b>${fr}<small>/${need}</small></b></div><div class="pips">${Array.from({ length: need }, (_, i) => `<i class="${i < fr ? 'on' : ''}"></i>`).join('')}</div><div class="tiny muted">Кожна машина дешевша за кейс дає фрагмент · ${need} фрагментів = безкоштовне відкриття${keys ? ` · у тебе ${ic('key')} ${keys}` : ''}${S.originSellOf(cs.id) < 1 ? `<br>Машини з цього кейсу продаються одразу за ×${dec(S.originSellOf(cs.id), 2)} звичайного викупу; у гаражі, доході й колекції — повна вартість` : ''}</div></div>
         ${S.pitySteps(cs).map(pityHook).join('')}
       </div>`;
     })()}
@@ -4327,7 +4327,7 @@ PAGES.battle = async () => {
   const mine = (side, i) => {
     const list = b.winnerId === me.id ? r.prize || [] : !b.winnerId ? (side === 'creator' ? r.creator : r.opponent).cars || [] : [];
     const car = b.winnerId === me.id ? list[side === 'creator' ? i : r.creator.drops.length + i] : (side === 'creator') === (b.creator.id === me.id) ? list[i] : null;
-    return car && me.cars.some((c) => c.id === car.id && c.status === 'garage') ? car : null;
+    return (car && me.cars.find((c) => c.id === car.id && c.status === 'garage')) || null;
   };
   const cell = (d, side, i) => {
     const car = !hide && mine(side, i);

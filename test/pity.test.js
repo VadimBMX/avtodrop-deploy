@@ -122,11 +122,12 @@ test('old counters move to the per-class keys once: same class keeps the count, 
 // Owner: «в UA кейсі дуже важко вибити золоті». The gold (A) Soviet rarities: shown odds 0.15% plus a step after 300
 // opens that gives a gold car still missing from the collection — ~1 gold per 230 opens, the whole UA collection in
 // ≤ 1200 opens — paid for by the collector sell rate (10%) and a smaller blue share, so open-and-sell stays ≤ ~1.00
-// (reports/ua.md, tools/sim-ua.mjs).
-test('UA case: pinned odds, gold step and open-and-sell ~1.00', () => {
+// (reports/ua.md, tools/sim-ua.mjs). reports/caseev.md (owner: «за годину 2 сині»): blue 1.3 → 6.5 (1 in ~13 opens),
+// gold 0.15 → 0.3 (1 in ~190 with the step); the blue cars sell for S.ORIGIN_SELL['c-ua'], so open-and-sell is ~0.91.
+test('UA case: pinned odds, gold step and open-and-sell ~0.9', () => {
   const cs = S.CASE_BY_ID['c-ua'];
   assert.equal(cs.price, 55000);
-  assert.deepEqual(cs.weights, { D: 98.55, C: 1.3, A: 0.15 });
+  assert.deepEqual(cs.weights, { D: 93.2, C: 6.5, A: 0.3 });
   assert.deepEqual(S.pitySteps(cs), [{ cls: 'C', n: 35, key: 'c-ua:C' }, { cls: 'A', n: 300, key: 'c-ua:A', missing: true }]);
   for (const c of S.CASES) if (c.id !== 'c-ua') assert.ok(S.pitySteps(c).every((s) => !s.missing), c.id);
   assert.deepEqual(cs.pool('A').map((m) => m.id).sort(), ['haz-13-chaika', 'haz-24-95-volha-4x4', 'vaz-2108-group-b', 'zil-41047']);
@@ -136,11 +137,12 @@ test('UA case: pinned odds, gold step and open-and-sell ~1.00', () => {
     assert.equal(S.sellPriceOf(m.id), Math.floor(m.price * S.HOME_SELL_RATE));
   }
   assert.equal(S.sellPriceOf('nissan-gt-r-r35'), Math.floor(S.MODELS['nissan-gt-r-r35'].price * S.SELL_RATES.A), 'other gold cars keep 45%');
-  const gold = uaOdds().A;
-  assert.ok(gold > 1 / 260 && gold < 1 / 210, `gold 1 in ${(1 / gold).toFixed(0)}`);
+  const { A: gold, C: blue } = uaOdds();
+  assert.ok(gold > 1 / 210 && gold < 1 / 170, `gold 1 in ${(1 / gold).toFixed(0)}`);
+  assert.ok(blue > 1 / 15 && blue < 1 / 10, `blue 1 in ${(1 / blue).toFixed(1)}`);
   const exact = uaSell(), sim = simCase(cs, S.pitySteps(cs), 2e5, 3).sell;
-  assert.ok(exact > 0.96 && exact < 1.01, `open-and-sell exact ${exact.toFixed(3)}`);
-  assert.ok(sim > 0.96 && sim < 1.01, `open-and-sell sim ${sim.toFixed(3)}`);
+  assert.ok(exact > 0.85 && exact < 0.95, `open-and-sell exact ${exact.toFixed(3)}`);
+  assert.ok(sim > 0.85 && sim < 0.95, `open-and-sell sim ${sim.toFixed(3)}`);
 });
 
 test('UA case: a missing gold car at least every 300 opens; collector cars stay out of upgrade and trade-in', () => {

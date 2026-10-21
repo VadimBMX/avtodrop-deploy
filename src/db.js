@@ -320,6 +320,8 @@ const MIGRATIONS = [
   // Free hand washes used on the Kyiv day wash_day.
   'ALTER TABLE users ADD COLUMN wash_day TEXT',
   'ALTER TABLE users ADD COLUMN wash_hand INTEGER NOT NULL DEFAULT 0',
+  // The case a car came out of (S.ORIGIN_SELL: its instant-sale share); NULL for the cars from before, the dealer, rewards.
+  'ALTER TABLE cars ADD COLUMN origin TEXT',
 ];
 
 export function openDb(file) {

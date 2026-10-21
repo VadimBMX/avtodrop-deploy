@@ -1,6 +1,7 @@
 // Economy check for game events (S.EVENTS) through the real API: a rich player opens a case N times while an event runs,
 // sells every drop, and we compare what the sales (plus free keys from fragments) bring with the money actually paid.
-// Rule: open-and-sell < S.EVENT_CAPS.sellMax (0.85) of the price paid for every case during every event.
+// Rule (reports/caseev.md): open-and-sell under 1 of the price paid for every case during every event (the instant sale
+// of a car out of a case is S.ORIGIN_SELL of the usual rate; test/caseev.test.js).
 //   node tools/sim-events.mjs [opens=4000] [caseId,caseId...]
 // Scenarios: «none» (no case event; the rarity case on a plain day), «day» (rarity case on its case-of-day, no event),
 // «luck» (Вихідні удачі), «country» (Країна тижня on this country). Seeds are fixed, so a run is reproducible.
@@ -40,7 +41,7 @@ export function runCase(cs, t0, n, prep = null, seed = 'sim') {
     const spent = b0 - bal.get().balance;
     const m = S.MODELS[r.results[0].car.model];
     paid += spent;
-    sell += S.sellPriceOf(m.id);
+    sell += r.results[0].car.sell; // what the game pays for this car (its origin share included)
     value += m.price;
     classes[m.cls] = (classes[m.cls] || 0) + 1;
     if (spent) {
@@ -80,7 +81,7 @@ export function staticSell(cs, deal) {
     prev = B;
     const list = cs.pool(c), w = S.modelWeights(list), sw = w.reduce((a, b) => a + b, 0);
     list.forEach((m, i) => {
-      sell += (p * w[i] * S.sellPriceOf(m.id)) / sw;
+      sell += (p * w[i] * S.sellPriceOf(m.id, Infinity, cs.id)) / sw;
       if (m.price < deal.price) below += (p * w[i]) / sw;
     });
   }
@@ -115,7 +116,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.log([cs.id, name, r.price, sell.toFixed(3), (r.value / r.paid).toFixed(3), ((r.below / r.opens) * 100).toFixed(0) + '%', ((r.keyOpens / r.opens) * 100).toFixed(1) + '%'].join(' | '));
     }
   }
-  console.log(`worst sell ratio during an event: ${worst.toFixed(3)} (limit ${S.EVENT_CAPS.sellMax}); case of the day without events (not an event, for reference): ${worstDay.toFixed(3)}`);
+  console.log(`worst sell ratio during an event: ${worst.toFixed(3)} (target < 1, reports/caseev.md); case of the day without events (not an event, for reference): ${worstDay.toFixed(3)}`);
   console.log('\nplates | price | during «Щасливі номери» | sell EV | sell/price | during');
   for (const r of plateCheck()) console.log([r.id, r.price, r.event, Math.round(r.sell), r.base.toFixed(3), r.during.toFixed(3)].join(' | '));
   console.log(`\nrace prize ×${S.EVENTS.race.prizeMult} (cap ×${S.EVENT_CAPS.prizeMult}); fuel ×${S.EVENTS.fuel.fuelMult} (cap ×${S.EVENT_CAPS.fuelMult}, with VIP ≤ ×${S.EVENT_CAPS.fuelTotal}); exclusive: ${S.EVENT_EXCLUSIVE.map((p) => p.join('+')).join(', ')}`);

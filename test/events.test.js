@@ -291,10 +291,11 @@ test('reminder: «event started» once, in the first hours, within the daily lim
   assert.ok(!g2.pushCandidates({ inactiveDays: 14, idleMin: 30, maxPerDay: 2, seasonWarnH: 24 }).some((c) => c.ready.some((r) => r.kind === 'event')));
 });
 
-// Owner's decision (eco3): the old case prices stay even though open-and-sell of the dear cases is above 1 (×1.5–2.8).
-// The rule left is a sanity cap: no case pays back more than OPEN_SELL_CAP of the price during any event.
-const OPEN_SELL_CAP = 3;
-test('economy: open-and-sell under the sanity cap for every case during every event (exact odds)', () => {
+// reports/caseev.md: prices stay, odds went up, and a car out of a case sells for S.ORIGIN_SELL of its usual rate, so
+// open-and-sell is under 1 of the price paid during every event. The static bound below adds +5% for the streak save,
+// hence 1.05; the Monte Carlo of test/caseev.test.js pins < 1.01 on deal days.
+const OPEN_SELL_CAP = 1.05;
+test('economy: open-and-sell under the price for every case during every event (exact odds)', () => {
   // Exact for the country discount (boost, fragments and streak save are all off there); for the luck weekend the
   // streak save still works, +5% covers it (tools/sim-events.mjs measures it at 0–3%).
   for (const cs of S.CASES.filter((c) => !c.starter)) {
@@ -309,12 +310,12 @@ test('economy: open-and-sell under the sanity cap for every case during every ev
   for (const p of plateCheck()) assert.ok(p.during < S.EVENT_CAPS.sellMax, `plates ${p.id}: ${p.during.toFixed(3)}`);
 });
 
-test('economy: luck weekend through the real API — every rarity case under the sanity cap (fixed seeds)', () => {
+test('economy: luck weekend through the real API — every rarity case under the price (fixed seeds)', () => {
   for (const cs of S.CASES.filter((c) => c.group === 'rarity')) {
     const [, t0, prep] = scenarios(cs).find(([name]) => name === 'luck');
     const r = runCase(cs, t0, 1500, prep, 'test');
     assert.equal(r.price, cs.price, 'no case of the day at the weekend');
-    assert.ok(r.sell / r.paid < OPEN_SELL_CAP, `${cs.id}: ${(r.sell / r.paid).toFixed(3)}`);
+    assert.ok(r.sell / r.paid < 1, `${cs.id}: ${(r.sell / r.paid).toFixed(3)}`);
   }
   // The country discount through the API: the price paid is −15% and no fragment keys come.
   const cs = S.CASE_BY_ID['c-jp'];

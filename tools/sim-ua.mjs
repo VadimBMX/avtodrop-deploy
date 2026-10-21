@@ -39,7 +39,7 @@ export function uaSell(c = cs, { price = c.price, boost = S.BOOST, frag = true }
   for (const k of Object.keys(p)) {
     const list = c.pool(k), w = S.modelWeights(list), sw = w.reduce((a, b) => a + b, 0);
     list.forEach((m, i) => {
-      sell += (p[k] * w[i] * S.sellPriceOf(m.id)) / sw;
+      sell += (p[k] * w[i] * S.sellPriceOf(m.id, Infinity, c.id)) / sw;
       if (m.price < price) below += (p[k] * w[i]) / sw;
     });
   }

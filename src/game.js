@@ -160,7 +160,7 @@ export function createGame(db, opts = {}) {
     const plate = carPlate(c.id);
     const st = S.carStats({ model: c.model, parts, plateValue: plate?.value || 0 });
     const t = tankState(c);
-    return { id: c.id, model: c.model, status: c.status, parts, plate, look: lookOf(c), tank: t.tank, tankNext: t.next, sell: S.sellPriceOf(c.model, now() - c.created_at), ...st,
+    return { id: c.id, model: c.model, status: c.status, parts, plate, look: lookOf(c), tank: t.tank, tankNext: t.next, sell: S.sellPriceOf(c.model, now() - c.created_at, c.origin), origin: c.origin || null, ...st,
       dirt: Math.floor(S.dirtNow(c.dirt, c.dirt_at, now())), shineUntil: c.shine_until > now() ? c.shine_until : 0 };
   }
   // Paint and livery as the client draws them (n = the race livery's number); null for a factory car. Unknown ids
@@ -195,17 +195,21 @@ export function createGame(db, opts = {}) {
     // "Full" only when it really is: 4/6 and ×3 is "no room for ×3 — 2 free", not "garage full".
     if (free < n) fail(free > 0 ? `Не вистачає місця для ×${n} — вільно ${free}` : 'Гараж заповнений — продай авто або купи місце');
   }
-  function giveCar(uid, model) {
+  // origin: the case the car came out of (S.ORIGIN_SELL sets its instant-sale share), null for any other source.
+  function giveCar(uid, model, origin = null) {
     // The one door every car comes in by: a car not in the game (a NEW_RAW car still without its photo) never gets in.
     if (!S.MODELS[model]) fail('Невідома модель');
     const isNew = !q('SELECT 1 FROM collection WHERE user_id = ? AND model = ?').get(uid, model);
-    const r = q('INSERT INTO cars (owner_id, model, tank, tank_at, created_at, dirt_at) VALUES (?, ?, ?, ?, ?, ?)').run(uid, model, S.CAR_TANK, now(), now(), now());
+    const r = q('INSERT INTO cars (owner_id, model, tank, tank_at, created_at, dirt_at, origin) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uid, model, S.CAR_TANK, now(), now(), now(), origin);
     if (isNew) {
       q('INSERT INTO collection (user_id, model, at) VALUES (?, ?, ?)').run(uid, model, now());
       xp(uid, 'newCar');
     }
     return { id: Number(r.lastInsertRowid), isNew, dream: dreamHit(uid, model) };
   }
+  // An upgrade or trade-in result keeps the lowest instant-sale share of the cars put in, so a case car can't be turned
+  // into a full-rate one that way.
+  const worstOrigin = (cars) => cars.reduce((o, c) => (S.originSellOf(c.origin) < S.originSellOf(o) ? c.origin : o), null);
   function transferCar(carId, to) {
     q("UPDATE cars SET owner_id = ?, status = 'garage' WHERE id = ?").run(to, carId);
     q('UPDATE plates SET owner_id = ? WHERE car_id = ?').run(to, carId);
@@ -666,7 +670,7 @@ export function createGame(db, opts = {}) {
     let got = 0;
     for (const id of ids) {
       const c = noSecret(ownCar(uid, id, ['garage', 'showcase']));
-      got += S.sellPriceOf(c.model, now() - c.created_at);
+      got += S.sellPriceOf(c.model, now() - c.created_at, c.origin);
       stripCar(uid, c.id);
       q('DELETE FROM cars WHERE id = ?').run(c.id);
       q('DELETE FROM rivals WHERE car_id = ?').run(c.id);
@@ -740,7 +744,7 @@ export function createGame(db, opts = {}) {
         model = rig.model;
         lucky = 1;
       }
-      const { id, isNew, dream } = giveCar(uid, model);
+      const { id, isNew, dream } = giveCar(uid, model, cs.starter ? null : cs.id);
       // luck_spent holds the fading sum of what these cases should give on average (their expected value).
       if (!cs.starter) {
         q('UPDATE users SET luck_spent = luck_spent * ? + ?, luck_got = luck_got * ? + ? WHERE id = ?').run(S.LUCK.decay, cs.ev, S.LUCK.decay, S.MODELS[model].price, uid);
@@ -1492,7 +1496,7 @@ export function createGame(db, opts = {}) {
     invalidateTrades(ids);
     let car = null, isNew = false;
     if (win) {
-      const g = giveCar(uid, t.id);
+      const g = giveCar(uid, t.id, worstOrigin(cars));
       car = carOut(carRow(g.id));
       isNew = g.isNew;
     }
@@ -1524,7 +1528,7 @@ export function createGame(db, opts = {}) {
       q('DELETE FROM rivals WHERE car_id = ?').run(c.id);
     }
     invalidateTrades(ids);
-    const g = giveCar(uid, model);
+    const g = giveCar(uid, model, worstOrigin(cars));
     q('INSERT INTO drops (user_id, case_id, item, cls, seed_hash, client_seed, nonce, forced, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(uid, 'tradein', model, S.MODELS[model].cls, sha256(f.server_seed), f.client_seed, f.nonce, 0, now());
     xp(uid, 'upgrade');
@@ -2616,7 +2620,7 @@ export function createGame(db, opts = {}) {
   // and until then no new cases can be opened and only the best cars within the limit earn income.
   const BATTLE_COUNTS = [1, 3, 6, 10];
   const CONSOLATION = S.ALL_MODELS.filter((m) => m.cls === 'D' && !m.secret);
-  const giveCars = (uid, models) => models.map((m) => ({ id: giveCar(uid, m).id, model: m }));
+  const giveCars = (uid, models, origin = null) => models.map((m) => ({ id: giveCar(uid, m, origin).id, model: m }));
   function battleOut(b, uid) {
     return {
       id: b.id, caseId: b.case_id, count: b.count, price: b.price, status: b.status, mine: b.creator_id === uid,
@@ -2666,7 +2670,7 @@ export function createGame(db, opts = {}) {
     if (a.total !== o.total) {
       [winner, loser] = a.total > o.total ? [a, o] : [o, a];
       // Ids line up with creator drops first, then opponent drops, so the result screen can offer "sell" per card.
-      prize = giveCars(winner.id, [...a.drops, ...o.drops].map((d) => d.model));
+      prize = giveCars(winner.id, [...a.drops, ...o.drops].map((d) => d.model), cs.id);
       const model = CONSOLATION[Math.floor(rnd() * CONSOLATION.length)].id;
       // The consolation car never pushes the loser's garage over its limit: with no free slot it is sold at once
       // (the result screen says "Гараж повний — продано за …").
@@ -2679,8 +2683,8 @@ export function createGame(db, opts = {}) {
       }
     } else {
       // A dead heat: everyone keeps what they opened.
-      a.cars = giveCars(a.id, a.drops.map((d) => d.model));
-      o.cars = giveCars(o.id, o.drops.map((d) => d.model));
+      a.cars = giveCars(a.id, a.drops.map((d) => d.model), cs.id);
+      o.cars = giveCars(o.id, o.drops.map((d) => d.model), cs.id);
     }
     const result = { creator: a, opponent: o, consolation, prize };
     q("UPDATE battles SET opponent_id = ?, status = 'done', winner_id = ?, result = ?, finished_at = ? WHERE id = ?")
