@@ -231,6 +231,11 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
       return send(res, 200, { ok: true, started: child.pid });
     }
     if (action === 'stop') {
+      // Windows doesn't take children down with their parent: kill the whole tree, then anything still holding port 3300.
+      if (process.platform === 'win32') {
+        const ps = `${cur?.pid ? `taskkill /PID ${cur.pid} /T /F; ` : ''}Get-NetTCPConnection -LocalPort 3300 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }; Get-CimInstance Win32_Process -Filter "Name='cloudflared.exe'" | Where-Object { $_.CommandLine -like '*localhost:3300*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`;
+        return execFile('powershell', ['-NoProfile', '-Command', ps], { timeout: 30e3 }, (err, out, errOut) => send(res, 200, { ok: true, stopped: cur?.pid || null, out: String(out), err: String(errOut || '') }));
+      }
       if (cur?.pid && alive(cur.pid)) { try { process.kill(cur.pid); } catch {} }
       return send(res, 200, { ok: true, stopped: cur?.pid || null });
     }
