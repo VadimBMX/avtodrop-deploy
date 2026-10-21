@@ -2124,3 +2124,17 @@ button.li:active { background-color: #ffffff08; }
 .lv.on { background: var(--card2); box-shadow: inset 0 0 0 1.5px var(--accent); }
 .paint-reset { display: block; margin: 8px auto 0; }
 .paint-buy { margin-bottom: 12px; }
+
+/* ===== Season car: showroom stage instead of a coloured halo around the silhouette ===== */
+.season-car { background: linear-gradient(180deg, #0f1a26 0%, var(--card) 62%); border-color: #22303f; overflow: hidden; }
+.season-car .art.stage { position: relative; height: 132px; margin: 6px 0 4px; display: flex; align-items: flex-end; justify-content: center; isolation: isolate; }
+/* soft overhead spotlight */
+.season-car .art.stage::before { content: ''; position: absolute; inset: -40px 12% 18px; z-index: -1; pointer-events: none;
+  background: radial-gradient(55% 80% at 50% 0%, #d6eaff40, #8fb8e018 45%, transparent 74%); filter: blur(2px); }
+/* glossy floor with a light pool under the car */
+.season-car .art.stage::after { content: ''; position: absolute; left: 4%; right: 4%; bottom: -2px; height: 46px; z-index: -1; pointer-events: none;
+  background: radial-gradient(42% 26% at 50% 28%, #000e, transparent 78%), radial-gradient(58% 70% at 50% 35%, #a8cdf238, transparent 72%);
+  border-top: 1px solid #ffffff08; }
+.season-car .art.stage img { width: 86%; height: 108px; max-width: none; object-fit: contain; object-position: 50% 100%;
+  filter: drop-shadow(0 9px 6px #000d) contrast(1.04); -webkit-box-reflect: below -2px linear-gradient(transparent 80%, #ffffff24); }
+.season-car .art.stage + b { margin-top: 14px; }
