@@ -1416,6 +1416,7 @@ H.sellCheap = (d) => {
   toast('Обрано найдешевші — перевір і тисни «Продати»');
 };
 H.toGarage = () => {
+  if ((me.stats?.cases || 0) <= 3) api('funnel/mark', { step: 'garage' }).catch(() => {}); // owner metrics: first-session funnel
   state.drop = null;
   state.tab = 'garage';
   window.scrollTo(0, 0); // a new tab starts at the top (the first-steps card lives there)

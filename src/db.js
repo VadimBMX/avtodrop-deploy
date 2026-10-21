@@ -220,6 +220,14 @@ CREATE INDEX IF NOT EXISTS admin_log_target ON admin_log(target, id);
 -- per day (every addMoney / pay; player-to-player deals count on both sides, the net is the real change of money supply).
 CREATE TABLE IF NOT EXISTS user_days (day TEXT NOT NULL, user_id INTEGER NOT NULL, PRIMARY KEY (day, user_id)) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS money_days (day TEXT PRIMARY KEY, created INTEGER NOT NULL DEFAULT 0, destroyed INTEGER NOT NULL DEFAULT 0);
+-- Owner metrics (admin «Метрики»): a player's days in order (cohorts, WAU); the first time each first-session step
+-- happened (intro, drop, garage, collect, race, L2…L10); money_days split by what moved the money (the API call,
+-- admin action or system job, grouped in src/metrics.js).
+CREATE INDEX IF NOT EXISTS user_days_user ON user_days(user_id, day);
+CREATE TABLE IF NOT EXISTS funnel (user_id INTEGER NOT NULL, step TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (user_id, step)) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS money_src (
+  day TEXT NOT NULL, src TEXT NOT NULL, created INTEGER NOT NULL DEFAULT 0, destroyed INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, src)
+) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS drops_time ON drops(created_at);
 CREATE INDEX IF NOT EXISTS users_created ON users(created_at);
 CREATE INDEX IF NOT EXISTS payments_time ON payments(created_at);
@@ -248,6 +256,12 @@ const MIGRATIONS = [
   // Time spent with the game open on screen (summed between the app's polls), and when the last poll came.
   'ALTER TABLE users ADD COLUMN play_ms INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE users ADD COLUMN play_at INTEGER NOT NULL DEFAULT 0',
+  // Owner metrics: the deep-link parameter the player arrived with (ref_<id>, ch_<id>, …; NULL = opened the bot
+  // directly), the last moment counted for sessions (a gap over 30 min starts a new one, src/metrics.js), and the
+  // sessions of each day (0 on days from before the counting began).
+  'ALTER TABLE users ADD COLUMN start_param TEXT',
+  'ALTER TABLE users ADD COLUMN session_at INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE user_days ADD COLUMN sessions INTEGER NOT NULL DEFAULT 0',
   // Drops in a row worth less than their case (S.LUCK.streak).
   'ALTER TABLE users ADD COLUMN bad_streak INTEGER NOT NULL DEFAULT 0',
   // Instant sales at the full rate today (S.SELL_DAILY): the day and how much was sold.

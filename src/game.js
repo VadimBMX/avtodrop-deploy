@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import * as S from '../public/shared.js';
 import * as T from '../public/tune.js';
+import * as M from './metrics.js';
 
 export class GameError extends Error {}
 const fail = (msg) => {
@@ -126,6 +127,7 @@ export function createGame(db, opts = {}) {
     if (!n) return;
     q('INSERT INTO money_days (day, created, destroyed) VALUES (?, ?, ?) ON CONFLICT DO UPDATE SET created = created + excluded.created, destroyed = destroyed + excluded.destroyed')
       .run(dayOf(now()), n > 0 ? n : 0, n < 0 ? -n : 0);
+    srcFlow(n); // the same split by what moved it (owner metrics, below)
   }
   const addKeys = (uid, caseId, n) => q('INSERT INTO keys (user_id, case_id, count) VALUES (?, ?, ?) ON CONFLICT DO UPDATE SET count = count + excluded.count').run(uid, caseId, n);
   const addPart = (uid, type, tier, n = 1) => q('INSERT INTO parts (user_id, type, tier, count) VALUES (?, ?, ?, ?) ON CONFLICT DO UPDATE SET count = count + excluded.count').run(uid, type, tier, n);
@@ -3538,8 +3540,15 @@ export function createGame(db, opts = {}) {
   try {
     db.function('ulower', { deterministic: true }, (v) => (v == null ? null : String(v).toLowerCase()));
   } catch {}
+  // The player's day in user_days, and his sessions that day: a call after a gap over M.SESSION_GAP_MS (or the first
+  // one of a new day) starts a new session.
   function markDay(uid) {
-    q('INSERT OR IGNORE INTO user_days (day, user_id) VALUES (?, ?)').run(dayOf(now()), uid);
+    const t = now(), day = dayOf(t);
+    const prev = q('SELECT session_at FROM users WHERE id = ?').get(uid)?.session_at || 0;
+    const fresh = t - prev > M.SESSION_GAP_MS || dayOf(prev) !== day ? 1 : 0;
+    q('UPDATE users SET session_at = ? WHERE id = ?').run(t, uid);
+    q('INSERT INTO user_days (day, user_id, sessions) VALUES (?, ?, ?) ON CONFLICT DO UPDATE SET sessions = sessions + excluded.sessions WHERE excluded.sessions > 0')
+      .run(day, uid, fresh);
   }
   const isBanned = (uid) => !!q('SELECT banned FROM users WHERE id = ?').get(uid)?.banned;
   const userBrief = (u) => ({
@@ -4302,8 +4311,15 @@ export function createGame(db, opts = {}) {
     if (!Object.hasOwn(S.CASINO_MODES, String(mode))) fail('Невідомий режим');
     const from = casinoMode();
     metaSet('casino_mode', mode);
-    // Mines games still running when mines close: nobody can reach them in the app any more, so they are settled now —
-    // cashed out at the current multiplier, or the bet back when no cell was opened. (A crash round ends by itself.)
+    const settled = closeCasinoGames(mode);
+    alog(who, 'casino-mode', null, { from, to: mode, settled });
+    return { casino: mode, settled };
+  }
+  // Games still running when their game closes: nobody can reach them in the app any more, so they are settled now.
+  // Mines: cashed out at the current multiplier, or the bet back when no cell was opened. Crash: a round that already
+  // crashed (or hit its auto cash-out) ends as it would have; one still in the air is cashed out at the multiplier it
+  // has reached (at least ×1.00, the bet back). Returns how many games were paid out this way.
+  function closeCasinoGames(mode) {
     let settled = 0;
     if (!S.casinoGameOpen(mode, 'mines')) {
       for (const g of q("SELECT * FROM mines_games WHERE status = 'running'").all()) {
@@ -4315,8 +4331,23 @@ export function createGame(db, opts = {}) {
         settled++;
       }
     }
-    alog(who, 'casino-mode', null, { from, to: mode, settled });
-    return { casino: mode, settled };
+    if (!S.casinoGameOpen(mode, 'crash')) {
+      for (const g0 of q("SELECT * FROM crash_games WHERE status = 'running'").all()) {
+        const g = crashResolve(g0);
+        if (g.status !== 'running') continue;
+        const x = Math.max(1, Math.floor(S.crashAt((now() - g.started_at) / 1000) * 100) / 100);
+        if (x >= g.point) {
+          q("UPDATE crash_games SET status = 'lost' WHERE id = ?").run(g.id);
+          continue;
+        }
+        const back = payout(g.bet, x);
+        addMoney(g.user_id, back);
+        q("UPDATE crash_games SET status = 'won', cashout = ? WHERE id = ?").run(x, g.id);
+        event(g.user_id, `🎰 Гру «Краш» закрито адміністрацією — тобі повернуто ${S.fmt(back)} (×${x.toFixed(2).replace('.', ',')})`);
+        settled++;
+      }
+    }
+    return settled;
   }
   // Admin handlers get (who, body); read-only ones ignore `who`. Each runs in one transaction.
   const adminHandlers = {
@@ -4425,6 +4456,150 @@ export function createGame(db, opts = {}) {
     if (!light) recalc(uid);
     return r;
   })]));
+
+  // ---------- owner metrics (admin «Метрики»; the arithmetic is in src/metrics.js) ----------
+  // What moved the money right now, for money_src: the API call's name, 'admin/<action>', or the job that pays out on
+  // its own ('level', 'weekly', 'season', 'comeback', 'shop', 'auction', 'signup'); 'other' when none is set.
+  let flowSrc = null;
+  function srcFlow(n) {
+    q('INSERT INTO money_src (day, src, created, destroyed) VALUES (?, ?, ?, ?) ON CONFLICT DO UPDATE SET created = created + excluded.created, destroyed = destroyed + excluded.destroyed')
+      .run(dayOf(now()), flowSrc || 'other', n > 0 ? n : 0, n < 0 ? -n : 0);
+  }
+  const srcWrap = (src, fn) => function (...a) {
+    const prev = flowSrc;
+    flowSrc = src;
+    try {
+      return fn.apply(this, a);
+    } finally {
+      flowSrc = prev;
+    }
+  };
+  // The first time a first-session step happened (M.FUNNEL_STEPS); later ones change nothing.
+  const funnelMark = (uid, step) => q('INSERT OR IGNORE INTO funnel (user_id, step, at) VALUES (?, ?, ?)').run(uid, step, now());
+  // Every API call names its money, and a successful call may be a funnel step (M.FUNNEL_AFTER).
+  for (const [k, fn] of Object.entries(api)) {
+    const step = M.FUNNEL_AFTER[k];
+    api[k] = (uid, body = {}) => db.tx(() => {
+      const prev = flowSrc;
+      flowSrc = k;
+      try {
+        const r = fn(uid, body);
+        if (step) funnelMark(uid, step);
+        return r;
+      } finally {
+        flowSrc = prev;
+      }
+    });
+  }
+  // Steps only the app sees (the «У гараж» tap on the drop screen): a light call that does nothing else.
+  api['funnel/mark'] = (uid, body = {}) => db.tx(() => {
+    const step = String(body?.step ?? '');
+    if (!M.CLIENT_STEPS.has(step)) fail('Невідомий крок');
+    userRow(uid);
+    funnelMark(uid, step);
+    return {};
+  });
+  for (const k of Object.keys(admin)) admin[k] = srcWrap('admin/' + k, admin[k]);
+  // Jobs that pay out on their own. Function declarations can be re-pointed: every caller goes through the name, so
+  // this labels their money without touching their code.
+  settleWeek = srcWrap('weekly', settleWeek);
+  settleSeason = srcWrap('season', settleSeason);
+  checkComeback = srcWrap('comeback', checkComeback);
+  settleAuctions = srcWrap('auction', settleAuctions);
+  creditPayment = srcWrap('shop', creditPayment);
+  creditItem = srcWrap('shop', creditItem);
+  adminGive = srcWrap('admin/give', adminGive);
+  // Level-ups: the reward money is 'level', and every new level up to M.FUNNEL_LEVEL_MAX is a funnel mark ('L3', …).
+  xp = ((inner) => {
+    const labelled = srcWrap('level', inner);
+    return (uid, kind, mult) => {
+      const before = q('SELECT level FROM users WHERE id = ?').get(uid)?.level;
+      labelled(uid, kind, mult);
+      const after = q('SELECT level FROM users WHERE id = ?').get(uid)?.level;
+      for (let l = before + 1; l <= Math.min(after, M.FUNNEL_LEVEL_MAX); l++) funnelMark(uid, 'L' + l);
+    };
+  })(xp);
+  // Signing in: the start money is 'signup', a new player's deep-link parameter is kept (M.signupSource), and the day
+  // counts as active right away (the API calls mark it at most every 15 s after the last sign-in).
+  ensureUser = ((inner) => (tg, startParam) => db.tx(() => {
+    const prev = flowSrc;
+    flowSrc = 'signup';
+    try {
+      const r = inner(tg, startParam);
+      const uid = Number(tg.id);
+      if (r?.created) q('UPDATE users SET start_param = ? WHERE id = ?').run(M.cleanStartParam(startParam), uid);
+      if (!isBanned(uid)) markDay(uid);
+      return r;
+    } finally {
+      flowSrc = prev;
+    }
+  }))(ensureUser);
+
+  // The tab: players who signed up in the last `days` Kyiv days (cohorts, funnel, sources), activity from 6 days
+  // before (WAU), money by source. Reads only indexed ranges: users_created, user_days by day, funnel by player.
+  function adminMetrics({ days }) {
+    const n = days == null || days === '' ? 30 : int(days, 7, 90, 'Днів');
+    const t = now(), T = M.dayNum(dayOf(t)), first = T - (n - 1);
+    const kday = M.hourDay(dayOf);
+    const funnelSince = Number(metaGet('funnel_since')) || 0;
+    const since = Date.parse(M.dayStr(first) + 'T00:00:00Z') - 3 * 3600e3; // a Kyiv day starts 2–3 h before UTC's
+    const users = [];
+    for (const r of q('SELECT u.id, u.created_at, u.referrer_id, u.start_param, l.id legacy FROM users u LEFT JOIN legacy l ON l.id = u.id WHERE u.created_at >= ?').all(since)) {
+      const day = M.dayNum(kday(r.created_at));
+      if (day < first) continue;
+      users.push({ id: r.id, createdAt: r.created_at, day, tracked: !!funnelSince && r.created_at >= funnelSince,
+        source: M.signupSource({ startParam: r.start_param, referrerId: r.referrer_id, legacy: r.legacy != null }) });
+    }
+    const activity = q('SELECT day, user_id, sessions FROM user_days WHERE day >= ?').all(M.dayStr(first - 6));
+    const marks = q('SELECT f.user_id, f.step, f.at FROM users u JOIN funnel f ON f.user_id = u.id WHERE u.created_at >= ?').all(Math.max(since, funnelSince));
+    const money = q('SELECT day, src, created, destroyed FROM money_src WHERE day >= ?').all(M.dayStr(first));
+    return M.buildMetrics({ today: T, first, users, activity, marks, money, now: t, funnelSince });
+  }
+  // Owner and admins (not helpers); read-only, so no confirm or reason.
+  admin.metrics = (who, body = {}) => db.tx(() => {
+    if (!canDo(actorRole(who), 'metrics')) fail('Немає прав на цю дію');
+    return adminMetrics(body || {});
+  });
+
+  // Once per database: the days players were in the game before user_days existed, from what they left behind
+  // (case drops, races, Stars payments, the signup day) over the last 120 days (the tab shows at most 90 + 6), up to
+  // the end of the first day user_days already has. One INSERT … SELECT per table, all in SQL; sessions unknown (0).
+  function backfillUserDays() {
+    if (metaGet('user_days_backfill_1')) return;
+    const firstTracked = q('SELECT MIN(day) d FROM user_days').get()?.d;
+    const from = Math.floor(now() - 120 * 86400e3);
+    const to = Math.floor(firstTracked ? Date.parse(firstTracked + 'T00:00:00Z') + 86400e3 : now() + 86400e3);
+    const day = M.kyivDaySql('created_at', from, to);
+    db.tx(() => {
+      for (const [table, uid, extra] of [['drops', 'user_id', ''], ['races', 'user_id', ''], ['payments', 'user_id', "AND charge_id NOT LIKE 'legacy:%'"], ['users', 'id', '']]) {
+        if (to > from) db.exec(`INSERT OR IGNORE INTO user_days (day, user_id) SELECT DISTINCT ${day}, ${uid} FROM ${table} WHERE created_at >= ${from} AND created_at < ${to} ${extra}`);
+      }
+      metaSet('user_days_backfill_1', now());
+    });
+  }
+  // The owner switched the casino off on 22.10 (S.CASINO_DEFAULT = 'off'). Once per database: a mode saved in the panel
+  // before that day goes back to off (one the owner picked on 22.10 or later stays), and games left running in a game
+  // that is closed now are settled (closeCasinoGames). Logged as 'system' in the casino history.
+  const CASINO_OFF_FLAG = 'casino_off_2026_10_22', CASINO_OFF_SINCE = Date.parse('2026-10-22T00:00:00+03:00');
+  function migrateCasinoOff() {
+    if (metaGet(CASINO_OFF_FLAG)) return;
+    db.tx(() => {
+      const saved = metaGet('casino_mode');
+      const valid = Object.hasOwn(S.CASINO_MODES, saved ?? '');
+      const last = q("SELECT created_at FROM admin_log WHERE action = 'casino-mode' AND admin <> 'system' ORDER BY id DESC LIMIT 1").get();
+      const from = valid ? saved : 'on'; // the default until 22.10
+      if (valid && saved !== 'off' && !(last && last.created_at >= CASINO_OFF_SINCE)) metaSet('casino_mode', 'off');
+      const to = casinoMode();
+      const settled = srcWrap('casino/close', closeCasinoGames)(to);
+      // A new, empty database never had the casino on: nothing to log there.
+      const live = !!q('SELECT 1 FROM users LIMIT 1').get();
+      if ((from !== to && live) || settled) alog('system', 'casino-mode', null, { from, to, settled, reason: 'Рішення власника 22.10: казино вимкнено' });
+      metaSet(CASINO_OFF_FLAG, now());
+    });
+  }
+  if (!metaGet('funnel_since')) metaSet('funnel_since', now());
+  backfillUserDays();
+  migrateCasinoOff();
 
   // When car prices change (a balance update), revalue every garage at once and move the week's starting value by
   // the same amount, so the weekly race counts only real growth, not the revaluation.

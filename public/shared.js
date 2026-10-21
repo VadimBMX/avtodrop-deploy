@@ -1595,7 +1595,7 @@ export const unlocksBetween = (from, to) => UNLOCKS.filter((u) => u.level > from
 // roulette wheel; 'off' — no casino anywhere (entry points gone, the API refuses new bets; running games can still
 // be finished and cashed out).
 export const CASINO_MODES = { on: 'Усі ігри', wheel: 'Лише рулетка', off: 'Вимкнено' };
-export const CASINO_DEFAULT = 'on';
+export const CASINO_DEFAULT = 'off'; // the owner's decision of 22.10 (src/game.js migrateCasinoOff); he can switch it on
 export const CASINO_GAMES = { crash: 'on', mines: 'on', slots: 'on', roulette: 'wheel' }; // the lowest mode a game is open in
 export const casinoGameOpen = (mode, game) => mode === 'on' || (mode === 'wheel' && CASINO_GAMES[game] === 'wheel');
 // Open features of a player: by level, by earlier use (feats) or for staff; the casino also needs the owner's switch.

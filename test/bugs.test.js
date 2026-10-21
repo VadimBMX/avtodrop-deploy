@@ -149,10 +149,11 @@ test('BUG-5 a reward car does not earn income retroactively (daily bonus car)', 
 
 // ---------- 6. roulette field names from Object.prototype crash the handler ----------
 test('BUG-6 roulette: a field like "constructor" is a clean error, not a TypeError', () => {
-  const { mk, call } = setup();
+  const { mk, call, db } = setup();
   mk(1);
+  db.prepare("INSERT INTO meta (key, value) VALUES ('casino_mode', 'on') ON CONFLICT DO UPDATE SET value = 'on'").run(); // off by default since 22.10
   for (const on of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
-    assert.throws(() => call(1, 'casino/roulette', { bets: [{ on, amount: 1000 }] }), GameError);
+    assert.throws(() => call(1, 'casino/roulette', { bets: [{ on, amount: 1000 }] }), /Невідома ставка/);
   }
 });
 

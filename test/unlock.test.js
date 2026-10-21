@@ -18,7 +18,9 @@ function setup(db = openDb(':memory:'), extra = {}) {
   const call = (uid, name, body = {}) => g.api[name](uid, body);
   const setLevel = (uid, level) => db.prepare('UPDATE users SET level = ? WHERE id = ?').run(level, uid);
   const owner = (name, body) => g.adminCall('tg:1', name, { reason: 'тест', confirm: true, ...body });
-  return { db, g, mk, call, setLevel, owner, advance: (ms) => (t += ms) };
+  // The casino is off by default since 22.10 (S.CASINO_DEFAULT); tests of the ladder itself switch it on.
+  const casinoOn = () => db.prepare("INSERT INTO meta (key, value) VALUES ('casino_mode', 'on') ON CONFLICT DO UPDATE SET value = 'on'").run();
+  return { db, g, mk, call, setLevel, owner, casinoOn, advance: (ms) => (t += ms) };
 }
 
 test('ladder: one constant, levels ascending, every gated key in it; casino and upgrade late', () => {
@@ -35,11 +37,12 @@ test('ladder: one constant, levels ascending, every gated key in it; casino and 
 });
 
 test('a level-1 player: core loop open, everything else refused by the API with the level it opens at', () => {
-  const { mk, call, setLevel } = setup();
+  const { mk, call, setLevel, casinoOn } = setup();
   mk(5);
   const me = call(5, 'me');
   assert.deepEqual(me.unlocked, []);
   assert.equal(me.casino, S.CASINO_DEFAULT);
+  casinoOn();
   call(5, 'case/open', { caseId: 'starter' });
   const car = call(5, 'me').cars[0];
   call(5, 'race/rivals', { carId: car.id });
@@ -92,7 +95,8 @@ test('newbie chain: a locked task says when it opens; the level-3 reward comes b
 });
 
 test('staff: the owner and admins are never locked; a helper is', () => {
-  const { mk, call, db } = setup();
+  const { mk, call, db, casinoOn } = setup();
+  casinoOn();
   mk(1);
   mk(2);
   mk(3);
@@ -123,7 +127,8 @@ test('casino switch: owner only; off hides it for everyone (staff too), refuses 
   mk(10);
   setLevel(9, 12);
   db.prepare("UPDATE users SET role = 'admin' WHERE id = 10").run();
-  assert.equal(owner('settings').casino, 'on');
+  assert.equal(owner('settings').casino, 'off', 'off by default since 22.10');
+  owner('casino-mode', { mode: 'on' });
   // A running mines game when the switch goes off.
   call(9, 'casino/mines/start', { amount: 10000, mines: 3 });
   assert.throws(() => g.adminCall('tg:10', 'casino-mode', { mode: 'off', reason: 'тест', confirm: true }), /лише власник/);
@@ -151,7 +156,7 @@ test('casino switch: owner only; off hides it for everyone (staff too), refuses 
   call(9, 'casino/slots', { amount: 10000 });
   const st = owner('settings');
   assert.equal(st.casinoSaved, 'on');
-  assert.deepEqual(st.history.map((h) => h.details.to), ['on', 'wheel', 'off']);
+  assert.deepEqual(st.history.map((h) => h.details.to), ['on', 'wheel', 'off', 'on']);
 });
 
 test('grandfathering: the feats backfill keeps what an existing player used; level 5+ keeps everything', () => {
@@ -159,7 +164,8 @@ test('grandfathering: the feats backfill keeps what an existing player used; lev
   const file = path.join(dir, 'g.db');
   try {
     let db = openDb(file);
-    const { mk, call, setLevel } = setup(db, { allUnlocked: true }); // "before the ladder": everything open
+    const { mk, call, setLevel, casinoOn } = setup(db, { allUnlocked: true }); // "before the ladder": everything open
+    casinoOn();
     for (const id of [21, 22, 23, 24]) mk(id);
     setLevel(22, 5);
     setLevel(23, 3);

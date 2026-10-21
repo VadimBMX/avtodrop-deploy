@@ -1,6 +1,7 @@
 // Admin panel: overview, players (with everything they own), market, promo codes, payments and the action log.
 import * as S from './shared.js';
 import { carArt, setImages } from './car.js';
+import { metricsPage } from './admin-metrics.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -316,6 +317,9 @@ VIEWS.overview = async () => {
 };
 H.reload = () => render();
 H.days = (d) => ((state.days = Number(d.n)), render());
+// ---------- metrics for the owner (public/admin-metrics.js) ----------
+VIEWS.metrics = () => metricsPage({ api, esc, ic, short, days: state.mDays || 30 });
+H.mdays = (d) => ((state.mDays = Number(d.n)), render());
 function userTable(list, rich) {
   if (!list.length) return '<div class="empty">Гравців поки немає</div>';
   return `<div class="tbl-wrap"><table><tr><th>Гравець</th><th class="num">${rich ? 'Гараж + гривні' : 'Зареєстр.'}</th></tr>
@@ -836,7 +840,7 @@ H.supReply = (d) => {
 };
 
 // ---------- admin log ----------
-const WHO = { key: 'ключ ADMIN_KEY', local: 'локально (DEV)', bot: 'бот (/give, /promo)' };
+const WHO = { key: 'ключ ADMIN_KEY', local: 'локально (DEV)', bot: 'бот (/give, /promo)', system: 'система (оновлення гри)' };
 const dayStart = (v) => (v ? new Date(v + 'T00:00:00').getTime() : null);
 VIEWS.log = async () => {
   const f = state.logF || {};
@@ -918,7 +922,7 @@ H.broadcast = async () => {
 const CASINO_HINT = {
   on: 'Краш, міни, рулетка й слоти — як зараз. Відкривається на рівні з драбини нижче.',
   wheel: 'Лише рулетка (як «колесо» в DZ). Краш, міни й слоти зникають; запущені міни розраховуються одразу.',
-  off: 'Казино немає ніде: вхід з «Апгрейду» зникає, сервер відмовляє в ставках. Запущені міни розраховуються одразу (виплата за відкритими клітинками або повернення ставки).',
+  off: 'Казино немає ніде: вхід з «Апгрейду» зникає, сервер відмовляє в ставках. Запущені міни й краш розраховуються одразу (виплата за відкритими клітинками чи досягнутим множником, або повернення ставки).',
 };
 VIEWS.settings = async () => {
   const s = await api('settings');

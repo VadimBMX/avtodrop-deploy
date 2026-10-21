@@ -15,6 +15,8 @@ function setup(t0 = Date.parse('2026-10-14T10:00:00Z')) {
   // High level so level-up gifts (from casino XP) don't disturb exact balance checks.
   const setBalance = (uid, n) => db.prepare('UPDATE users SET balance = ?, slots = 40, level = 99 WHERE id = ?').run(n, uid);
   g.ensureUser({ id: 1, first_name: 'A' });
+  // The casino is off by default since 22.10 (S.CASINO_DEFAULT): these tests are about the games, so it is on.
+  db.prepare("INSERT INTO meta (key, value) VALUES ('casino_mode', 'on') ON CONFLICT DO UPDATE SET value = 'on'").run();
   return { db, g, call, balance, setBalance, clock: { advance: (ms) => (t += ms) } };
 }
 
