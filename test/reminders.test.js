@@ -134,7 +134,8 @@ test('at most 2 reminders a day, never the same kind twice', async () => {
   clock.t = Date.parse('2026-10-15T07:00:00Z');
   await tick();
   assert.equal(sent.length, 3);
-  assert.match(sent[2].text, /^🎁 Щоденний бонус чекає — день 2\n📦 Кейс нагород готовий\n\n/);
+  // (Thursday 15.10 is a «Подвійне паливо» day in the event calendar: its line comes first in the same message.)
+  assert.match(sent[2].text, /^(🎉 Почалася подія «Подвійне паливо»[^\n]*\n)?🎁 Щоденний бонус чекає — день 2\n📦 Кейс нагород готовий\n\n/);
 });
 
 test('garage income at its cap and season ending are reminded', async () => {

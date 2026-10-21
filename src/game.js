@@ -84,6 +84,34 @@ export function createGame(db, opts = {}) {
   const rnd = opts.random || Math.random;
   const q = db.q;
 
+  // ---------- game events (S.EVENTS) ----------
+  // What runs is computed from the clock (S.eventsBetween); the only state is the admin overrides in meta.events_override:
+  // { forced: [{ key, id, start, end, country?, by }], stopped: { eventKey: stoppedAt } }.
+  const EVENT_PUSH_H = 12; // a bot reminder about an event goes out only in its first hours
+  const EV_META = 'events_override';
+  function loadEventOv() {
+    try {
+      const v = JSON.parse(q('SELECT value FROM meta WHERE key = ?').get(EV_META)?.value || 'null');
+      if (v && typeof v === 'object') return { forced: Array.isArray(v.forced) ? v.forced.filter((f) => S.EVENTS[f?.id]) : [], stopped: v.stopped && typeof v.stopped === 'object' ? v.stopped : {} };
+    } catch {}
+    return { forced: [], stopped: {} };
+  }
+  let evOv = loadEventOv();
+  // Kept small: overrides that ended more than 8 days ago can't touch anything any more (the longest event is 7 days).
+  function saveEventOv(ov) {
+    const old = now() - 8 * 86400e3;
+    const clean = { forced: ov.forced.filter((f) => f.end > old), stopped: Object.fromEntries(Object.entries(ov.stopped).filter(([, at]) => at > old)) };
+    q('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT DO UPDATE SET value = excluded.value').run(EV_META, JSON.stringify(clean));
+    evOv = clean;
+  }
+  const evFx = () => S.effectsAt(now(), evOv);
+  // For the client: what runs now and the next few, with their times (countdowns are drawn from these).
+  function gameEvents() {
+    const t = now();
+    const list = S.eventsBetween(t, t + 8 * 86400e3, evOv);
+    return { active: list.filter((e) => e.start <= t).map(S.eventInfo), next: list.filter((e) => e.start > t).slice(0, 4).map(S.eventInfo) };
+  }
+
   // ---------- basic helpers ----------
   function userRow(uid) {
     const u = q('SELECT * FROM users WHERE id = ?').get(uid);
@@ -130,15 +158,15 @@ export function createGame(db, opts = {}) {
   }
   const carPlate = (carId) => q('SELECT id, text, cls, value FROM plates WHERE car_id = ?').get(carId) || null;
   const vipOf = (uid) => (q('SELECT vip_until FROM users WHERE id = ?').get(uid)?.vip_until || 0) > now();
-  // VIP refills both the shared tank and the cars' own tanks twice as fast.
-  const regenMs = (vip) => (S.FUEL_REGEN_MIN * 60e3) / (vip ? S.VIP.fuelMult : 1);
+  // VIP refills both the shared tank and the cars' own tanks twice as fast; the «Подвійне паливо» event doubles that
+  // while it runs (S.regenAt switches the speed exactly at the event's start and end, at most ×EVENT_CAPS.fuelTotal).
+  const REGEN_MS = S.FUEL_REGEN_MIN * 60e3;
+  const vipMult = (vip) => (vip ? S.VIP.fuelMult : 1);
   function tankState(c) {
-    const regen = regenMs(vipOf(c.owner_id));
     if (c.tank >= S.CAR_TANK) return { tank: S.CAR_TANK, at: now(), next: null };
-    const g = Math.floor((now() - c.tank_at) / regen);
-    const tank = Math.min(S.CAR_TANK, c.tank + g);
-    const at = tank >= S.CAR_TANK ? now() : c.tank_at + g * regen;
-    return { tank, at, next: tank >= S.CAR_TANK ? null : at + regen };
+    const r = S.regenAt(c.tank_at, now(), REGEN_MS, S.CAR_TANK - c.tank, evOv, vipMult(vipOf(c.owner_id)));
+    const tank = c.tank + r.n;
+    return { tank, at: tank >= S.CAR_TANK ? now() : r.at, next: r.next };
   }
   function carOut(c) {
     if (!c) return null;
@@ -422,12 +450,10 @@ export function createGame(db, opts = {}) {
   }
 
   function fuelState(u) {
-    const regen = regenMs((u.vip_until || 0) > now());
-    if (u.fuel >= S.FUEL_MAX) return { fuel: S.FUEL_MAX, at: now(), next: null };
-    const g = Math.floor((now() - u.fuel_at) / regen);
-    const fuel = Math.min(S.FUEL_MAX, u.fuel + g);
-    const at = fuel >= S.FUEL_MAX ? now() : u.fuel_at + g * regen;
-    return { fuel, at, next: fuel >= S.FUEL_MAX ? null : at + regen };
+    if (u.fuel >= S.FUEL_MAX) return { fuel: S.FUEL_MAX, at: now(), next: null, fullAt: u.fuel_at };
+    const r = S.regenAt(u.fuel_at, now(), REGEN_MS, S.FUEL_MAX - u.fuel, evOv, vipMult((u.vip_until || 0) > now()));
+    const fuel = u.fuel + r.n;
+    return { fuel, at: fuel >= S.FUEL_MAX ? now() : r.at, next: r.next, fullAt: fuel >= S.FUEL_MAX ? r.at : null };
   }
   function inventory(uid) {
     const cool = {};
@@ -473,7 +499,7 @@ export function createGame(db, opts = {}) {
       xpToday: u.xp_day === day ? u.xp_day_capped : 0, newbie: newbieState(u),
       dailyReady: u.streak_day !== day, streak: u.streak, rewardCaseAt: u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3,
       claims,
-      caseOfDay: S.caseOfDay(day),
+      caseOfDay: evFx().noCaseOfDay ? null : S.caseOfDay(day), gameEvents: gameEvents(),
       fair: { seedHash: sha256(u.server_seed), clientSeed: u.client_seed, nonce: u.nonce },
       stats: { cases: u.cases_opened, races: u.races, wins: u.wins, merges: u.merges, value: u.total_value, playMs: u.play_ms },
       unread: q('SELECT COUNT(*) n FROM events WHERE user_id = ? AND seen = 0').get(uid).n,
@@ -577,7 +603,10 @@ export function createGame(db, opts = {}) {
     const k = q('SELECT count FROM keys WHERE user_id = ? AND case_id = ?').get(uid, caseId)?.count || 0;
     if (cs.starter && k < n) fail('Стартовий кейс уже відкрито');
     const useKeys = Math.min(k, n);
-    const price = S.casePrice(cs, dayOf(now()));
+    // Price, odds, hidden boost and fragments as they are right now (case of the day, game events — S.caseDeal).
+    const deal = S.caseDeal(cs, dayOf(now()), evFx());
+    const ecs = deal.weights === cs.weights ? cs : { ...cs, weights: deal.weights };
+    const price = deal.price;
     pay(uid, price * (n - useKeys));
     if (useKeys) q('UPDATE keys SET count = count - ? WHERE user_id = ? AND case_id = ?').run(useKeys, uid, caseId);
     bank(uid);
@@ -587,10 +616,10 @@ export function createGame(db, opts = {}) {
       const paid = i >= useKeys; // keys are used first; only paid opens leave fragments
       const streak = cs.starter ? 0 : q('SELECT bad_streak FROM users WHERE id = ?').get(uid).bad_streak;
       // Hidden boost and luck combine: the class is thrown twice with chance 1 − (1 − boost)(1 − luck).
-      const luck = cs.starter ? 0 : 1 - (1 - S.BOOST) * (1 - luckOf(uid));
+      const luck = cs.starter ? 0 : 1 - (1 - deal.boost) * (1 - luckOf(uid));
       // After a losing streak the roll aims for a car worth at least the case (see S.LUCK.streak / hardStreak).
-      const save = streak >= S.LUCK.streak ? { need: cs.price, force: streak >= S.LUCK.hardStreak } : null;
-      let { model, forced, lucky } = rollCase(uid, cs, luck, save);
+      const save = deal.save && streak >= S.LUCK.streak ? { need: cs.price, force: streak >= S.LUCK.hardStreak } : null;
+      let { model, forced, lucky } = rollCase(uid, ecs, luck, save);
       if (!cs.starter) q('UPDATE users SET luck_bonus_left = MAX(0, luck_bonus_left - 1) WHERE id = ?').run(uid);
       // An admin-set car replaces this roll (the drop record keeps forced = 3 so it can be told apart).
       const rig = cs.starter ? null : riggedFor(uid, cs);
@@ -608,7 +637,7 @@ export function createGame(db, opts = {}) {
       }
       // A drop worth less than the case leaves a key fragment; a full set turns into a free key of this case.
       let fragment = false;
-      if (paid && !cs.starter && S.MODELS[model].price < price) {
+      if (paid && !cs.starter && deal.fragments && S.MODELS[model].price < price) {
         fragment = true;
         fragments++;
         const fr = q('INSERT INTO fragments (user_id, case_id, count) VALUES (?, ?, 1) ON CONFLICT DO UPDATE SET count = count + 1 RETURNING count').get(uid, cs.id).count;
@@ -624,7 +653,8 @@ export function createGame(db, opts = {}) {
     if (cs.group === 'country') track(uid, 'country', n);
     const fragmentsNow = q('SELECT count FROM fragments WHERE user_id = ? AND case_id = ?').get(uid, cs.id)?.count || 0;
     flag(uid, cs.starter ? 'open_starter' : 'open_case');
-    return { results, fragments, newKeys, fragmentsNow, keysNow: q('SELECT count FROM keys WHERE user_id = ? AND case_id = ?').get(uid, cs.id)?.count || 0 };
+    return { results, fragments, newKeys, fragmentsNow, price, event: deal.why === 'luck' || deal.why === 'country' ? deal.why : null,
+      keysNow: q('SELECT count FROM keys WHERE user_id = ? AND case_id = ?').get(uid, cs.id)?.count || 0 };
   }
   // One provably fair case roll with the pity guarantee; recorded in drops so it can be verified later.
   // The second guarantee's counter lives in the same table under "<case>:2".
@@ -835,12 +865,12 @@ export function createGame(db, opts = {}) {
     if (region) {
       reg = String(region).toUpperCase();
       if (!S.REGIONS[reg]) fail('Невідомий регіон');
-      price = S.regionPrice(reg);
+      price = S.platePriceOf(S.regionPrice(reg), 'region', evFx());
       weights = S.REGION_GEN.weights;
     } else {
       const g = S.PLATE_GEN.find((x) => x.id === gen);
       if (!g) fail('Невідомий тип номера');
-      price = g.price;
+      price = S.platePriceOf(g.price, g.id, evFx()); // «Щасливі номери»: −20% on the pretty and region plates
       weights = g.weights;
     }
     pay(uid, price);
@@ -906,9 +936,13 @@ export function createGame(db, opts = {}) {
     const cls = S.MODELS[c.model].cls;
     const row = q('SELECT * FROM rivals WHERE user_id = ? AND car_id = ?').get(uid, c.id);
     // Cached rivals keep their cars and odds, but entry/prize always follow the current tables (a balance change applies at once).
-    const money = (op) => (op.id === S.TRAINING.id
-      ? { prize: Math.max(500, Math.round((S.raceMoney(S.OPPONENTS[0], S.MODELS[c.model].price).prize * op.share) / 100) * 100), entry: 0 }
-      : S.raceMoney(op, S.MODELS[c.model].price));
+    // The race weekend raises the prize (S.eventPrize, at most EVENT_CAPS.prizeMult); the entry stays the same.
+    const fx = evFx();
+    const money = (op) => {
+      if (op.id === S.TRAINING.id) return { prize: S.eventPrize(Math.max(500, Math.round((S.raceMoney(S.OPPONENTS[0], S.MODELS[c.model].price).prize * op.share) / 100) * 100), fx, 100), entry: 0 };
+      const m = S.raceMoney(op, S.MODELS[c.model].price);
+      return { ...m, prize: S.eventPrize(m.prize, fx) };
+    };
     const opOf = (id) => (id === S.TRAINING.id ? S.TRAINING : S.OPPONENTS.find((op) => op.id === id));
     if (row && row.sig === sig && JSON.parse(row.data)[0]?.id === S.TRAINING.id) return { car: o, list: JSON.parse(row.data).map((r) => ({ ...r, ...money(opOf(r.id)) })) };
     const pool = S.ALL_MODELS.filter((m) => m.cls === cls);
@@ -945,7 +979,8 @@ export function createGame(db, opts = {}) {
     const pool = S.ALL_MODELS.filter((m) => m.cls === S.MODELS[c.model].cls && !m.secret);
     const list = S.DRIFT_RIVALS.map((r, i) => {
       const x = parseInt(h.slice(i * 6, i * 6 + 6), 16) / 0xffffff;
-      const money = S.raceMoney(S.OPPONENTS.find((op) => op.id === r.id), S.MODELS[c.model].price);
+      const base = S.raceMoney(S.OPPONENTS.find((op) => op.id === r.id), S.MODELS[c.model].price);
+      const money = { ...base, prize: S.eventPrize(base.prize, evFx()) };
       return { id: r.id, label: r.name, name: S.RIVAL_NAMES[parseInt(h.slice(20 + i * 2, 22 + i * 2), 16) % S.RIVAL_NAMES.length],
         model: pool[Math.floor(x * pool.length)]?.id || c.model, target: Math.max(10, Math.round((par * r.share * (0.96 + 0.08 * x)) / 10) * 10), ...money };
     });
@@ -2050,6 +2085,7 @@ export function createGame(db, opts = {}) {
   // Players who may get a reminder now, each with what is ready and when it became ready.
   function pushCandidates(rules) {
     const t = now(), day = dayOf(t);
+    const evStarted = S.activeEvents(t, evOv).filter((e) => t - e.start <= EVENT_PUSH_H * 3600e3).sort((a, b) => b.start - a.start);
     const rows = q(`SELECT * FROM users WHERE push_off = 0 AND push_blocked = 0 AND banned = 0 AND last_seen BETWEEN ? AND ?
       AND NOT (push_day = ? AND push_count >= ?)`).all(t - rules.inactiveDays * 86400e3, t - rules.idleMin * 60e3, day, rules.maxPerDay);
     return rows.map((u) => {
@@ -2066,10 +2102,10 @@ export function createGame(db, opts = {}) {
       }
       const rcAt = u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3;
       if (rcAt <= t) ready.push({ kind: 'rcase', at: rcAt, text: '📦 Кейс нагород готовий' });
-      if (fuelState(u).fuel >= S.FUEL_MAX) {
-        const at = u.fuel >= S.FUEL_MAX ? u.fuel_at : u.fuel_at + (S.FUEL_MAX - u.fuel) * regenMs((u.vip_until || 0) > t);
-        ready.push({ kind: 'fuel', at, text: '⛽ Бак повний — час на заїзд' });
-      }
+      const fs = fuelState(u);
+      if (fs.fuel >= S.FUEL_MAX) ready.push({ kind: 'fuel', at: fs.fullAt, text: '⛽ Бак повний — час на заїзд' });
+      // A game event began (one message per event, only in its first EVENT_PUSH_H hours).
+      for (const e of evStarted.slice(0, 1)) ready.push({ kind: 'event', at: e.start, text: `🎉 Почалася подія «${S.eventInfo(e).title}»: ${S.EVENTS[e.id].text}` });
       const si = seasonInfo(u);
       if (si.xp > 0 && si.endsAt > t && si.endsAt - t <= rules.seasonWarnH * 3600e3) {
         const h = Math.max(1, Math.round((si.endsAt - t) / 3600e3));
@@ -2522,6 +2558,7 @@ export function createGame(db, opts = {}) {
     const gifts = q('SELECT id, kind, data, note FROM gifts WHERE user_id = ? AND shown = 0 ORDER BY id LIMIT 10').all(uid).map((g) => ({ ...g, data: JSON.parse(g.data) }));
     return {
       now: t, balance: u.balance, noInvites: !!u.no_invites, invites, claims, gifts, livePvp: live?.id || null, achReady: ach.length,
+      gameEvents: S.activeEvents(t, evOv).map(S.eventInfo),
       unread: q('SELECT COUNT(*) n FROM events WHERE user_id = ? AND seen = 0').get(uid).n,
     };
   }
@@ -3037,7 +3074,7 @@ export function createGame(db, opts = {}) {
   // ---------- roles in the admin panel ----------
   // owner: in ADMIN_IDS (Railway variable) — can't be changed from the panel; admin: everything; helper: only
   // looking at players, answering support and writing messages (HELPER_ACTIONS).
-  const HELPER_ACTIONS = new Set(['overview', 'dashboard', 'users', 'user', 'search', 'check-plate', 'referrals', 'support', 'support/reply', 'message', 'market', 'log']);
+  const HELPER_ACTIONS = new Set(['overview', 'dashboard', 'users', 'user', 'search', 'check-plate', 'referrals', 'support', 'support/reply', 'message', 'market', 'log', 'game-events']);
   function roleOf(uid) {
     if (!uid) return null;
     if ((opts.admins || []).includes(uid)) return 'owner';
@@ -3562,6 +3599,54 @@ export function createGame(db, opts = {}) {
     } catch {}
     return { recipients: ids.length };
   }
+  // ---------- game events: the calendar, and starting / stopping one right now ----------
+  function adminGameEvents() {
+    const t = now();
+    const list = S.eventsBetween(t - 86400e3, t + 15 * 86400e3, evOv);
+    return {
+      now: t, caps: S.EVENT_CAPS, countries: S.MAIN_COUNTRIES,
+      events: Object.fromEntries(S.EVENT_IDS.map((id) => [id, { name: S.EVENTS[id].name, text: S.EVENTS[id].text, hours: S.EVENTS[id].days * 24 }])),
+      active: list.filter((e) => e.start <= t && e.end > t).map((e) => ({ ...S.eventInfo(e), stopped: !!e.stopped })),
+      upcoming: list.filter((e) => e.start > t).map((e) => ({ ...S.eventInfo(e), stopped: !!e.stopped })),
+      history: q("SELECT admin, action, details, created_at at FROM admin_log WHERE action IN ('event-start', 'event-stop') ORDER BY id DESC LIMIT 20").all()
+        .map((r) => ({ ...r, details: JSON.parse(r.details || 'null'), adminName: adminName(r.admin) })),
+    };
+  }
+  // Starts an event now for `hours` (default: its usual length, EVENT_CAPS.forcedHours). Refused when the same event is
+  // already running, when EVENT_CAPS.forcedMax started events still run, or when it would overlap an exclusive one.
+  function adminEventStart(who, { event, hours, country }) {
+    const d = S.EVENTS[event];
+    if (!Object.hasOwn(S.EVENTS, String(event))) fail('Невідома подія');
+    const [hMin, hMax] = S.EVENT_CAPS.forcedHours;
+    const h = hours == null || hours === '' ? Math.min(hMax, d.days * 24) : int(hours, hMin, hMax, 'Тривалість, год');
+    const t = now(), end = t + h * 3600e3;
+    let c = null;
+    if (event === 'country') {
+      c = String(country ?? '').toUpperCase();
+      if (!S.MAIN_COUNTRIES.includes(c)) fail('Обери країну');
+    }
+    if (S.activeEvents(t, evOv).some((e) => e.id === event)) fail('Ця подія вже йде — спершу зупини її');
+    if (evOv.forced.filter((f) => f.end > t).length >= S.EVENT_CAPS.forcedMax) fail(`Одночасно можна запустити вручну не більше ${S.EVENT_CAPS.forcedMax} подій`);
+    for (const pair of S.EVENT_EXCLUSIVE) {
+      if (!pair.includes(event)) continue;
+      const other = pair.find((x) => x !== event);
+      const clash = S.eventsBetween(t, end, evOv).find((e) => e.id === other);
+      if (clash) fail(`Не можна одночасно з подією «${S.EVENTS[other].name}» — вона йде або почнеться ${dayOf(clash.start)}; скороти тривалість`);
+    }
+    const f = { key: `${event}:f${t}`, id: event, start: t, end, ...(c ? { country: c } : {}), by: String(who) };
+    alog(who, 'event-start', null, { event, hours: h, country: c, until: end });
+    saveEventOv({ ...evOv, forced: [...evOv.forced, f] });
+    return { event: S.eventInfo({ ...f, forced: true }) };
+  }
+  // Stops a running event (scheduled or started by hand) right now.
+  function adminEventStop(who, { key }) {
+    const t = now();
+    const e = S.activeEvents(t, evOv).find((x) => x.key === String(key ?? ''));
+    if (!e) fail('Ця подія зараз не йде');
+    alog(who, 'event-stop', null, { event: e.id, key: e.key, country: e.country || null, plannedEnd: e.end });
+    saveEventOv({ forced: evOv.forced.map((f) => (f.key === e.key ? { ...f, end: t } : f)), stopped: e.forced ? evOv.stopped : { ...evOv.stopped, [e.key]: t } });
+    return {};
+  }
   // Admin handlers get (who, body); read-only ones ignore `who`. Each runs in one transaction.
   const adminHandlers = {
     overview: () => adminOverview(), users: (w, b) => adminUsers(b), user: (w, b) => adminUser(b),
@@ -3575,6 +3660,7 @@ export function createGame(db, opts = {}) {
     payments: (w, b) => adminPayments(b), log: (w, b) => adminLog(b), referrals: () => adminReferrals(),
     support: (w, b) => adminSupport(b), 'support/reply': adminSupportReply, role: adminSetRole,
     dashboard: (w, b) => adminDashboard(b), 'broadcast/preview': (w, b) => adminBroadcastPreview(b), broadcast: adminBroadcast,
+    'game-events': () => adminGameEvents(), 'game-events/start': adminEventStart, 'game-events/stop': adminEventStop,
   };
   // Every admin call checks the caller's role (helpers may only use HELPER_ACTIONS).
   const admin = Object.fromEntries(Object.entries(adminHandlers).map(([k, fn]) => [k, (who, body = {}) => db.tx(() => {
@@ -3587,7 +3673,8 @@ export function createGame(db, opts = {}) {
   // `confirm: true` (the confirm dialog) and a `reason` of 3+ characters, which goes into admin_log with the action.
   // message / support/reply are not here: their text is the whole action and is logged as it is.
   const ADMIN_MUTATING = new Set(['money', 'give-car', 'remove-car', 'part', 'keys', 'give-plate', 'remove-plate', 'set', 'ban', 'reset',
-    'luck', 'rig', 'rig-cancel', 'market/remove', 'dealer/refresh', 'promo/create', 'promo/delete', 'role', 'broadcast']);
+    'luck', 'rig', 'rig-cancel', 'market/remove', 'dealer/refresh', 'promo/create', 'promo/delete', 'role', 'broadcast',
+    'game-events/start', 'game-events/stop']);
   function adminCall(who, name, body) {
     if (!Object.hasOwn(admin, name)) return undefined;
     const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {};

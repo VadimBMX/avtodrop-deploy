@@ -848,13 +848,38 @@ const sellPrice = (model) => S.sellPriceOf(model);
 const sellTotal = (models) => models.reduce((s, m) => s + S.sellPriceOf(m), 0);
 const dropAlive = (r) => !r.sold && me.cars.some((c) => c.id === r.car.id && c.status === 'garage');
 const reelCard = (model) => `<div class="car r${S.rankOf(M(model).cls)}" style="--c:${S.CLASSES[M(model).cls].color}">${clsBadge(M(model).cls, 'tl')}<div class="art">${carArt(model)}</div><div class="nm tiny ellipsis">${esc(M(model).name)}</div><div class="price tiny" style="color:${S.CLASSES[M(model).cls].color}">${S.short(M(model).price)}</div></div>`;
+// ---------- game events (S.EVENTS): chips with a timer, the «Події» card, the deal for a case right now ----------
+const evActive = () => (me.gameEvents?.active || []).filter((e) => e.end > serverNow());
+const evFx = () => S.eventEffects(evActive());
+const caseNow = (cs) => S.caseDeal(cs, S.kyivDateOf(serverNow()), evFx());
+const caseEvChip = (dl) => (dl.why === 'luck' ? `<span class="chip evc" style="--c:${S.EVENTS.luck.color}">${ic('clover')} топ-клас ×${dec(S.EVENTS.luck.topMult, 1)}</span>`
+  : dl.why === 'country' ? `<span class="chip evc" style="--c:${S.EVENTS.country.color}">${ic('world')} −${Math.round(dl.off * 100)}%</span>` : '');
+// A countdown span filled at once (tickUntil updates it every second after that).
+const untilSpan = (t) => `<span data-until="${t - clockOffset}">${left(t - serverNow())}</span>`;
+// Running events of these kinds as chips with "till the end" timers; a tap opens the «Події» sheet.
+function eventStrip(ids) {
+  const list = evActive().filter((e) => ids.includes(e.id));
+  if (!list.length) return '';
+  return `<div class="ev-strip">${list.map((e) => `<button class="ev-chip" data-act="eventsOpen" style="--c:${e.color}">${ic(e.icon)}<b>${esc(e.title)}</b><span class="ev-left">${ic('clock')}${untilSpan(e.end)}</span></button>`).join('')}</div>`;
+}
+function eventsCard(compact) {
+  const act = evActive(), next = (me.gameEvents?.next || []).filter((e) => e.start > serverNow()).slice(0, compact ? 2 : 4);
+  if (!act.length && !next.length) return '';
+  const row = (e, on) => `<div class="ev-row ${on ? 'on' : ''}" style="--c:${e.color}"><span class="ev-ic">${ic(e.icon)}</span>
+    <div class="grow"><b>${esc(e.title)}</b>${compact && !on ? '' : `<div class="tiny muted">${esc(e.text)}</div>`}</div>
+    <div class="ev-t"><small>${on ? 'ще' : 'через'}</small>${untilSpan(on ? e.end : e.start)}</div></div>`;
+  return `<div class="card ev-card mt" ${compact ? 'data-act="eventsOpen"' : ''}>${compact ? `<div class="row between"><b class="ev-h">${ic('calendar')} Події</b><span class="tiny muted">усі ${ic('chevron-right')}</span></div>` : ''}
+    ${act.map((e) => row(e, true)).join('')}${next.length ? `<div class="ev-sub tiny muted">Далі</div>${next.map((e) => row(e, false)).join('')}` : ''}</div>`;
+}
+H.eventsOpen = () => sheet('Події', `${eventsCard(false)}<div class="tiny muted mt">Події йдуть самі за розкладом (київський час): «Країна тижня» — щотижня, з понеділка; у вівторок і четвер — «Щасливі номери» та «Подвійне паливо»; на вихідних — «Вихідні удачі» або «Гоночний уїкенд», через тиждень.</div>`);
 TABS.cases = () => {
   const cs = S.CASE_BY_ID[state.caseId];
   const keys = me.keys[cs.id] || 0;
   if (cs.starter && !keys) state.caseId = 'rust';
   const n = cs.starter ? 1 : state.count;
-  const dayCase = cs.id === me.caseOfDay;
-  const price = dayCase ? dayPrice(cs) : cs.price;
+  const deal = caseNow(cs); // case of the day / game events (S.caseDeal, the same rules as the server)
+  const dayCase = deal.why === 'day';
+  const price = deal.price;
   const paid = Math.max(0, n - keys);
   const free = me.slots - me.used;
   const d = state.drop;
@@ -891,9 +916,9 @@ TABS.cases = () => {
   const guarantee = [[pity.first, S.PITY - (me.pity[cs.id] || 0)], [pity.second, S.PITY2 - (me.pity[cs.id + ':2'] || 0)]]
     .filter(([cls]) => cls).map(([cls, left]) => `${clsBadge(cls)} або краще через ${left}`).join(' · ');
   const top = S.CLASS_ORDER.filter((c) => cs.weights[c]).pop();
-  return `<div class="feed" id="dropFeed"></div>
+  return `<div class="feed" id="dropFeed"></div>${eventStrip(['luck', 'country', 'plates'])}
     <div class="casebar"><button class="picker" data-act="casePicker" style="--c:${S.CLASSES[top].color}"><span class="picker-ic">${caseIcon(cs)}</span>
-      <span class="picker-tx"><b>${esc(cs.name)}</b><span class="picker-sub">${oddsBar(cs.weights)}${dayCase ? `<span class="chip dayc">${ic('flame')} Кейс дня −${S.CASE_OF_DAY.off * 100}%</span>` : ''}</span></span>
+      <span class="picker-tx"><b>${esc(cs.name)}</b><span class="picker-sub">${oddsBar(deal.weights)}${dayCase ? `<span class="chip dayc">${ic('flame')} Кейс дня −${S.CASE_OF_DAY.off * 100}%</span>` : ''}${caseEvChip(deal)}</span></span>
       <span class="picker-chev">${ic('chevron-right')}</span></button>
       <button class="iconbtn" data-act="odds" aria-label="Що всередині">${ic('info-circle')}</button></div>
     <div class="stage ${d?.length ? 'lit' : ''}" id="stage" style="${d?.length > 1 ? 'height:auto;min-height:230px;' : ''}${d?.length ? `--c:${S.CLASSES[M(d.reduce((a, r) => (S.rankOf(M(r.car.model).cls) > S.rankOf(M(a.car.model).cls) ? r : a)).car.model).cls].color}` : ''}">${stage}</div>
@@ -903,7 +928,7 @@ TABS.cases = () => {
       if (free < n) return '<button class="btn" disabled>Гараж заповнений</button>';
       // Not enough money: say so on the button, with how much is missing.
       if (paid && short > 0) return `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(short)}</button>`;
-      return `<button class="btn opencase ${dayCase ? 'yellow' : ''}" data-act="openCase">${paid ? `<span class="oc-l">${d && state.dropCase === cs.id ? 'Відкрити ще' : d ? `Відкрити «${esc(cs.name)}»` : 'Відкрити'}</span><span class="oc-p">${S.fmt(price * paid)}${dayCase ? ` <s>${S.short(cs.price * paid)}</s>` : ''}${keys ? ` + ${ic('key')}${Math.min(keys, n)}` : ''}</span>` : cs.starter ? 'Відкрити безкоштовно' : `Відкрити ключем ${ic('key')} ${n}`}</button>`;
+      return `<button class="btn opencase ${deal.off ? 'yellow' : ''}" data-act="openCase">${paid ? `<span class="oc-l">${d && state.dropCase === cs.id ? 'Відкрити ще' : d ? `Відкрити «${esc(cs.name)}»` : 'Відкрити'}</span><span class="oc-p">${S.fmt(price * paid)}${deal.off ? ` <s>${S.short(cs.price * paid)}</s>` : ''}${keys ? ` + ${ic('key')}${Math.min(keys, n)}` : ''}</span>` : cs.starter ? 'Відкрити безкоштовно' : `Відкрити ключем ${ic('key')} ${n}`}</button>`;
     })()}
     ${cs.starter ? '<div class="tiny muted center mt">Подарунок новачку</div>' : ''}
     ${free < n ? '<div class="tiny muted center mt">Продай авто або купи місце в гаражі</div>' : ''}
@@ -921,6 +946,7 @@ TABS.cases = () => {
         ${pity.first ? `<div class="hook" style="--c:${S.CLASSES[pity.first].color}"><div class="row between"><span class="hook-t">${ic('shield-check')} Гарантія ${clsBadge(pity.first)} або краще</span><b>через ${pity1}</b></div><div class="frag-bar pity"><i style="width:${((S.PITY - pity1) / S.PITY) * 100}%"></i></div></div>` : ''}
       </div>`;
     })()}
+    ${eventsCard(true)}
     <div class="fastrow"><span>${ic('bolt')} Швидке відкриття <small>без рулетки</small></span><button class="toggle ${state.fast ? 'on' : ''}" data-act="toggleFast" aria-label="Швидке відкриття"></button></div>`;
 };
 H.toGarage = () => {
@@ -961,13 +987,15 @@ H.sellDrops = (d, el) => {
 };
 H.pickCount = (d) => (state.count = Number(d.n), render());
 H.toggleFast = () => (state.fast = !state.fast, render());
-const dayPrice = (cs) => Math.round((cs.price * (1 - S.CASE_OF_DAY.off)) / 1000) * 1000;
 H.casePicker = () => {
   const group = (g, title) => {
     const list = S.CASES.filter((c) => c.group === g && (!c.starter || me.keys[c.id]));
     if (!list.length) return '';
-    return `<div class="h2"><span>${title}</span></div><div class="list cases-list">${list.map((c) => `<button class="li ${c.id === state.caseId ? 'on' : ''}" data-act="pickCase" data-id="${c.id}" style="--c:${S.CLASSES[S.CLASS_ORDER.filter((k) => c.weights[k]).pop()].color}">
-      <span class="ic">${caseIcon(c)}</span><div class="grow"><b>${esc(c.name)}${c.id === me.caseOfDay ? ` <span class="chip dayc">${ic('flame')} −${S.CASE_OF_DAY.off * 100}%</span>` : ''}</b>${oddsBar(c.weights)}${dots(c.weights)}</div><div class="center"><b>${c.starter ? 'Безкоштовно' : c.id === me.caseOfDay ? `<span style="color:var(--accent)">${S.short(dayPrice(c))}</span>` : S.short(c.price)}</b>${me.keys[c.id] && !c.starter ? `<div class="tiny win">${ic('key')} ${me.keys[c.id]}</div>` : ''}</div></button>`).join('')}</div>`;
+    return `<div class="h2"><span>${title}</span></div><div class="list cases-list">${list.map((c) => {
+      const dl = caseNow(c);
+      return `<button class="li ${c.id === state.caseId ? 'on' : ''}" data-act="pickCase" data-id="${c.id}" style="--c:${S.CLASSES[S.CLASS_ORDER.filter((k) => c.weights[k]).pop()].color}">
+      <span class="ic">${caseIcon(c)}</span><div class="grow"><b>${esc(c.name)}${dl.why === 'day' ? ` <span class="chip dayc">${ic('flame')} −${S.CASE_OF_DAY.off * 100}%</span>` : ''}${caseEvChip(dl)}</b>${oddsBar(dl.weights)}${dots(dl.weights)}</div><div class="center"><b>${c.starter ? 'Безкоштовно' : dl.off ? `<span style="color:var(--accent)">${S.short(dl.price)}</span>` : S.short(c.price)}</b>${me.keys[c.id] && !c.starter ? `<div class="tiny win">${ic('key')} ${me.keys[c.id]}</div>` : ''}</div></button>`;
+    }).join('')}</div>`;
   };
   sheet('Вибір кейсу', group('gift', 'Подарунок новачку') + group('rarity', 'За рідкістю') + group('country', 'За країнами'));
 };
@@ -980,13 +1008,14 @@ H.pickCase = (d) => {
 H.odds = () => {
   const cs = S.CASE_BY_ID[state.caseId];
   const owned = new Set(me.collection);
-  const total = Object.values(cs.weights).reduce((a, b) => a + b, 0);
+  const W = caseNow(cs).weights; // with «Вихідні удачі» the top class is higher
+  const total = Object.values(W).reduce((a, b) => a + b, 0);
   sheet('Що всередині', `<div class="row"><span style="font-size:24px">${caseIcon(cs)}</span><b>${esc(cs.name)}</b></div>
     <div class="small muted mt">Спочатку випадає клас, потім машина. Чим дорожча машина, тим рідше вона випадає. Вказано мінімальні шанси — з удачею випадає й краще. ✓ — уже є в колекції.</div>
-    ${Object.keys(cs.weights).map((cls) => {
+    ${Object.keys(W).map((cls) => {
       const list = cs.pool(cls);
       const w = S.modelWeights(list), sw = w.reduce((a, b) => a + b, 0);
-      const p = (cs.weights[cls] / total) * 100;
+      const p = (W[cls] / total) * 100;
       return `<div class="h2"><span>${clsBadge(cls)} ${S.CLASSES[cls].name}</span><span>${pct(p)}</span></div>
         <div class="grid">${list.map((m, i) => `<div class="car" style="min-height:0;--c:${S.CLASSES[cls].color}">${owned.has(m.id) ? '<span class="tr win">✓</span>' : ''}<div class="art" style="height:54px">${carArt(m.id)}</div><div class="nm tiny">${esc(m.name)}</div><div class="meta">${pct((p * w[i]) / sw)} · ${S.short(m.price)}</div></div>`).join('')}</div>`;
     }).join('')}`);
@@ -1134,7 +1163,7 @@ function spinMany(host, n, spinOne) {
 TABS.race = async () => {
   if (state.race && state.race.phase !== 'idle') return raceScreen();
   if (state.drift) return driftScreen();
-  const seg = `<div class="seg">${[['race', 'Драг-заїзд'], ['drift', 'Дрифт'], ['pvp', 'PvP']].map(([k, t]) => `<button class="${state.raceView === k ? 'on' : ''}" data-act="raceView" data-k="${k}">${t}</button>`).join('')}</div>`;
+  const seg = `<div class="seg">${[['race', 'Драг-заїзд'], ['drift', 'Дрифт'], ['pvp', 'PvP']].map(([k, t]) => `<button class="${state.raceView === k ? 'on' : ''}" data-act="raceView" data-k="${k}">${t}</button>`).join('')}</div>${eventStrip(['race', 'fuel'])}`;
   const garage = me.cars.filter((c) => c.status === 'garage');
   if (!garage.length) return seg + emptyBox('flag-3', 'Немає на чому їхати', 'Для гонки потрібна хоча б одна машина в гаражі', '<button class="btn sm" data-act="toCases">Відкрити кейс</button>');
   if (!garage.some((c) => c.id === state.raceCar)) state.raceCar = [...garage].sort((a, b) => b.tank - a.tank || a.et - b.et)[0].id;
@@ -2309,10 +2338,10 @@ PAGES.plates = () => {
   return seg + `<div class="plate-stand ${d ? `r${S.rankOf(d.cls)}` : ''}" id="plateStage" style="${d ? `--c:${dc}` : ''}">${plate(d ? d.text : 'AA 0000 AA', 'lg')}</div>
     ${d ? `<div class="center plate-res ${state.fx?.type === 'plate' ? 'pop' : ''}"><span class="stamp r${S.rankOf(d.cls)}" style="--c:${dc}"><b>${d.cls}</b>${S.CLASSES[d.cls].name}</span><div class="big mt ${S.rankOf(d.cls) >= 3 ? 'shimmer' : ''}" style="--c:${dc}" id="plateValue">${S.fmt(d.value)}</div><div class="small muted">${esc(d.label)} · ${esc(S.regionOf(d.text) || '—')}</div></div>
       <div class="btns mt"><button class="btn outline" data-act="plateToCar" data-pid="${d.id}">${ic('car')} Повісити</button><button class="btn red" data-act="plateSell" data-pid="${d.id}">Продати · ${S.short(d.value / 2)}</button></div>` : ''}
-    <button class="btn opencase mt" data-act="genPlate" id="genBtn"><span class="oc-l">${d ? 'Ще раз' : 'Згенерувати'}</span><span class="oc-p">${reg ? `${reg} · ${S.fmt(S.regionPrice(reg))}` : S.fmt(gen.price)}</span></button>
+    ${eventStrip(['plates'])}<button class="btn opencase mt" data-act="genPlate" id="genBtn"><span class="oc-l">${d ? 'Ще раз' : 'Згенерувати'}</span><span class="oc-p">${reg ? `${reg} · ${S.fmt(S.platePriceOf(S.regionPrice(reg), 'region', evFx()))}` : S.fmt(S.platePriceOf(gen.price, gen.id, evFx()))}</span></button>
     <div class="list mt"><button class="li" data-act="regionPick"><span class="ic">${ic('world')}</span><div class="grow"><b>Регіон</b><div class="small muted">${reg ? `${reg} · ${esc(S.REGIONS[reg])}` : 'будь-який — випадковий'}</div></div>${reg ? `<span class="regcode on sm"><b>${reg}</b></span><span class="chip" data-act="regionClear">${ic('x')}</span>` : `<span class="chev">${ic('chevron-right')}</span>`}</button></div>
     ${reg ? `<div class="card mt"><b>Номер області ${reg}</b><div class="small muted">Клас — повний рандом: від звичайного до міфічного, як пощастить</div><div class="mt">${oddsBar(S.REGION_GEN.weights)}</div>${dots(S.REGION_GEN.weights)}</div>` : `<div class="h2"><span>Генерація номера</span></div>
-    <div class="list cases-list">${S.PLATE_GEN.map((g) => `<button class="li ${g.id === gen.id ? 'on' : ''}" data-act="pickGen" data-id="${g.id}" style="--c:${S.CLASSES[S.CLASS_ORDER.filter((k) => g.weights[k]).pop()].color}"><span class="ic">${ic(g.id === 'basic' ? 'license' : g.id === 'better' ? 'star' : 'sparkles')}</span><div class="grow"><b>${g.name}</b>${oddsBar(g.weights)}${dots(g.weights)}</div><div class="center"><b>${S.short(g.price)}</b></div></button>`).join('')}</div>`}
+    <div class="list cases-list">${S.PLATE_GEN.map((g) => `<button class="li ${g.id === gen.id ? 'on' : ''}" data-act="pickGen" data-id="${g.id}" style="--c:${S.CLASSES[S.CLASS_ORDER.filter((k) => g.weights[k]).pop()].color}"><span class="ic">${ic(g.id === 'basic' ? 'license' : g.id === 'better' ? 'star' : 'sparkles')}</span><div class="grow"><b>${g.name}</b>${oddsBar(g.weights)}${dots(g.weights)}</div><div class="center"><b>${S.platePriceOf(g.price, g.id, evFx()) < g.price ? `<span style="color:var(--accent)">${S.short(S.platePriceOf(g.price, g.id, evFx()))}</span>` : S.short(g.price)}</b></div></button>`).join('')}</div>`}
     <div class="tiny muted">Кожен номер існує в одному екземплярі. Номер на машині додає свою ціну до вартості машини — і до доходу. Найдорожчі: 0001–0009, чотири однакові цифри з однаковими літерами (KA 7777 KA).</div>`;
 };
 H.plateView = (d) => (state.plateView = d.k, render());
@@ -3991,7 +4020,7 @@ function showBanner(data) {
     box.id = 'banners';
     document.body.append(box);
   }
-  const [icon, color] = BANNER_IC[data.kind] || ['bell', '#8e8e93'];
+  const [icon, color] = data.icon ? [data.icon, data.color] : BANNER_IC[data.kind] || ['bell', '#8e8e93'];
   const el = document.createElement('div');
   el.className = 'banner';
   el.innerHTML = `<span class="mi" style="--c:${color}">${ic(icon)}</span>
@@ -4130,7 +4159,18 @@ async function pulse() {
     }
   }
   for (const [key, b] of banners) if (b.data.invite && !live.has(key)) hideBanner(key);
+  // Game events: a new one began or one ended — fresh prices and chips; a banner once per event when it starts.
+  const evKeys = (l) => (l || []).map((e) => e.key).join();
+  if (p.gameEvents && evKeys(p.gameEvents) !== evKeys(me.gameEvents?.active) && !busyForBanners()) {
+    try {
+      await refresh(!state.page || state.tab === 'cases' || state.tab === 'race');
+    } catch {}
+  }
   if (busyForBanners()) return hideClaimBanners();
+  if (!claimsBlocked() && !guideOn()) for (const e of p.gameEvents || []) {
+    if (bannerSeen.has('ev:' + e.key)) continue;
+    showBanner({ key: 'ev:' + e.key, kind: 'event', icon: e.icon, color: e.color, title: `Почалася подія: ${e.title}`, sub: `${esc(e.text)} · ще <span data-until="${e.end - clockOffset}"></span>`, ttl: 9000, buttons: [{ label: 'Дивитись', act: 'bannerOpen' }] });
+  }
   // (Re)start from the server's list whenever no window is open: a gift closed by tapping outside comes back.
   if (p.gifts.length && $('#modal').hidden) {
     giftQueue = p.gifts;
@@ -4205,6 +4245,7 @@ H.bannerOpen = (d) => {
   if (k === 'daily' || k === 'rcase') return openRewards();
   if (k === 'income') return (state.tab = 'garage', state.page = null, render());
   if (k === 'newbie') return openProfile();
+  if (k === 'event') return H.eventsOpen();
   state.tab = 'menu';
   if (k === 'pass') return go('season');
   if (k === 'weekly' || k === 'wchest') return (state.questTab = 'week', go('quests'));

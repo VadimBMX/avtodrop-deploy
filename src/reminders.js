@@ -13,8 +13,9 @@ export const PUSH = {
   rate: 25, // messages per second, all chats together (Telegram allows ≈30)
   everyMin: 5,
 };
-// The order of lines in a bundled message.
-export const KINDS = ['daily', 'income', 'rcase', 'fuel', 'season'];
+// The order of lines in a bundled message. 'event': a game event began (S.EVENTS) — same limits as the rest
+// (2 a day, quiet hours, idle players only); each event is told once and only in its first hours (game.js EVENT_PUSH_H).
+export const KINDS = ['event', 'daily', 'income', 'rcase', 'fuel', 'season'];
 
 const HOUR = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Kyiv', hour: '2-digit', hourCycle: 'h23' });
 export const kyivHour = (t) => Number(HOUR.format(new Date(t)));

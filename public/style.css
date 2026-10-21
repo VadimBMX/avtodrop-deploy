@@ -1916,3 +1916,29 @@ button.li:active { background-color: #ffffff08; }
   .toast.in { animation: none; }
   .banner, .bmore .i, .pod, .rivals .rival, .regcode { transition: none; }
 }
+
+/* ==================== game events (S.EVENTS): chips with timers, the «Події» card ==================== */
+/* --c is the event colour (EVENTS[id].color). */
+.ev-strip { display: flex; gap: 6px; overflow-x: auto; margin: 0 0 10px; scrollbar-width: none; }
+.ev-strip::-webkit-scrollbar { display: none; }
+.ev-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 6px 10px; border-radius: 999px;
+  background: color-mix(in srgb, var(--c) 16%, var(--card)); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); color: var(--text, #f2f2f7); font-size: 12.5px; }
+.ev-chip > .i { color: var(--c); }
+.ev-chip b { font: 700 13px var(--f-disp); letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev-left { display: inline-flex; align-items: center; gap: 3px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ev-left .i { width: 1em; height: 1em; }
+.chip.evc { color: var(--c); background: color-mix(in srgb, var(--c) 14%, var(--card2)); border-color: transparent; margin-left: 4px; }
+.ev-card { cursor: default; }
+.ev-card[data-act] { cursor: pointer; }
+.ev-h { display: inline-flex; align-items: center; gap: 6px; font: 700 15px var(--f-disp); letter-spacing: .3px; }
+.ev-row { display: flex; align-items: center; gap: 10px; padding: 9px 0 2px; }
+.ev-row + .ev-row, .ev-sub + .ev-row { border-top: 1px solid var(--line); margin-top: 7px; }
+.ev-row .grow { min-width: 0; }
+.ev-row b { display: block; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev-ic { flex: none; width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; color: var(--c); background: color-mix(in srgb, var(--c) 15%, transparent); }
+.ev-row:not(.on) .ev-ic { filter: saturate(.5); opacity: .75; }
+.ev-row.on .ev-ic { box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 55%, transparent), 0 0 14px color-mix(in srgb, var(--c) 35%, transparent); }
+.ev-t { flex: none; text-align: right; font: 700 13px var(--f-disp); font-variant-numeric: tabular-nums; }
+.ev-t small { display: block; font: 500 10.5px system-ui, sans-serif; color: var(--muted); }
+.ev-row.on .ev-t { color: var(--c); }
+.ev-sub { margin-top: 10px; text-transform: uppercase; letter-spacing: .6px; font-size: 10.5px; }

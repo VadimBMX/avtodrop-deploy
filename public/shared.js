@@ -1390,3 +1390,180 @@ export function guideStep(p) {
   if (!p.streak && p.dailyReady) return 'daily';
   return null;
 }
+
+// ---------- events ----------
+// Scheduled game events. The calendar is a weekly rotation computed from the date (Europe/Kyiv), so nobody has to start
+// anything by hand. An admin can start an event now or stop a running one (admin `events/start`, `events/stop`); those
+// overrides ({ forced: [...], stopped: { key: at } }) are the only state. Every effect is clamped by EVENT_CAPS. The case
+// effects are paid for out of the hidden boost and the key fragments, so open-and-sell stays under EVENT_CAPS.sellMax
+// of the price actually paid during any event (test/events.test.js, tools/sim-events.mjs).
+export const EVENTS = {
+  luck: { name: 'Вихідні удачі', icon: 'clover', color: '#30d158', days: 2, topMult: 1.3, boost: 0,
+    text: 'Кейси за рідкістю: шанс найвищого класу ×1,3. Кейс дня на вихідних відпочиває.' },
+  fuel: { name: 'Подвійне паливо', icon: 'gas-station', color: '#ff9f0a', days: 1, fuelMult: 2,
+    text: 'Загальний бак і баки машин наповнюються вдвічі швидше (з VIP — утричі).' },
+  race: { name: 'Гоночний уїкенд', icon: 'flag-3', color: '#ff3b30', days: 2, prizeMult: 1.25,
+    text: 'Призи за перемоги в драгу й дрифті +25%. Внесок той самий.' },
+  country: { name: 'Країна тижня', icon: 'world', color: '#0a84ff', days: 7, off: 0.15, boost: 0, fragments: false, save: false,
+    text: 'Кейс країни −15%. Знижений кейс не дає фрагментів ключа.' },
+  plates: { name: 'Щасливі номери', icon: 'license', color: '#bf5af2', days: 1, off: 0.2, gens: ['pretty', 'region'],
+    text: '«Красивий» номер і номери областей −20%.' },
+};
+export const EVENT_IDS = Object.keys(EVENTS);
+// Hard limits, whatever the definitions or the admin overrides say.
+//   topMult — the top class of a rarity case at most ×1.3; fuelMult — the event refills at most ×2, fuelTotal — with VIP at
+//   most ×3; prizeMult — race prizes at most +25%; caseOff / plateOff — discounts; forced — admin starts: at most 3 at once,
+//   1–72 h; sellMax — open-and-sell of any case during any event returns less than this share of the price paid.
+export const EVENT_CAPS = { topMult: 1.3, fuelMult: 2, fuelTotal: 3, prizeMult: 1.25, caseOff: 0.15, plateOff: 0.2, forcedMax: 3, forcedHours: [1, 72], sellMax: 0.85 };
+// Never at the same time: double fuel means more races, and the race weekend pays more for each.
+export const EVENT_EXCLUSIVE = [['fuel', 'race']];
+// Weekly rotation; day 0 = Monday, every slot starts at 00:00 Kyiv and lasts EVENTS[id].days days.
+//   Week A (even): Tue «Щасливі номери», Thu «Подвійне паливо», Sat–Sun «Вихідні удачі».
+//   Week B (odd):  Tue «Подвійне паливо», Thu «Щасливі номери», Sat–Sun «Гоночний уїкенд».
+//   «Країна тижня» runs Monday to Sunday every week, the countries in turn (MAIN_COUNTRIES order).
+export const EVENT_WEEKS = [
+  [{ id: 'country', day: 0 }, { id: 'plates', day: 1 }, { id: 'fuel', day: 3 }, { id: 'luck', day: 5 }],
+  [{ id: 'country', day: 0 }, { id: 'fuel', day: 1 }, { id: 'plates', day: 3 }, { id: 'race', day: 5 }],
+];
+const KYIV_PARTS = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Kyiv', hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' });
+// How far the Kyiv wall clock is ahead of UTC at t (2 or 3 hours).
+function kyivAhead(t) {
+  const p = Object.fromEntries(KYIV_PARTS.formatToParts(new Date(t)).map((x) => [x.type, x.value]));
+  return Date.UTC(+p.year, p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second) - Math.floor(t / 1000) * 1000;
+}
+const addDate = (date, days) => new Date(Date.parse(date + 'T00:00:00Z') + days * 86400e3).toISOString().slice(0, 10);
+// 00:00 Kyiv time of a calendar date ('YYYY-MM-DD') plus `days` days — right across the summer-time switches.
+export function kyivMidnightOf(date, days = 0) {
+  const g = Date.parse(addDate(date, days) + 'T00:00:00Z');
+  return g - kyivAhead(g - kyivAhead(g));
+}
+export const kyivDateOf = (t) => new Date(t + kyivAhead(t)).toISOString().slice(0, 10);
+export function kyivMondayOf(t) {
+  const d = kyivDateOf(t);
+  return addDate(d, -((new Date(d + 'T00:00:00Z').getUTCDay() + 6) % 7));
+}
+// Weeks since Monday 1970-01-05: decides week A/B and the country of the week.
+export const eventWeekNo = (monday) => Math.round((Date.parse(monday + 'T00:00:00Z') - Date.UTC(1970, 0, 5)) / (7 * 86400e3));
+const weekCache = new Map();
+function weekEvents(monday) {
+  let list = weekCache.get(monday);
+  if (list) return list;
+  const n = eventWeekNo(monday);
+  list = EVENT_WEEKS[n % 2].map((s) => {
+    const e = { key: `${s.id}:${monday}`, id: s.id, start: kyivMidnightOf(monday, s.day), end: kyivMidnightOf(monday, s.day + EVENTS[s.id].days) };
+    if (s.id === 'country') e.country = MAIN_COUNTRIES[n % MAIN_COUNTRIES.length];
+    return e;
+  });
+  if (weekCache.size > 64) weekCache.clear();
+  weekCache.set(monday, list);
+  return list;
+}
+// Every event (scheduled or started by an admin) that overlaps [from, to), with admin stops applied, by start time.
+export function eventsBetween(from, to, ov = null) {
+  const out = [];
+  for (let m = kyivMondayOf(from - 86400e3); kyivMidnightOf(m) < to; m = addDate(m, 7)) out.push(...weekEvents(m));
+  for (const f of ov?.forced || []) if (EVENTS[f.id]) out.push({ ...f, forced: true });
+  return out
+    .map((e) => {
+      const s = ov?.stopped?.[e.key];
+      return s != null && s < e.end ? { ...e, end: Math.max(e.start, s), stopped: true } : e;
+    })
+    .filter((e) => e.end > e.start && e.end > from && e.start < to)
+    .sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
+}
+export const activeEvents = (t, ov = null) => eventsBetween(t, t + 1, ov);
+// What the running events do together, clamped.
+export function eventEffects(list) {
+  const fx = { ids: [], topMult: 1, fuelMult: 1, prizeMult: 1, countries: [], caseOff: 0, plateOff: 0, plateGens: [], noCaseOfDay: false };
+  for (const e of list) {
+    const d = EVENTS[e.id];
+    if (!d) continue;
+    if (!fx.ids.includes(e.id)) fx.ids.push(e.id);
+    if (e.id === 'luck') {
+      fx.topMult = Math.max(fx.topMult, Math.min(EVENT_CAPS.topMult, d.topMult));
+      fx.noCaseOfDay = true;
+    } else if (e.id === 'fuel') fx.fuelMult = Math.max(fx.fuelMult, Math.min(EVENT_CAPS.fuelMult, d.fuelMult));
+    else if (e.id === 'race') fx.prizeMult = Math.max(fx.prizeMult, Math.min(EVENT_CAPS.prizeMult, d.prizeMult));
+    else if (e.id === 'country' && MAIN_COUNTRIES.includes(e.country)) {
+      if (!fx.countries.includes(e.country)) fx.countries.push(e.country);
+      fx.caseOff = Math.min(EVENT_CAPS.caseOff, d.off);
+    } else if (e.id === 'plates') {
+      fx.plateOff = Math.min(EVENT_CAPS.plateOff, d.off);
+      fx.plateGens = d.gens;
+    }
+  }
+  return fx;
+}
+export const NO_EVENTS = eventEffects([]);
+export const effectsAt = (t, ov = null) => eventEffects(activeEvents(t, ov));
+// «Вихідні удачі»: the top class weight × mult (at most half of all), the other classes give it up in proportion.
+export function luckWeights(w, mult) {
+  const cl = CLASS_ORDER.filter((c) => w[c]);
+  if (cl.length < 2 || mult <= 1) return w;
+  const top = cl[cl.length - 1], tw = cl.reduce((s, c) => s + w[c], 0);
+  const nt = Math.min(w[top] * Math.min(mult, EVENT_CAPS.topMult), tw / 2);
+  const k = (tw - nt) / (tw - w[top]);
+  return Object.fromEntries(cl.map((c) => [c, Math.round((c === top ? nt : w[c] * k) * 1000) / 1000]));
+}
+// A case right now: its price (case of the day or the country of the week), class weights, the hidden boost and whether
+// paid opens leave key fragments (and whether the losing-streak save works). The luck weekend replaces the hidden boost
+// and the case of the day; the country discount replaces the boost, the fragments and the streak save — that is what
+// keeps open-and-sell under EVENT_CAPS.sellMax (tools/sim-events.mjs).
+export function caseDeal(cs, day, fx = NO_EVENTS) {
+  const deal = { price: cs.price, weights: cs.weights, boost: BOOST, fragments: true, save: true, off: 0, why: null };
+  if (cs.starter) return { ...deal, price: 0, boost: 0, fragments: false };
+  if (cs.group === 'rarity') {
+    if (!fx.noCaseOfDay && cs.id === caseOfDay(day)) Object.assign(deal, { price: casePrice(cs, day), off: CASE_OF_DAY.off, why: 'day' });
+    if (fx.topMult > 1) Object.assign(deal, { weights: luckWeights(cs.weights, fx.topMult), boost: EVENTS.luck.boost, why: deal.why || 'luck' });
+  } else if (cs.group === 'country' && fx.countries.includes(cs.country)) {
+    Object.assign(deal, { price: Math.round((cs.price * (1 - fx.caseOff)) / 1000) * 1000, off: fx.caseOff, boost: EVENTS.country.boost, fragments: EVENTS.country.fragments, save: EVENTS.country.save, why: 'country' });
+  }
+  return deal;
+}
+// Plate generation price: gen is a PLATE_GEN id or 'region' (a chosen region).
+export const platePriceOf = (price, gen, fx = NO_EVENTS) => (fx.plateGens.includes(gen) ? Math.round((price * (1 - fx.plateOff)) / 100) * 100 : price);
+// Race prize during the race weekend (entries stay as they are).
+export const eventPrize = (prize, fx = NO_EVENTS, step = 1000) => (fx.prizeMult > 1 ? Math.round((prize * Math.min(fx.prizeMult, EVENT_CAPS.prizeMult)) / step) * step : prize);
+// Fuel refill speed over [a, b): VIP × the fuel event, at most EVENT_CAPS.fuelTotal.
+export function fuelSegments(a, b, ov = null, vip = 1) {
+  const evs = b > a ? eventsBetween(a, b, ov).filter((e) => EVENTS[e.id].fuelMult) : [];
+  const cuts = [...new Set([a, b, ...evs.flatMap((e) => [e.start, e.end])])].filter((x) => x >= a && x <= b).sort((x, y) => x - y);
+  const segs = [];
+  for (let i = 0; i + 1 < cuts.length; i++) {
+    const mid = (cuts[i] + cuts[i + 1]) / 2;
+    const ev = evs.some((e) => e.start <= mid && mid < e.end) ? Math.min(EVENT_CAPS.fuelMult, EVENTS.fuel.fuelMult) : 1;
+    segs.push({ a: cuts[i], b: cuts[i + 1], rate: Math.min(EVENT_CAPS.fuelTotal, vip * ev) });
+  }
+  return segs;
+}
+// Units refilled since `from` (at most `need`), one per periodMs at rate 1: n, when the last of them came (at; `from`
+// when none did) and when the next one comes (null when full). The rate changes exactly at the event's start and end,
+// so a fuel event never refills time that passed before it began.
+export function regenAt(from, t, periodMs, need, ov = null, vip = 1) {
+  if (need <= 0) return { n: 0, at: t, next: null };
+  const horizon = from + Math.ceil((need * periodMs) / vip);
+  const segs = fuelSegments(from, horizon, ov, vip);
+  const timeOf = (target) => {
+    let e = 0;
+    for (const s of segs) {
+      const len = (s.b - s.a) * s.rate;
+      if (e + len >= target - 1e-6) return s.a + (target - e) / s.rate;
+      e += len;
+    }
+    return horizon;
+  };
+  let eff = 0;
+  for (const s of segs) {
+    if (s.a >= t) break;
+    eff += (Math.min(s.b, t) - s.a) * s.rate;
+  }
+  const n = Math.min(need, Math.floor(eff / periodMs + 1e-9));
+  return { n, at: n ? Math.round(timeOf(n * periodMs)) : from, next: n >= need ? null : Math.ceil(timeOf((n + 1) * periodMs) - 1e-6) };
+}
+// For the client: an event with its name, text and times.
+export function eventInfo(e) {
+  const d = EVENTS[e.id];
+  const country = e.country ? COUNTRIES[e.country]?.name : null;
+  return { key: e.key, id: e.id, name: d.name, icon: d.icon, color: d.color, text: d.text, start: e.start, end: e.end, country: e.country || null,
+    title: country ? `${d.name}: ${country}` : d.name, forced: !!e.forced };
+}
