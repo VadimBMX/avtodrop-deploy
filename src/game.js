@@ -483,6 +483,7 @@ export function createGame(db, opts = {}) {
       luck: luckOf(u.id),
       stars: u.stars, vipUntil: u.vip_until, vip: u.vip_until > now(), starterBought: !!u.starter_bought,
       season: (({ claimed, ...s }) => s)(seasonInfo(u)), badges: badgesOf(uid),
+      legacy: isLegacy(uid), // played the first version: «Гравець з перших днів» badge in the profile
       now: now(),
     };
   }
@@ -1855,8 +1856,12 @@ export function createGame(db, opts = {}) {
       showcase: cars.filter((c) => c.status === 'showcase'), best, carCount: cars.length,
       collection: q('SELECT COUNT(*) n FROM collection WHERE user_id = ?').get(pid).n, self: pid === uid,
       vip: u.vip_until > now(), badges: badgesOf(pid),
+      // Read-only extras for the player card: the three dearest cars, a few counters, the first-days badge.
+      top: [...cars].sort((a, b) => b.value - a.value).slice(0, 3),
+      stats: { cases: u.cases_opened, wins: u.wins, races: u.races }, legacy: isLegacy(pid),
     };
   }
+  const isLegacy = (uid) => !!q('SELECT 1 FROM legacy WHERE id = ?').get(uid);
   function invalidateTrades(carIds) {
     if (!carIds.length) return;
     const rows = q(`SELECT DISTINCT t.id FROM trades t JOIN trade_items i ON i.trade_id = t.id WHERE t.status = 'open' AND i.car_id IN (${carIds.map(() => '?').join(',')})`).all(...carIds);
