@@ -1434,6 +1434,23 @@ button.li:active { background-color: #ffffff08; }
 .progress.cap { position: relative; height: 8px; background: #0b0f16; box-shadow: inset 0 0 0 1px #ffffff10; }
 .progress.cap::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(90deg, transparent 0 calc(12.5% - 2px), #0b0f16 calc(12.5% - 2px) 12.5%); }
 .income .btn { min-height: 50px; }
+.cap-line { margin-top: 7px; font-size: 12.5px; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
+.cap-line b { color: var(--accent-hi); font-weight: 700; }
+.income.full .progress.cap i { box-shadow: 0 0 10px #ffc40066; }
+.cap-up { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #ffffff0d; text-align: center; }
+.cap-up .tiny { display: block; margin-bottom: 7px; }
+.income .cap-up .btn { min-height: 36px; width: 100%; justify-content: center; color: var(--muted); }
+.income .cap-up .btn .i { color: var(--accent); }
+.income.full .cap-up { display: block; }
+.income.full .cap-more { display: none; }
+.car .meta.inc { display: flex; align-items: center; gap: 3px; margin-top: 2px; font-size: 11.5px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.car .meta.inc .i { color: var(--accent); font-size: 12px; }
+.car .meta.inc small { font-weight: 500; color: var(--muted); }
+.car .meta.inc.off { color: var(--muted); font-weight: 500; opacity: .75; }
+.stat .inc-off b { color: var(--muted); }
+.inc-note { margin: 8px 2px 0; font-size: 12.5px; line-height: 1.4; }
+.inc-note.off { color: var(--muted); padding: 9px 11px; border-radius: 10px; background: #ffffff08; box-shadow: inset 0 0 0 1px #ffffff0d; }
+.inc-note.off b { color: var(--text); font-weight: 600; }
 .garage-h b { color: var(--text); }
 .gfilter { margin: -2px -16px 8px; padding: 2px 16px; }
 .gfilter button i { width: 8px; height: 12px; border-radius: 1.5px; background: var(--c); transform: skewX(-14deg); }

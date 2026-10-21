@@ -334,7 +334,7 @@ function oddsBar(weights) {
 }
 const partCount = (c) =>S.partKeysOf(c.model).filter((k) => c.parts?.[k]).length;
 const partSlots = (c) => S.partKeysOf(c.model).length;
-function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false, sellLine = false } = {}) {
+function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false, sellLine = false, incLine = false } = {}) {
   const m = M(c.model);
   return `<button class="car r${S.rankOf(m.cls)} ${sel ? 'sel' : ''} ${c.status === 'market' || c.status === 'auction' ? 'listed' : ''}" data-act="${act}" data-id="${c.id}" style="--c:${S.CLASSES[m.cls].color}">
     ${clsBadge(m.cls, 'tl')}<span class="tr">${isNew ? `<span class="new">${ic('sparkles')}нова</span>` : ''}<span class="chip">${ic('tool')}${partCount(c)}/${partSlots(c)}</span></span>
@@ -342,10 +342,17 @@ function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false,
     <div class="nm clamp2" title="${esc(m.name)}">${esc(m.name)}</div>
     ${c.plate ? `<div class="meta">${plate(c.plate.text, 'sm')}</div>` : ''}
     <div class="meta row between" style="gap:4px"><span>${c.hp} к.с.</span><b class="disp" style="color:var(--text);font-size:14px;font-weight:600">${S.short(c.value)}</b></div>
+    ${incLine && c.status === 'garage' ? tileInc(c) : ''}
     ${sellLine && c.sell != null && !m.secret && c.status === 'garage' && act !== 'none' ? `<div class="meta sellp">продаж ${S.short(c.sell)}</div>` : ''}
     ${showTank ? `<div class="tank">${Array.from({ length: S.CAR_TANK }, (_, i) => `<i class="${i < c.tank ? 'on' : ''}"></i>`).join('')}</div>` : ''}
     ${c.status === 'market' ? `<div class="status">${ic('building-store')}На ринку</div>` : c.status === 'auction' ? `<div class="status">${ic('hammer')}На аукціоні</div>` : ''}
   </button>`;
+}
+// Garage tile: the car's real income an hour (all bonuses), or «не заробляє» when it's past the slots.
+function tileInc(c) {
+  const e = carInc(c);
+  if (!e) return '';
+  return e.earning ? `<div class="meta inc">${ic('coin')}${noRmb(e.rate)}<small>/год</small></div>` : '<div class="meta inc off">не заробляє</div>';
 }
 function carRow(c, right = '', meta = '') {
   const m = M(c.model);
@@ -757,6 +764,35 @@ function tickUntil() {
 setInterval(tickUntil, 1000);
 
 // ---------- garage ----------
+// Per-car income exactly as the server counts it (S.garageIncome): who earns (the best up to the free slots), the
+// country and set bonuses, dirt and shine. Cheap, but tiles call it per car, so it's kept for one `me` and 10 s.
+let incCache = null;
+function garageInc() {
+  const t = serverNow();
+  if (incCache && incCache.me === me && Math.abs(t - incCache.t) < 10e3) return incCache.g;
+  const g = S.garageIncome({
+    cars: me.cars.map((c) => ({ ...c, plateValue: c.plate?.value || 0, dirtAt: me.now })),
+    slots: me.slots, claimed: me.claims.filter((k) => k.startsWith('set:')).map((k) => k.slice(4)), t, cut: isOpen('wash'),
+  });
+  incCache = { me, t, g };
+  return g;
+}
+const carInc = (c) => garageInc().cars[c.id] || null;
+const sPct = (x) => `${x > 0 ? '+' : '−'}${Math.round(Math.abs(x) * 100)}%`;
+// «1 год 20 хв», «35 хв», «<1 хв»
+function hm(ms) {
+  const m = Math.ceil(Math.max(0, ms) / 60e3), h = Math.floor(m / 60);
+  return m < 1 ? '<1 хв' : h ? `${h} год${m % 60 ? ` ${m % 60} хв` : ''}` : `${m} хв`;
+}
+const noRmb = (n) => S.short(n).replace(' ₴', '');
+// The cash line under the bar: how much is in, the cap, and when it's full (then income stops until collected).
+function capState(pending) {
+  const i = me.income, cap = i.rate * i.capH;
+  const full = i.rate > 0 && pending >= cap - 1;
+  const text = !i.rate ? `Каса на ${i.capH} год · машини в гаражі наповнюють її щогодини`
+    : `Каса: ${noRmb(Math.min(pending, Math.max(cap, pending)))} / ${S.short(cap)} · ${full ? '<b>повна — забери</b>' : `повна через ${hm(((cap - pending) / i.rate) * 3600e3)}`}`;
+  return { full, text };
+}
 function pendingNow() {
   const i = me.income;
   const elapsed = Math.max(0, serverNow() - i.since) / 3600e3;
@@ -776,6 +812,7 @@ TABS.garage = () => {
   const pending = pendingNow();
   const fill = i.rate ? Math.min(100, (pending / (i.rate * i.capH)) * 100) : 0;
   const nextCap = S.CAP_LEVELS[me.capLevel + 1];
+  const cs = capState(pending);
   const all = me.cars.filter((c) => c.status !== 'showcase');
   const rk = (c) => S.rankOf(M(c.model).cls);
   const sorts = { value: (a, b) => b.value - a.value, class: (a, b) => rk(b) - rk(a) || b.value - a.value, new: (a, b) => b.id - a.id };
@@ -789,13 +826,15 @@ TABS.garage = () => {
   const free = Math.max(0, me.slots - all.length);
   const SORT_NAMES = { value: 'За ціною', class: 'За класом', new: 'Нові' };
   return seg + `${overfullHtml()}
-  <div class="card income">
+  <div class="card income ${cs.full ? 'full' : ''}" id="incomeCard">
     <div class="row between small muted"><span>${ic('coin')} Дохід гаража</span><span class="rate"><b>${S.short(i.rate)}</b> / год</span></div>
     <div class="big" id="pending">${S.fmt(pending)}</div>
     <div class="progress cap mt"><i id="capBar" style="width:${fill}%"></i></div>
+    <div class="cap-line" id="capLine">${cs.text}</div>
     <button class="btn mt" data-act="collect" ${pending < 1 ? 'disabled' : ''}>Забрати</button>
     ${i.comebackUntil ? `<div class="tiny center mt" style="color:#30d158">${ic('gift')} Подарунок повернення: +${S.COMEBACK.capHours} год сховища ще <span data-until="${i.comebackUntil - clockOffset}"></span></div>` : ''}
-    <div class="tiny muted center mt">Каса заповнюється за ${i.capH} год${nextCap ? ` · <a data-act="upgradeCap" style="color:#f5b301">збільшити до ${nextCap.hours} год — ${S.short(nextCap.cost)}</a>` : ''}</div>
+    ${nextCap ? `<div class="cap-up"><span class="tiny muted">Повна каса не росте — поки не забереш, дохід стоїть.</span><button class="btn outline sm" data-act="upgradeCap">${ic('clock')} Каса на ${nextCap.hours} год · ${S.short(nextCap.cost)}</button></div>` : ''}
+    <div class="tiny muted center mt cap-more">Каса вміщує ${i.capH} год доходу${nextCap ? ` · <a data-act="upgradeCap" style="color:#f5b301">збільшити до ${nextCap.hours} год — ${S.short(nextCap.cost)}</a>` : ''}</div>
   </div>
   ${dreamCard()}
   ${washHint(all)}
@@ -803,7 +842,7 @@ TABS.garage = () => {
   ${all.length > 1 ? `${present.length > 1 ? `<div class="chips gfilter"><button class="${state.garageCls ? '' : 'on'}" data-act="gFilter" data-k="">Усі</button>${present.map((k) => `<button class="${state.garageCls === k ? 'on' : ''}" data-act="gFilter" data-k="${k}" style="--c:${S.CLASSES[k].color}"><i></i>${k}<small>${all.filter((c) => M(c.model).cls === k).length}</small></button>`).join('')}</div>` : ''}
     <div class="row between sellbar">${sel ? `<span class="small muted">${sel.size ? `Обрано ${sel.size} · ${S.fmt(selTotal)}` : `Обери машини. Продаж: ${Math.round(Math.min(...Object.values(S.SELL_RATES)) * 100)}–${Math.round(Math.max(...Object.values(S.SELL_RATES)) * 100)}% ціни моделі, деталі й номер повертаються`}</span>` : `<button class="gsort" data-act="gSort">${ic('adjustments')}${SORT_NAMES[sort]}</button>`}
     <span class="row">${sel ? `<button class="btn sm red" data-act="sellSel" ${sel.size ? '' : 'disabled'}>Продати</button>` : ''}<button class="btn sm ghost" data-act="sellMode">${sel ? 'Скасувати' : `${ic('cash')} Продати кілька`}</button></span></div>` : ''}
-  <div class="grid">${cars.map((c) => carTile(c, { sel: sel?.has(c.id), act: sel ? 'selToggle' : 'car', sellLine: true })).join('')}
+  <div class="grid">${cars.map((c) => carTile(c, { sel: sel?.has(c.id), act: sel ? 'selToggle' : 'car', sellLine: true, incLine: true })).join('')}
     ${free && !state.garageCls ? `<button class="slot free" data-act="toCases"><span class="slot-plus">${ic('plus')}</span><b>${free} ${plural(free, ['вільне місце', 'вільні місця', 'вільних місць'])}</b><span class="tiny">Відкрити кейс ${ic('arrow-right')}</span></button>` : ''}
     ${me.slots < S.MAX_SLOTS && !state.garageCls ? `<button class="slot buy" data-act="buySlot"><span class="slot-plus">${ic('building-warehouse')}</span><span>Місце в гаражі</span><b>${S.short(S.slotCost(me.slots))}</b></button>` : ''}</div>`;
 };
@@ -848,6 +887,9 @@ setInterval(() => {
   const p = pendingNow();
   el.textContent = S.fmt(p);
   if (me.income.rate) $('#capBar').style.width = Math.min(100, (p / (me.income.rate * me.income.capH)) * 100) + '%';
+  const cs = capState(p), line = $('#capLine');
+  if (line && line.innerHTML !== cs.text) line.innerHTML = cs.text;
+  $('#incomeCard')?.classList.toggle('full', cs.full);
 }, 1000);
 function pickCar(title, onPick, filter = (c) => c.status === 'garage', back = null) {
   const list = me.cars.filter(filter);
@@ -869,7 +911,8 @@ function carSheet(id) {
   sheet(esc(m.name), `
     <div class="rarity-row sheet-tags"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span>${originChip(c.model)}<span class="chip">${m.year}</span>${dirtTag(c)}</div>
     <div class="hero r${rank} ${shining(c) ? 'shining' : ''}" style="--c:${color}"><div class="art">${carArt(c.model, { glow: rank >= 3, look: c.look, dirt: c.dirt })}</div>${c.plate ? `<div class="plate-on">${plate(c.plate.text)}</div>` : ''}</div>
-    <div class="stat four"><div><b>${c.hp}${c.hp > m.hp ? `<em class="win">+${c.hp - m.hp}</em>` : ''}</b><span>к.с.</span></div><div><b>${dec(c.et, 2)}</b><span>с на 402 м</span></div><div class="val"><b>${S.short(c.value)}</b><span>вартість</span>${m.secret ? '' : `<span class="sellp">продаж ${S.short(sellPrice(c))}</span>`}</div><div><b>${S.short(c.income * washMult(c))}${washEffect(c)}</b><span>дохід / год</span></div></div>
+    <div class="stat four"><div><b>${c.hp}${c.hp > m.hp ? `<em class="win">+${c.hp - m.hp}</em>` : ''}</b><span>к.с.</span></div><div><b>${dec(c.et, 2)}</b><span>с на 402 м</span></div><div class="val"><b>${S.short(c.value)}</b><span>вартість</span>${m.secret ? '' : `<span class="sellp">продаж ${S.short(sellPrice(c))}</span>`}</div>${incStat(c)}</div>
+    ${incNote(c)}
     ${locked ? `<div class="card mt center muted">Авто виставлено на ${c.status === 'market' ? 'ринок' : 'аукціон'} — керуй ним у «Меню → Ринок → Мої лоти».</div>` : `
     <div class="list mt">
       <button class="li" data-act="carShowcase" data-id="${c.id}"><span class="ic">${ic('building-arch')}</span><div class="grow"><b>${c.status === 'showcase' ? 'Повернути в гараж' : 'Виставити на вітрину'}</b><div class="small muted">${c.status === 'showcase' ? 'знову приноситиме дохід' : `вільно місць: ${me.showcaseSlots - me.cars.filter((x) => x.status === 'showcase').length}`}</div></div><span class="chev">›</span></button>
@@ -2977,10 +3020,30 @@ H.sellPart = async (d) => {
 const shining = (c) => (c.shineUntil || 0) > serverNow();
 const isDirty = (c) => (c.dirt || 0) >= S.WASH.dirty;
 const washable = (c) => c.status === 'garage' || c.status === 'showcase';
-// The car's income multiplier now, as the server counts it (no cut while the wash is still locked for the player).
-const washMult = (c) => S.washFactor(c.dirt || 0, 0, c.shineUntil, serverNow(), isOpen('wash'));
 const cutPct = (c) => (isOpen('wash') ? Math.round(S.dirtCut(c.dirt || 0) * 100) : 0);
-const washEffect = (c) => (shining(c) ? `<em class="win">+${Math.round(S.WASH.shine * 100)}%</em>` : cutPct(c) ? `<em class="lose">−${cutPct(c)}%</em>` : '');
+// Car card: the income an hour as the garage really pays it (S.garageIncome), and what made it so.
+function incStat(c) {
+  const e = carInc(c);
+  if (c.status === 'garage' && e && !e.earning) return '<div class="inc-off"><b>0</b><span>не заробляє</span></div>';
+  if (!e) return `<div class="inc-off"><b>0</b><span>дохід / год</span></div>`;
+  const x = e.rate / e.clean - 1;
+  return `<div><b>${S.short(e.rate)}${Math.abs(x) >= 0.005 ? `<em class="${x > 0 ? 'win' : 'lose'}">${sPct(x)}</em>` : ''}</b><span>дохід / год</span></div>`;
+}
+function incNote(c) {
+  const e = carInc(c);
+  if (c.status === 'showcase') return '<div class="inc-note muted">На вітрині машина не заробляє.</div>';
+  if (!e) return '';
+  if (!e.earning) {
+    const g = garageInc();
+    return `<div class="inc-note off"><b>Не заробляє — немає місця.</b> Дохід дають ${g.room} ${plural(g.room, ['найкраща машина', 'найкращі машини', 'найкращих машин'])} за кількістю місць у гаражі. Купи місце (Гараж → «Місце в гаражі»), продай або постав на вітрину слабшу машину.</div>`;
+  }
+  const bits = [];
+  if (e.country) bits.push(`країна ${sPct(e.country)}`);
+  if (e.set) bits.push(`сет ${sPct(e.set)}`);
+  if (e.wash > 1) bits.push(`блищить ${sPct(e.wash - 1)}`);
+  else if (e.wash < 1) bits.push(`бруд ${sPct(e.wash - 1)}`);
+  return bits.length ? `<div class="inc-note muted">База ${S.short(e.clean)} / год · ${bits.join(' · ')}</div>` : '';
+}
 // Marker next to a car (car card, market rows): «брудна» from WASH.dirty, «блищить» while the shine lasts.
 const dirtTag = (c) => (shining(c) ? ` <span class="dirt-tag shine">${ic('sparkles')}блищить</span>` : isDirty(c) ? ` <span class="dirt-tag dirty">${ic('droplet')}брудна</span>` : '');
 // Small indicator on a garage tile: sparkles while it shines, a drop with the % once there's visible dirt.

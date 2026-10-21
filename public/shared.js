@@ -834,7 +834,34 @@ export function washFactorAvg(dirt, at, shineUntil, a, b, cut = true) {
   for (let i = 0; i + 1 < cuts.length; i++) s += washFactor(dirt, at, shineUntil, (cuts[i] + cuts[i + 1]) / 2, cut) * (cuts[i + 1] - cuts[i]);
   return s / (b - a);
 }
-const fx = (car, key) => (car.parts?.[key] ? PARTS[key].fx[TIER_BY_ID[car.parts[key]].index] : 0);
+// Garage income, the one count the server credits and the client shows (cards, tiles, header). cars: the player's
+// cars ({ id, model, status, parts, plateValue, dirt, dirtAt, shineUntil }); cars on the market or auction take a slot
+// each, and of the garage cars only the best earners up to the free slots earn. Each car: clean income (class rate +
+// parts/plate) × the claimed-set bonus (setIncomeBonus); three or more earning cars of one country: +COUNTRY_BONUS;
+// then × its dirt/shine (washFactor at t; cut = false while the wash is locked for the player). VIP only lengthens the
+// cash cap, not the rate. Returns the total rate and per car { earning, clean, set, country, base, wash, rate }.
+export function garageIncome({ cars, slots = 1e9, claimed = [], t = Date.now(), cut = false }) {
+  const listed = cars.filter((c) => c.status === 'market' || c.status === 'auction').length;
+  const rows = cars.filter((c) => c.status === 'garage').map((c) => {
+    const clean = carIncomeOf(c), set = claimed.length ? setIncomeBonus(c.model, claimed) : 0;
+    return { c, country: MODELS[c.model].country, clean, set, v: clean * (1 + set) };
+  }).sort((a, b) => b.v - a.v || a.c.id - b.c.id);
+  const room = Math.max(0, slots - listed);
+  const per = {};
+  rows.slice(0, room).forEach((r) => (per[r.country] = (per[r.country] || 0) + 1));
+  const out = {};
+  let rate = 0;
+  rows.forEach((r, i) => {
+    const earning = i < room;
+    const country = earning && per[r.country] >= COUNTRY_BONUS.cars ? COUNTRY_BONUS.income : 0;
+    const base = earning ? r.v * (1 + country) : 0;
+    const wash = washFactor(r.c.dirt, r.c.dirtAt || 0, r.c.shineUntil, t, cut);
+    out[r.c.id] = { earning, clean: r.clean, set: r.set, country, base, wash, rate: base * wash };
+    rate += base * wash;
+  });
+  return { rate, cars: out, room, earning: Math.min(room, rows.length), idle: Math.max(0, rows.length - room) };
+}
+const fx =(car, key) => (car.parts?.[key] ? PARTS[key].fx[TIER_BY_ID[car.parts[key]].index] : 0);
 export function carStats(car) {
   const m = MODELS[car.model];
   const power = m.ev ? fx(car, 'motor') + fx(car, 'battery') : fx(car, 'eng') + fx(car, 'turbo') + fx(car, 'exhaust');

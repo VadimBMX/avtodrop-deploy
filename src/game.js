@@ -228,29 +228,29 @@ export function createGame(db, opts = {}) {
   // ---------- income ----------
   // Only as many cars as the garage has slots earn income (the best earners), so a garage that went over its
   // limit (battle win, auction, reward) gives no extra income until the spare cars are sold.
-  const carIncome = (c) => S.carIncomeOf({ model: c.model, parts: carParts(c.id), plateValue: carPlate(c.id)?.value || 0 });
   // The rate now, and (with `from`) what was earned from `from` until now: each car's dirt and shine (S.WASH) change its
   // income over time, so that part is the exact average of its multiplier over the stretch (S.washFactorAvg). Which
   // cars earn and the country bonus go by the clean income. The dirt penalty starts once the wash is open to the player.
   function incomeRate(uid, from = null) {
     const u = q('SELECT slots FROM users WHERE id = ?').get(uid);
-    const listed = q("SELECT COUNT(*) n FROM cars WHERE owner_id = ? AND status IN ('market', 'auction')").get(uid).n;
-    // Finished collection sets: a small bonus for their cars (S.setIncomeBonus — the largest, never a sum).
-    const done = claimedSets(uid);
-    const earning = q("SELECT * FROM cars WHERE owner_id = ? AND status = 'garage'").all(uid)
-      .map((c) => ({ c, country: S.MODELS[c.model].country, v: carIncome(c) * (1 + (done.length ? S.setIncomeBonus(c.model, done) : 0)) }))
-      .sort((a, b) => b.v - a.v).slice(0, Math.max(0, (u?.slots ?? 1e9) - listed));
-    // Three or more earning cars of one country: +10% to their income (S.COUNTRY_BONUS).
-    const per = {};
-    for (const c of earning) per[c.country] = (per[c.country] || 0) + 1;
-    const t = now(), cut = earning.length > 0 && isOpen(uid, 'wash');
-    let rate = 0, earned = 0;
-    for (const { c, country, v } of earning) {
-      const base = v * (per[country] >= S.COUNTRY_BONUS.cars ? 1 + S.COUNTRY_BONUS.income : 1);
-      rate += base * S.washFactor(c.dirt, c.dirt_at, c.shine_until, t, cut);
-      if (from != null && t > from) earned += base * S.washFactorAvg(c.dirt, c.dirt_at, c.shine_until, from, t, cut) * ((t - from) / 3600e3);
+    const rows = q("SELECT * FROM cars WHERE owner_id = ? AND status IN ('garage', 'market', 'auction') ORDER BY id").all(uid);
+    const garage = rows.filter((c) => c.status === 'garage');
+    const t = now(), cut = garage.length > 0 && isOpen(uid, 'wash');
+    // S.garageIncome is the one count of who earns and how much (the client shows the same per car and in total).
+    const g = S.garageIncome({
+      cars: rows.map((c) => (c.status === 'garage'
+        ? { id: c.id, model: c.model, status: c.status, parts: carParts(c.id), plateValue: carPlate(c.id)?.value || 0, dirt: c.dirt, dirtAt: c.dirt_at, shineUntil: c.shine_until }
+        : { id: c.id, model: c.model, status: c.status })),
+      slots: u?.slots ?? 1e9, claimed: garage.length ? claimedSets(uid) : [], t, cut,
+    });
+    let earned = 0;
+    if (from != null && t > from) {
+      for (const c of garage) {
+        const e = g.cars[c.id];
+        if (e.earning) earned += e.base * S.washFactorAvg(c.dirt, c.dirt_at, c.shine_until, from, t, cut) * ((t - from) / 3600e3);
+      }
     }
-    return { rate, earned };
+    return { rate: g.rate, earned };
   }
   function incomeState(u) {
     const { rate, earned } = incomeRate(u.id, u.income_at);
