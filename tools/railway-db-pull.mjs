@@ -23,8 +23,19 @@ process.stdout.write('<<DB>>' + b.toString('base64') + '<<END>>');
 `;
 const js = `eval(Buffer.from('${Buffer.from(remote).toString('base64')}','base64').toString())`;
 
+// railway ssh потребує SSH-ключ, зареєстрований у Railway. Робимо окремий ключ для цього без запитань.
+const home = process.env.USERPROFILE || process.env.HOME;
+const key = path.join(home, '.ssh', 'railway_avtodrop');
+if (!fs.existsSync(key)) {
+  fs.mkdirSync(path.join(home, '.ssh'), { recursive: true });
+  const g = spawnSync('ssh-keygen', ['-t', 'ed25519', '-N', '""', '-C', 'avtodrop-pc', '-f', `"${key}"`], { shell: true, stdio: 'inherit' });
+  if (g.status !== 0) { console.error('Не вдалося створити SSH-ключ (ssh-keygen)'); process.exit(1); }
+  console.log('Реєструю ключ у Railway…');
+  spawnSync('railway', ['ssh', 'keys', 'add', '--key', `"${key}.pub"`, '--name', 'avtodrop-pc'], { cwd: ROOT, shell: true, stdio: 'inherit' });
+}
+
 console.log('Підключаюсь до Railway і знімаю базу…');
-const r = spawnSync('railway', ['ssh', '--', 'node', '-e', `"${js}"`], { cwd: ROOT, shell: true, maxBuffer: 2e9, stdio: ['inherit', 'pipe', 'inherit'], encoding: 'latin1' });
+const r = spawnSync('railway', ['ssh', '-i', `"${key}"`, '--', 'node', '-e', `"${js}"`], { cwd: ROOT, shell: true, maxBuffer: 2e9, stdio: ['inherit', 'pipe', 'inherit'], encoding: 'latin1' });
 const out = r.stdout || '';
 const m = /<<DB>>([\s\S]*?)<<END>>/.exec(out);
 if (!m) {

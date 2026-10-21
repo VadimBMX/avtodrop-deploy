@@ -33,6 +33,15 @@ const grp = (v) => String(Math.max(0, Math.round(num(v) || 0))).replace(/\B(?=(\
 const clsBadge = (cls, extra = '') => `<span class="cls ${extra}" style="background:${S.CLASSES[cls].color}">${cls}</span>`;
 const tierCls = (tier) => S.TIER_BY_ID[tier].cls;
 const flag = (id) => S.COUNTRIES[M(id).country].flag;
+// Where a car is from, as a chip. The «Україна/СРСР» case mixes Ukrainian makes with Soviet ones (ВАЗ, ГАЗ, Москвич…):
+// the Ukrainian flag goes only with ЗАЗ / ЛуАЗ / own prototypes, a Soviet car gets a grey «СРСР» tag instead.
+const SOVIET_RE = /^(ВАЗ|Lada|Москвич|ГАЗ|ЗІЛ|УАЗ|ІЖ|ИЖ)(?=[\s-]|$)/; // (\b is ASCII-only, useless after a Cyrillic letter)
+const originText = (m) => (m.country === 'UA' ? (SOVIET_RE.test(m.name) ? 'СРСР · радянська класика' : '🇺🇦 Україна') : `${S.COUNTRIES[m.country].flag} ${S.COUNTRIES[m.country].name}`);
+const originChip = (id) => {
+  const m = M(id), c = S.COUNTRIES[m.country];
+  if (m.country === 'UA') return SOVIET_RE.test(m.name) ? '<span class="chip origin su"><i>СРСР</i> Радянська класика</span>' : `<span class="chip origin">${c.flag} Україна</span>`;
+  return `<span class="chip origin">${c.flag} ${c.name}</span>`;
+};
 // Line icons from public/icons.svg (Tabler, MIT).
 const ic = (name, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use href="icons.svg#i-${name}"/></svg>`;
 // Country cases show the country code instead of an emoji flag (flags render as letters on Windows anyway).
@@ -91,6 +100,24 @@ function devUser() {
   }
   return u;
 }
+// Small per-player choices kept in this browser (the chosen race car, the chosen case): a restart keeps them.
+const prefKey = () => 'avtodrop-pref-' + (me?.id ?? 'x');
+function prefGet(k, ok = () => true) {
+  try {
+    const v = JSON.parse(localStorage.getItem(prefKey()) || '{}')[k];
+    return v != null && ok(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+function prefSet(k, v) {
+  try {
+    const o = JSON.parse(localStorage.getItem(prefKey()) || '{}');
+    if (o[k] === v) return;
+    o[k] = v;
+    localStorage.setItem(prefKey(), JSON.stringify(o));
+  } catch {}
+}
 async function api(name, body = {}) {
   const headers = { 'content-type': 'application/json' };
   if (tg?.initData) headers['x-init-data'] = tg.initData;
@@ -140,7 +167,8 @@ let toastTimer;
 function toast(msg, err = false) {
   const t = $('#toast');
   // Text is escaped; only our own line icons (ic(...)) inside the message are turned back into icons.
-  const body = esc(msg).replace(/&lt;svg class=&quot;i ?&quot; aria-hidden=&quot;true&quot;&gt;&lt;use href=&quot;icons\.svg#i-([a-z0-9-]+)&quot;\/&gt;&lt;\/svg&gt;/g, (_, n) => ic(n));
+  // (src/static.js serves icons.svg as icons.svg?v=<hash>, so the href may carry a version before the «#».)
+  const body = esc(msg).replace(/&lt;svg class=&quot;i ?&quot; aria-hidden=&quot;true&quot;&gt;&lt;use href=&quot;icons\.svg[^&#]*#i-([a-z0-9-]+)&quot;\/&gt;&lt;\/svg&gt;/g, (_, n) => ic(n));
   t.innerHTML = `<span class="toast-ic">${ic(err ? 'info-circle' : 'check')}</span><span class="toast-tx">${body}</span>`;
   t.className = 'toast' + (err ? ' err' : '');
   t.hidden = false;
@@ -823,7 +851,7 @@ function carSheet(id) {
   const locked = c.status === 'market' || c.status === 'auction';
   const rank = S.rankOf(m.cls), color = S.CLASSES[m.cls].color;
   sheet(esc(m.name), `
-    <div class="rarity-row sheet-tags"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span><span class="chip">${S.COUNTRIES[m.country].flag} ${S.COUNTRIES[m.country].name}</span><span class="chip">${m.year}</span></div>
+    <div class="rarity-row sheet-tags"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span>${originChip(c.model)}<span class="chip">${m.year}</span></div>
     <div class="hero r${rank}" style="--c:${color}"><div class="art">${carArt(c.model, { glow: rank >= 3, look: c.look })}</div>${c.plate ? `<div class="plate-on">${plate(c.plate.text)}</div>` : ''}</div>
     <div class="stat four"><div><b>${c.hp}${c.hp > m.hp ? `<em class="win">+${c.hp - m.hp}</em>` : ''}</b><span>к.с.</span></div><div><b>${dec(c.et, 2)}</b><span>с на 402 м</span></div><div class="val"><b>${S.short(c.value)}</b><span>вартість</span>${m.secret ? '' : `<span class="sellp">продаж ${S.short(sellPrice(c))}</span>`}</div><div><b>${S.short(c.income)}</b><span>дохід / год</span></div></div>
     ${locked ? `<div class="card mt center muted">Авто виставлено на ${c.status === 'market' ? 'ринок' : 'аукціон'} — керуй ним у «Меню → Ринок → Мої лоти».</div>` : `
@@ -1048,13 +1076,14 @@ TABS.cases = () => {
     // model is not what a sale pays — S.SELL_RATES); ×1,2 reads as "won", ×0,4 as "try again".
     const from = S.CASE_BY_ID[state.dropCase] || cs;
     const sp = sellPrice(car);
-    const mult = from.price ? sp / from.price : 0;
+    // The same number as on the celebration screen and the share card: the model's value against the case price.
+    const mult = from.price ? car.value / from.price : 0;
     stage = `<div class="reveal-wrap r${rank}" id="revealWrap" style="--c:${color}"><div class="art ${fresh ? 'reveal' : ''}" id="dropArt">${carArt(car.model, { glow: rank >= 2 })}</div></div>
       ${isNew ? `<div class="newtag ${fresh ? 'pop' : ''}">${ic('sparkles')} Нова в колекції</div>` : ''}
       <div class="result-name r${rank} ${fresh ? 'pop' : ''} ${rank >= 3 ? 'shimmer' : ''}" style="--c:${color}">${esc(m.name)}</div>
-      <div class="rarity-row ${fresh ? 'pop2' : ''}"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span><span class="chip">${flag(car.model)} ${S.COUNTRIES[m.country].name}</span>${forced ? ' <span class="chip">гарантія</span>' : ''}${d[0].fragment ? ` <span class="chip frag">${ic('key')} +фрагмент</span>` : ''}</div>
-      <div class="drop-value ${fresh ? 'pop2' : ''}"><span>Вартість</span><b id="dropValue">${S.fmt(car.value)}</b></div>
-      <div class="drop-sell ${fresh ? 'pop2' : ''}"><span>${ic('cash')} продаж <b>${S.short(sp)}</b></span>${mult ? `<span class="xmult ${mult >= 1 ? 'up' : ''}">×${dec(mult, mult >= 10 ? 0 : 1)} до ціни кейса</span>` : ''}</div>
+      <div class="rarity-row ${fresh ? 'pop2' : ''}"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span>${originChip(car.model)}${forced ? ' <span class="chip">гарантія</span>' : ''}${d[0].fragment ? ` <span class="chip frag">${ic('key')} +фрагмент</span>` : ''}</div>
+      <div class="drop-value ${fresh ? 'pop2' : ''}"><span>Вартість</span><b id="dropValue">${S.fmt(car.value)}</b>${mult ? `<span class="xmult ${mult >= 1 ? 'up' : ''}">×${dec(mult, mult >= 10 ? 0 : 1)} від ціни кейсу</span>` : ''}</div>
+      <div class="drop-sell ${fresh ? 'pop2' : ''}"><span>${ic('cash')} продаж <b>${S.short(sp)}</b></span></div>
       ${d[0].sold ? `<div class="small win center">Продано за ${S.fmt(sellPrice(car))}</div>` : ''}`;
   } else if (d?.length) {
     const fresh = state.fx?.type === 'case';
@@ -1182,6 +1211,7 @@ H.casePicker = () => {
 };
 H.pickCase = (d) => {
   state.caseId = d.id;
+  prefSet('caseId', d.id);
   state.drop = null;
   closeModal();
   render();
@@ -1422,7 +1452,8 @@ TABS.race = async () => {
   const seg = `<div class="seg">${[['race', 'Драг-заїзд'], ['career', "Кар'єра"], ['drift', 'Дрифт'], ['pvp', 'PvP']].map(([k, t]) => `<button class="${state.raceView === k ? 'on' : ''} ${isOpen(k) ? '' : 'locked'}" data-act="raceView" data-k="${k}">${isOpen(k) ? '' : ic('lock')}${t}</button>`).join('')}</div>${eventStrip(['race', 'fuel'])}`;
   const garage = me.cars.filter((c) => c.status === 'garage');
   if (!garage.length) return seg + emptyBox('flag-3', 'Немає на чому їхати', 'Для гонки потрібна хоча б одна машина в гаражі', '<button class="btn sm" data-act="toCases">Відкрити кейс</button>');
-  if (!garage.some((c) => c.id === state.raceCar)) state.raceCar = [...garage].sort((a, b) => b.tank - a.tank || a.et - b.et)[0].id;
+  if (!garage.some((c) => c.id === state.raceCar)) state.raceCar = prefGet('raceCar', (id) => garage.some((c) => c.id === id)) || [...garage].sort((a, b) => (b.tank > 0) - (a.tank > 0) || a.et - b.et)[0].id;
+  prefSet('raceCar', state.raceCar);
   const car = garage.find((c) => c.id === state.raceCar);
   if (state.raceView === 'pvp') return seg + await pvpView(car);
   if (state.raceView === 'drift') return seg + await driftView(car, garage);
@@ -1432,7 +1463,7 @@ TABS.race = async () => {
   return seg + `<div class="h2"><span>Твоя машина</span><span>${garage.length}</span></div>
     <div class="carpick">${garage.map((c) => carTile(c, { act: 'pickRaceCar', sel: c.id === car.id, showTank: true })).join('')}</div>
     ${fuelCard(car)}
-    <div class="h2"><span>Суперники · клас ${cls}</span><span>дрег 402 м</span></div>
+    <div class="h2"><span>Суперники · клас ${cls}</span><span>драг 402 м</span></div>
     <div class="list rivals">${list.map((r) => `<button class="rival d-${r.id}" data-act="startRace" data-rival="${r.id}">
       ${miniCar(r.model)}
       <div class="grow"><b class="ellipsis">${esc(r.name)}</b><div class="small muted rv-meta"><span class="ellipsis">${esc(M(r.model).name)}</span><span class="nw">· ${r.hp} к.с.</span></div>
@@ -1477,7 +1508,7 @@ AFTER.race = () => {
   if (dx < 16 || dx + cur.offsetWidth > pick.clientWidth - 16) pick.scrollLeft += dx - 16;
 };
 H.raceView = (d) => (isOpen(d.k) ? (state.raceView = d.k, render()) : lockedSheet(d.k));
-H.pickRaceCar = (d) => (state.raceCar = Number(d.id), render());
+H.pickRaceCar = (d) => (state.raceCar = Number(d.id), prefSet('raceCar', state.raceCar), render());
 
 H.startRace = async (d) => {
   let r;
@@ -3099,8 +3130,16 @@ function hubTile({ page, k, icon, c, title, info = '', badge = 0, act = 'go', si
   return `<button class="hub-t ${size}" ${a} data-page="${page}" style="--c:${c}" ${id ? `id="${id}"` : ''}><span class="hub-ic">${ic(icon)}</span>
     <span class="hub-tx"><b>${title}</b>${size === 'mini' && !info ? '' : `<span class="hub-i">${info}</span>`}${extra}</span>${isNew ? '<span class="hub-new">Нове</span>' : hubCnt(badge)}</button>`;
 }
+// What the next level brings, right under the XP bar: «рів. 4 — Фарбування · ще 1 487 досвіду».
+function hubNextText() {
+  const left = Math.max(0, (me.xpNeed || 0) - (me.xp || 0));
+  const xp = `ще ${S.fmt(left).replace(' ₴', '')} досвіду`;
+  const nx = S.UNLOCKS.find((u) => u.level > me.level && !isOpen(u.key));
+  if (!nx) return `До ${me.level + 1} рівня — ${xp}`;
+  return nx.level === me.level + 1 ? `Рів. ${nx.level} відкриє «${nx.name}» · ${xp}` : `До ${me.level + 1} рівня — ${xp} · «${nx.name}» на рів. ${nx.level}`;
+}
 TABS.menu = () => {
-  const Y = '#ffc400', BL = '#3b82f6', PU = '#a855f7', RD = '#ef4444', GR = '#2fd27a', AM = '#f59e0b', ST = '#8a94a7', CY = '#22c3e6';
+  const Y = '#ffc400', BL = '#3b82f6', PU = '#a855f7', RD = '#ef4444', GR = '#2fd27a', AM = '#ff8a3d', ST = '#8a94a7', CY = '#22c3e6';
   const C = state.hub || {};
   const have = me.collection.filter((id) => !M(id)?.secret).length, total = S.ALL_MODELS.filter((m) => !m.secret).length;
   const name = me.firstName || (me.username ? '@' + me.username : 'Гравець');
@@ -3111,7 +3150,8 @@ TABS.menu = () => {
     <span class="hub-ava">${ring(me.level, me.xp, me.xpNeed, 58)}<span class="face${photo ? ' photo' : ''}">${photo ? `<img src="${esc(photo)}" alt="" referrerpolicy="no-referrer">` : esc(initialOf(name))}</span><span class="lvl">${me.level}</span></span>
     <span class="hub-who"><b class="ellipsis">${esc(name)}</b>
       <span class="hub-chips"><span class="hc career" id="hubCareer">${ic('crown')}${boss ? esc(boss.title) : C.career ? `Кар'єра ${C.career.beaten}/${C.career.total}` : "Кар'єра"}</span>${me.vip ? `<span class="hc vip">${ic('crown')}VIP</span>` : ''}</span>
-      <span class="hub-xp"><i style="width:${Math.min(100, (me.xp / me.xpNeed) * 100)}%"></i></span></span>
+      <span class="hub-xp"><i style="width:${Math.min(100, (me.xp / me.xpNeed) * 100)}%"></i></span>
+      <span class="hub-next ellipsis">${hubNextText()}</span></span>
     <span class="hub-val"><small>гараж</small><b>${S.short(me.stats.value)}</b></span>
     <button class="hub-bell" data-act="go" data-page="events" aria-label="Сповіщення${me.unread ? `: ${me.unread} нових` : ''}">${ic('bell')}${hubCnt(me.unread)}</button></div>`;
   // ---- season pass: the widest tile
@@ -3270,7 +3310,7 @@ const collectionCars = () => {
   const tile = (m) => {
     const own = owned.has(m.id), r = S.rankOf(m.cls), col = S.CLASSES[m.cls].color;
     return `<div class="ctile r${r} ${own ? '' : 'off'}" style="--c:${col}"><div class="art">${carArt(m.id, { silhouette: !own })}</div>
-      <b class="ellipsis">${own ? esc(m.name) : m.secret ? 'Секретна' : '???'}</b><span class="ellipsis">${m.season ? `Сезон ${m.season}` : m.secret && !own ? `збери: ${S.COUNTRIES[m.country].name}` : `${S.COUNTRIES[m.country].flag} ${S.COUNTRIES[m.country].name}`}</span></div>`;
+      <b class="ellipsis">${own ? esc(m.name) : m.secret ? 'Секретна' : '???'}</b><span class="ellipsis">${m.season ? `Сезон ${m.season}` : m.secret && !own ? `збери: ${S.COUNTRIES[m.country].name}` : originText(m)}</span></div>`;
   };
   return `<div class="card coll-sum"><div class="coll-ring"><svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="${R}" fill="none" stroke="#0b0f16" stroke-width="7"/><circle cx="40" cy="40" r="${R}" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-dasharray="${(C * n) / totalReg} ${C}" transform="rotate(-90 40 40)"/></svg><b>${pctAll}<small>%</small></b></div>
       <div class="grow"><div class="row between"><b class="disp">Зібрано</b><span class="muted small"><b style="color:var(--text)">${n}</b> з ${totalReg}</span></div><div class="cbars">${clsBars}</div></div></div>
@@ -3671,7 +3711,10 @@ H.itemDoSellPlate = async (d) => {
 H.mTab = (d) => (state.marketTab = d.k, render());
 H.mCls = (d) => (state.marketCls = d.k, render());
 H.mSort = (d) => (state.marketSort = d.k, render());
-H.buy = async (d) => (await confirmBox(`Купити за ${S.fmt(Number(d.price))}?`)) && act('market/buy', { id: Number(d.id) }, 'Авто вже у твоєму гаражі!');
+H.buy = async (d) => {
+  if (me.used >= me.slots) return toast(`Гараж заповнений · ${me.used}/${me.slots} — продай авто або купи місце`, true);
+  return (await confirmBox(`Купити за ${S.fmt(Number(d.price))}?`)) && act('market/buy', { id: Number(d.id) }, 'Авто вже у твоєму гаражі!');
+};
 H.unlist = (d) => act('market/cancel', { id: Number(d.id) }, 'Лот знято');
 H.unauction = (d) => act('auction/cancel', { id: Number(d.id) }, 'Аукціон скасовано');
 H.bid = (d) => sheet('Ставка', `<div class="small muted">Мінімум ${S.fmt(Number(d.min))}. Якщо тебе переб’ють — гроші повернуться.</div><label class="fld mt" for="bidAmt">Твоя ставка, ₴</label><input id="bidAmt" inputmode="numeric" value="${grp(d.min)}"><button class="btn mt" data-act="placeBid" data-id="${d.id}">Поставити</button>`);
@@ -4326,16 +4369,27 @@ function whatsNew(force = false) {
   playStory(S.WHATS_NEW);
 }
 // The full-screen story player shared by "what's new" and the intro "how to play" (S.INTRO_STORY).
+// The intro stands on the showroom stage: a real car on the turntable where the slide is about one (the wordmark
+// above, the class badges under the «classes» slide), the line icon elsewhere.
+const INTRO_CARS = { 'car-turbine': 'bugatti-chiron-super-sport', gift: 'zaz-965-horbatyi', coin: 'toyota-supra-a80', 'flag-3': 'nissan-skyline-gt-r-r34' };
+const WORDMARK = '<span class="wordmark">АВТО<b>ДРОП</b></span>';
 function playStory(story, onClose = () => {}) {
   let i = 0;
   const slides = story.slides;
   const el = document.createElement('div');
   el.className = 'story';
+  const visual = (sl) => {
+    const car = story === S.INTRO_STORY && INTRO_CARS[sl.icon];
+    if (car && M(car)) return `<div class="season-car story-car"><div class="showroom">${SHOWROOM_SVG}<div class="sr-refl" aria-hidden="true">${carArt(car)}</div><div class="art">${carArt(car)}</div></div></div>`;
+    return `<div class="story-ic">${ic(sl.icon)}</div>`;
+  };
+  const classes = (sl) => (story === S.INTRO_STORY && sl.icon === 'diamond' ? `<div class="story-classes">${S.CLASS_ORDER.filter((k) => k !== 'X').map((k) => `<span class="stamp r${S.rankOf(k)}" style="--c:${S.CLASSES[k].color}"><b>${k}</b>${S.CLASSES[k].name}</span>`).join('')}</div>` : '');
   const paint = () => {
     const sl = slides[i];
     el.innerHTML = `<div class="story-bars">${slides.map((_, k) => `<i class="${k < i ? 'done' : k === i ? 'on' : ''}"></i>`).join('')}</div>
+      ${story === S.INTRO_STORY ? `<div class="story-brand">${WORDMARK}</div>` : ''}
       <button class="story-skip">Пропустити</button>
-      <div class="story-body"><div class="story-ic">${ic(sl.icon)}</div><div class="story-title disp">${esc(sl.title)}</div><div class="story-text">${esc(sl.text)}</div></div>
+      <div class="story-body">${visual(sl)}<div class="story-title disp">${esc(sl.title)}</div><div class="story-text">${esc(sl.text)}</div>${classes(sl)}</div>
       <button class="btn yellow story-next">${i < slides.length - 1 ? 'Далі' : story.last || 'Поїхали!'}</button>`;
   };
   const close = () => {
@@ -5132,9 +5186,10 @@ function showBanner(data) {
   if (banners.has(data.key)) return;
   let box = $('#banners');
   if (!box) {
+    // A strip in the page flow right under the header: it pushes the screen down instead of covering its title.
     box = document.createElement('div');
     box.id = 'banners';
-    document.body.append(box);
+    ($('#app .top') || document.body).after(box);
   }
   const [icon, color] = data.icon ? [data.icon, data.color] : BANNER_IC[data.kind] || ['bell', '#8e8e93'];
   const el = document.createElement('div');
@@ -5431,6 +5486,7 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide']) {
   try {
     await refresh();
     if (me.keys.starter) state.caseId = 'starter';
+    else state.caseId = prefGet('caseId', (id) => !!S.CASE_BY_ID[id] && !S.CASE_BY_ID[id].starter) || state.caseId;
     if (me.dailyReady && !me.cars.length) state.tab = 'cases';
     const story = S.storyFor(me, whatsNewSeenHere());
     const st = S.GUIDE_STEPS.find((s) => s.key === me.guide);

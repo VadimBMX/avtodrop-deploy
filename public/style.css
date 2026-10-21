@@ -2643,3 +2643,82 @@ button.li:active { background-color: #ffffff08; }
   .hub-pass.ready .hub-claim::after { animation: none; opacity: .35; }
   .hub-live::before { animation: none; }
 }
+
+/* ============================================================================================================
+   final: design review pass (reports/final.md). Scoped overrides, nothing above is removed.
+   1 reward banners live in the page flow under the header (a strip, not an overlay)   2 one yellow per screen:
+   row-level «Забрати» / price buttons are outlined   3 class A is orange (yellow = action / selection / money only)
+   4 lit car niches in rival and list rows   5 drag strip: neon boards up in the skyline, pilot tags on solid plates
+   6 segmented control never wraps at 360 px   7 paint strip marks cars without a mask   8 intro on the showroom stage
+   9 hub headings in normal case   10 room under the raised «Кейси» button
+   ============================================================================================================ */
+/* 1 banners: a sticky strip right under the header; it pushes the screen down instead of covering its title */
+#banners { position: sticky; top: 60px; left: auto; right: auto; z-index: 4; padding: 0 16px 8px; pointer-events: none; }
+#banners:empty { padding: 0; }
+#banners.stacked:not(.open) .banner.behind { left: 16px; right: 16px; }
+.banner { transform: translateY(-24px); }
+.banner.in { transform: translateY(0); }
+.banner.out { transform: translateY(-24px); }
+.banner .grow b { font-size: 14.5px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.15; }
+/* 2 one filled yellow per screen: claims and prices inside lists are outlined, the screen's main action stays filled */
+.btn.sm[data-act="achClaim"], .btn.sm[data-act="collClaim"], .btn.sm[data-act="setClaim"], .btn.sm[data-act="questClaim"], .btn.sm[data-act="wkClaim"],
+.btn.sm[data-act="buy"], .btn.sm[data-act="itemBuy"], .btn.sm[data-act="claimRewardCase"], .btn.sm[data-act="newbieClaim"], .btn.sm[data-act="rescueClaim"] {
+  background: #ffc40012; color: var(--accent-hi); box-shadow: inset 0 0 0 1.5px #ffc40070; text-shadow: none; }
+.btn.sm[data-act="achClaim"]:active, .btn.sm[data-act="collClaim"]:active, .btn.sm[data-act="buy"]:active { background: #ffc40028; }
+/* 4 small cars in rows stand in a lit niche: a lighter wall behind, class light under the wheels, a 2 px class line */
+.rival .mini.art.lit { width: 104px; height: 58px; }
+.li > .mini.art.lit { width: 92px; height: 52px; }
+.rival .mini.art.lit, .li > .mini.art.lit { padding: 5px 6px 3px; border-radius: 10px; overflow: hidden;
+  background: linear-gradient(180deg, #2a3446, #1a2130 58%, #121823); box-shadow: inset 0 0 0 1px #ffffff12, inset 0 -2px 0 color-mix(in srgb, var(--c) 70%, transparent); }
+.rival .mini.art.lit::after, .li > .mini.art.lit::after { left: 6%; right: 6%; bottom: 2px; height: 46%; }
+.rival .mini.art.lit img, .li > .mini.art.lit img { filter: brightness(1.18) contrast(1.04) drop-shadow(0 3px 2px #000c); }
+.rival .mini.art.lit.r0, .li > .mini.art.lit.r0 { box-shadow: inset 0 0 0 1px #ffffff12, inset 0 -2px 0 #9aa4b260; }
+@media (max-width: 374px) {
+  .rival .mini.art.lit { width: 86px; height: 50px; }
+  .li > .mini.art.lit { width: 78px; height: 46px; }
+}
+/* 5 drag strip: the boards hang in the skyline, dimmer, on long poles; they no longer sit at the height of the pilot tags */
+.dr-neon { top: 58px; opacity: .78; }
+.dr-bb::after { height: 60px; }
+.dr-tag { background: #0a0d18f2; box-shadow: inset 0 0 0 1px #ffffff2a, 0 2px 8px #000c; padding: 2px 8px 3px; }
+.dr-car.me .dr-tag { box-shadow: inset 0 0 0 1.5px #ffc400a0, 0 2px 8px #000c; }
+/* 6 segmented control: one line always; smaller type on narrow phones */
+.seg button { white-space: nowrap; padding-left: 2px; padding-right: 2px; }
+@media (max-width: 374px) {
+  .seg button { font-size: 14.5px; letter-spacing: 0; gap: 4px; }
+  .seg button.locked .i { margin-right: 1px; }
+}
+/* 7 paint strip: a car without a body mask is grey and says so before the tap */
+.pcar.off { opacity: .8; }
+.pcar.off .art { filter: grayscale(1) brightness(.75); }
+.pcar.off .pcar-nm { color: #6d7684; }
+.pcar.off::after { content: 'без фарби'; display: block; margin: -1px 0 0; font: 600 9.5px/1.2 var(--f-body); letter-spacing: .3px; color: #8a94a7; text-transform: uppercase; }
+/* 3 the Soviet origin tag */
+.chip.origin.su i { display: inline-flex; align-items: center; padding: 0 4px; border-radius: 3px; background: #9aa4b2; color: #0b0f16; font: 800 9.5px/1.5 var(--f-disp); letter-spacing: .4px; font-style: normal; }
+/* 9 hub section headings: normal case like everywhere else, slightly larger */
+.hub-h { font: 600 15px var(--f-disp); letter-spacing: .1px; text-transform: none; color: var(--muted); }
+/* 10 the raised «Кейси» button rises 22 px above the tab bar: content ends above it */
+#app { padding-bottom: calc(var(--tabs-h) + 40px + var(--safe-b)); }
+/* the ×N multiplier sits next to the value it is computed from */
+.drop-value .xmult { margin-left: 2px; }
+/* 8 intro: the night showroom instead of the brown spot, a wordmark, normal-case titles, real cars on the turntable */
+.story { background: radial-gradient(120% 60% at 50% 30%, #1a1740, #0b0f16 70%); }
+.story-brand { position: absolute; left: 0; right: 0; top: 30px; text-align: center; pointer-events: none; }
+.wordmark { display: inline-block; font: 800 15px/1 var(--f-disp); letter-spacing: 1.6px; color: #e8ecf3; transform: skewX(-9deg); }
+.wordmark b { color: var(--accent); }
+.story-ic { filter: drop-shadow(0 0 24px #ffc40055); }
+.story-title { font: 800 30px/1.08 var(--f-disp); text-transform: none; letter-spacing: 0; transform: skewX(-8deg); }
+.story-car { width: calc(100% + 36px); max-width: 420px; margin: -10px 0 -6px; padding: 0; border: 0; background: none; }
+.story-car .showroom { margin: 0; }
+.story-classes { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 2px; }
+.story-classes .stamp { font-size: 12px; }
+.story .btn.story-next { margin-top: 8px; }
+/* ×3 / ×6 summary: the left part never breaks mid-phrase; on a narrow screen it goes under the total instead */
+.multi-sum > span:first-child { white-space: nowrap; }
+.multi-sum { flex-wrap: wrap; row-gap: 2px; }
+/* banners: compact enough for «Сезонний пропуск: рівень 14» to stay on one line at 390 px */
+.banner .grow b { font-size: 14px; }
+.banner .mi { width: 30px; height: 30px; font-size: 16px; }
+.banner .bbtns .btn { padding: 0 10px; font-size: 14px; }
+/* hub: what the next level brings, under the XP bar */
+.hub-next { display: block; margin-top: 4px; font: 500 11px/1.25 var(--f-body); color: var(--muted); max-width: 100%; }
