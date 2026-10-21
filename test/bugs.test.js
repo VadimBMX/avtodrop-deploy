@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { openDb } from '../src/db.js';
 import { createGame, GameError } from '../src/game.js';
 import * as S from '../public/shared.js';
+import { honestDrag } from './race-helpers.js';
 
 function setup(t0 = Date.parse('2026-10-19T10:00:00Z')) {
   const db = openDb(':memory:');
@@ -43,10 +44,12 @@ test('BUG-1 live PvP: shift names like "constructor" are rejected and cannot ste
   call(1, 'pulse');
   call(2, 'pvp/request', { id, carId: slow });
   const live = call(1, 'pvp/answer', { id, yes: true });
-  clock.add(live.greenAt - clock.now() + 500);
-  call(1, 'pvp/finish', { id, reaction: 0.12, shifts: perfect }); // the creator drives a perfect race in a far faster car
+  const run = honestDrag(live.me.car, live.greenAt - live.startAt, 0.12, perfect);
+  clock.add(live.startAt + run.ms - clock.now() + 50);
+  call(1, 'pvp/finish', { id, ...run.body }); // the creator drives a perfect race in a far faster car
   for (const bad of ['constructor', 'toString', '__proto__']) {
     onlyGameErrors(() => call(2, 'pvp/finish', { id, reaction: 0.2, shifts: Array(S.SHIFTS).fill(bad) }));
+    onlyGameErrors(() => call(2, 'pvp/finish', { id, launch: 3000, shiftAt: [], shifts: Array(S.SHIFTS).fill(bad) }));
   }
   clock.add(60e3);
   const s = call(1, 'pvp/state', { id });
@@ -108,14 +111,16 @@ test('BUG-3b direct trade: detaching the plate of an offered car invalidates the
 
 // ---------- 4. race result uses the car as it is at the finish, not at the start ----------
 test('BUG-4a race/finish uses the car stats from the start (no installing parts mid-race)', () => {
-  const { mk, call, g } = setup();
+  const { mk, call, g, clock } = setup();
   mk(1);
   const a = g.giveCar(1, 'vaz-2107').id;
   g.giveCar(1, 'vaz-2107');
   g.addPart(1, 'eng', 'race', 1);
-  const { raceId, car } = call(1, 'race/start', { carId: a, rival: 'hard' });
+  const { raceId, car, greenMs } = call(1, 'race/start', { carId: a, rival: 'hard' });
   call(1, 'parts/install', { carId: a, type: 'eng', tier: 'race' });
-  const r = call(1, 'race/finish', { raceId, reaction: 0.3, shifts: good });
+  const run = honestDrag(car, greenMs, 0.3, good);
+  clock.add(run.ms + 50);
+  const r = call(1, 'race/finish', { raceId, ...run.body });
   assert.equal(r.time, S.raceTime(car, 0.3, good), 'time must come from the car that started the race');
 });
 test('BUG-4b race/finish after the car was sold is a clean result, not a server crash', () => {

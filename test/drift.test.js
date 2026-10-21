@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { openDb } from '../src/db.js';
 import { createGame } from '../src/game.js';
 import * as S from '../public/shared.js';
+import { clientDrift } from './race-helpers.js';
 
 function setup() {
   const db = openDb(':memory:');
@@ -31,23 +32,29 @@ test('drift: a run pays the prize when the score beats the target, uses fuel, co
   const st = call('drift/start', { carId: car, rival: 'easy' });
   assert.equal(call('me').fuel, before.fuel - 1);
   assert.throws(() => call('drift/finish', { runId: st.runId, score: 9999 }), /ще не закінчився/);
-  clock.add(S.DRIFT_MS);
-  const r = call('drift/finish', { runId: st.runId, score: st.rival.target + 100, clean: 4, spins: 1 });
+  clock.add(S.DRIFT_COUNT_MS + S.DRIFT_MS);
+  const run = clientDrift(st.model, st.seed);
+  assert.ok(run.score > st.rival.target, 'a steady driver beats the easy rival');
+  const r = call('drift/finish', { runId: st.runId, ...run });
   assert.equal(r.win, true);
+  assert.equal(r.score, run.score);
+  assert.equal(r.check, 'ok');
   const me = call('me');
   assert.equal(me.balance, before.balance + st.rival.prize);
   assert.equal(me.stats.races, before.stats.races + 1);
   assert.throws(() => call('drift/finish', { runId: st.runId, score: 1 }), /завершено/);
 });
 
-test('drift: the score is capped at a perfect run; a low score loses the entry', () => {
+test('drift: a score without a gas log is capped well below the car\'s best; a low score loses the entry', () => {
   const { call, car, clock } = setup();
   const st = call('drift/start', { carId: car, rival: 'hard' });
-  clock.add(S.DRIFT_MS);
-  assert.equal(call('drift/finish', { runId: st.runId, score: 1e9 }).score, S.DRIFT_MAX);
+  clock.add(S.DRIFT_COUNT_MS + S.DRIFT_MS);
+  const capped = call('drift/finish', { runId: st.runId, score: 1e9 });
+  assert.equal(capped.score, Math.floor(S.driftCap(st.model) * 0.6));
+  assert.equal(capped.win, false);
   const before = call('me').balance;
   const st2 = call('drift/start', { carId: car, rival: 'hard' });
-  clock.add(S.DRIFT_MS);
+  clock.add(S.DRIFT_COUNT_MS + S.DRIFT_MS);
   const r = call('drift/finish', { runId: st2.runId, score: 10 });
   assert.equal(r.win, false);
   assert.equal(call('me').balance, before - st2.rival.entry);

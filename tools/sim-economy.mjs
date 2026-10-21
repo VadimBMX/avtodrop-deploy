@@ -8,6 +8,7 @@
 import { openDb } from '../src/db.js';
 import { createGame } from '../src/game.js';
 import * as S from '../public/shared.js';
+import { honestDrag } from '../test/race-helpers.js';
 
 const DAYS = Number(process.argv[2] || 30), ACTIVE = Number(process.argv[3] || 20), CASUAL = Number(process.argv[4] || 20);
 const db = openDb(':memory:');
@@ -67,8 +68,12 @@ function race(b) {
       const st = call(b, 'race/start', { carId: car.id, rival: r.id });
       const reaction = 0.18 + Math.random() * 0.2;
       const shifts = Array.from({ length: S.SHIFTS }, () => (Math.random() < 0.35 ? 'perfect' : Math.random() < 0.85 ? 'good' : 'late'));
-      call(b, 'race/finish', { raceId: st.raceId, reaction, shifts });
+      // Drive it as the app does (the server replays the taps and checks the run took its time on the clock).
+      const run = honestDrag(st.car, st.greenMs, reaction, shifts);
+      t += Math.ceil(run.ms) + 50;
+      call(b, 'race/finish', { raceId: st.raceId, ...run.body });
     });
+    t += 6e3; // the result screen and picking the next rival (also keeps under the 10 starts a minute limit)
   }
 }
 // Sell the weakest cars (never the last one, never secret) until `free` slots are open.

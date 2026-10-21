@@ -902,7 +902,13 @@ export function createGame(db, opts = {}) {
     q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(f.fuel - 1, f.fuel >= S.FUEL_MAX ? now() : f.at, uid);
     q('UPDATE cars SET tank = ?, tank_at = ? WHERE id = ?').run(t.tank - 1, t.tank >= S.CAR_TANK ? now() : t.at, c.id);
   }
+  // Anti-bot: at most this many starts a minute (an honest drag race takes ~10 s, a drift run ~30 s).
+  const START_LIMIT = { races: 10, drift_runs: 4 };
+  function startLimit(uid, table) {
+    if (q(`SELECT COUNT(*) n FROM ${table} WHERE user_id = ? AND created_at > ?`).get(uid, now() - 60e3).n >= START_LIMIT[table]) fail('Забагато заїздів за хвилину — перепочинь трохи');
+  }
   function driftStart(uid, { carId, rival }) {
+    startLimit(uid, 'drift_runs');
     const { car, list, model } = driftRivals(uid, { carId });
     const r = list.find((x) => x.id === rival);
     if (!r) fail('Обери суперника');
@@ -910,21 +916,44 @@ export function createGame(db, opts = {}) {
     useFuel(uid, c);
     pay(uid, r.entry);
     q("UPDATE drift_runs SET status = 'expired' WHERE user_id = ? AND status = 'running'").run(uid);
+    // The run token: the seed of the physics noise and the model are fixed here; the finish replays the gas log.
+    const seed = Math.floor(rnd() * 2 ** 31);
     const id = Number(q('INSERT INTO drift_runs (user_id, car_id, rival, target, entry, prize, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run(uid, c.id, JSON.stringify(r), r.target, r.entry, r.prize, now()).lastInsertRowid);
-    return { runId: id, car, rival: r, model, max: S.DRIFT_MAX };
+      .run(uid, c.id, JSON.stringify({ ...r, seed, model }), r.target, r.entry, r.prize, now()).lastInsertRowid);
+    return { runId: id, car, rival: r, model, max: S.DRIFT_MAX, seed, step: S.DRIFT_STEP };
   }
-  function driftFinish(uid, { runId, score, clean, spins }) {
+  // A run without a gas log (a client from before this release) can't be checked: its score is capped at this share.
+  const DRIFT_LEGACY_SHARE = 0.6;
+  function driftFinish(uid, { runId, score, clean, spins, log }) {
     const run = q('SELECT * FROM drift_runs WHERE id = ? AND user_id = ?').get(int(runId, 1, 1e15, 'ID заїзду'), uid);
     if (!run || run.status !== 'running') fail('Заїзд уже завершено');
     const took = now() - run.created_at;
-    if (took < S.DRIFT_MS * 0.85) fail('Заїзд ще не закінчився');
-    // The score can't beat a perfect run; a run left hanging for minutes counts as nothing.
-    const pts = took > 3 * 60e3 ? 0 : Math.max(0, Math.min(S.DRIFT_MAX, Math.round(Number(score) || 0)));
+    // The countdown and the whole run must have passed on the server's clock (less the network allowance).
+    if (took < S.DRIFT_COUNT_MS + S.DRIFT_MS - S.DRAG_TOL.wall) fail('Заїзд ще не закінчився');
+    const { seed, model: m0, ...rival } = JSON.parse(run.rival);
+    const model = m0 || S.driftModel(carOut(carRow(run.car_id)) || { hp: 100, kg: 1000, grip: 0.35 });
+    const cap = S.driftCap(model);
+    let pts, cl, sp, check;
+    if (log != null && seed != null) {
+      const rep = S.driftReplay(model, seed, log);
+      if (rep.error) fail('Некоректні дані заїзду');
+      pts = rep.score;
+      cl = rep.clean;
+      sp = rep.spins;
+      check = Math.floor(Number(score)) === pts ? 'ok' : 'replayed';
+    } else {
+      pts = Math.max(0, Math.round(Number(score) || 0));
+      cl = int(clean ?? 0, 0, S.DRIFT.corners);
+      sp = int(spins ?? 0, 0, 99);
+      check = 'legacy';
+      pts = Math.min(pts, Math.floor(cap * DRIFT_LEGACY_SHARE));
+    }
+    // Never above what this car can reach; a run left hanging for minutes counts as nothing.
+    pts = Math.min(pts, cap);
+    if (took > 3 * 60e3) (pts = 0, check = 'timeout');
     const win = pts >= run.target;
     if (win) addMoney(uid, run.entry + run.prize);
-    const rival = JSON.parse(run.rival);
-    const result = { win, score: pts, target: run.target, prize: win ? run.prize : 0, entry: run.entry, clean: int(clean ?? 0, 0, S.DRIFT.corners), spins: int(spins ?? 0, 0, 99), rival };
+    const result = { win, score: pts, target: run.target, prize: win ? run.prize : 0, entry: run.entry, clean: cl, spins: sp, rival, check };
     q("UPDATE drift_runs SET status = 'done', result = ? WHERE id = ?").run(JSON.stringify(result), run.id);
     q('UPDATE users SET races = races + 1, wins = wins + ? WHERE id = ?').run(win ? 1 : 0, uid);
     xp(uid, win ? 'win' : 'race');
@@ -934,7 +963,36 @@ export function createGame(db, opts = {}) {
     if (win) flag(uid, 'win');
     return result;
   }
+  // A drag run from the client's report. New clients send `launch` (ms after the lights started) and `shiftAt` (ms
+  // after launch of every shift): the server recomputes the reaction against its own green time and replays every
+  // shift. Old clients send only reaction/shifts: no perfect start, no perfect shifts. Either way the run must not
+  // end sooner on the server's clock (elapsedMs since the lights started, from the server's side) than it can.
+  function dragRun(stats, greenMs, body, elapsedMs) {
+    let reaction, shifts, launch, endMs, corrected = 0, legacy = false;
+    if (body.launch == null && body.shiftAt == null) {
+      legacy = true;
+      if (!okShifts(body.shifts)) fail('Некоректні дані заїзду');
+      reaction = Number(body.reaction);
+      if (!Number.isFinite(reaction)) fail('Некоректний старт');
+      reaction = reaction < 0 ? -1 : Math.max(S.START.perfectWindow + 0.001, Math.min(reaction, 3));
+      shifts = body.shifts.map((s) => (s === 'perfect' ? 'good' : s));
+      launch = greenMs + Math.max(0, reaction) * 1000;
+      const { react, drive } = S.dragDrive(stats, reaction, shifts);
+      endMs = ((react + drive) / S.RACE_SPEED) * 1000;
+    } else {
+      launch = Number(body.launch);
+      if (!Number.isFinite(launch) || launch < 0 || launch > 120e3) fail('Некоректний старт');
+      reaction = S.reactionOf(launch, greenMs);
+      if (body.shifts != null && !okShifts(body.shifts)) fail('Некоректні дані заїзду');
+      const rep = S.dragReplay(stats, reaction, body.shiftAt, body.shifts || []);
+      if (rep.error) fail('Некоректні дані заїзду');
+      ({ shifts, endMs, corrected } = rep);
+    }
+    if (elapsedMs < launch + endMs - S.DRAG_TOL.wall) fail('Заїзд ще не закінчився');
+    return { reaction: round3(reaction), shifts, time: S.raceTime(stats, reaction, shifts), jump: reaction < 0, perfectStart: S.perfectStartOf(reaction), corrected, legacy };
+  }
   function raceStart(uid, { carId, rival }) {
+    startLimit(uid, 'races');
     const { car, list } = rivals(uid, { carId });
     const r = list.find((x) => x.id === rival);
     if (!r) fail('Обери суперника');
@@ -951,25 +1009,27 @@ export function createGame(db, opts = {}) {
     const rr = lcg(Math.floor(rnd() * 2 ** 31));
     const rivalTime = rivalRun(rr, r.base);
     // The car is fixed at the start: installing parts or selling it before the finish changes nothing.
-    const rec = { ...r, time: rivalTime, me: { base: car.base, shift: car.shift } };
+    // The server picks the green light; the exact rival time stays here until the finish (the client gets it
+    // rounded to 0.1 s, enough to animate the rival's car).
+    const greenMs = S.RACE_GREEN[0] + Math.floor(rnd() * (S.RACE_GREEN[1] - S.RACE_GREEN[0]));
+    const rec = { ...r, time: rivalTime, me: { base: car.base, shift: car.shift }, greenMs };
     const id = Number(q('INSERT INTO races (user_id, car_id, rival, entry, prize, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(uid, c.id, JSON.stringify(rec), r.entry, r.prize, now()).lastInsertRowid);
-    return { raceId: id, car, rival: rec, shiftPoints: S.SHIFT_POINTS };
+    return { raceId: id, car, rival: { ...r, time: Math.round(rivalTime * 10) / 10, coarse: true }, greenMs, shiftPoints: S.SHIFT_POINTS };
   }
-  function raceFinish(uid, { raceId, reaction, shifts }) {
+  function raceFinish(uid, { raceId, ...body }) {
     const race = q('SELECT * FROM races WHERE id = ? AND user_id = ?').get(int(raceId, 1, 1e15, 'ID заїзду'), uid);
     if (!race || race.status !== 'running') fail('Заїзд уже завершено');
-    if (!okShifts(shifts)) fail('Некоректні дані заїзду');
-    let react = Number(reaction);
-    if (!Number.isFinite(react)) fail('Некоректний старт');
-    if (react >= 0) react = Math.max(0.09, Math.min(react, 3));
-    const expired = now() - race.created_at > 3 * 60e3;
+    const elapsed = now() - race.created_at;
+    const expired = elapsed > 3 * 60e3;
     const rival = JSON.parse(race.rival);
     const stats = rival.me || carOut(carRow(race.car_id));
     if (!stats) fail('Цього авто вже немає');
-    const time = expired ? 99 : S.raceTime(stats, react, shifts);
+    const run = dragRun(stats, rival.greenMs ?? S.RACE_GREEN[0], body, elapsed);
+    const { shifts } = run;
+    const time = expired ? 99 : run.time;
     const win = time < rival.time;
     if (win) addMoney(uid, race.entry + race.prize);
-    const result = { win, time, rivalTime: rival.time, diff: round3(Math.abs(time - rival.time)), prize: win ? race.prize : 0, entry: race.entry, jump: react < 0, perfectStart: react >= 0 && react <= S.START.perfectWindow, reaction: react, shifts };
+    const result = { win, time, rivalTime: rival.time, diff: round3(Math.abs(time - rival.time)), prize: win ? race.prize : 0, entry: race.entry, jump: run.jump, perfectStart: run.perfectStart, reaction: run.reaction, shifts, corrected: run.corrected };
     q("UPDATE races SET status = 'done', result = ? WHERE id = ?").run(JSON.stringify(result), race.id);
     q('UPDATE users SET races = races + 1, wins = wins + ? WHERE id = ?').run(win ? 1 : 0, uid);
     q('DELETE FROM rivals WHERE user_id = ? AND car_id = ?').run(uid, race.car_id);
@@ -1372,17 +1432,18 @@ export function createGame(db, opts = {}) {
   function pvpRun(stats, reaction, shifts) {
     let react = Number(reaction);
     if (!Number.isFinite(react)) react = 1.5;
-    if (react >= 0) react = Math.max(0.09, Math.min(react, 3));
-    return { reaction: round3(react), shifts, time: S.raceTime(stats, react, shifts), jump: react < 0, perfectStart: react >= 0 && react <= S.START.perfectWindow };
+    if (react >= 0) react = Math.min(react, 3);
+    return { reaction: round3(react), shifts, time: S.raceTime(stats, react, shifts), jump: react < 0, perfectStart: S.perfectStartOf(react) };
   }
-  function pvpFinish(uid, { id, reaction, shifts }) {
+  function pvpFinish(uid, { id, ...body }) {
     const p = pvpOf(uid, id);
     if (p.status !== 'live') return pvpOut(p, uid);
-    if (!okShifts(shifts)) fail('Некоректні дані заїзду');
-    if (now() < p.green_at - 1000 && Number(reaction) >= 0) fail('Гонка ще не почалася');
+    if (now() < p.start_at) fail('Гонка ще не почалася');
     const isC = p.creator_id === uid;
     if (!p[isC ? 'c_run' : 'o_run']) {
-      const run = pvpRun(JSON.parse(isC ? p.snapshot : p.opp_snapshot), reaction, shifts);
+      // Same checks as a solo race, against the shared start: green at green_at, the clock from start_at.
+      const { reaction, shifts, time, jump, perfectStart } = dragRun(JSON.parse(isC ? p.snapshot : p.opp_snapshot), p.green_at - p.start_at, body, now() - p.start_at);
+      const run = { reaction, shifts, time, jump, perfectStart };
       q(`UPDATE pvp SET ${isC ? 'c_run' : 'o_run'} = ?, ${isC ? 'c_u' : 'o_u'} = 1 WHERE id = ?`).run(JSON.stringify(run), p.id);
     }
     const fresh = q('SELECT * FROM pvp WHERE id = ?').get(p.id);

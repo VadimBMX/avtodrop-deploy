@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { openDb } from '../src/db.js';
 import { createGame } from '../src/game.js';
 import * as S from '../public/shared.js';
+import { honestDrag } from './race-helpers.js';
 
 function setup() {
   const db = openDb(':memory:');
@@ -38,10 +39,14 @@ test('live PvP: request → creator sees it in pulse → accept → both race �
   clock.add(live.greenAt - clock.now() + 300);
   assert.equal(call(2, 'pvp/progress', { id, u: 0.4 }).me.u, 0.4);
   assert.equal(call(1, 'pvp/state', { id }).rival.u, 0.4, 'creator sees the rival move');
-  let s = call(1, 'pvp/finish', { id, reaction: 0.12, shifts: Array(S.SHIFTS).fill('perfect') });
+  const greenMs = live.greenAt - live.startAt;
+  const r1 = honestDrag(live.me.car, greenMs, 0.12, Array(S.SHIFTS).fill('perfect'));
+  const r2 = honestDrag(live.rival.car, greenMs, 0.9, Array(S.SHIFTS).fill('late'));
+  clock.add(live.startAt + Math.max(r1.ms, r2.ms) - clock.now() + 50);
+  let s = call(1, 'pvp/finish', { id, ...r1.body });
   assert.equal(s.status, 'live', 'waits for the other player');
   assert.equal(s.rival.run, null, 'times stay hidden until both finish');
-  s = call(2, 'pvp/finish', { id, reaction: 0.9, shifts: Array(S.SHIFTS).fill('late') });
+  s = call(2, 'pvp/finish', { id, ...r2.body });
   assert.equal(s.status, 'done');
   assert.equal(s.win, false);
   const prize = Math.floor(200000 * (1 - S.FEE));
@@ -73,8 +78,9 @@ test('live PvP: a player who disconnects mid-race loses on a late run', () => {
   call(1, 'pulse');
   call(2, 'pvp/request', { id, carId: c2 });
   const live = call(1, 'pvp/answer', { id, yes: true });
-  clock.add(live.greenAt - clock.now() + 200);
-  call(2, 'pvp/finish', { id, reaction: 0.3, shifts: good });
+  const run = honestDrag(live.rival.car, live.greenAt - live.startAt, 0.3, good);
+  clock.add(live.startAt + run.ms - clock.now() + 50);
+  call(2, 'pvp/finish', { id, ...run.body });
   clock.add(50e3);
   const s = call(2, 'pvp/state', { id });
   assert.equal(s.status, 'done');

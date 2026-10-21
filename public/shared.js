@@ -553,15 +553,103 @@ export function raceBaseTime(hp, kg, grip) {
 export const SHIFTS = 4; // gears 1→5
 export const SHIFT_POINTS = [0.1, 0.24, 0.42, 0.65]; // fraction of the run where each shift is ideal
 export const SHIFT_LOSS = { perfect: -0.04, good: 0, early: 0.12, late: 0.12, miss: 0.3 };
-export const START = { perfectWindow: 0.15, perfectBonus: 0.987, jumpPenalty: 1.028 };
+// minReaction: nobody reacts to a light faster than ~0.1 s — a tap sooner after green was a lucky guess, so it
+// gets no perfect-start bonus (and no false-start penalty either).
+export const START = { perfectWindow: 0.15, perfectBonus: 0.987, jumpPenalty: 1.028, minReaction: 0.1 };
+export const perfectStartOf = (reaction) => reaction >= START.minReaction && reaction <= START.perfectWindow;
 // reaction: seconds after green (negative = jump start). shifts: array of SHIFT_LOSS keys.
 export function raceTime(stats, reaction, shifts) {
   let t = stats.base;
   if (reaction < 0) t *= START.jumpPenalty;
-  else if (reaction <= START.perfectWindow) t *= START.perfectBonus;
+  else if (perfectStartOf(reaction)) t *= START.perfectBonus;
   t += Math.max(0, reaction < 0 ? 0.25 : Math.min(reaction, 1.5));
   for (const q of shifts) t += (SHIFT_LOSS[q] ?? SHIFT_LOSS.miss) * (1 - stats.shift);
   return Math.round(t * 1000) / 1000;
+}
+// ---------- drag race timeline (shared so the server can replay a run from its tap times) ----------
+// The run plays RACE_SPEED times faster than race time. The server picks when the light turns green (RACE_GREEN ms
+// after the lights start); the client reports when it launched (ms after the lights started) and when each shift
+// happened (ms after launch), and the server recomputes the reaction and every shift quality from those.
+export const RACE_SPEED = 2.3;
+export const RACE_GREEN = [2200, 3400];
+export const RACE_LATE_START = 1500; // ms after green the car launches by itself
+export const SHIFT_AUTO_RPM = 1.02; // the needle hitting the limiter shifts by itself ('late')
+// ms of slack the server allows: a claimed quality must be reachable within [tap − back, tap + fwd]; a shift that
+// happened after the limiter point counts as a tap only within `hitch` (a frame stall), later it is 'late'.
+export const DRAG_TOL = { back: 20, fwd: 5, hitch: 250, end: 5, wall: 300 };
+export const reactionOf = (launchMs, greenMs) => (launchMs < greenMs ? -1 : Math.min(3, (launchMs - greenMs) / 1000));
+export const msToTau = (ms) => (ms / 1000) * RACE_SPEED;
+// Progress of the run: u = (tau − react) / drive, where drive follows the time projected from the shifts so far.
+export function dragDrive(stats, reaction, shifts) {
+  const react = reaction < 0 ? 0.25 : reaction;
+  const T = raceTime(stats, reaction, [...shifts, ...Array(Math.max(0, SHIFTS - shifts.length)).fill('good')]);
+  return { react, drive: Math.max(0.5, T - react) };
+}
+export function dragU(stats, reaction, shifts, tau) {
+  const { react, drive } = dragDrive(stats, reaction, shifts);
+  return Math.max(0, Math.min(1, (tau - react) / drive));
+}
+// Needle position for shift i (0-based), counted from the progress segStart where the last shift happened.
+export function shiftRpm(i, segStart, u) {
+  const ideal = SHIFT_POINTS[i];
+  if (ideal == null) return 0.5 + 0.4 * Math.min(1, (u - segStart) / Math.max(0.05, 1 - segStart));
+  return 0.3 + 0.58 * ((u - segStart) / Math.max(0.03, ideal - segStart));
+}
+export const tapQuality = (rpm) => (rpm < 0.7 ? 'early' : rpm < 0.82 ? 'good' : rpm <= 0.94 ? 'perfect' : 'good');
+// Replays a run: shiftAt = ms after launch of each shift (taps and limiter shifts), claims = the qualities the client
+// showed. A claim is kept when it is no better than the server's, or reachable within DRAG_TOL; otherwise the
+// server's quality stands. Returns { shifts, endMs (ms from launch to the finish line), corrected } or { error }.
+export function dragReplay(stats, reaction, shiftAt, claims = []) {
+  if (!Array.isArray(shiftAt) || shiftAt.length > SHIFTS) return { error: 'shifts' };
+  const shifts = [];
+  let seg = 0, prev = 0, corrected = 0, endTau = null;
+  for (let i = 0; i < SHIFTS; i++) {
+    const { react, drive } = dragDrive(stats, reaction, shifts);
+    const tauEnd = react + drive;
+    const uAt = (tau) => Math.max(0, Math.min(1, (tau - react) / drive));
+    const uLate = seg + ((SHIFT_AUTO_RPM - 0.3) / 0.58) * Math.max(0.03, SHIFT_POINTS[i] - seg);
+    if (i >= shiftAt.length) {
+      // No more shifts reported: either the limiter shifted (it would have, before the finish) or the run ended.
+      if (uLate < 1) {
+        shifts.push('late');
+        seg = uLate;
+        continue;
+      }
+      endTau = tauEnd;
+      break;
+    }
+    const at = shiftAt[i];
+    if (typeof at !== 'number' || !Number.isFinite(at) || at < prev) return { error: 'timing' };
+    prev = at;
+    let tau = msToTau(at);
+    if (tau >= tauEnd + msToTau(DRAG_TOL.end)) return { error: 'after-finish' };
+    const tauLate = react + uLate * drive;
+    let q;
+    if (uLate < 1 && tau > tauLate + msToTau(DRAG_TOL.hitch)) {
+      q = 'late'; // the limiter would have shifted long before this
+      tau = tauLate;
+      corrected++;
+    } else {
+      const qAt = (x) => tapQuality(shiftRpm(i, seg, uAt(x)));
+      q = qAt(tau);
+      const claim = claims?.[i];
+      if (typeof claim === 'string' && Object.hasOwn(SHIFT_LOSS, claim) && claim !== q) {
+        const a = tau - msToTau(DRAG_TOL.back), b = tau + msToTau(DRAG_TOL.fwd);
+        let near = false;
+        for (let k = 0; k <= 10 && !near; k++) near = qAt(a + ((b - a) * k) / 10) === claim;
+        if (SHIFT_LOSS[claim] >= SHIFT_LOSS[q] || near) q = claim;
+        else corrected++;
+      }
+    }
+    seg = uAt(tau);
+    shifts.push(q);
+  }
+  if (endTau == null) {
+    const { react, drive } = dragDrive(stats, reaction, shifts);
+    endTau = react + drive;
+  }
+  while (shifts.length < SHIFTS) shifts.push('late');
+  return { shifts, endMs: (endTau / RACE_SPEED) * 1000, corrected };
 }
 export const FUEL_MAX = 15;
 export const CAR_TANK = 5;
@@ -610,6 +698,112 @@ export function driftModel(stats) {
 export const DRIFT_MAX = Math.round(DRIFT.pps * (DRIFT.cornerMs / 1000) * DRIFT.idealBonus
   * Array.from({ length: DRIFT.corners }, (_, i) => Math.min(DRIFT.comboMax, i + 1)).reduce((a, b) => a + b, 0));
 export const DRIFT_MS = DRIFT.corners * DRIFT.cornerMs + (DRIFT.corners - 1) * DRIFT.straightMs;
+// The drift physics runs in fixed DRIFT_STEP-ms steps with noise from the server's seed, so the server replays the
+// player's gas log step for step and gets exactly the score the player saw.
+export const DRIFT_STEP = 5;
+export const DRIFT_COUNT_MS = 2100; // the 3 · 2 · 1 countdown before the run
+export const DRIFT_NOISE = 55; // °/s of random wobble per step (≈ the old ±15 °/s per 60 Hz frame)
+function mulberry32(a) {
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+export function driftSim(model, seed) {
+  const C = DRIFT.cornerMs, ST = DRIFT.straightMs, dt = DRIFT_STEP / 1000;
+  const rand = mulberry32(seed >>> 0), phase = ((seed >>> 0) % 10000) / 1000;
+  const s = { t: 0, hold: false, ang: 0, score: 0, combo: 1, clean: 0, spins: 0, corner: -1, straight: -1, zoneMs: 0, spun: false, spinUntil: -1, inZone: false, inCorner: false, done: false, log: [], events: [] };
+  const endCorner = () => {
+    if (!s.spun && s.zoneMs >= C * DRIFT.clean) {
+      s.clean++;
+      s.combo = Math.min(DRIFT.comboMax, s.combo + 1);
+      s.events.push('clean');
+    } else if (!s.spun) {
+      s.combo = 1;
+      s.events.push('weak');
+    }
+  };
+  // Gas pressed / released: applies from the next step and is logged by step index.
+  s.input = (hold) => {
+    if (s.done || hold === s.hold) return;
+    s.hold = hold;
+    s.log.push(s.t / DRIFT_STEP);
+  };
+  s.step = () => {
+    const t = s.t + DRIFT_STEP;
+    s.t = t;
+    if (t >= DRIFT_MS) {
+      if (s.corner === DRIFT.corners - 1) endCorner();
+      s.done = true;
+      return;
+    }
+    const i = Math.floor(t / (C + ST)), inCorner = t - i * (C + ST) < C;
+    if (inCorner && i !== s.corner) {
+      s.corner = i;
+      s.zoneMs = 0;
+      s.spun = false;
+      s.events.push('corner');
+    }
+    if (!inCorner && s.straight !== i) {
+      s.straight = i;
+      if (s.corner === i) endCorner();
+      s.events.push('straight');
+    }
+    if (inCorner && t > s.spinUntil) {
+      s.ang += (s.hold ? model.turn : -model.recover) * dt;
+      s.ang += (Math.sin(t / 230 + phase) * 22 + (rand() - 0.5) * DRIFT_NOISE) * dt; // the car never sits still
+      s.ang = Math.max(0, s.ang);
+      if (s.ang >= model.spin) {
+        s.spins++;
+        s.combo = 1;
+        s.spun = true;
+        s.spinUntil = t + 700;
+        s.ang = 0;
+        s.events.push('spin');
+      }
+      const inZone = s.ang >= model.zone[0] && s.ang <= model.zone[1];
+      if (inZone) {
+        const ideal = s.ang >= model.ideal[0] && s.ang <= model.ideal[1];
+        s.score += DRIFT.pps * s.combo * (ideal ? DRIFT.idealBonus : 1) * dt;
+        s.zoneMs += DRIFT_STEP;
+        if (!s.inZone) s.events.push('zone');
+      }
+      s.inZone = inZone;
+    } else if (!inCorner) s.ang = Math.max(0, s.ang - model.recover * 1.5 * dt);
+    s.inCorner = inCorner;
+  };
+  s.advance = (ms) => {
+    while (!s.done && s.t + DRIFT_STEP <= ms) s.step();
+  };
+  return s;
+}
+// Replays a gas log (step indexes where the gas flipped); { error } when the log is malformed.
+export function driftReplay(model, seed, log) {
+  const last = DRIFT_MS / DRIFT_STEP;
+  if (!Array.isArray(log) || log.length > 20000) return { error: 'log' };
+  for (let k = 0; k < log.length; k++) if (!Number.isSafeInteger(log[k]) || log[k] < 0 || log[k] > last || (k && log[k] < log[k - 1])) return { error: 'log' };
+  const s = driftSim(model, seed);
+  let k = 0;
+  while (!s.done) {
+    while (k < log.length && log[k] === s.t / DRIFT_STEP) (s.hold = !s.hold, k++);
+    s.step();
+  }
+  return { score: Math.floor(s.score), clean: s.clean, spins: s.spins };
+}
+// The most a car can score: the angle can't rise faster than turn + wobble, so every corner loses the time it takes
+// to swing into the green zone; every second in the zone pays at most pps × combo × idealBonus.
+export function driftCap(model) {
+  const rise = model.turn + 22 + DRIFT_NOISE / 2;
+  const carry = Math.max(0, model.spin - model.recover * 1.5 * (DRIFT.straightMs - 2 * DRIFT_STEP) / 1000);
+  let pts = 0;
+  for (let i = 0; i < DRIFT.corners; i++) {
+    const entry = Math.max(0, (model.zone[0] - (i ? carry : 0)) / rise);
+    pts += DRIFT.pps * Math.min(DRIFT.comboMax, i + 1) * DRIFT.idealBonus * Math.max(0, DRIFT.cornerMs / 1000 - entry);
+  }
+  return Math.min(DRIFT_MAX, Math.ceil(pts));
+}
 export const RIVAL_NAMES = ['Ваня_Вихлоп', 'Kirill_M5', 'Lightning', 'Гоша_Форсаж', 'NightRider', 'Вовк', 'Дрифт_Кіт', 'Тарас_Турбо', 'BoostBoy', 'Сашко_GT', 'Оксана_V8', 'Mr.Stance', 'Лис_Нітро', 'Богдан_JDM', 'Карпатський_Дрифт', 'Kyiv_Racer', 'Львівський_Турбо', 'Одеса_Street', 'Шумахер_з_Борщагівки', 'Дизель'];
 export const PVP_MIN_BET = 5000;
 export const FEE = 0.05;

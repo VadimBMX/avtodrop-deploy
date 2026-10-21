@@ -1033,7 +1033,7 @@ H.startRace = async (d) => {
   }
   me.fuel--;
   renderHeader();
-  state.race = { phase: 'lights', id: r.raceId, car: r.car, rival: r.rival, reaction: null, shifts: [], gear: 1, result: null };
+  state.race = { phase: 'lights', id: r.raceId, car: r.car, rival: r.rival, greenMs: r.greenMs, reaction: null, shifts: [], gear: 1, result: null };
   await render();
   runRace();
 };
@@ -1066,11 +1066,17 @@ function flashText(text, color) {
 // rival's bar follows the other player's real progress, and the result comes once both have finished.
 function runRace() {
   const R = state.race;
-  const K = 2.3; // playback speed
+  const K = S.RACE_SPEED; // playback speed
   const lights = [...document.querySelectorAll('#tree i')];
   const btn = $('#raceBtn');
   const sinceStart = R.live ? serverNow() - R.live.startAt : 0;
-  const greenAt = R.live ? R.live.greenAt - R.live.startAt - sinceStart : 1800 + 400 + Math.random() * 1200;
+  // The server picks the green light; every tap is reported in ms from the start of the lights (t0) so the server can
+  // recompute the reaction and the shifts. Times are rounded to 0.1 ms first so both sides compute the same numbers.
+  const t0 = performance.now() - sinceStart;
+  const greenMs = R.live ? R.live.greenAt - R.live.startAt : R.greenMs ?? 2200 + Math.random() * 1200;
+  const greenAt = greenMs - sinceStart;
+  const clock = (from) => Math.round((performance.now() - from) * 10) / 10;
+  R.shiftAt = [];
   let green = 0, runStart = 0, raf = 0;
   const lbs = R.car.kg * 2.2046;
   const vmax = 1.609 * 234 * Math.cbrt(R.car.hp / lbs);
@@ -1099,22 +1105,24 @@ function runRace() {
     btn.textContent = 'ГАЗ!';
     haptic('medium');
   }, greenAt));
-  timers.push(setTimeout(() => !runStart && launch(1.5), greenAt + 1500));
+  timers.push(setTimeout(() => !runStart && launch(), greenAt + S.RACE_LATE_START));
   let segStart = 0;
   const projected = () => S.raceTime(R.car, R.reaction, [...R.shifts, ...Array(S.SHIFTS - R.shifts.length).fill('good')]);
-  function launch(reaction) {
+  function launch() {
     timers.forEach(clearTimeout);
-    R.reaction = reaction;
+    R.launchMs = clock(t0);
+    const reaction = (R.reaction = S.reactionOf(R.launchMs, greenMs));
     R.phase = 'run';
-    runStart = performance.now();
+    runStart = t0 + R.launchMs;
     if (reaction < 0) {
       lights.forEach((l) => (l.className = 'red'));
       flashText('ФАЛЬСТАРТ −8%', '#f87171');
       haptic('error');
-    } else if (reaction <= S.START.perfectWindow) {
+    } else if (S.perfectStartOf(reaction)) {
       flashText('ІДЕАЛЬНИЙ СТАРТ +4%', '#4ade80');
       haptic('success');
-    } else if (reaction >= 1.5) flashText('ПІЗНІЙ СТАРТ', '#fbbf24');
+    } else if (reaction < S.START.minReaction) flashText('ЗАРАНО — БЕЗ БОНУСУ', '#fbbf24');
+    else if (reaction >= 1.5) flashText('ПІЗНІЙ СТАРТ', '#fbbf24');
     else flashText(`Реакція ${reaction.toFixed(3)}`, '#eceef2');
     btn.className = 'btn racebtn shift mt';
     btn.textContent = 'ПЕРЕДАЧА';
@@ -1122,12 +1130,9 @@ function runRace() {
     $('#rHint').textContent = 'Перемикай, коли стрілка в зеленій зоні';
     raf = requestAnimationFrame(frame);
   }
-  function rpmAt(u) {
-    const ideal = S.SHIFT_POINTS[R.shifts.length];
-    if (ideal == null) return 0.5 + 0.4 * Math.min(1, (u - segStart) / Math.max(0.05, 1 - segStart));
-    return 0.3 + 0.58 * ((u - segStart) / Math.max(0.03, ideal - segStart));
-  }
-  function doShift(q, u) {
+  const rpmAt = (u) => S.shiftRpm(R.shifts.length, segStart, u);
+  function doShift(q, u, ms) {
+    R.shiftAt.push(ms);
     R.shifts.push(q);
     segStart = u;
     R.gear++;
@@ -1146,22 +1151,27 @@ function runRace() {
         haptic('warning');
         return;
       }
-      launch(green ? (performance.now() - green) / 1000 : -1);
+      launch();
       return;
     }
-    if (R.phase !== 'run' || R.shifts.length >= S.SHIFTS) return;
-    const r = rpmAt(curU);
-    doShift(r < 0.7 ? 'early' : r < 0.82 ? 'good' : r <= 0.94 ? 'perfect' : 'good', curU);
+    if (R.phase !== 'run' || R.sent || R.shifts.length >= S.SHIFTS) return;
+    // The shift is judged at the moment of the tap (the server replays the same moment).
+    const ms = clock(runStart);
+    const u = S.dragU(R.car, R.reaction, R.shifts, S.msToTau(ms));
+    if (u >= 1) return;
+    doShift(S.tapQuality(rpmAt(u)), u, ms);
   });
   let shownRivalD = 0;
   function frame() {
-    const tau = ((performance.now() - runStart) / 1000) * K;
-    const react = R.reaction < 0 ? 0.25 : R.reaction;
+    if (state.race !== R) return;
+    const ms = clock(runStart);
+    const tau = S.msToTau(ms);
     const T = projected();
-    const drive = Math.max(0.5, T - react);
-    const u = Math.max(0, Math.min(1, (tau - react) / drive));
+    const u = S.dragU(R.car, R.reaction, R.shifts, tau);
     curU = u;
-    if (R.shifts.length < S.SHIFTS && rpmAt(u) >= 1.02) doShift('late', u);
+    if (!R.sent && u < 1 && R.shifts.length < S.SHIFTS && rpmAt(u) >= S.SHIFT_AUTO_RPM) doShift('late', u, ms);
+    // Solo: my car crossed the line — send the run now; the exact rival time comes back with the result.
+    if (!R.live && u >= 1 && !R.sent) submit();
     const pd = Math.pow(u, 1.6);
     let ru, rd;
     if (R.live) {
@@ -1185,20 +1195,28 @@ function runRace() {
     $('#rGear').textContent = u > 0 ? Math.min(R.gear, S.SHIFTS + 1) : 1;
     const rpm = Math.max(0, Math.min(1, u > 0 ? rpmAt(u) : 0.2));
     $('#needle').style.width = rpm * 100 + '%';
-    if (u >= 1 && ru >= 1) return finish();
+    if (u >= 1 && ru >= 1 && (R.live || R.result)) return finish();
     raf = requestAnimationFrame(frame);
+  }
+  // Shifts never made before the line count as late (padded in the copy only: the animation keeps its own list).
+  const payload = () => ({ reaction: R.reaction, shifts: [...R.shifts, ...Array(Math.max(0, S.SHIFTS - R.shifts.length)).fill('late')], launch: R.launchMs, shiftAt: R.shiftAt });
+  async function submit() {
+    R.sent = true;
+    try {
+      const res = await api('race/finish', { raceId: R.id, ...payload() });
+      R.rival.time = res.rivalTime; // the rival's bar finishes at its real time
+      R.result = res;
+    } catch (e) {
+      cancelAnimationFrame(raf);
+      toast(e.message, true);
+      if (state.race === R) state.race = null;
+      return render();
+    }
   }
   async function finish() {
     cancelAnimationFrame(raf);
     while (R.shifts.length < S.SHIFTS) R.shifts.push('late');
     if (R.live) return finishLive();
-    try {
-      R.result = await api('race/finish', { raceId: R.id, reaction: R.reaction, shifts: R.shifts });
-    } catch (e) {
-      toast(e.message, true);
-      state.race = null;
-      return render();
-    }
     R.phase = 'done';
     haptic(R.result.win ? 'success' : 'error');
     await refresh();
@@ -1210,7 +1228,7 @@ function runRace() {
     $('#rHint').textContent = `Фініш! Чекаємо на ${R.rival.name}…`;
     btn.disabled = true;
     try {
-      const s = await api('pvp/finish', { id: R.live.id, reaction: R.reaction, shifts: R.shifts });
+      const s = await api('pvp/finish', { id: R.live.id, ...payload() });
       if (s.status === 'done') return settleLive(s);
     } catch (e) {
       toast(e.message, true);
@@ -1440,8 +1458,9 @@ function runDrift() {
   const D = state.drift, M2 = D.model, C = S.DRIFT.cornerMs, ST = S.DRIFT.straightMs;
   const el = (id) => document.getElementById(id);
   const btn = el('dGas');
-  let hold = false, ang = 0, last = 0, t0 = 0, raf = 0, corner = -1, zoneMs = 0, spunHere = false, spinUntil = 0, wasIn = false;
-  const seed = Math.random() * 10;
+  let hold = false, last = 0, t0 = 0, raf = 0;
+  // The physics is the shared fixed-step simulation seeded by the server, which replays the gas log at the finish.
+  const sim = S.driftSim(M2, D.seed ?? Math.floor(Math.random() * 2 ** 31));
   const scene = driftScene(el('dCanvas'), S.CLASSES[M(D.car.model).cls].color);
   const SPEED = 150; // must match driftScene's road speed
   // While the lights count down the car waits at the end of the lead-in straight.
@@ -1484,60 +1503,32 @@ function runDrift() {
     t0 = last = performance.now();
     raf = requestAnimationFrame(frame);
   }, 700);
-  function endCorner() {
-    const clean = !spunHere && zoneMs >= C * S.DRIFT.clean;
-    if (clean) {
-      D.clean++;
-      D.combo = Math.min(S.DRIFT.comboMax, D.combo + 1);
-      msg(`ЧИСТО! ×${D.combo}`, '#4ade80');
-      haptic('success');
-    } else if (!spunHere) {
-      D.combo = 1;
-      msg('Слабкий занос', '#fbbf24');
+  // Messages for what happened in the steps just simulated.
+  function events() {
+    for (const e of sim.events.splice(0)) {
+      if (e === 'clean') (msg(`ЧИСТО! ×${sim.combo}`, '#4ade80'), haptic('success'));
+      else if (e === 'weak') msg('Слабкий занос', '#fbbf24');
+      else if (e === 'spin') (msg('РОЗВОРОТ!', '#f87171'), haptic('error'));
+      else if (e === 'zone') haptic('light');
+      else if (e === 'corner') el('dSign').textContent = `${scene.dirs[sim.corner] > 0 ? '↱' : '↰'} ПОВОРОТ ${sim.corner + 1}/${S.DRIFT.corners}`;
+      else if (e === 'straight') el('dSign').textContent = 'ПРЯМА';
     }
+    D.score = sim.score;
+    D.combo = sim.combo;
+    D.clean = sim.clean;
+    D.spins = sim.spins;
   }
   function frame(now) {
     if (state.drift !== D) return;
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
-    const t = now - t0;
-    if (t >= S.DRIFT_MS) return finish();
-    const i = Math.floor(t / (C + ST)), inCorner = t - i * (C + ST) < C;
-    if (inCorner && i !== corner) {
-      corner = i;
-      zoneMs = 0;
-      spunHere = false;
-      el('dSign').textContent = `${scene.dirs[i] > 0 ? '↱' : '↰'} ПОВОРОТ ${i + 1}/${S.DRIFT.corners}`;
-    }
-    if (!inCorner && el('dSign').dataset.k !== 's' + i) {
-      el('dSign').dataset.k = 's' + i;
-      if (corner === i) endCorner();
-      el('dSign').textContent = 'ПРЯМА';
-    }
-    if (inCorner && now > spinUntil) {
-      ang += (hold ? M2.turn : -M2.recover) * dt;
-      ang += (Math.sin(t / 230 + seed) * 22 + (Math.random() - 0.5) * 30) * dt; // the car never sits still
-      ang = Math.max(0, ang);
-      if (ang >= M2.spin) {
-        D.spins++;
-        D.combo = 1;
-        spunHere = true;
-        spinUntil = now + 700;
-        ang = 0;
-        msg('РОЗВОРОТ!', '#f87171');
-        haptic('error');
-      }
-      const inZone = ang >= M2.zone[0] && ang <= M2.zone[1];
-      if (inZone) {
-        const ideal = ang >= M2.ideal[0] && ang <= M2.ideal[1];
-        D.score += S.DRIFT.pps * D.combo * (ideal ? S.DRIFT.idealBonus : 1) * dt;
-        zoneMs += dt * 1000;
-        if (!wasIn) haptic('light');
-      }
-      wasIn = inZone;
-    } else if (!inCorner) ang = Math.max(0, ang - M2.recover * 1.5 * dt);
+    sim.input(hold);
+    sim.advance(now - t0);
+    events();
+    if (sim.done) return finish();
+    const t = sim.t, ang = sim.ang, inCorner = sim.inCorner, spinUntil = sim.spinUntil;
     // The car moves along the road at a steady speed; a spin-out turns it a full circle.
-    scene.draw(scene.lead + (SPEED * t) / 1000, ang, now < spinUntil ? 1 - (spinUntil - now) / 700 : 0, dt, now);
+    scene.draw(scene.lead + (SPEED * t) / 1000, ang, t < spinUntil ? 1 - (spinUntil - t) / 700 : 0, dt, now);
     el('dNeedle').style.left = `${(Math.min(90, ang) / 90) * 100}%`;
     el('dAngle').textContent = `кут ${Math.round(ang)}°`;
     el('dScore').textContent = S.fmt(Math.floor(D.score)).replace(' ₴', '');
@@ -1548,10 +1539,9 @@ function runDrift() {
   }
   async function finish() {
     cancelAnimationFrame(raf);
-    if (corner === S.DRIFT.corners - 1) endCorner();
     D.phase = 'wait';
     try {
-      D.result = await api('drift/finish', { runId: D.runId, score: Math.floor(D.score), clean: D.clean, spins: D.spins });
+      D.result = await api('drift/finish', { runId: D.runId, score: Math.floor(sim.score), clean: sim.clean, spins: sim.spins, log: sim.log });
     } catch (e) {
       toast(e.message, true);
       state.drift = null;

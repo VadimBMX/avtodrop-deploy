@@ -5,6 +5,7 @@ import { createGame, GameError, fairRoll, pickWeighted, classEntries, pickModel,
 import { verifyInitData, signInitData } from '../src/auth.js';
 import { createApp } from '../server.js';
 import * as S from '../public/shared.js';
+import { honestDrag } from './race-helpers.js';
 
 function setup(t0 = Date.parse('2026-10-14T10:00:00Z')) {
   const db = openDb(':memory:');
@@ -19,6 +20,12 @@ function setup(t0 = Date.parse('2026-10-14T10:00:00Z')) {
   return { db, g, clock, mk, call, sent, rich, setRandom: (x) => (r = x) };
 }
 const car = (call, uid, id) => call(uid, 'me').cars.find((c) => c.id === id);
+// Drives a started race like the app does (taps at the right moments) and finishes it once the run is over.
+const drive = ({ call, clock }, uid, st, reaction, qs) => {
+  const run = honestDrag(st.car, st.greenMs, reaction, qs);
+  clock.advance(Math.ceil(run.ms) + 50);
+  return call(uid, 'race/finish', { raceId: st.raceId, ...run.body });
+};
 
 test('data: unique models, every case class has cars, case prices below average drop value', () => {
   assert.equal(new Set(S.ALL_MODELS.map((m) => m.name)).size, S.ALL_MODELS.length);
@@ -171,7 +178,8 @@ test('selling a car returns its parts and plate', () => {
 });
 
 test('race: rivals, fuel and tank, perfect driving beats the easy rival, entry is returned on win', () => {
-  const { mk, call, g, setRandom } = setup();
+  const ctx = setup();
+  const { mk, call, g, setRandom } = ctx;
   mk(1);
   const c = g.giveCar(1, 'vaz-2107').id;
   const all = call(1, 'race/rivals', { carId: c }).list;
@@ -186,7 +194,8 @@ test('race: rivals, fuel and tank, perfect driving beats the easy rival, entry i
   assert.equal(call(1, 'me').balance, bal - list[0].entry);
   assert.equal(call(1, 'me').fuel, S.FUEL_MAX - 1);
   assert.equal(car(call, 1, c).tank, S.CAR_TANK - 1);
-  const r = call(1, 'race/finish', { raceId: st.raceId, reaction: 0.12, shifts: ['perfect', 'perfect', 'perfect', 'perfect'] });
+  const r = drive(ctx, 1, st, 0.12, ['perfect', 'perfect', 'perfect', 'perfect']);
+  assert.deepEqual(r.shifts, ['perfect', 'perfect', 'perfect', 'perfect']);
   assert.equal(r.win, true);
   assert.equal(r.perfectStart, true);
   assert.equal(call(1, 'me').balance, bal + list[0].prize);
@@ -194,17 +203,18 @@ test('race: rivals, fuel and tank, perfect driving beats the easy rival, entry i
 });
 
 test('race: jump start and missed shifts are slower; tank empties after 5 races', () => {
-  const { mk, call, g, rich } = setup();
+  const ctx = setup();
+  const { mk, call, g, rich } = ctx;
   mk(1);
   rich(1);
   const c = g.giveCar(1, 'vaz-2107').id;
   const times = [];
-  for (const [reaction, q] of [[0.12, 'perfect'], [-1, 'miss']]) {
+  for (const [reaction, q] of [[0.12, 'perfect'], [-1, 'late']]) {
     const st = call(1, 'race/start', { carId: c, rival: 'mid' });
-    times.push(call(1, 'race/finish', { raceId: st.raceId, reaction, shifts: Array(4).fill(q) }).time);
+    times.push(drive(ctx, 1, st, reaction, Array(4).fill(q)).time);
   }
   assert.ok(times[1] > times[0] + 1);
-  for (let i = 0; i < 3; i++) call(1, 'race/finish', { raceId: call(1, 'race/start', { carId: c, rival: 'easy' }).raceId, reaction: 0.2, shifts: Array(4).fill('good') });
+  for (let i = 0; i < 3; i++) drive(ctx, 1, call(1, 'race/start', { carId: c, rival: 'easy' }), 0.2, Array(4).fill('good'));
   assert.throws(() => call(1, 'race/start', { carId: c, rival: 'easy' }), /Бак цієї машини/);
 });
 
