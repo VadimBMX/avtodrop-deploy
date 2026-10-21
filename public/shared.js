@@ -1132,3 +1132,49 @@ export const WHATS_NEW = {
     { icon: 'trophy', title: 'Сезон 1 стартував', text: 'Пропуск на 30 рівнів, рейтинг за досвідом із призами в зірках, щоденний бонус на 14 днів, VIP і магазин.' },
   ],
 };
+
+// ---------- first minutes of a new player ----------
+// "How to play" stories: shown once to a player who has never opened a case (remembered on the server as the claim
+// 'intro'). Seeing them also counts as having seen the current WHATS_NEW, so a new player doesn't get "what's new" on top.
+export const INTRO_STORY = {
+  id: 'intro-1',
+  last: 'Відкрити кейс!',
+  slides: [
+    { icon: 'car-turbine', title: 'Вітаю в АВТОДРОП', text: `Збирай гараж мрії: ${ALL_MODELS.filter((m) => !m.secret).length} справжні авто — від «Запорожця» до Bugatti. Відкривай кейси, ганяй, торгуй.` },
+    { icon: 'gift', title: 'Перший кейс — безкоштовно', text: 'Стартовий кейс уже чекає: усередині українська класика. Відкрий його одразу після цих слайдів.' },
+    { icon: 'diamond', title: 'Кейси і класи', text: 'Кожен кейс — шанс на рідкісне авто. Класи: D → C → B → A → S, від звичайних до міфічних. Скільки лишилось до гарантії — видно під кейсом.' },
+    { icon: 'coin', title: 'Гараж заробляє', text: 'Кожна машина приносить дохід щогодини, навіть коли гра закрита. Заходь і тисни «Забрати». Непотрібне авто продай одразу з кейсу.' },
+    { icon: 'flag-3', title: 'Гонки', text: 'Дрег на 402 м: жми «ГАЗ» рівно на зелений і перемикай передачі в зеленій зоні. Перемога — гроші й досвід, тюнінг — більше к.с.' },
+    { icon: 'books', title: 'Колекції і секретки', text: `Збери всі машини однієї країни — отримаєш секретну, якої немає в жодному кейсі. ${MAIN_COUNTRIES.length} країн — ${MAIN_COUNTRIES.length} секреток.` },
+    { icon: 'calendar', title: 'Щодня — подарунок', text: `Щоденний бонус на ${DAILY_BONUS.length} днів: на 7-й — авто зі «Спорткара», на 14-й — з «Еліти». Плюс сезонний пропуск на ${SEASON.levels} рівнів.` },
+  ],
+};
+// Which story the app shows at start. `localSeen`: WHATS_NEW already shown in this browser.
+export function storyFor(me, localSeen = false) {
+  if (me.intro) return 'intro';
+  if (me.cars.length && !localSeen && !me.claims.includes('story:' + WHATS_NEW.id)) return 'whatsnew';
+  return null;
+}
+// First steps after the stories: one highlighted action at a time. Rewards are the ones the game already has
+// (newbie tasks, the daily bonus) — the guide only points at them. 'keep' is the drop screen (known to the app only).
+export const GUIDE_PATH = ['starter', 'keep', 'collect', 'race', 'daily']; // the dots on the hint card
+export const GUIDE_STEPS = [
+  { key: 'starter', tab: 'cases', target: '[data-act="openCase"]', title: 'Відкрий стартовий кейс', text: 'Він безкоштовний — тисни кнопку й дивись, що випаде.' },
+  { key: 'keep', tab: 'cases', target: '[data-act="toGarage"]', title: 'Залиш або продай', text: '«У гараж» — машина заробляє й їздить у гонках. «Продати» — гроші одразу.' },
+  // Only when the garage is empty (the starter car was sold): a car is needed for income and races.
+  { key: 'case', tab: 'cases', target: '[data-act="openCase"]', title: 'Відкрий кейс з машиною', text: '«Іржавий гараж» — найдешевший. Машина в гаражі заробляє гроші й їздить у гонках.', extra: true },
+  { key: 'collect', tab: 'garage', target: '[data-act="collect"]', title: 'Забери дохід гаража', text: 'Машина вже заробила кілька гривень. Тисни «Забрати» — і так щоразу, як заходиш.' },
+  { key: 'race', tab: 'race', target: '.rival', title: 'Проїдь перший заїзд', text: 'Обери суперника. На світлофорі жми «ГАЗ» на зелений, передачі — у зеленій зоні.' },
+  { key: 'daily', tab: null, target: '#gift', title: 'Забери щоденний бонус', text: 'Подарунок угорі екрана. Заходь щодня — на 7-й день машина зі «Спорткара».' },
+];
+// p: { introSeen (the player came through the intro stories), off (hints turned off), keys, garage (cars in the garage), flags (newbie flags), races, streak, dailyReady }.
+export function guideStep(p) {
+  if (!p.introSeen || p.off) return null;
+  if (p.keys?.starter) return 'starter';
+  const needCollect = !p.flags.includes('collect'), needRace = !p.races;
+  if (!p.garage && (needCollect || needRace)) return 'case';
+  if (needCollect) return 'collect';
+  if (needRace) return 'race';
+  if (!p.streak && p.dailyReady) return 'daily';
+  return null;
+}

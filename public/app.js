@@ -285,7 +285,7 @@ function renderHeader() {
   const initial = (me.firstName || me.username || '?').trim()[0]?.toUpperCase() || '?';
   $('#avatar').innerHTML = `${ring(me.level, me.xp, me.xpNeed)}<span class="face">${esc(initial)}</span><span class="lvl">${me.level}</span>`;
   const giftReady = me.dailyReady || serverNow() >= me.rewardCaseAt;
-  $('#giftBadge').hidden = !giftReady;
+  $('#giftBadge').hidden = !giftReady || (!!me.guide && me.guide !== 'daily'); // first steps: one thing at a time
   $('#menuDot').hidden = !(me.incomingTrades || me.unread || claimableCollection() || me.newbie?.ready || me.achReady);
   $('#title').textContent = state.page ? PAGE_TITLES[state.page] : TITLES[state.tab];
   $('#title').classList.toggle('long', $('#title').textContent.length > 8);
@@ -329,23 +329,36 @@ async function refresh(rerender = true) {
   clockOffset = me.now - Date.now();
   if (rerender) render();
   else renderHeader();
+  guideProgress();
   // Let a drop's celebration play out before the level-up popup covers it.
   const wait = state.fx ? 2600 : 0;
   setTimeout(() => {
+    if (me.level > me.levelSeen && guideOn()) return levelToast();
     if (me.level > me.levelSeen && $('#modal').hidden && !state.opening && !state.race && !battleTimers.length) showLevelUp();
   }, wait);
+}
+// During the first steps a level-up doesn't open a window over the path: a toast says it, the gift is already given.
+async function levelToast() {
+  const lvl = me.level;
+  me.levelSeen = lvl;
+  toast(`Рівень ${lvl}! ${rewardText(S.levelReward(lvl))}`);
+  try {
+    await api('level/seen');
+  } catch {}
 }
 let renderSeq = 0;
 async function render() {
   renderHeader();
   stopPoll(); // live pages (trade hall, room) start their own polling again in AFTER
   const seq = ++renderSeq;
+  if (me?.guide === 'starter' && me.keys.starter && !state.drop) state.caseId = 'starter';
   const fn = state.page ? PAGES[state.page] : TABS[state.tab];
   try {
     const html = await fn();
     if (seq !== renderSeq) return;
     $('#view').innerHTML = html;
     AFTER[state.page || state.tab]?.();
+    paintGuide();
   } catch (e) {
     $('#view').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
   }
@@ -2739,16 +2752,27 @@ H.passClaim = async () => {
 };
 
 // ---------- what's new (shown once per S.WHATS_NEW.id) ----------
-function whatsNew(force = false) {
-  const key = 'avtodrop-story-' + S.WHATS_NEW.id;
+const whatsNewKey = () => 'avtodrop-story-' + S.WHATS_NEW.id;
+function whatsNewSeenHere() {
   try {
-    if (!force && localStorage.getItem(key)) return;
-    localStorage.setItem(key, '1');
+    return !!localStorage.getItem(whatsNewKey());
+  } catch {
+    return true; // no storage: don't show it on every start
+  }
+}
+function whatsNew(force = false) {
+  try {
+    if (!force && localStorage.getItem(whatsNewKey())) return;
+    localStorage.setItem(whatsNewKey(), '1');
   } catch {
     if (!force) return;
   }
+  playStory(S.WHATS_NEW);
+}
+// The full-screen story player shared by "what's new" and the intro "how to play" (S.INTRO_STORY).
+function playStory(story, onClose = () => {}) {
   let i = 0;
-  const slides = S.WHATS_NEW.slides;
+  const slides = story.slides;
   const el = document.createElement('div');
   el.className = 'story';
   const paint = () => {
@@ -2756,9 +2780,12 @@ function whatsNew(force = false) {
     el.innerHTML = `<div class="story-bars">${slides.map((_, k) => `<i class="${k < i ? 'done' : k === i ? 'on' : ''}"></i>`).join('')}</div>
       <button class="story-skip">Пропустити</button>
       <div class="story-body"><div class="story-ic">${ic(sl.icon)}</div><div class="story-title disp">${esc(sl.title)}</div><div class="story-text">${esc(sl.text)}</div></div>
-      <button class="btn yellow story-next">${i < slides.length - 1 ? 'Далі' : 'Поїхали!'}</button>`;
+      <button class="btn yellow story-next">${i < slides.length - 1 ? 'Далі' : story.last || 'Поїхали!'}</button>`;
   };
-  const close = () => el.remove();
+  const close = () => {
+    el.remove();
+    onClose();
+  };
   el.addEventListener('click', (e) => {
     if (e.target.closest('.story-skip')) return close();
     if (e.target.closest('.story-next') || e.clientX > window.innerWidth / 3) {
@@ -2768,6 +2795,70 @@ function whatsNew(force = false) {
   });
   paint();
   document.body.appendChild(el);
+}
+
+// ---------- first steps of a new player (S.GUIDE_STEPS; the server says which one, me.guide) ----------
+// One hint card on top of the screen and a glowing ring around the button to press. While the guide runs, reward
+// banners and the level-up window stay away (a level-up is a toast instead) so nothing covers the path.
+const guideOn = () => !!me?.guide;
+function guideKey() {
+  if (!me?.guide) return null;
+  // Right after a drop the next thing is the choice on the drop screen: keep it or sell it.
+  if (state.tab === 'cases' && !state.page && state.drop?.some(dropAlive) && me.guide !== 'starter') return 'keep';
+  return me.guide;
+}
+function paintGuide() {
+  document.querySelectorAll('.guide-hi').forEach((el) => el.classList.remove('guide-hi'));
+  $('#guide')?.remove();
+  const key = guideKey();
+  if (!key || state.race || state.drift || state.opening) return;
+  const st = S.GUIDE_STEPS.find((s) => s.key === key);
+  const here = !st.tab || (st.tab === state.tab && !state.page);
+  const n = S.GUIDE_PATH.indexOf(key === 'case' ? 'keep' : key);
+  const nb = me.newbie?.ready ? me.newbie : null;
+  const el = document.createElement('div');
+  el.id = 'guide';
+  el.className = 'guide';
+  el.innerHTML = `<div class="guide-dots">${S.GUIDE_PATH.map((_, i) => `<i class="${i < n ? 'done' : i === n ? 'on' : ''}"></i>`).join('')}<span>Перші кроки · ${n + 1}/${S.GUIDE_PATH.length}</span><button class="guide-x" data-act="guideOff" aria-label="Не підказувати">${ic('x')}</button></div>
+    <div class="guide-row" ${here ? '' : `data-act="guideGo"`}><span class="guide-ic">${ic(here ? 'arrow-right' : 'chevron-right')}</span>
+      <div class="grow"><b>${esc(st.title)}</b><div class="small">${here ? esc(st.text) : `Перейди у вкладку «${TITLES[st.tab]}» внизу`}</div></div></div>
+    ${nb ? `<button class="btn sm outline guide-claim" data-act="newbieQuest">${ic('gift')} Забрати +${S.short(nb.money)} за завдання</button>` : ''}`;
+  $('#view').prepend(el);
+  const target = here ? $(st.target) : $(`#tabs button[data-tab="${st.tab}"]`);
+  if (!target) return;
+  target.classList.add('guide-hi');
+  // Once per step: bring a target that is below the fold (the first rival) into view.
+  if (here && guideScrolled !== key && target.getBoundingClientRect().bottom > window.innerHeight - 90) {
+    guideScrolled = key;
+    target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+}
+let guideScrolled = null;
+H.guideGo = () => {
+  const st = S.GUIDE_STEPS.find((s) => s.key === guideKey());
+  if (!st?.tab) return;
+  state.tab = st.tab;
+  state.page = null;
+  if (st.tab === 'race') state.raceView = 'race';
+  window.scrollTo(0, 0);
+  render();
+};
+H.guideOff = async () => {
+  if (!(await confirmBox('Сховати підказки перших кроків?'))) return;
+  await act('guide/off', {}, 'Підказки сховано');
+};
+let guideWas = null;
+// Called after every refresh: the last step done → a small celebration.
+function guideProgress() {
+  if (guideWas !== me.guide) paintGuide();
+  if (guideWas && !me.guide && !me.claims.includes('guide-off')) {
+    setTimeout(() => {
+      toast('Перші кроки пройдено! Далі — завдання новачка в профілі');
+      FX.burst(window.innerWidth / 2, 120, ['#f5b301', '#fff', '#34c759'], { count: 60, power: 7, shape: 'mix' });
+      haptic('success');
+    }, 400);
+  }
+  guideWas = me.guide;
 }
 
 // ---------- leaderboard ----------
@@ -3525,7 +3616,8 @@ async function pulse() {
     giftQueue = p.gifts;
     return showGift();
   }
-  if (claimsBlocked()) hideClaimBanners();
+  // First steps: the hint card leads to these rewards itself, banners would only cover it.
+  if (claimsBlocked() || guideOn()) hideClaimBanners();
   else for (const c of p.claims) {
     if (bannerSeen.has(c.key) || (c.kind === 'daily' && skipDailyBanner)) continue;
     showBanner({ ...c, claim: c, sub: esc(countFix(c.sub)) +(c.money ? ` · <b class="win">+${S.short(c.money)}</b>` : ''), ttl: 8000, buttons: [{ label: 'Забрати', act: 'bannerClaim' }] });
@@ -3629,12 +3721,29 @@ H.toggleDnd = async () => {
     await refresh();
     if (me.keys.starter) state.caseId = 'starter';
     if (me.dailyReady && !me.cars.length) state.tab = 'cases';
+    const story = S.storyFor(me, whatsNewSeenHere());
+    const st = S.GUIDE_STEPS.find((s) => s.key === me.guide);
+    if (st?.tab) state.tab = st.tab; // back in the middle of the first steps: open where the next one is
     render();
-    if (me.dailyReady) {
+    // A new player gets neither the rewards window nor banners over the first steps: the guide brings them to the gift.
+    if (me.dailyReady && !me.guide && !me.intro) {
       openRewards();
       skipDailyBanner = true;
     }
-    if (me.cars.length) whatsNew();
+    if (story === 'intro') {
+      const seen = api('intro/seen').catch(() => {}); // once, even if the app is closed in the middle
+      try {
+        localStorage.setItem(whatsNewKey(), '1');
+      } catch {}
+      playStory(S.INTRO_STORY, async () => {
+        state.tab = 'cases';
+        state.caseId = 'starter';
+        try {
+          await seen;
+          await refresh();
+        } catch {}
+      });
+    } else if (story === 'whatsnew') whatsNew();
   } catch (e) {
     $('#view').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
   }

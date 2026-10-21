@@ -1,6 +1,37 @@
-import { PACKS, SHOP_BY_ID, fmt, short } from '../public/shared.js';
+import { PACKS, SHOP_BY_ID, ALL_MODELS, MAIN_COUNTRIES, REF_FRIEND_BONUS, fmt, short } from '../public/shared.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const CARS = ALL_MODELS.filter((m) => !m.secret).length;
+// Shown in the empty chat before /start (Telegram: up to 512 characters) and in the bot's profile / shares (up to 120).
+export const BOT_DESCRIPTION = `🏁 АВТОДРОП — гараж мрії прямо в Telegram.
+
+🎁 Перший кейс безкоштовний — справжнє авто вже чекає
+🚗 ${CARS} машини: від «Запорожця» до Bugatti, класи D → S
+💰 Гараж заробляє щогодини, навіть коли ти офлайн
+🏎 Дрег-гонки з передачами, дрифт і PvP
+🔁 Ринок, аукціони, обмін із друзями
+🗝 ${MAIN_COUNTRIES.length} колекцій країн із секретними авто
+
+Тисни «Старт» і забирай свій кейс 👇`;
+export const BOT_SHORT_DESCRIPTION = `Кейси зі справжніми авто, гонки й гараж, що заробляє. Перший кейс — безкоштовно 🎁`;
+
+// The /start reply. created: the player is new; ref: came by a friend's link (got the friend bonus);
+// pushBack: reminders were off and /start turned them on again; canButton: the «Грати» button can be shown.
+export function startText({ name, created = false, ref = false, pushBack = false, canButton = true } = {}) {
+  const hi = name ? `Привіт, ${name}!` : 'Привіт!';
+  const lines = [];
+  if (pushBack) lines.push('🔔 Нагадування знову увімкнено.', '');
+  lines.push(created ? `🏁 ${hi} Вітаю в АВТОДРОП — тут збирають гараж мрії.` : `🏁 ${hi} Гараж чекає на тебе.`, '');
+  lines.push(
+    created ? '🎁 Стартовий кейс уже твій — відкрий безкоштовно' : '🎁 Щоденний бонус і кейс нагород — забирай щодня',
+    `🚗 ${CARS} справжні авто: від «Запорожця» до Bugatti`,
+    '🏎 Гараж заробляє, поки ти ганяєш дрег проти інших',
+  );
+  if (ref) lines.push('', `👥 Тебе запросив друг — +${fmt(REF_FRIEND_BONUS)} на старт!`);
+  lines.push('', canButton ? 'Тисни «Грати» 👇' : '(WEBAPP_URL ще не налаштовано — кнопка гри з’явиться після деплою на https)');
+  return lines.join('\n');
+}
 
 export function createBot({ token, webappUrl, admins = [], game, log = console.error }) {
   const base = `https://api.telegram.org/bot${token}/`;
@@ -67,11 +98,10 @@ export function createBot({ token, webappUrl, admins = [], game, log = console.e
       game.push?.set(m.from.id, false);
       await send(m.chat.id, '🔕 Нагадування вимкнено. Повідомлення про обміни, PvP і аукціони приходитимуть і далі.\n\nУвімкнути знову: /start або «Меню → Нагадування від бота» в грі.');
     } else if (cmd === '/start') {
-      game.ensureUser(m.from, args[0]);
+      const u = game.ensureUser(m.from, args[0]) || {};
       const wasOff = !!game.push?.isOff(m.from.id);
       if (wasOff) game.push.set(m.from.id, true);
-      await send(m.chat.id, (wasOff ? '🔔 Нагадування знову увімкнено.\n\n' : '') + '🏎 Вітаю в АВТОДРОП!\n\nВідкривай кейси зі справжніми авто, тюнінгуй, ганяй дрег проти інших гравців, торгуй на ринку та обмінюйся машинами.\n\nТисни «Грати» 👇' +
-        (canButton ? '' : '\n\n(WEBAPP_URL ще не налаштовано — кнопка гри з’явиться після деплою на https)'));
+      await send(m.chat.id, startText({ name: m.from.first_name, created: !!u.created, ref: !!u.ref, pushBack: wasOff, canButton }));
     } else if (cmd === '/help') {
       await send(m.chat.id, 'Питання по оплаті — /paysupport\nПромокоди шукай у нашому каналі.');
     } else if (cmd === '/paysupport') {
@@ -131,6 +161,9 @@ export function createBot({ token, webappUrl, admins = [], game, log = console.e
       await call('deleteWebhook').catch(() => {});
       if (canButton) await call('setChatMenuButton', { menu_button: { type: 'web_app', text: 'Грати', web_app: { url: webappUrl } } }).catch((e) => log(e.message));
       await call('setMyCommands', { commands: [{ command: 'start', description: 'Відкрити гру' }, { command: 'help', description: 'Допомога' }, { command: 'paysupport', description: 'Питання по оплаті' }, { command: 'stop', description: 'Вимкнути нагадування' }] }).catch(() => {});
+      // The selling text in the empty chat and the profile: set only when it differs (they rarely change).
+      await call('getMyDescription').then((d) => d.description !== BOT_DESCRIPTION && call('setMyDescription', { description: BOT_DESCRIPTION })).catch((e) => log(e.message));
+      await call('getMyShortDescription').then((d) => d.short_description !== BOT_SHORT_DESCRIPTION && call('setMyShortDescription', { short_description: BOT_SHORT_DESCRIPTION })).catch((e) => log(e.message));
       loop();
       return username;
     },

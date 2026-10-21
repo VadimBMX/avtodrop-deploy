@@ -347,6 +347,7 @@ export function createGame(db, opts = {}) {
         q('UPDATE users SET referrer_id = ? WHERE id = ?').run(ref, uid);
         addMoney(uid, S.REF_FRIEND_BONUS);
         event(ref, `👥 ${name(uid)} приєднався за твоїм посиланням. Коли він досягне 3 рівня — отримаєш ${S.fmt(S.REF_REWARD)}`);
+        return { created: true, ref: true };
       }
       return { created: true };
     });
@@ -428,15 +429,23 @@ export function createGame(db, opts = {}) {
     const fragments = Object.fromEntries(q('SELECT case_id, count FROM fragments WHERE user_id = ? AND count > 0').all(uid).map((r) => [r.case_id, r.count]));
     const plates = q('SELECT id, text, cls, value, car_id carId FROM plates WHERE owner_id = ? ORDER BY value DESC').all(uid);
     const day = dayOf(now());
+    const claims = q('SELECT key FROM claims WHERE user_id = ?').all(uid).map((r) => r.key);
+    // First minutes: the "how to play" stories for a player who has never opened a case, then the guided first steps.
+    const intro = !claims.includes('intro') && u.cases_opened === 0;
+    const guide = S.guideStep({
+      introSeen: claims.includes('intro'), off: claims.includes('guide-off'), keys,
+      garage: cars.filter((c) => c.status === 'garage').length, flags: JSON.parse(u.newbie_flags),
+      races: u.races, streak: u.streak, dailyReady: u.streak_day !== day,
+    });
     return {
-      id: u.id, username: u.username, firstName: u.first_name, balance: u.balance,
+      id: u.id, username: u.username, firstName: u.first_name, balance: u.balance, intro, guide,
       slots: u.slots, used: cars.filter((c) => c.status !== 'showcase').length, showcaseSlots: u.showcase_slots, capLevel: u.cap_level, fragments,
       income: { rate: Math.round(inc.rate), pending: inc.pending, capH: inc.capH, since: u.income_at, banked: u.banked },
       fuel: fuel.fuel, fuelNext: fuel.next, cars, keys, collection, pity, plates, parts: inventory(uid),
       level: u.level, levelSeen: u.level_seen, xp: u.xp, xpNeed: S.xpForLevel(u.level),
       xpToday: u.xp_day === day ? u.xp_day_capped : 0, newbie: newbieState(u),
       dailyReady: u.streak_day !== day, streak: u.streak, rewardCaseAt: u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3,
-      claims: q('SELECT key FROM claims WHERE user_id = ?').all(uid).map((r) => r.key),
+      claims,
       caseOfDay: S.caseOfDay(day),
       fair: { seedHash: sha256(u.server_seed), clientSeed: u.client_seed, nonce: u.nonce },
       stats: { cases: u.cases_opened, races: u.races, wins: u.wins, merges: u.merges, value: u.total_value, playMs: u.play_ms },
@@ -2320,6 +2329,17 @@ export function createGame(db, opts = {}) {
     q('UPDATE users SET level_seen = level WHERE id = ?').run(uid);
     return {};
   }
+  // The intro stories were shown: never again, and the current "what's new" counts as seen too.
+  function introSeen(uid) {
+    q('INSERT OR IGNORE INTO claims (user_id, key) VALUES (?, ?)').run(uid, 'intro');
+    q('INSERT OR IGNORE INTO claims (user_id, key) VALUES (?, ?)').run(uid, 'story:' + S.WHATS_NEW.id);
+    return {};
+  }
+  // "Не підказувати": the player turned the first-steps hints off.
+  function guideOff(uid) {
+    q('INSERT OR IGNORE INTO claims (user_id, key) VALUES (?, ?)').run(uid, 'guide-off');
+    return {};
+  }
   function quests(uid) {
     const day = ensureQuests(uid);
     return { list: q('SELECT key, target, progress, reward, claimed FROM quests WHERE user_id = ? AND day = ?').all(uid, day).map((r) => ({ ...r, claimed: !!r.claimed, text: S.QUESTS[r.key].text.replace('{n}', r.target) })) };
@@ -3296,7 +3316,7 @@ export function createGame(db, opts = {}) {
     'room/offer': roomOffer, 'room/ready': roomReady, 'room/leave': roomLeave,
     'room/chat': (u, b) => postChat(u, roomLive(u, b.id).id, b.text),
     'battle/list': battleList, 'battle/create': battleCreate, 'battle/join': battleJoin, 'battle/cancel': battleCancel, 'battle/get': battleGet,
-    rewards, 'rewards/daily': dailyClaim, 'rewards/case': rewardCase, 'newbie/claim': newbieClaim, 'level/seen': levelSeen,
+    rewards, 'rewards/daily': dailyClaim, 'rewards/case': rewardCase, 'newbie/claim': newbieClaim, 'level/seen': levelSeen, 'intro/seen': introSeen, 'guide/off': guideOff,
     quests, 'quests/claim': questClaim, 'collection/claim': collectionClaim,
     leaderboard, promo: redeemPromo, events,
     season, 'season/claim': passClaim, shop, 'shop/stars': buyWithStars, feed: dropFeed,

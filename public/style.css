@@ -1115,3 +1115,27 @@ select { -webkit-appearance: none; appearance: none; width: 100%; font: inherit;
   .multi .car .meta > span:first-child { display: none; }
   .multi .car .meta { justify-content: flex-end; }
 }
+/* ===== newbie: first-steps hint card + highlighted target (app.js paintGuide) ===== */
+.guide { margin: 0 0 12px; padding: 10px 12px 12px; border-radius: var(--r-sm, 12px); background: linear-gradient(135deg, #2a2208, var(--card2)); border: 1px solid #f5b30155; animation: guideIn .35s ease-out; }
+.guide-dots { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
+.guide-dots i { width: 16px; height: 4px; border-radius: 2px; background: #ffffff22; }
+.guide-dots i.done { background: #34c759; }
+.guide-dots i.on { background: var(--accent); }
+.guide-dots span { margin-left: 6px; flex: 1; text-transform: uppercase; letter-spacing: .5px; }
+.guide-x { padding: 2px 4px; color: var(--muted); font-size: 14px; display: inline-flex; }
+.guide-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.guide-row[data-act] { cursor: pointer; }
+.guide-row .small { color: #c9ced6; }
+.guide-ic { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: inline-flex; align-items: center; justify-content: center; font-size: 17px; transform: rotate(90deg); animation: guideNudge 1.2s ease-in-out infinite; }
+.guide-row[data-act] .guide-ic { transform: none; }
+.guide-claim { width: 100%; max-width: 100%; box-sizing: border-box; margin-top: 10px; }
+.guide-hi { position: relative; z-index: 1; outline: 2px solid var(--accent); outline-offset: 3px; animation: guidePulse 1.4s ease-in-out infinite; }
+.tabs button.guide-hi { color: var(--accent); }
+/* inside a clipped list / the tab bar the ring goes inward */
+.tabs button.guide-hi, .rival.guide-hi { animation-name: guidePulseIn; }
+.rival.guide-hi { border-radius: 12px; }
+@keyframes guidePulse { 0%, 100% { outline-color: #f5b301; outline-offset: 2px; } 50% { outline-color: #f5b30144; outline-offset: 6px; } }
+@keyframes guidePulseIn { 0%, 100% { outline-color: #f5b301; outline-offset: -2px; } 50% { outline-color: #f5b30155; outline-offset: -5px; } }
+@keyframes guideNudge { 0%, 100% { translate: 0 0; } 50% { translate: 0 3px; } }
+@keyframes guideIn { from { opacity: 0; transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) { .guide, .guide-ic, .guide-hi { animation: none; } }
