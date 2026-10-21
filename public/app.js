@@ -1115,9 +1115,6 @@ TABS.cases = () => {
   } else {
     stage = `<div class="reel-wrap" id="reelWrap"><div class="reel" id="reel">${Array.from({ length: 6 }, () => reelCard(weightedModel(cs))).join('')}</div></div>`;
   }
-  const pity = S.pityClasses(cs);
-  const guarantee = [[pity.first, S.PITY - (me.pity[cs.id] || 0)], [pity.second, S.PITY2 - (me.pity[cs.id + ':2'] || 0)]]
-    .filter(([cls]) => cls).map(([cls, left]) => `${clsBadge(cls)} або краще через ${left}`).join(' · ');
   const top = S.CLASS_ORDER.filter((c) => cs.weights[c]).pop();
   return `<div class="feed" id="dropFeed"></div>${eventStrip(['luck', 'country', 'plates'])}
     <div class="casebar"><button class="picker" data-act="casePicker" style="--c:${S.CLASSES[top].color}"><span class="picker-ic">${caseIcon(cs)}</span>
@@ -1145,15 +1142,21 @@ TABS.cases = () => {
     })() : ''}
     ${cs.starter ? '' : (() => {
       const fr = me.fragments?.[cs.id] || 0, need = S.FRAGMENTS_PER_KEY;
-      const pity1 = pity.first ? S.PITY - (me.pity[cs.id] || 0) : 0;
       return `<div class="card hooks mt">
         <div class="hook"><div class="row between"><span class="hook-t">${ic('key')} Фрагменти ключа</span><b>${fr}<small>/${need}</small></b></div><div class="pips">${Array.from({ length: need }, (_, i) => `<i class="${i < fr ? 'on' : ''}"></i>`).join('')}</div><div class="tiny muted">Кожна машина дешевша за кейс дає фрагмент · ${need} фрагментів = безкоштовне відкриття${keys ? ` · у тебе ${ic('key')} ${keys}` : ''}</div></div>
-        ${pity.first ? `<div class="hook" style="--c:${S.CLASSES[pity.first].color}"><div class="row between"><span class="hook-t">${ic('shield-check')} Гарантія ${clsBadge(pity.first)} або краще</span><b>через ${pity1}</b></div><div class="frag-bar pity"><i style="width:${((S.PITY - pity1) / S.PITY) * 100}%"></i></div></div>` : ''}
+        ${S.pitySteps(cs).map(pityHook).join('')}
       </div>`;
     })()}
     <div class="fastrow"><span>${ic('bolt')} Швидке відкриття <small>без рулетки</small></span><button class="toggle ${state.fast ? 'on' : ''}" data-act="toggleFast" aria-label="Швидке відкриття"></button></div>
     ${eventsCard(true, ['luck', 'country', 'plates'])}`;
 };
+// One guarantee step under the case (S.pitySteps): opens left until the class is certain, a bar of the opens already
+// made without it, and what resets it. left = 1: the very next open brings the class or better.
+function pityHook(st) {
+  const left = Math.max(1, st.n - (me.pity[st.key] || 0));
+  return `<div class="hook pityhook" style="--c:${S.CLASSES[st.cls].color}"><div class="row between"><span class="hook-t">${ic('shield-check')} Гарантія ${clsBadge(st.cls)} або краще</span><b>${left === 1 ? 'наступне' : `ще ${left}`}</b></div><div class="frag-bar pity"><i style="width:${((st.n - left) / st.n) * 100}%"></i></div>
+    <div class="tiny muted">${left === 1 ? `Наступне відкриття — гарантовано ${st.cls} або краще` : `Не більше ${st.n} відкриттів поспіль без ${st.cls}: ${st.n}-те дасть ${st.cls} або краще`}</div></div>`;
+}
 // Not enough garage slots for this opening: how many are free, plus a way out right here — ×1 (if one fits) or the
 // garage with the cheapest cars already picked for sale.
 function noRoomHtml(n, free) {
@@ -1239,6 +1242,7 @@ H.odds = () => {
   const total = Object.values(W).reduce((a, b) => a + b, 0);
   sheet('Що всередині', `<div class="row"><span style="font-size:24px">${caseIcon(cs)}</span><b>${esc(cs.name)}</b></div>
     <div class="small muted mt">Спочатку випадає клас, потім машина. Чим дорожча машина, тим рідше вона випадає. Вказано мінімальні шанси — з удачею випадає й краще. ✓ — уже є в колекції.</div>
+    ${S.pitySteps(cs).map((st) => `<div class="small mt">${ic('shield-check')} Гарантія: якщо ${st.n} відкриттів поспіль цього кейса без ${clsBadge(st.cls)} або кращого, ${st.n}-те дає ${clsBadge(st.cls)} або краще. Ключі теж рахуються.</div>`).join('')}
     ${Object.keys(W).map((cls) => {
       const list = cs.pool(cls);
       const w = S.modelWeights(list), sw = w.reduce((a, b) => a + b, 0);

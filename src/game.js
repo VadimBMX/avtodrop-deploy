@@ -336,6 +336,31 @@ export function createGame(db, opts = {}) {
     needFeature(uid, key);
     if (CASINO_GAME_OF[name] && !S.casinoGameOpen(casinoMode(), CASINO_GAME_OF[name])) fail('Ця гра зараз недоступна — відкрита лише рулетка');
   }
+  // Guarantee counters before the per-case steps (S.pitySteps) were kept under "<case>" for the case's second class
+  // (after 30 opens). Once per database: a step for that same class keeps the player's counter (the bar does not
+  // jump); a step for another class starts from the player's own drops — the opens of this case since the last car of
+  // that class or better (at most n − 1, so the next open brings it). Old rows are removed.
+  function migratePity() {
+    if (metaGet('pity_steps_1')) return;
+    db.tx(() => {
+      const save = q('INSERT INTO pity (user_id, case_id, count) VALUES (?, ?, ?) ON CONFLICT DO UPDATE SET count = excluded.count');
+      for (const cs of S.CASES) {
+        const oldFirst = S.CLASS_ORDER.filter((c) => cs.weights[c])[1];
+        for (const s of S.pitySteps(cs)) {
+          if (s.cls === oldFirst) {
+            for (const r of q('SELECT user_id, count FROM pity WHERE case_id = ?').all(cs.id)) save.run(r.user_id, s.key, Math.min(r.count, s.n - 1));
+            continue;
+          }
+          const better = S.CLASS_ORDER.filter((c) => S.rankOf(c) >= S.rankOf(s.cls));
+          const rows = q(`WITH last AS (SELECT user_id, MAX(id) m FROM drops WHERE case_id = ? AND cls IN (${better.map(() => '?').join(',')}) GROUP BY user_id)
+            SELECT d.user_id, COUNT(*) n FROM drops d LEFT JOIN last l ON l.user_id = d.user_id WHERE d.case_id = ? AND d.id > COALESCE(l.m, 0) GROUP BY d.user_id`).all(cs.id, ...better, cs.id);
+          for (const r of rows) save.run(r.user_id, s.key, Math.min(r.n, s.n - 1));
+        }
+      }
+      q("DELETE FROM pity WHERE case_id NOT LIKE '%:%' OR case_id LIKE '%:2'").run();
+      metaSet('pity_steps_1', Date.now());
+    });
+  }
   // Newbie tasks before the ladder had another order (S.NEWBIE_ORDER_V1). Once per database: a player in the middle
   // keeps the step count of the tasks he finished that still come first in the new order; tasks he already claimed
   // further on are marked 'nb:<key>' and skipped (not paid twice).
@@ -737,7 +762,6 @@ export function createGame(db, opts = {}) {
       keysNow: q('SELECT count FROM keys WHERE user_id = ? AND case_id = ?').get(uid, cs.id)?.count || 0 };
   }
   // One provably fair case roll with the pity guarantee; recorded in drops so it can be verified later.
-  // The second guarantee's counter lives in the same table under "<case>:2".
   // A truly broke player (money + garage) gets the most luck; otherwise it comes from recent case results.
   function luckOf(uid) {
     const u = q('SELECT balance, total_value, luck_spent, luck_got, luck_bonus, luck_bonus_left, cases_opened FROM users WHERE id = ?').get(uid);
@@ -752,7 +776,6 @@ export function createGame(db, opts = {}) {
   }
   function rollCase(uid, cs, luck = 0, save = null) {
     const classes = classEntries(cs.weights);
-    const { first, second } = S.pityClasses(cs);
     const f = nextNonce(uid);
     let cls = pickWeighted(classes, f.roll(0));
     let forced = 0, lucky = 0;
@@ -764,18 +787,19 @@ export function createGame(db, opts = {}) {
         lucky = 1;
       }
     }
-    const count = (key) => q('SELECT count FROM pity WHERE user_id = ? AND case_id = ?').get(uid, key)?.count || 0;
-    const pc = count(cs.id), pc2 = second ? count(cs.id + ':2') : 0;
-    if (second && S.rankOf(cls) < S.rankOf(second) && pc2 + 1 >= S.PITY2) {
-      cls = second;
-      forced = 1;
-    } else if (first && S.rankOf(cls) < S.rankOf(first) && pc + 1 >= S.PITY) {
-      cls = first;
-      forced = 1;
+    // Guarantee (S.pitySteps): the highest step that is due lifts the roll to its class; every step's counter then
+    // resets on a car of its class or better, or goes up by one.
+    const steps = S.pitySteps(cs);
+    const counts = steps.map((s) => q('SELECT count FROM pity WHERE user_id = ? AND case_id = ?').get(uid, s.key)?.count || 0);
+    for (let i = steps.length - 1; i >= 0; i--) {
+      if (S.rankOf(cls) < S.rankOf(steps[i].cls) && counts[i] + 1 >= steps[i].n) {
+        cls = steps[i].cls;
+        forced = 1;
+        break;
+      }
     }
     const savePity = q('INSERT INTO pity (user_id, case_id, count) VALUES (?, ?, ?) ON CONFLICT DO UPDATE SET count = excluded.count');
-    if (first) savePity.run(uid, cs.id, S.rankOf(cls) >= S.rankOf(first) ? 0 : pc + 1);
-    if (second) savePity.run(uid, cs.id + ':2', S.rankOf(cls) >= S.rankOf(second) ? 0 : pc2 + 1);
+    steps.forEach((s, i) => savePity.run(uid, s.key, S.rankOf(cls) >= S.rankOf(s.cls) ? 0 : counts[i] + 1));
     let model = pickModel(cs.pool(cls), f.roll(1));
     // Losing-streak protection: throw again (up to LUCK.tries) for a car worth the case; when forced, give the
     // cheapest car of this case that is.
@@ -4217,6 +4241,7 @@ export function createGame(db, opts = {}) {
 
   importLegacy();
   migrateNewbieOrder();
+  migratePity();
   // The bot's /promo is logged like the panel's (who = "bot").
   const botPromo = (code, amount, uses, days) => db.tx(() => {
     const c = createPromo(code, amount, uses, days);
