@@ -823,6 +823,7 @@ export function raceTime(stats, reaction, shifts) {
 export const RACE_SPEED = 2.3;
 export const RACE_GREEN = [2200, 3400];
 export const RACE_LATE_START = 1500; // ms after green the car launches by itself
+export const RACE_GUARD = 1500; // ms from the start of the lights: taps before this are ignored (miss-click guard)
 export const SHIFT_AUTO_RPM = 1.02; // the needle hitting the limiter shifts by itself ('late')
 // ms of slack the server allows: a claimed quality must be reachable within [tap − back, tap + fwd]; a shift that
 // happened after the limiter point counts as a tap only within `hitch` (a frame stall), later it is 'late'.

@@ -1701,9 +1701,10 @@ function runRace() {
   }, Math.max(0, ms - sinceStart)));
   const scene = drScene(E, R);
   scene.draw(0, 0, 0, 0, 0.12, 0);
-  // Taps before the first amber light (and in the first 0.8 s on screen) don't count: many players hit the button
-  // right away thinking it starts the race. After that, jumping the green is a real false start.
-  const guardUntil = performance.now() + Math.max(800, 600 - sinceStart);
+  // Miss-click guard: taps in the first 1.5 s of the lights (the first two ambers) don't count — many players hit the
+  // button right away thinking it starts the race. After that, until green, a tap is a real false start.
+  // Green comes at 2.2–3.4 s, so there is always at least 0.7 s where jumping the light costs −8%.
+  const guardUntil = performance.now() + Math.max(500, S.RACE_GUARD - sinceStart); // live race joined late: still 0.5 s
   if (R.live) {
     // Send my progress and read the rival's ~3 times a second until the race is settled.
     R.myD = 0;
