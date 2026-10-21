@@ -1,0 +1,145 @@
+{
+ "fiat-500": {
+  "hue_tol": 40
+ },
+ "mercedes-amg-g63": {
+  "l_band": [
+   38,
+   99
+  ],
+  "remove": [
+   [
+    [
+     0.115,
+     0.085
+    ],
+    [
+     0.275,
+     0.085
+    ],
+    [
+     0.275,
+     0.37
+    ],
+    [
+     0.115,
+     0.37
+    ]
+   ],
+   [
+    [
+     0.295,
+     0.085
+    ],
+    [
+     0.44,
+     0.085
+    ],
+    [
+     0.44,
+     0.37
+    ],
+    [
+     0.295,
+     0.37
+    ]
+   ],
+   [
+    [
+     0.465,
+     0.085
+    ],
+    [
+     0.595,
+     0.085
+    ],
+    [
+     0.613,
+     0.16
+    ],
+    [
+     0.606,
+     0.27
+    ],
+    [
+     0.597,
+     0.3
+    ],
+    [
+     0.597,
+     0.375
+    ],
+    [
+     0.465,
+     0.375
+    ]
+   ]
+  ]
+ },
+ "mini-cooper-s": {},
+ "lamborghini-huracan-evo": {
+  "hue_tol": 45
+ },
+ "mclaren-p1": {
+  "hue_tol": 45
+ },
+ "nissan-leaf": {
+  "hue_tol": 45
+ },
+ "subaru-impreza-wrx-sti": {
+  "hue_tol": 45
+ },
+ "lamborghini-aventador-svj": {
+  "hue_tol": 50,
+  "c_floor": 0.1,
+  "wheels": [
+   [
+    165.5,
+    276.2,
+    78.8
+   ],
+   [
+    699.5,
+    275.2,
+    78.8
+   ]
+  ]
+ },
+ "toyota-supra-mk3": {
+  "hue_tol": 45
+ },
+ "volkswagen-passat-b3": {
+  "off": "dark navy photo: sills and panels come out patchy"
+ },
+ "bmw-x5-e70": {
+  "c_floor": 0.08,
+  "hue_tol": 40
+ },
+ "avtodrop-prototyp-syno-zhovtyi": {
+  "off": "two-tone national livery is the car itself"
+ },
+ "haz-13-chaika": {
+  "off": "black + chrome photo: glass and chrome get painted"
+ },
+ "zil-41047": {
+  "off": "black + chrome photo: glass and chrome get painted"
+ },
+ "bmw-m2-competition": {
+  "off": "black photo: patchy, panels stay black"
+ },
+ "mitsubishi-lancer-evolution-ix": {
+  "off": "black photo: patchy, panels stay black"
+ },
+ "ssc-tuatara": {
+  "off": "black photo: patchy, panels stay black"
+ },
+ "dodge-viper-acr": {
+  "off": "black photo with carbon parts: patchy"
+ },
+ "mercedes-amg-one": {
+  "off": "two-tone silver/black: only half the body is found"
+ },
+ "bmw-325i-e30": {
+  "off": "dark burgundy photo, black trim strips inside the body: light colours blotchy"
+ }
+}

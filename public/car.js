@@ -1,9 +1,11 @@
 // Car artwork: a real photo from public/cars/<id>.webp when it exists, otherwise a drawn silhouette.
 import { MODELS, CLASSES } from './shared.js';
+import { lookKey, cachedLook, canPaint, setPhotoSource } from './paint.js';
 
 let IMAGES = {};
 export function setImages(map) {
   IMAGES = map || {};
+  setPhotoSource((id) => IMAGES[id] || `cars/${id}.webp`);
 }
 
 // [body path, window path, rear wheel x, front wheel x, wheel r]
@@ -46,7 +48,9 @@ function svg(modelId) {
 ${wheel(rx)}${wheel(fx)}</svg>`;
 }
 
-export function carArt(modelId, { glow = false, silhouette = false } = {}) {
+// look = an owned car's paint/livery ({ paint, livery, n } from the server): the <img> carries data-look and paint.js
+// swaps in the recoloured picture (straight away when it's already cached).
+export function carArt(modelId, { glow = false, silhouette = false, look = null } = {}) {
   const m = MODELS[modelId];
   if (!m) return '';
   const style = glow ? ` style="--c:${CLASSES[m.cls].color}"` : '';
@@ -55,7 +59,9 @@ export function carArt(modelId, { glow = false, silhouette = false } = {}) {
   const src = IMAGES[modelId] || (m.img && IMAGES[m.img]);
   if (src) {
     const st = [glow ? `--c:${CLASSES[m.cls].color}` : '', m.filter ? `filter:${m.filter}${glow ? ' drop-shadow(0 0 14px var(--c))' : ''}` : ''].filter(Boolean).join(';');
-    return `<img src="${src}" alt="" class="${cls}"${st ? ` style="${st}"` : ''} loading="lazy" draggable="false">`;
+    const key = !silhouette && IMAGES[modelId] && canPaint(modelId) ? lookKey(modelId, look) : null;
+    const ready = key && cachedLook(key);
+    return `<img src="${ready || src}" alt="" class="${cls}"${st ? ` style="${st}"` : ''}${key ? ` data-look="${key}"${ready ? ` data-painted="${key}"` : ''}` : ''} loading="lazy" draggable="false">`;
   }
   return svg(modelId).replace('<svg ', `<svg class="${cls}"${style} `);
 }

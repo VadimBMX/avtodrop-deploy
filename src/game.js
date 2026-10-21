@@ -78,6 +78,16 @@ export function winChance(stats, rivalBase, seed) {
   return Math.round((wins / 300) * 100);
 }
 
+// Cars whose photo has a good body mask (public/paint/meta.json from `npm run paint-masks`; `off` = disabled by hand).
+export function paintableModels(file = new URL('../public/paint/meta.json', import.meta.url)) {
+  try {
+    const cars = JSON.parse(fs.readFileSync(file, 'utf8')).cars || {};
+    return new Set(Object.keys(cars).filter((id) => cars[id].w && !cars[id].off));
+  } catch {
+    return new Set();
+  }
+}
+
 export function createGame(db, opts = {}) {
   const notify = opts.notify || (() => {});
   const now = opts.now || (() => Date.now());
@@ -174,7 +184,14 @@ export function createGame(db, opts = {}) {
     const plate = carPlate(c.id);
     const st = S.carStats({ model: c.model, parts, plateValue: plate?.value || 0 });
     const t = tankState(c);
-    return { id: c.id, model: c.model, status: c.status, parts, plate, tank: t.tank, tankNext: t.next, sell: S.sellPriceOf(c.model, now() - c.created_at), ...st };
+    return { id: c.id, model: c.model, status: c.status, parts, plate, look: lookOf(c), tank: t.tank, tankNext: t.next, sell: S.sellPriceOf(c.model, now() - c.created_at), ...st };
+  }
+  // Paint and livery as the client draws them (n = the race livery's number); null for a factory car. Unknown ids
+  // (an old colour that was dropped) count as factory.
+  function lookOf(c) {
+    const paint = S.PAINT_BY_ID[c.paint] ? c.paint : null;
+    const livery = S.LIVERY_BY_ID[c.livery] ? c.livery : null;
+    return paint || livery ? { paint, livery, n: (c.id % 99) + 1 } : null;
   }
   const carValueOf = (c) => S.carValue({ model: c.model, parts: carParts(c.id), plateValue: carPlate(c.id)?.value || 0 });
   function ownCar(uid, id, statuses = ['garage']) {
@@ -835,6 +852,48 @@ export function createGame(db, opts = {}) {
     bank(uid);
     q('DELETE FROM car_parts WHERE car_id = ? AND type = ?').run(c.id, type);
     coolPart(uid, type, old.tier);
+    carChanged(c.id);
+    return { car: carOut(carRow(c.id)) };
+  }
+
+  // ---------- paint shop (S.PAINT_COLORS / S.LIVERIES) ----------
+  // Only a car in the garage or on the showcase (not listed on the market or an auction) whose photo has a body mask.
+  // Paying never changes the car's value; the factory colour and "no livery" are free.
+  const paintable = opts.paintable || paintableModels();
+  function paintTarget(uid, carId) {
+    const c = ownCar(uid, carId, ['garage', 'showcase']);
+    if (!paintable.has(c.model)) fail('Для цієї машини фарбування поки недоступне');
+    return c;
+  }
+  function paintCar(uid, { carId, color }) {
+    const c = paintTarget(uid, carId);
+    const id = color ? String(color) : null;
+    if (id && !S.PAINT_BY_ID[id]) fail('Невідомий колір');
+    const cur = S.PAINT_BY_ID[c.paint] ? c.paint : null;
+    if (cur === id) fail(id ? 'Машина вже цього кольору' : 'Машина й так у заводському кольорі');
+    const price = id ? S.paintPrice(c.model) : 0;
+    pay(uid, price);
+    q('UPDATE cars SET paint = ? WHERE id = ?').run(id, c.id);
+    carChanged(c.id);
+    return { car: carOut(carRow(c.id)), paid: price };
+  }
+  function liveryCar(uid, { carId, livery }) {
+    const c = paintTarget(uid, carId);
+    const id = livery ? String(livery) : null;
+    if (id && !S.LIVERY_BY_ID[id]) fail('Невідома ліврея');
+    const cur = S.LIVERY_BY_ID[c.livery] ? c.livery : null;
+    if (cur === id) fail(id ? 'Ця ліврея вже на машині' : 'На машині немає лівреї');
+    const price = id ? S.liveryPrice(c.model) : 0;
+    pay(uid, price);
+    q('UPDATE cars SET livery = ? WHERE id = ?').run(id, c.id);
+    carChanged(c.id);
+    return { car: carOut(carRow(c.id)), paid: price };
+  }
+  // Back to factory: colour and livery off at once, free.
+  function paintReset(uid, { carId }) {
+    const c = ownCar(uid, carId, ['garage', 'showcase']);
+    if (!c.paint && !c.livery) fail('Машина й так заводська');
+    q('UPDATE cars SET paint = NULL, livery = NULL WHERE id = ?').run(c.id);
     carChanged(c.id);
     return { car: carOut(carRow(c.id)) };
   }
@@ -3766,6 +3825,7 @@ export function createGame(db, opts = {}) {
   const handlers = {
     me: (u) => me(u),
     collect, 'buy-slot': buySlot, 'upgrade-cap': upgradeCap, sell, showcase, 'buy-showcase': buyShowcaseSlot,
+    'car/paint': paintCar, 'car/livery': liveryCar, 'car/paint-reset': paintReset,
     'case/open': openCase, 'case/history': dropHistory,
     'fair/seed': setClientSeed, 'fair/rotate': rotateSeed, 'fair/revealed': revealedSeeds,
     'parts/open': openParts, 'parts/merge': merge, 'parts/sell': sellParts, 'parts/install': install, 'parts/uninstall': uninstall,

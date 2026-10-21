@@ -9,7 +9,8 @@
     "live": "node tools/live.mjs",
     "test": "node --test test/*.test.js",
     "prompts": "node tools/make_prompts.mjs",
-    "cars": "python -I tools/prepare_cars.py"
+    "cars": "python -I tools/prepare_cars.py",
+    "paint-masks": "python -I tools/paint/masks.py"
   },
   "engines": { "node": ">=22.13" }
 }

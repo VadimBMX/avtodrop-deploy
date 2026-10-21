@@ -259,7 +259,8 @@ const MIGRATIONS = [
   'ALTER TABLE users ADD COLUMN vip_until INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE users ADD COLUMN star_slots INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE users ADD COLUMN starter_bought INTEGER NOT NULL DEFAULT 0',
-  // Left over from a dropped repaint feature; kept so existing databases stay valid.
+  // Paint 2.0 (S.PAINT_COLORS): the car's body colour id, NULL = factory. The column comes from the first CSS repaint,
+  // whose colour ids are kept, so cars painted back then stay painted.
   'ALTER TABLE cars ADD COLUMN paint TEXT',
   // Best plate class (rank: C 1 … S 4) the player generated himself — the "Номерний знак" achievement counts this, so a
   // plate that came with a traded car doesn't count and selling one doesn't lose it. The second statement runs once,
@@ -278,6 +279,8 @@ const MIGRATIONS = [
   // Comeback gift (S.COMEBACK): when it was last given, and until when the longer income cap lasts.
   'ALTER TABLE users ADD COLUMN comeback_at INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE users ADD COLUMN comeback_cap_until INTEGER NOT NULL DEFAULT 0',
+  // Livery on the car's body (S.LIVERIES), NULL = none.
+  'ALTER TABLE cars ADD COLUMN livery TEXT',
 ];
 
 export function openDb(file) {

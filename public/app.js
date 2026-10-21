@@ -1,6 +1,7 @@
 import * as S from './shared.js';
 import { carArt, setImages } from './car.js';
 // Painted cars get their recoloured photo once the picture is in the page.
+import * as PAINT from './paint.js';
 import * as FX from './fx.js';
 import * as SFX from './sfx.js';
 
@@ -58,7 +59,7 @@ const countryTag = (c) => `<span class="cc sm">${c}</span>`;
 const emptyBox = (icon, title, sub = '', cta = '') => `<div class="empty-box"><span class="empty-ic">${ic(icon)}</span><b>${title}</b>${sub ? `<span>${sub}</span>` : ''}${cta}</div>`;
 const initialOf = (n) => (String(n || '?').replace(/^@/, '').trim()[0] || '?').toUpperCase();
 // A small car picture standing on a floor lit in its class colour (lists, market, rivals).
-const miniCar = (model, cls = '') => `<div class="mini art lit r${S.rankOf(M(model).cls)} ${cls}" style="--c:${S.CLASSES[M(model).cls].color}">${carArt(model)}</div>`;
+const miniCar = (model, cls = '', look = null) => `<div class="mini art lit r${S.rankOf(M(model).cls)} ${cls}" style="--c:${S.CLASSES[M(model).cls].color}">${carArt(model, { look })}</div>`;
 
 let config = { dev: false, packs: [], images: {} };
 let me = null;
@@ -296,7 +297,7 @@ function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false 
   const m = M(c.model);
   return `<button class="car r${S.rankOf(m.cls)} ${sel ? 'sel' : ''} ${c.status === 'market' || c.status === 'auction' ? 'listed' : ''}" data-act="${act}" data-id="${c.id}" style="--c:${S.CLASSES[m.cls].color}">
     ${clsBadge(m.cls, 'tl')}<span class="tr">${isNew ? `<span class="new">${ic('sparkles')}нова</span>` : ''}<span class="chip">${ic('tool')}${partCount(c)}/${partSlots(c)}</span></span>
-    <div class="art">${carArt(c.model)}</div>
+    <div class="art">${carArt(c.model, { look: c.look })}</div>
     <div class="nm clamp2" title="${esc(m.name)}">${esc(m.name)}</div>
     ${c.plate ? `<div class="meta">${plate(c.plate.text, 'sm')}</div>` : ''}
     <div class="meta row between" style="gap:4px"><span>${c.hp} к.с.</span><b class="disp" style="color:var(--text);font-size:14px;font-weight:600">${S.short(c.value)}</b></div>
@@ -306,7 +307,7 @@ function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false 
 }
 function carRow(c, right = '', meta = '') {
   const m = M(c.model);
-  return `<div class="li">${miniCar(c.model)}<div class="grow"><div class="clamp2"><b>${esc(m.name)}</b></div>
+  return `<div class="li">${miniCar(c.model, '', c.look)}<div class="grow"><div class="clamp2"><b>${esc(m.name)}</b></div>
     <div class="small muted">${clsBadge(m.cls)} ${c.plate ? plate(c.plate.text, 'sm') : ''} <span class="nw">${c.hp} к.с.</span> · <span class="nw">${S.short(c.value)}</span></div>${meta ? `<div class="lot-meta">${meta}</div>` : ''}</div>${right}</div>`;
 }
 function rewardText(rw) {
@@ -558,7 +559,7 @@ function licenceCard(p) {
   ].join('');
   const bay = (c, i) => {
     const m = M(c.model), r = S.rankOf(m.cls);
-    return `<div class="lbay ${i === 0 ? 'main' : ''} r${r}" style="--c:${S.CLASSES[m.cls].color}"><div class="art">${carArt(c.model, { glow: i === 0 && r >= 3 })}</div>
+    return `<div class="lbay ${i === 0 ? 'main' : ''} r${r}" style="--c:${S.CLASSES[m.cls].color}"><div class="art">${carArt(c.model, { glow: i === 0 && r >= 3, look: c.look })}</div>
       <div class="lbay-tx">${clsBadge(m.cls)}<b class="ellipsis">${esc(m.name)}</b><span>${S.short(c.value)}</span></div></div>`;
   };
   const xpFrac = p.xpNeed ? p.xp / p.xpNeed : 1;
@@ -772,12 +773,13 @@ function carSheet(id) {
   const rank = S.rankOf(m.cls), color = S.CLASSES[m.cls].color;
   sheet(esc(m.name), `
     <div class="rarity-row sheet-tags"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span><span class="chip">${S.COUNTRIES[m.country].flag} ${S.COUNTRIES[m.country].name}</span><span class="chip">${m.year}</span></div>
-    <div class="hero r${rank}" style="--c:${color}"><div class="art">${carArt(c.model, { glow: rank >= 3 })}</div>${c.plate ? `<div class="plate-on">${plate(c.plate.text)}</div>` : ''}</div>
+    <div class="hero r${rank}" style="--c:${color}"><div class="art">${carArt(c.model, { glow: rank >= 3, look: c.look })}</div>${c.plate ? `<div class="plate-on">${plate(c.plate.text)}</div>` : ''}</div>
     <div class="stat four"><div><b>${c.hp}${c.hp > m.hp ? `<em class="win">+${c.hp - m.hp}</em>` : ''}</b><span>к.с.</span></div><div><b>${dec(c.et, 2)}</b><span>0–402 м, с</span></div><div class="val"><b>${S.short(c.value)}</b><span>вартість</span></div><div><b>${S.short(c.income)}</b><span>дохід / год</span></div></div>
     ${locked ? `<div class="card mt center muted">Авто виставлено на ${c.status === 'market' ? 'ринок' : 'аукціон'} — керуй ним у «Меню → Ринок → Мої лоти».</div>` : `
     <div class="list mt">
       <button class="li" data-act="carShowcase" data-id="${c.id}"><span class="ic">${ic('building-arch')}</span><div class="grow"><b>${c.status === 'showcase' ? 'Повернути в гараж' : 'Виставити на вітрину'}</b><div class="small muted">${c.status === 'showcase' ? 'знову приноситиме дохід' : `вільно місць: ${me.showcaseSlots - me.cars.filter((x) => x.status === 'showcase').length}`}</div></div><span class="chev">›</span></button>
       <button class="li" data-act="carPlate" data-id="${c.id}"><span class="ic">${ic('license')}</span><div class="grow"><b>Номер</b><div class="small muted">${c.plate ? `+${S.short(c.plate.value)} до вартості` : 'немає'}</div></div>${c.plate ? plate(c.plate.text, 'sm') : '<span class="chev">›</span>'}</button>
+      ${PAINT.canPaint(c.model) || c.look ? `<button class="li" data-act="carPaint" data-id="${c.id}"><span class="ic">${ic('palette')}</span><div class="grow"><b>Фарбування</b><div class="small muted">${c.look ? [S.PAINT_BY_ID[c.look.paint]?.name, S.LIVERY_BY_ID[c.look.livery] && 'ліврея «' + S.LIVERY_BY_ID[c.look.livery].name + '»'].filter(Boolean).join(' · ') : 'заводський колір'}</div></div>${c.look?.paint ? `<span class="sw-dot ${S.PAINT_BY_ID[c.look.paint].finish}" style="--sw:${S.PAINT_BY_ID[c.look.paint].hex}"></span>` : '<span class="chev">›</span>'}</button>` : ''}
     </div>
     <div class="h2 tune-h"><span>Тюнінг <b>${partCount(c)}</b>/${partSlots(c)}</span><span>${m.ev ? `${ic('bolt')} електро · ` : ''}деталі від ${S.TIERS[minTier].name}</span></div>
     <div class="tune">${S.partKeysOf(c.model).map((k) => {
@@ -1377,8 +1379,8 @@ function raceScreen() {
   const rm = M(R.rival.model);
   return `<div class="racebox">
     <div class="rb-board"><div><small>Час</small><b id="rTimer">0,000</b></div><div class="right"><small>Розрив</small><b id="rGap">—</b></div></div>
-    <div class="lane">${miniCar(R.car.model)}<span class="who">Ти</span><span class="hp">${R.car.hp} к.с.</span><div class="bar"><i id="pBar"></i></div></div>
-    <div class="lane rv">${miniCar(R.rival.model)}<span class="who ellipsis">${esc(R.rival.name)} <span class="tiny muted">${esc(rm.name)}</span></span><span class="hp">${R.rival.hp} к.с.</span><div class="bar"><i id="rBar"></i></div></div>
+    <div class="lane">${miniCar(R.car.model, '', R.car.look)}<span class="who">Ти</span><span class="hp">${R.car.hp} к.с.</span><div class="bar"><i id="pBar"></i></div></div>
+    <div class="lane rv">${miniCar(R.rival.model, '', R.rival.look)}<span class="who ellipsis">${esc(R.rival.name)} <span class="tiny muted">${esc(rm.name)}</span></span><span class="hp">${R.rival.hp} к.с.</span><div class="bar"><i id="rBar"></i></div></div>
     <div class="marks"><span>0 м</span><span>201 м</span><span>402 м</span></div></div>
   <div class="tree" id="tree"><i></i><i></i><i></i><i></i></div>
   <div class="dash"><div class="speed"><span id="rSpeed">0</span><small> км/год</small></div><div class="tacho"><div class="zone"></div><div class="redz"></div><div class="needle" id="needle"></div></div><div class="gear"><span id="rGear">N</span><small>передача</small></div></div>
@@ -1596,7 +1598,7 @@ function raceSheetHtml({ tag = '', win, diff, amount, note, rows, start, shifts 
   return `<div class="rhero ${win ? 'win' : 'lose'}">${tag ? `<div class="rhero-tag">${tag}</div>` : ''}<div class="rhero-t">${win ? 'Перемога!' : 'Поразка'}</div>
       <div class="rhero-sub">${win ? 'швидше' : 'повільніше'} на <b>${t(diff)} с</b></div>
       <div class="rhero-amt">${amount}</div><div class="tiny muted">${note}</div></div>
-    <div class="list rsheet">${rows.map((r) => `<div class="li ${r.won ? 'won' : ''}">${miniCar(r.model)}<div class="grow"><div class="row between"><b class="ellipsis">${esc(r.who)}${r.won ? ` ${ic('trophy', 'win')}` : ''}</b><b class="rtime">${t(r.time)} с</b></div>
+    <div class="list rsheet">${rows.map((r) => `<div class="li ${r.won ? 'won' : ''}">${miniCar(r.model, '', r.look)}<div class="grow"><div class="row between"><b class="ellipsis">${esc(r.who)}${r.won ? ` ${ic('trophy', 'win')}` : ''}</b><b class="rtime">${t(r.time)} с</b></div>
       <div class="small muted ellipsis">${esc(M(r.model).name)}${r.sub ? ` · ${r.sub}` : ''}</div><div class="rbar"><i style="width:${Math.max(8, (best / r.time) * 100)}%"></i></div></div></div>`).join('')}</div>
     <div class="card rshifts"><div class="row between small"><span class="muted">${start}</span><span class="muted">передачі</span></div><div class="row wrap mt" style="gap:6px">${shifts.map((q, i) => `<span class="qchip q-${q}">${i + 1}→${i + 2}: ${QLABEL[q]}</span>`).join('')}</div></div>`;
 }
@@ -1605,7 +1607,7 @@ function liveResult() {
   const startTxt = (x) => (x.jump ? 'фальстарт' : x.perfectStart ? 'ідеальний старт' : `реакція ${dec(x.reaction, 3)} с`);
   return raceSheetHtml({ tag: 'PvP наживо', win: s.win, diff: Math.abs(my.time - rv.time), amount: s.win ? '+' + S.fmt(s.prize) : '−' + S.fmt(s.bet),
     note: s.win ? `банк мінус ${S.FEE * 100}% комісії` : 'ставка пішла суперникові',
-    rows: [{ who: 'Ти', model: s.me.car.model, time: my.time, won: s.win, sub: startTxt(my) }, { who: s.rival.name, model: s.rival.car.model, time: rv.time, won: !s.win, sub: startTxt(rv) }],
+    rows: [{ who: 'Ти', model: s.me.car.model, look: s.me.car.look, time: my.time, won: s.win, sub: startTxt(my) }, { who: s.rival.name, model: s.rival.car.model, look: s.rival.car.look, time: rv.time, won: !s.win, sub: startTxt(rv) }],
     start: 'Твої перемикання', shifts: my.shifts })
     + '<button class="btn outline" data-act="pvpExit">До PvP</button>';
 }
@@ -1620,7 +1622,7 @@ function raceResult() {
   const startTxt = r.jump ? 'Фальстарт −8%' : r.perfectStart ? 'Ідеальний старт +4%' : r.reaction >= 1.5 ? 'Пізній старт' : `Реакція ${dec(r.reaction, 3)} с`;
   return raceSheetHtml({ win: r.win, diff: r.diff, amount: r.win ? '+' + S.fmt(r.prize) : r.entry ? '−' + S.fmt(r.entry) : 'Тренування',
     note: r.win ? (r.entry ? `приз · внесок ${S.short(r.entry)} повернувся` : 'приз') : r.entry ? 'внесок згорів' : 'без внеску — нічого не втрачено',
-    rows: [{ who: 'Ти', model: R.car.model, time: r.time, won: r.win }, { who: R.rival.name, model: R.rival.model, time: r.rivalTime, won: !r.win }], start: startTxt, shifts: r.shifts })
+    rows: [{ who: 'Ти', model: R.car.model, look: R.car.look, time: r.time, won: r.win }, { who: R.rival.name, model: R.rival.model, time: r.rivalTime, won: !r.win }], start: startTxt, shifts: r.shifts })
     + `<button class="btn yellow" data-act="raceAgain" ${me.fuel < 1 ? 'disabled' : ''}>Ще гонка · пальне ${me.fuel}/${S.FUEL_MAX}</button>
     <button class="btn outline mt" data-act="raceExit">До суперників</button>`;
 }
@@ -2106,7 +2108,7 @@ H.pvpAccept = (d) => pickCar(`Твоє авто · ставка ${S.fmt(Number(d
 // Waiting for the creator to accept: a sheet with a countdown; it turns into the race, or offers the autopilot.
 function pvpWaiting(s, carId) {
   const until = Date.now() + 25e3;
-  sheet('PvP наживо', `<div class="center"><div class="art" style="margin:0 auto;max-width:200px">${carArt(s.rival.car.model)}</div>
+  sheet('PvP наживо', `<div class="center"><div class="art" style="margin:0 auto;max-width:200px">${carArt(s.rival.car.model, { look: s.rival.car.look })}</div>
     <b class="mt">Чекаємо, поки ${esc(s.rival.name)} прийме гонку</b>
     <div class="small muted mt">Ставка ${S.fmt(s.bet)} · ${esc(M(s.rival.car.model).name)}</div>
     <div class="big mt" id="pvpWait">25</div>
@@ -2148,7 +2150,7 @@ async function startLive(s) {
   hideClaimBanners();
   state.race = {
     phase: 'lights', live: { id: s.id, startAt: s.startAt, greenAt: s.greenAt },
-    car: s.me.car, rival: { name: s.rival.name, model: s.rival.car.model, hp: s.rival.car.hp, base: s.rival.car.base },
+    car: s.me.car, rival: { name: s.rival.name, model: s.rival.car.model, look: s.rival.car.look, hp: s.rival.car.hp, base: s.rival.car.base },
     reaction: null, shifts: [], gear: 1, result: null,
   };
   await render();
@@ -2169,8 +2171,9 @@ async function pvpAutopilot(id, carId) {
 
 // ---------- workshop ----------
 TABS.shop = () => {
-  const seg = `<div class="seg">${[['cases', 'Кейси'], ['stock', `Склад${me.parts.length ? ' · ' + me.parts.reduce((s, p) => s + p.count, 0) : ''}`]].map(([k, t]) => `<button class="${state.shopView === k ? 'on' : ''}" data-act="shopView" data-k="${k}">${t}</button>`).join('')}</div>`;
+  const seg = `<div class="seg">${[['cases', 'Кейси'], ['stock', `Склад${me.parts.length ? ' · ' + me.parts.reduce((s, p) => s + p.count, 0) : ''}`], ['paint', 'Фарбування']].map(([k, t]) => `<button class="${state.shopView === k ? 'on' : ''}" data-act="shopView" data-k="${k}">${t}</button>`).join('')}</div>`;
   if (state.shopView === 'stock') return seg + stockView();
+  if (state.shopView === 'paint') return seg + paintView();
   const pc = S.PART_CASE_BY_ID[state.partCase];
   if (pc.randomOnly && state.partType) state.partCase = 'racing';
   const price = partCasePrice(state.partCase);
@@ -2225,6 +2228,11 @@ const partReelCard = (p) => {
   return `<div class="car pcard" style="--c:${S.CLASSES[t.cls].color}">${clsBadge(t.cls, 'tl')}<div class="art">${partArt(p.type, p.tier)}</div><div class="nm tiny ellipsis">${S.PARTS[p.type].name} · ${t.name}</div></div>`;
 };
 AFTER.shop = () => {
+  if (state.shopView === 'paint') {
+    const on = $('.pcar.on'), strip = $('#paintCars');
+    if (on && strip && (on.offsetLeft < strip.scrollLeft || on.offsetLeft + on.offsetWidth > strip.scrollLeft + strip.clientWidth)) strip.scrollLeft = on.offsetLeft - 16;
+    return;
+  }
   if (state.fx?.type !== 'parts' || !state.partDrop) return;
   state.fx = null;
   // Cards flip in one by one with a few sparkles in their tier colour.
@@ -2356,6 +2364,139 @@ H.merge = async (d) => {
 };
 H.sellPart = async (d) => {
   if (await act('parts/sell', { type: d.k, tier: d.tier, count: 1 }, (r) => `+${S.fmt(r.got)}`)) H.stockType({ k: d.k });
+};
+
+// ---------- paint shop (Фарба 2.0) ----------
+// Pick a car, try colours and liveries on its photo (rendered by paint.js right here), pay to keep them.
+// Only the body changes; the price is a share of the model's price (S.paintPrice / S.liveryPrice), the car's value stays.
+const curLook = (c) => ({ paint: c.look?.paint || null, livery: c.look?.livery || null });
+function paintCarSel() {
+  const cars = me.cars.slice().sort((a, b) => b.value - a.value || b.id - a.id);
+  let c = cars.find((x) => x.id === state.paintCar);
+  if (!c) c = cars.find((x) => PAINT.canPaint(x.model) && x.status !== 'market' && x.status !== 'auction') || cars[0];
+  if (c && state.paintCar !== c.id) {
+    state.paintCar = c.id;
+    state.paintDraft = null;
+  }
+  if (c && !state.paintDraft) state.paintDraft = curLook(c);
+  return { cars, c };
+}
+const swatchStyle = (p) => `--sw:${p.hex}`;
+function paintPreview(c) {
+  const m = M(c.model), rank = S.rankOf(m.cls);
+  const look = { ...state.paintDraft, n: c.look?.n || (c.id % 99) + 1 };
+  const p = S.PAINT_BY_ID[look.paint], l = S.LIVERY_BY_ID[look.livery];
+  return `<div class="hero paint-hero r${rank}" style="--c:${S.CLASSES[m.cls].color}"><div class="art">${carArt(c.model, { look })}</div></div>
+    <div class="paint-now"><span class="sw-dot ${p ? p.finish : 'factory'}" style="${p ? swatchStyle(p) : ''}"></span><b>${p ? esc(p.name) : 'Заводський колір'}</b>${p ? `<span class="muted">· ${S.PAINT_FINISH[p.finish]}</span>` : ''}${l ? `<span class="chip">${ic('brush')}${esc(l.name)}</span>` : ''}</div>`;
+}
+function paintBuyBtn(c) {
+  const cur = curLook(c), d = state.paintDraft;
+  const pc = d.paint !== cur.paint, lc = d.livery !== cur.livery;
+  if (!pc && !lc) return `<button class="btn" disabled>${cur.paint || cur.livery ? 'Це вже на машині' : 'Обери колір або ліврею'}</button>`;
+  const price = (pc && d.paint ? S.paintPrice(c.model) : 0) + (lc && d.livery ? S.liveryPrice(c.model) : 0);
+  if (!price) return `<button class="btn ghost" id="paintBuy" data-act="paintBuy">${d.paint || d.livery ? 'Зняти ліврею' : 'Повернути заводський вигляд'} · безкоштовно</button>`;
+  if (price > me.balance) return `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(price - me.balance)}</button>`;
+  const what = pc && d.paint && lc && d.livery ? 'Фарба + ліврея' : pc && d.paint ? 'Пофарбувати' : 'Нанести ліврею';
+  return `<button class="btn yellow" id="paintBuy" data-act="paintBuy" data-price="${price}">${ic('palette')} ${what} · ${S.fmt(price)}</button>`;
+}
+function paintView() {
+  const { cars, c } = paintCarSel();
+  if (!c) return emptyBox('palette', 'Немає машин', 'Відкрий кейс — і перша машина з’явиться в гаражі.');
+  const locked = c.status === 'market' || c.status === 'auction';
+  const can = PAINT.canPaint(c.model) && !locked;
+  const d = state.paintDraft;
+  const mode = state.paintMode || 'color';
+  const strip = `<div class="paint-cars" id="paintCars">${cars.map((x) => `<button class="pcar ${x.id === c.id ? 'on' : ''} ${PAINT.canPaint(x.model) ? '' : 'off'}" data-act="paintPick" data-id="${x.id}" style="--c:${S.CLASSES[M(x.model).cls].color}">
+    <span class="art">${carArt(x.model, { look: x.look })}</span><span class="pcar-nm ellipsis">${esc(M(x.model).name)}</span></button>`).join('')}</div>`;
+  let body;
+  if (locked) body = `<div class="card center muted">Машина на ${c.status === 'market' ? 'ринку' : 'аукціоні'} — зніми її з продажу, щоб перефарбувати.</div>`;
+  else if (!can) body = `<div class="card center muted">Для цієї машини фарбування поки недоступне: на її фото не вдалося точно виділити кузов.</div>
+    ${c.look ? `<div class="btns mt"><button class="btn ghost" data-act="paintReset">Повернути заводський вигляд</button></div>` : ''}`;
+  else {
+    const grid = mode === 'color'
+      ? `<div class="swatches"><button class="sw factory ${!d.paint ? 'on' : ''}" data-act="paintColor" data-id=""><i></i><span>Завод</span></button>${S.PAINT_COLORS.map((p) => `<button class="sw ${p.finish} ${d.paint === p.id ? 'on' : ''}" data-act="paintColor" data-id="${p.id}" style="${swatchStyle(p)}" aria-label="${esc(p.name)}"><i></i><span>${esc(p.name)}</span></button>`).join('')}</div>
+        <div class="tiny muted center">Фарба · ${S.fmt(S.paintPrice(c.model))} — ${Math.round(S.PAINT.rate * 100)}% ціни моделі. Металік блищить дрібними іскрами, мат — без відблисків.</div>`
+      : `<div class="liveries"><button class="lv ${!d.livery ? 'on' : ''}" data-act="paintLivery" data-id=""><b>Без лівреї</b><span>лише фарба</span></button>${S.LIVERIES.map((l) => `<button class="lv lv-${l.id} ${d.livery === l.id ? 'on' : ''}" data-act="paintLivery" data-id="${l.id}"><i></i><b>${esc(l.name)}</b><span>${esc(l.hint)}</span></button>`).join('')}</div>
+        <div class="tiny muted center">Ліврея · ${S.fmt(S.liveryPrice(c.model))} — ${Math.round(S.PAINT.liveryRate * 100)}% ціни моделі. Лягає поверх фарби з тінями кузова.</div>`;
+    body = `<div id="paintBuyBox" class="paint-buy">${paintBuyBtn(c)}</div>
+      <div class="seg paint-seg">${[['color', 'Колір'], ['livery', 'Ліврея']].map(([k, t]) => `<button class="${mode === k ? 'on' : ''}" data-act="paintMode" data-k="${k}">${t}</button>`).join('')}</div>
+      ${grid}
+      ${c.look ? `<button class="btn ghost sm paint-reset" data-act="paintReset">Повернути заводський вигляд · безкоштовно</button>` : ''}`;
+  }
+  return `${strip}<div id="paintPrevBox">${paintPreview(c)}</div>${body}
+    <div class="tiny muted center mt">Фарбується лише кузов: скло, диски, фари, хром і чорний пластик лишаються як були. Вартість машини від фарби не змінюється.</div>`;
+}
+// Swatch / livery taps only redraw the preview and the button, so the car strip keeps its scroll position.
+function paintRefresh() {
+  const c = me.cars.find((x) => x.id === state.paintCar);
+  if (!c || !$('#paintPrevBox')) return render();
+  $('#paintPrevBox').innerHTML = paintPreview(c);
+  const box = $('#paintBuyBox');
+  if (box) box.innerHTML = paintBuyBtn(c);
+  document.querySelectorAll('[data-act="paintColor"]').forEach((b) => b.classList.toggle('on', (b.dataset.id || null) === state.paintDraft.paint));
+  document.querySelectorAll('[data-act="paintLivery"]').forEach((b) => b.classList.toggle('on', (b.dataset.id || null) === state.paintDraft.livery));
+}
+H.paintPick = (d) => {
+  state.paintCar = Number(d.id);
+  state.paintDraft = null;
+  const x = $('#paintCars')?.scrollLeft;
+  render();
+  if (x != null && $('#paintCars')) $('#paintCars').scrollLeft = x;
+};
+H.paintMode = (d) => {
+  state.paintMode = d.k;
+  const x = $('#paintCars')?.scrollLeft;
+  render();
+  if (x != null && $('#paintCars')) $('#paintCars').scrollLeft = x;
+};
+H.paintColor = (d) => {
+  state.paintDraft = { ...state.paintDraft, paint: d.id || null };
+  haptic('light');
+  paintRefresh();
+};
+H.paintLivery = (d) => {
+  state.paintDraft = { ...state.paintDraft, livery: d.id || null };
+  haptic('light');
+  paintRefresh();
+};
+H.paintBuy = async (d, el) => {
+  const c = me.cars.find((x) => x.id === state.paintCar);
+  if (!c) return;
+  const price = Number(el.dataset.price || 0);
+  if (price && !armed(el, `Точно? · −${S.fmt(price)}`)) return;
+  const cur = curLook(c), want = state.paintDraft;
+  el.disabled = true;
+  try {
+    if (!want.paint && !want.livery) await api('car/paint-reset', { carId: c.id });
+    else {
+      if (want.paint !== cur.paint) await api('car/paint', { carId: c.id, color: want.paint });
+      if (want.livery !== cur.livery) await api('car/livery', { carId: c.id, livery: want.livery });
+    }
+    haptic('success');
+    toast(price ? `Готово! −${S.fmt(price)}` : 'Повернуто заводський вигляд');
+    if (price) {
+      const r = el.getBoundingClientRect();
+      FX.burst(r.left + r.width / 2, r.top, ['#ffd500', '#ffffff', S.PAINT_BY_ID[want.paint]?.hex || '#f5b301'], { count: 28, power: 5, shape: 'mix' });
+    }
+  } catch (e) {
+    haptic('error');
+    toast(e.message, true);
+  }
+  state.paintDraft = null;
+  await refresh();
+};
+H.paintReset = async () => {
+  const c = me.cars.find((x) => x.id === state.paintCar);
+  if (c && (await act('car/paint-reset', { carId: c.id }, 'Повернуто заводський вигляд'))) state.paintDraft = null, render();
+};
+H.carPaint = (d) => {
+  state.tab = 'shop';
+  state.page = null;
+  state.shopView = 'paint';
+  state.paintCar = Number(d.id);
+  state.paintDraft = null;
+  closeModal();
+  render();
 };
 
 // ---------- menu ----------
@@ -4546,6 +4687,9 @@ H.toggleDnd = async () => {
     config = await (await fetch('/api/config')).json();
   } catch {}
   setImages(config.images);
+  // body masks' index (small); painted cars render as plain photos if it's slow or missing
+  await Promise.race([PAINT.loadPaintMeta(), new Promise((r) => setTimeout(r, 1500))]);
+  PAINT.watchLooks(document.body);
   measurePlateFont();
   if (!tg?.initData && !config.dev) {
     $('#view').innerHTML = '<div class="empty">Відкрий АВТОДРОП через Telegram-бота</div>';

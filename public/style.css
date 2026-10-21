@@ -2082,3 +2082,45 @@ button.li:active { background-color: #ffffff08; }
   .reveal-wrap:has(.art.reveal)::before { animation: none; opacity: .2; }
   .fx-gain { animation-duration: .9s; }
 }
+
+/* ===== paint shop (Майстерня → Фарбування, app.js paintView) ===== */
+.paint-cars { display: flex; gap: 8px; overflow-x: auto; margin: 0 -16px 6px; padding: 2px 16px 6px; scrollbar-width: none; scroll-snap-type: x proximity; }
+.paint-cars::-webkit-scrollbar { display: none; }
+.pcar { flex: none; width: 104px; display: flex; flex-direction: column; gap: 2px; padding: 6px 6px 5px; border-radius: var(--r); background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line), inset 0 -2px 0 color-mix(in srgb, var(--c) 55%, transparent); scroll-snap-align: start; text-align: left; }
+.pcar .art { height: 38px; }
+.pcar .art img { width: 100%; height: 100%; object-fit: contain; }
+.pcar-nm { font-size: 11px; color: var(--muted); }
+.pcar.on { background: var(--card2); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.pcar.on .pcar-nm { color: var(--text); }
+.pcar.off { opacity: .55; }
+.paint-hero { height: 158px; margin-top: 2px; }
+.paint-hero .art img { transition: opacity .15s; }
+.paint-now { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 26px; margin: 0 0 12px; font-size: 14px; flex-wrap: wrap; }
+.paint-now .chip { display: inline-flex; align-items: center; gap: 4px; }
+.sw-dot { width: 16px; height: 16px; flex: none; border-radius: 50%; background: var(--sw); box-shadow: inset 0 0 0 1px #ffffff30; }
+.sw-dot.metallic, .sw.metallic i { background: radial-gradient(circle at 32% 28%, #ffffffb0, transparent 42%), linear-gradient(150deg, color-mix(in srgb, var(--sw) 70%, #fff), var(--sw) 55%, color-mix(in srgb, var(--sw) 60%, #000)); }
+.sw-dot.factory, .sw.factory i { background: conic-gradient(#c0392b 0 25%, #f2c300 0 50%, #1f4fa8 0 75%, #eceeef 0); }
+.paint-seg { margin-bottom: 10px; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 8px 6px; margin-bottom: 10px; }
+.sw { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 2px 4px; border-radius: var(--r); }
+.sw i { width: 40px; height: 40px; border-radius: 50%; background: radial-gradient(circle at 34% 28%, #ffffff80, transparent 38%), var(--sw); box-shadow: inset 0 0 0 1px #ffffff26, 0 3px 8px -3px #000; transition: transform .12s; }
+.sw.matte i { background: var(--sw); box-shadow: inset 0 0 0 1px #ffffff1a, 0 3px 8px -3px #000; }
+.sw span { font-size: 11px; line-height: 1.15; color: var(--muted); text-align: center; }
+.sw.on { background: var(--card2); }
+.sw.on i { transform: scale(1.06); box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+.sw.on span { color: var(--text); }
+.liveries { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.lv { position: relative; display: flex; flex-direction: column; gap: 1px; padding: 10px 10px 9px 46px; min-height: 52px; border-radius: var(--r); background: var(--card); box-shadow: inset 0 0 0 1px var(--line); text-align: left; }
+.lv:first-child { padding-left: 10px; }
+.lv b { font-size: 13.5px; }
+.lv span { font-size: 11px; color: var(--muted); line-height: 1.2; }
+.lv i { position: absolute; left: 9px; top: 50%; width: 28px; height: 28px; margin-top: -14px; border-radius: 7px; box-shadow: inset 0 0 0 1px #ffffff26; }
+.lv-stripes i { background: linear-gradient(#3a3f48 0 38%, #f4f4f4 0 54%, #3a3f48 0 62%, #c8102e 0 70%, #3a3f48 0); }
+.lv-race i { background: radial-gradient(circle, #111 0 2.5px, #f7f7f7 3px 8px, transparent 8.5px), linear-gradient(#3a3f48 0 40%, #f4f4f4 0 60%, #3a3f48 0); }
+.lv-ua i { background: linear-gradient(#0057b7 0 50%, #ffd500 0); }
+.lv-camo i { background: radial-gradient(circle at 30% 30%, #2f3322 0 5px, transparent 6px), radial-gradient(circle at 70% 65%, #8a7f5a 0 6px, transparent 7px), radial-gradient(circle at 70% 25%, #6b6b3a 0 4px, transparent 5px), #4b5320; }
+.lv-fade i { background: linear-gradient(90deg, #ff5f1f, #7b1fa2); }
+.lv.on { background: var(--card2); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.paint-reset { display: block; margin: 8px auto 0; }
+.paint-buy { margin-bottom: 12px; }

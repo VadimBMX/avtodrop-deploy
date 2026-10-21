@@ -1815,3 +1815,42 @@ export function eventInfo(e) {
   return { key: e.key, id: e.id, name: d.name, icon: d.icon, color: d.color, text: d.text, start: e.start, end: e.end, country: e.country || null,
     title: country ? `${d.name}: ${country}` : d.name, forced: !!e.forced };
 }
+
+// ---------- paint shop (Фарба 2.0) ----------
+// A paint recolours only the car's body on its photo (mask from tools/paint, renderer in public/paint.js); a livery is
+// drawn on the same body on top of the paint. Both belong to one car item, travel with it in trades and on the market,
+// and give nothing: the sell value stays the same, so the money spent is a pure sink. Prices are a share of the model's
+// price (so they follow the economy's car prices); back to the factory colour / off with the livery is free.
+// The first eleven ids are those of the old CSS repaint: cars painted back then keep their colour.
+export const PAINT_COLORS = [
+  { id: 'white', name: 'Білий', hex: '#eceeef', finish: 'gloss' },
+  { id: 'black', name: 'Чорний', hex: '#141518', finish: 'gloss' },
+  { id: 'red', name: 'Червоний', hex: '#b5121b', finish: 'gloss' },
+  { id: 'orange', name: 'Помаранчевий', hex: '#e2591b', finish: 'gloss' },
+  { id: 'yellow', name: 'Жовтий', hex: '#f2c300', finish: 'gloss' },
+  { id: 'green', name: 'Зелений', hex: '#1d6b3a', finish: 'gloss' },
+  { id: 'teal', name: 'Бірюзовий', hex: '#12867f', finish: 'gloss' },
+  { id: 'blue', name: 'Синій', hex: '#1f4fa8', finish: 'gloss' },
+  { id: 'purple', name: 'Фіолетовий', hex: '#5a2a8a', finish: 'gloss' },
+  { id: 'pink', name: 'Рожевий', hex: '#d2367f', finish: 'gloss' },
+  { id: 'graphite', name: 'Графіт', hex: '#4a4e55', finish: 'metallic' },
+  { id: 'silver', name: 'Срібло', hex: '#b9bdc3', finish: 'metallic' },
+  { id: 'midnight', name: 'Нічний синій', hex: '#1a2a5e', finish: 'metallic' },
+  { id: 'cherry', name: 'Вишня', hex: '#6e0f1c', finish: 'metallic' },
+  { id: 'matteblack', name: 'Чорний мат', hex: '#1d1e21', finish: 'matte' },
+  { id: 'nardo', name: 'Нардо', hex: '#8a8d8f', finish: 'matte' },
+];
+export const PAINT_BY_ID = Object.fromEntries(PAINT_COLORS.map((p) => [p.id, p]));
+export const PAINT_FINISH = { gloss: 'глянець', metallic: 'металік', matte: 'мат' };
+export const LIVERIES = [
+  { id: 'stripes', name: 'Смуги', hint: 'дві смуги вздовж кузова' },
+  { id: 'race', name: 'Гоночна', hint: 'смуга й номер у колі' },
+  { id: 'ua', name: 'Синьо-жовта', hint: 'верх синій, низ жовтий' },
+  { id: 'camo', name: 'Камуфляж', hint: 'піксельний' },
+  { id: 'fade', name: 'Захід сонця', hint: 'градієнт помаранчевий → фіолетовий' },
+];
+export const LIVERY_BY_ID = Object.fromEntries(LIVERIES.map((l) => [l.id, l]));
+export const PAINT = { rate: 0.03, min: 5000, liveryRate: 0.05, liveryMin: 8000 };
+const paintRound = (x) => (x < 1e6 ? Math.round(x / 1000) * 1000 : Math.round(x / 10000) * 10000);
+export const paintPrice = (model) => Math.max(PAINT.min, paintRound((MODELS[model]?.price || 0) * PAINT.rate));
+export const liveryPrice = (model) => Math.max(PAINT.liveryMin, paintRound((MODELS[model]?.price || 0) * PAINT.liveryRate));
