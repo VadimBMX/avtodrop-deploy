@@ -189,6 +189,8 @@ export function createGame(db, opts = {}) {
     if (free < n) fail(free > 0 ? `Не вистачає місця для ×${n} — вільно ${free}` : 'Гараж заповнений — продай авто або купи місце');
   }
   function giveCar(uid, model) {
+    // The one door every car comes in by: a car not in the game (a NEW_RAW car still without its photo) never gets in.
+    if (!S.MODELS[model]) fail('Невідома модель');
     const isNew = !q('SELECT 1 FROM collection WHERE user_id = ? AND model = ?').get(uid, model);
     const r = q('INSERT INTO cars (owner_id, model, tank, tank_at, created_at) VALUES (?, ?, ?, ?, ?)').run(uid, model, S.CAR_TANK, now(), now());
     if (isNew) {
@@ -2814,7 +2816,7 @@ export function createGame(db, opts = {}) {
     const owned = new Set(q('SELECT model FROM collection WHERE user_id = ?').all(uid).map((r) => r.model));
     const have = new Set(q('SELECT key FROM claims WHERE user_id = ?').all(uid).map((r) => r.key));
     const regular = [...owned].filter((id) => !S.MODELS[id]?.secret).length;
-    for (const m of S.COLLECTION_MILESTONES) if (regular >= m.n && !have.has('n' + m.n)) claims.push({ key: 'coll:n' + m.n, kind: 'coll', id: 'n' + m.n, title: 'Нагорода за колекцію', sub: m.label || `Зібрано ${m.n} машин`, money: m.money });
+    for (const m of S.COLLECTION_MILESTONES) if (regular >= m.n && !S.milestoneTaken(m, have)) claims.push({ key: 'coll:' + S.milestoneId(m), kind: 'coll', id: S.milestoneId(m), title: 'Нагорода за колекцію', sub: m.label || `Зібрано ${m.n} машин`, money: m.money });
     for (const c of S.MAIN_COUNTRIES) {
       if (!have.has('c' + c) && S.countryModels(c).every((m) => owned.has(m.id))) claims.push({ key: 'coll:c' + c, kind: 'coll', id: 'c' + c, title: `Колекція «${S.COUNTRIES[c].name}» зібрана!`, sub: 'Секретна машина й гроші', money: S.COUNTRY_REWARD[c] });
     }
@@ -2985,8 +2987,9 @@ export function createGame(db, opts = {}) {
     const owned = new Set(q('SELECT model FROM collection WHERE user_id = ?').all(uid).map((r) => r.model));
     let rw;
     if (k.startsWith('n')) {
-      const ms = S.COLLECTION_MILESTONES.find((m) => 'n' + m.n === k);
+      const ms = S.COLLECTION_MILESTONES.find((m) => S.milestoneId(m) === k);
       if (!ms) fail('Невідома нагорода');
+      if (S.milestoneTaken(ms, q('SELECT key FROM claims WHERE user_id = ?').all(uid).map((r) => r.key))) fail('Нагороду вже отримано');
       if ([...owned].filter((id) => !S.MODELS[id]?.secret).length < ms.n) fail('Ще не зібрано');
       rw = { money: ms.money, slots: ms.slots || 0 };
     } else if (k.startsWith('c')) {

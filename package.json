@@ -10,6 +10,7 @@
     "test": "node --test test/*.test.js",
     "prompts": "node tools/make_prompts.mjs",
     "cars": "python -I tools/prepare_cars.py",
+    "car-photos": "node tools/car_photos.mjs",
     "paint-masks": "python -I tools/paint/masks.py"
   },
   "engines": { "node": ">=22.13" }

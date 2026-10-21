@@ -3051,7 +3051,7 @@ function claimableCollection() {
   if (!me) return false;
   const owned = new Set(me.collection);
   const n = me.collection.filter((id) => !M(id)?.secret).length;
-  if (S.COLLECTION_MILESTONES.some((m) => n >= m.n && !me.claims.includes('n' + m.n))) return true;
+  if (S.COLLECTION_MILESTONES.some((m) => n >= m.n && !S.milestoneTaken(m, me.claims))) return true;
   if (setsReady() > 0) return true;
   return S.MAIN_COUNTRIES.some((c) => !me.claims.includes('c' + c) && S.countryModels(c).every((m) => owned.has(m.id)));
 }
@@ -3142,13 +3142,13 @@ const collectionCars = () => {
   const totalReg = S.ALL_MODELS.filter((m) => !m.secret).length;
   const ms = S.COLLECTION_MILESTONES;
   const rows = [
-    ...ms.map((m) => ({ key: 'n' + m.n, title: m.label || `Збери ${m.n} машин`, sub: rewardText({ money: m.money, slots: m.slots }), have: Math.min(n, m.n), need: m.n, ic: ic('car') })),
+    ...ms.map((m) => ({ key: S.milestoneId(m), done: S.milestoneTaken(m, me.claims), title: m.label || `Збери ${m.n} машин`, sub: rewardText({ money: m.money, slots: m.slots }), have: Math.min(n, m.n), need: m.n, ic: ic('car') })),
     ...S.MAIN_COUNTRIES.map((c) => {
       const list = S.countryModels(c);
       return { key: 'c' + c, title: `Усі машини: ${S.COUNTRIES[c].name}`, sub: `+${S.short(S.COUNTRY_REWARD[c])} · секретна машина`, have: list.filter((m) => owned.has(m.id)).length, need: list.length, ic: S.COUNTRIES[c].flag };
     }),
   ];
-  const visible = state.collAll ? rows : rows.filter((r) => !me.claims.includes(r.key)).slice(0, 3);
+  const visible = state.collAll ? rows : rows.filter((r) => !(r.done ?? me.claims.includes(r.key))).slice(0, 3);
   const filter = state.collFilter, missing = state.collMissing;
   const pool = S.ALL_MODELS.filter((m) => !m.season || owned.has(m.id));
   const models = pool.filter((m) => !filter || m.country === filter);
@@ -3172,7 +3172,7 @@ const collectionCars = () => {
       <div class="grow"><div class="row between"><b class="disp">Зібрано</b><span class="muted small"><b style="color:var(--text)">${n}</b> з ${totalReg}</span></div><div class="cbars">${clsBars}</div></div></div>
     <div class="h2"><span>Нагороди за колекцію</span></div>
     <div class="list">${visible.map((r) => {
-      const done = me.claims.includes(r.key);
+      const done = r.done ?? me.claims.includes(r.key);
       const ready = !done && r.have >= r.need;
       return `<div class="li"><span class="ic">${r.ic}</span><div class="grow"><b>${esc(r.title)}</b><div class="small muted">${esc(r.sub)}</div><div class="progress mt"><i style="width:${(r.have / r.need) * 100}%"></i></div></div>
         ${done ? '<span class="win">✓</span>' : ready ? `<button class="btn sm yellow" data-act="collClaim" data-k="${r.key}">Забрати</button>` : `<span class="small muted">${r.have}/${r.need}</span>`}</div>`;
