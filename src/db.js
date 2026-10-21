@@ -82,6 +82,23 @@ CREATE TABLE IF NOT EXISTS auctions (
   ends_at INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'open', created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS auctions_open ON auctions(status, ends_at);
+-- Parts and plates on the player market (S.ITEM_MARKET). A part lot holds its pieces (taken off the warehouse);
+-- a plate lot points at the plate, which stays in plates and is locked while listed. item_key groups lots and sales
+-- for the "good price" median: "part:<type>:<tier>" or "plate:<class>". price is for the whole lot, base per piece.
+CREATE TABLE IF NOT EXISTS item_listings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, seller_id INTEGER NOT NULL, kind TEXT NOT NULL, item_key TEXT NOT NULL,
+  part_type TEXT, part_tier TEXT, plate_id INTEGER UNIQUE, count INTEGER NOT NULL DEFAULT 1,
+  price INTEGER NOT NULL, base INTEGER NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS item_listings_kind ON item_listings(kind, id);
+CREATE INDEX IF NOT EXISTS item_listings_seller ON item_listings(seller_id);
+CREATE INDEX IF NOT EXISTS item_listings_expiry ON item_listings(expires_at);
+CREATE TABLE IF NOT EXISTS item_sales (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, item_key TEXT NOT NULL, seller_id INTEGER NOT NULL, buyer_id INTEGER NOT NULL,
+  part_type TEXT, part_tier TEXT, plate_text TEXT, count INTEGER NOT NULL, price INTEGER NOT NULL, fee INTEGER NOT NULL,
+  base INTEGER NOT NULL, created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS item_sales_key ON item_sales(item_key, id);
 
 CREATE TABLE IF NOT EXISTS trades (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -858,8 +858,12 @@ export function createGame(db, opts = {}) {
     if (!p || p.owner_id !== uid) fail('Це не твій номер');
     return p;
   }
+  const notListed = (p) => {
+    if (plateLot(p.id)) fail('Номер виставлено на ринок — спочатку зніми лот');
+    return p;
+  };
   function attachPlate(uid, { plateId, carId }) {
-    const p = ownPlate(uid, plateId);
+    const p = notListed(ownPlate(uid, plateId));
     const c = ownCar(uid, carId, ['garage', 'showcase']);
     // The plate may be on another car: only take it from one that is in the garage or showcase, not one being sold.
     const from = p.car_id ? carRow(p.car_id) : null;
@@ -882,7 +886,7 @@ export function createGame(db, opts = {}) {
     return {};
   }
   function sellPlate(uid, { plateId }) {
-    const p = ownPlate(uid, plateId);
+    const p = notListed(ownPlate(uid, plateId));
     if (p.car_id) fail('Спочатку зніми номер з машини');
     q('DELETE FROM plates WHERE id = ?').run(p.id);
     const got = Math.floor(p.value * 0.5);
@@ -1677,7 +1681,150 @@ export function createGame(db, opts = {}) {
         recalc(a.seller_id);
       });
     }
+    expireItemLots(); // the server's sweeper calls this every few seconds
     return due.length;
+  }
+
+  // ---------- market of parts and plates (S.ITEM_MARKET) ----------
+  // A part lot takes its pieces off the warehouse, so a listed part can't be installed, merged or sold to the dealer —
+  // it just isn't there. A plate stays in plates (it still counts in the garage value) and its lot locks it: attach,
+  // sell to the dealer and listing again check plateLot(). Cancel, expiry, a ban or an admin removal give the item back.
+  // Money: the buyer pays the price (destroyed), the seller gets price − fee (created), so the economy loses the fee.
+  const IM = S.ITEM_MARKET;
+  const plateLot = (plateId) => q('SELECT id FROM item_listings WHERE plate_id = ?').get(plateId) || null;
+  const itemMaxLots = (uid) => (vipOf(uid) ? IM.vipLots : IM.lots);
+  const itemName = (l) => (l.kind === 'part' ? `${S.partLabel(l.part_type, l.part_tier)}${l.count > 1 ? ` × ${l.count}` : ''}` : `номер ${q('SELECT text FROM plates WHERE id = ?').get(l.plate_id)?.text || ''}`);
+  // Closes a lot without a sale: the part pieces go back to the warehouse (the plate never left its owner).
+  function closeItemLot(l) {
+    q('DELETE FROM item_listings WHERE id = ?').run(l.id);
+    if (l.kind === 'part') addPart(l.seller_id, l.part_type, l.part_tier, l.count);
+  }
+  function expireItemLots() {
+    const due = q('SELECT * FROM item_listings WHERE expires_at <= ? LIMIT 200').all(now());
+    for (const l of due) {
+      db.tx(() => {
+        if (!q('SELECT 1 FROM item_listings WHERE id = ?').get(l.id)) return;
+        closeItemLot(l);
+        event(l.seller_id, `⌛ Лот «${itemName(l)}» ніхто не купив за ${IM.hours} год — ${l.kind === 'part' ? 'деталі повернулися на склад' : 'номер знову вільний'}`);
+      });
+    }
+    return due.length;
+  }
+  // Samples for the reference price of one item_key: recent sales, plus the cheapest lot of every other seller (one per
+  // seller, so nobody can drag the median up with a pile of overpriced lots of his own).
+  function itemSamples(key) {
+    const sales = q('SELECT price * 1.0 / (count * base) r FROM item_sales WHERE item_key = ? AND created_at >= ? AND base > 0 ORDER BY id DESC LIMIT ?')
+      .all(key, now() - IM.refDays * 86400e3, IM.refSales).map((x) => x.r);
+    const lots = q('SELECT seller_id s, MIN(price * 1.0 / (count * base)) r FROM item_listings WHERE item_key = ? AND base > 0 GROUP BY seller_id').all(key);
+    return { sales, lots };
+  }
+  function itemOut(l, uid, samplesFor) {
+    const unit = Math.round(l.price / l.count);
+    const sm = samplesFor(l.item_key);
+    const ratio = S.itemRefRatio([...sm.sales, ...sm.lots.filter((x) => x.s !== l.seller_id).map((x) => x.r)]);
+    const ref = Math.round(ratio * l.base);
+    const o = {
+      id: l.id, kind: l.kind, price: l.price, count: l.count, unit, base: l.base, ref,
+      deal: S.isItemDeal(unit, l.base, ratio), pct: ref ? Math.round((unit / ref - 1) * 100) : 0,
+      mine: l.seller_id === uid, seller: name(l.seller_id), at: l.created_at, expiresAt: l.expires_at,
+    };
+    if (l.kind === 'part') o.part = { type: l.part_type, tier: l.part_tier };
+    else o.plate = { id: l.plate_id, text: l.text, cls: l.pcls, value: l.value, label: S.plateInfo(l.text).label, region: S.regionOf(l.text) };
+    return o;
+  }
+  function marketItems(uid, { kind, type, tier, cls, region, query, sort } = {}) {
+    expireItemLots();
+    const k = kind === 'plate' ? 'plate' : 'part';
+    const cache = new Map();
+    const samplesFor = (key) => cache.get(key) || (cache.set(key, itemSamples(key)), cache.get(key));
+    const rows = q('SELECT l.*, p.text, p.cls pcls, p.value FROM item_listings l LEFT JOIN plates p ON p.id = l.plate_id WHERE l.kind = ? ORDER BY l.id DESC LIMIT 500').all(k);
+    let list = rows;
+    if (k === 'part') {
+      if (S.PARTS[type] && Object.hasOwn(S.PARTS, type)) list = list.filter((l) => l.part_type === type);
+      if (S.TIER_BY_ID[tier] && Object.hasOwn(S.TIER_BY_ID, tier)) list = list.filter((l) => l.part_tier === tier);
+    } else {
+      if (cls && S.PLATE_VALUE[cls] && Object.hasOwn(S.PLATE_VALUE, cls)) list = list.filter((l) => l.pcls === cls);
+      // Region: its name from S.REGION_LIST (all of its codes) or a single code.
+      const reg = String(region ?? '').trim();
+      if (reg) list = list.filter((l) => S.regionOf(l.text) === reg || l.text.slice(0, 2) === reg.toUpperCase());
+      // Search in the plate text: "7777", "ka 77", "АА" (Cyrillic look-alikes become Latin).
+      const qs = S.normalizePlate(String(query ?? '').slice(0, 16)).replace(/ /g, '');
+      if (qs) list = list.filter((l) => l.text.replace(/ /g, '').includes(qs));
+    }
+    let out = list.map((l) => itemOut(l, uid, samplesFor));
+    if (sort === 'cheap') out.sort((a, b) => a.unit - b.unit);
+    else if (sort === 'expensive') out.sort((a, b) => b.unit - a.unit);
+    else if (sort === 'deal') out.sort((a, b) => a.unit / (a.ref || 1) - b.unit / (b.ref || 1));
+    out = out.slice(0, 200);
+    const mine = q('SELECT l.*, p.text, p.cls pcls, p.value FROM item_listings l LEFT JOIN plates p ON p.id = l.plate_id WHERE l.seller_id = ? ORDER BY l.id DESC').all(uid)
+      .map((l) => itemOut(l, uid, samplesFor));
+    return { list: out, mine, maxLots: itemMaxLots(uid), now: now() };
+  }
+  function marketItemSell(uid, { kind, type, tier, count, plateId, price, detach }) {
+    expireItemLots();
+    if (q('SELECT COUNT(*) n FROM item_listings WHERE seller_id = ?').get(uid).n >= itemMaxLots(uid)) fail(`Максимум ${itemMaxLots(uid)} лотів з деталями й номерами`);
+    const p = int(price, 1, 1e13, 'Ціна');
+    let lot;
+    if (kind === 'part') {
+      if (!Object.hasOwn(S.PARTS, String(type)) || !Object.hasOwn(S.TIER_BY_ID, String(tier))) fail('Невідома деталь');
+      const n = int(count ?? 1, 1, IM.maxCount, 'Кількість');
+      const inv = inventory(uid).find((x) => x.type === type && x.tier === tier);
+      if (!inv || inv.available < n) fail(inv?.cooling ? `Вільних деталей ${inv.available}: щойно зняті з машини остигають і на ринок не йдуть` : 'Стільки таких деталей на складі немає');
+      lot = { kind, n, base: S.TIER_BY_ID[tier].price, key: `part:${type}:${tier}` };
+    } else if (kind === 'plate') {
+      const pl = ownPlate(uid, plateId);
+      if (plateLot(pl.id)) fail('Цей номер уже на ринку');
+      if (pl.value < 1) fail('Цей номер не можна продати на ринку');
+      lot = { kind, n: 1, base: pl.value, key: `plate:${pl.cls}`, plate: pl };
+    } else fail('Невідомий тип лоту');
+    const [lo, hi] = S.itemPriceRange(lot.base, lot.n);
+    if (p < lo || p > hi) fail(`Ціна має бути від ${S.fmt(lo)} до ${S.fmt(hi)}`);
+    if (lot.kind === 'part') {
+      takePart(uid, type, tier, lot.n);
+    } else if (lot.plate.car_id) {
+      // A plate on a car: only with the player's consent (detach), and only from a car he can change right now.
+      if (!detach) fail('Номер висить на машині — спочатку зніми його');
+      const c = carRow(lot.plate.car_id);
+      if (c.status !== 'garage' && c.status !== 'showcase') fail('Авто з цим номером на ринку — номер зняти не можна');
+      bank(uid);
+      q('UPDATE plates SET car_id = NULL WHERE id = ?').run(lot.plate.id);
+      carChanged(c.id);
+    }
+    const r = q(`INSERT INTO item_listings (seller_id, kind, item_key, part_type, part_tier, plate_id, count, price, base, created_at, expires_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(uid, lot.kind, lot.key, lot.kind === 'part' ? type : null, lot.kind === 'part' ? tier : null, lot.plate?.id ?? null, lot.n, p, lot.base, now(), now() + IM.hours * 3600e3);
+    return { id: Number(r.lastInsertRowid) };
+  }
+  function marketItemCancel(uid, { id }) {
+    const l = q('SELECT * FROM item_listings WHERE id = ?').get(int(id, 1, 1e15));
+    if (!l || l.seller_id !== uid) fail('Лот не знайдено');
+    closeItemLot(l);
+    return {};
+  }
+  function marketItemBuy(uid, { id }) {
+    expireItemLots();
+    const l = q('SELECT * FROM item_listings WHERE id = ?').get(int(id, 1, 1e15));
+    // An expired lot is refused even if no sweep has closed it yet (a failed call rolls its own sweep back).
+    if (!l || l.expires_at <= now()) fail('Лот уже продано або знято');
+    if (l.seller_id === uid) fail('Це твій лот');
+    let plate = null;
+    if (l.kind === 'plate') {
+      plate = q('SELECT * FROM plates WHERE id = ?').get(l.plate_id);
+      if (!plate || plate.owner_id !== l.seller_id || plate.car_id) fail('Лот недоступний');
+    }
+    pay(uid, l.price);
+    const got = Math.floor(l.price * (1 - S.FEE));
+    addMoney(l.seller_id, got);
+    q('DELETE FROM item_listings WHERE id = ?').run(l.id);
+    if (l.kind === 'part') addPart(uid, l.part_type, l.part_tier, l.count);
+    else q('UPDATE plates SET owner_id = ? WHERE id = ?').run(uid, plate.id);
+    q(`INSERT INTO item_sales (kind, item_key, seller_id, buyer_id, part_type, part_tier, plate_text, count, price, fee, base, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(l.kind, l.item_key, l.seller_id, uid, l.part_type, l.part_tier, plate?.text ?? null, l.count, l.price, l.price - got, l.base, now());
+    recalc(l.seller_id);
+    const what = l.kind === 'part' ? `${S.partLabel(l.part_type, l.part_tier)}${l.count > 1 ? ` × ${l.count}` : ''}` : `номер ${plate.text}`;
+    event(l.seller_id, `💰 ${name(uid)} купив твій лот «${what}» за ${S.fmt(l.price)}. Тобі +${S.fmt(got)}`);
+    return l.kind === 'part' ? { part: { type: l.part_type, tier: l.part_tier, count: l.count } } : { plate: { id: plate.id, text: plate.text, cls: plate.cls, value: plate.value } };
   }
 
   // ---------- trades ----------
@@ -2778,6 +2925,7 @@ export function createGame(db, opts = {}) {
       cases: sum('SELECT COALESCE(SUM(cases_opened), 0) n FROM users'),
       drops24h: sum('SELECT COUNT(*) n FROM drops WHERE created_at > ?', day),
       listings: sum('SELECT COUNT(*) n FROM listings'),
+      itemListings: sum('SELECT COUNT(*) n FROM item_listings'),
       auctions: sum("SELECT COUNT(*) n FROM auctions WHERE status = 'open'"),
       trades: sum("SELECT COUNT(*) n FROM trades WHERE status = 'open'"),
       crash24h: q("SELECT COUNT(*) games, COALESCE(SUM(bet), 0) bet, COALESCE(SUM(CASE WHEN status = 'won' THEN bet * cashout END), 0) paid FROM crash_games WHERE started_at > ?").get(day),
@@ -3056,6 +3204,7 @@ export function createGame(db, opts = {}) {
     const p = q('SELECT * FROM plates WHERE id = ?').get(int(plateId, 1, Number.MAX_SAFE_INTEGER, 'ID номера'));
     if (!p) fail('Номер не знайдено');
     bank(p.owner_id);
+    q('DELETE FROM item_listings WHERE plate_id = ?').run(p.id);
     q('DELETE FROM plates WHERE id = ?').run(p.id);
     recalc(p.owner_id);
     alog(who, 'remove-plate', p.owner_id, { text: p.text });
@@ -3097,6 +3246,7 @@ export function createGame(db, opts = {}) {
       // A banned player's lots leave the market so nobody buys from a frozen account.
       for (const l of q('SELECT id FROM listings WHERE seller_id = ?').all(uid)) adminMarketRemove(who, { kind: 'listing', id: l.id }, false);
       for (const a of q("SELECT id FROM auctions WHERE seller_id = ? AND status = 'open'").all(uid)) adminMarketRemove(who, { kind: 'auction', id: a.id }, false);
+      for (const l of q('SELECT * FROM item_listings WHERE seller_id = ?').all(uid)) closeItemLot(l);
     }
     alog(who, banned ? 'ban' : 'unban', uid, r ? { reason: r } : null);
     return {};
@@ -3108,6 +3258,7 @@ export function createGame(db, opts = {}) {
     const balanceBefore = userRow(uid).balance;
     const t = now();
     for (const l of q('SELECT id FROM listings WHERE seller_id = ?').all(uid)) q('DELETE FROM listings WHERE id = ?').run(l.id);
+    q('DELETE FROM item_listings WHERE seller_id = ?').run(uid); // their parts and plates are wiped below anyway
     for (const a of q("SELECT * FROM auctions WHERE seller_id = ? AND status = 'open'").all(uid)) {
       if (a.top_bidder) {
         addMoney(a.top_bidder, a.top_bid);
@@ -3194,11 +3345,24 @@ export function createGame(db, opts = {}) {
         id: a.id, startPrice: a.start_price, topBid: a.top_bid, bids: a.bids, endsAt: a.ends_at, seller: { id: a.seller_id, name: name(a.seller_id) },
         leader: a.top_bidder ? { id: a.top_bidder, name: name(a.top_bidder) } : null, car: carOut(carRow(a.car_id)),
       })),
+      items: q('SELECT l.*, p.text FROM item_listings l LEFT JOIN plates p ON p.id = l.plate_id ORDER BY l.id DESC LIMIT 300').all().map((l) => ({
+        id: l.id, kind: l.kind, price: l.price, count: l.count, base: l.base, at: l.created_at, expiresAt: l.expires_at, seller: { id: l.seller_id, name: name(l.seller_id) },
+        part: l.kind === 'part' ? { type: l.part_type, tier: l.part_tier } : null, plate: l.kind === 'plate' ? { id: l.plate_id, text: l.text } : null,
+      })),
     };
   }
   function adminMarketRemove(who, { kind, id }, log = true) {
     const lid = int(id, 1, 1e15, 'ID');
     let sellerId, carId;
+    if (kind === 'item') {
+      const l = q('SELECT * FROM item_listings WHERE id = ?').get(lid);
+      if (!l) fail('Лот не знайдено');
+      const what = itemName(l);
+      closeItemLot(l);
+      event(l.seller_id, `🛑 Адміністрація зняла твій лот «${what}» з ринку — ${l.kind === 'part' ? 'деталі повернулися на склад' : 'номер знову вільний'}`);
+      if (log) alog(who, 'market-remove', l.seller_id, { kind, id: lid });
+      return {};
+    }
     if (kind === 'listing') {
       const l = q('SELECT * FROM listings WHERE id = ?').get(lid);
       if (!l) fail('Лот не знайдено');
@@ -3445,6 +3609,7 @@ export function createGame(db, opts = {}) {
     achievements, 'ach/claim': achievementClaim, 'support/send': supportSend, 'support/mine': supportMine,
     pulse, 'settings/invites': setNoInvites, 'settings/push': setPushOn,'room/decline': roomDecline, 'gifts/seen': giftsSeen, 'rescue/claim': rescueClaim,
     'market/list': marketList, 'market/sell': marketSell, 'market/buy': marketBuy, 'market/cancel': marketCancel,
+    'market/items': marketItems, 'market/item-sell': marketItemSell, 'market/item-buy': marketItemBuy, 'market/item-cancel': marketItemCancel,
     'auction/list': auctionList, 'auction/create': auctionCreate, 'auction/bid': auctionBid, 'auction/cancel': auctionCancel,
     player, 'trade/list': tradeList, 'trade/create': tradeCreate, 'trade/accept': tradeAccept,
     'trade/decline': (u, b) => tradeClose(u, b, 'declined'), 'trade/cancel': (u, b) => tradeClose(u, b, 'cancelled'),

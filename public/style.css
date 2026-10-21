@@ -1455,3 +1455,17 @@ button.li:active { background-color: #ffffff08; }
   .btn.opencase::after { display: none; }
   .reel .car { transition: none; }
 }
+/* ===== Market: parts & plates (x-market) — kind tabs, plate search, item rows, «вигідна ціна» chip ===== */
+.seg.mk-kinds { margin-bottom: 8px; }
+.seg.mk-kinds button .i { font-size: 16px; }
+.mk-search { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.mk-search input, .mk-search select { padding: 10px 12px; min-width: 0; }
+.mk-search select { padding-right: 30px; text-overflow: ellipsis; }
+.mk-item { align-items: center; }
+.mk-item > .grow { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mk-item > .grow > .chip.deal { align-self: flex-start; margin-top: 3px; }
+.mk-item > .btn { flex: none; min-width: 76px; }
+.mk-plate { gap: 10px; padding-left: 12px; padding-right: 12px; }
+.mk-plate > .plate { --h: 20px; width: 90px; }
+.chip.deal .i { font-size: 12px; }
+@media (max-width: 360px) { .mk-plate > .plate { width: 80px; } .mk-search { grid-template-columns: 1fr; } }

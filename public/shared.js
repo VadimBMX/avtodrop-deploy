@@ -807,6 +807,21 @@ export function driftCap(model) {
 export const RIVAL_NAMES = ['Ваня_Вихлоп', 'Kirill_M5', 'Lightning', 'Гоша_Форсаж', 'NightRider', 'Вовк', 'Дрифт_Кіт', 'Тарас_Турбо', 'BoostBoy', 'Сашко_GT', 'Оксана_V8', 'Mr.Stance', 'Лис_Нітро', 'Богдан_JDM', 'Карпатський_Дрифт', 'Kyiv_Racer', 'Львівський_Турбо', 'Одеса_Street', 'Шумахер_з_Борщагівки', 'Дизель'];
 export const PVP_MIN_BET = 5000;
 export const FEE = 0.05;
+// Parts and plates on the player market (same FEE as cars). Price per piece must stay within minRate…maxRate of the
+// item's base value (tier price of a part, value of a plate): too cheap or too dear a lot would just move money between
+// a player's own accounts. Lots expire after `hours` and the item goes back. «Вигідна ціна»: a piece price at most
+// dealRate of the reference — the median price/base ratio of recent sales (refDays, last refSales) and other sellers'
+// lots of the same part tier / plate class, once there are refMin of them; with fewer, the base value itself.
+export const ITEM_MARKET = { lots: 10, vipLots: 20, hours: 72, minRate: 0.5, maxRate: 3, dealRate: 0.8, refDays: 14, refSales: 30, refMin: 3, maxCount: 50 };
+export const itemPriceRange = (base, count = 1) => [Math.ceil(base * ITEM_MARKET.minRate) * count, Math.floor(base * ITEM_MARKET.maxRate) * count];
+export function median(list) {
+  if (!list.length) return null;
+  const s = [...list].sort((a, b) => a - b), m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+// Reference ratio from samples (price / base); a lot is a good deal when its piece price ≤ dealRate × ratio × base.
+export const itemRefRatio = (samples) => (samples.length >= ITEM_MARKET.refMin ? median(samples) : 1);
+export const isItemDeal = (unit, base, ratio) => unit <= ITEM_MARKET.dealRate * ratio * base;
 
 // ---------- dealer (bot seller on the market) ----------
 // Every `hours` the dealer puts out a fresh batch of cars at fixed prices. Balance rules:

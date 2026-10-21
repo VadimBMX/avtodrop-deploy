@@ -2192,7 +2192,10 @@ H.plateSell = async (d) => {
 
 // ---------- market ----------
 PAGES.market = async () => {
-  const seg = `<div class="seg">${[['buy', 'Купити'], ['auction', 'Аукціони'], ['mine', 'Мої лоти']].map(([k, t]) => `<button class="${state.marketTab === k ? 'on' : ''}" data-act="mTab" data-k="${k}">${t}</button>`).join('')}</div>`;
+  state.marketKind ||= 'car';
+  const kinds = `<div class="seg mk-kinds">${[['car', 'car', 'Машини'], ['part', 'engine', 'Деталі'], ['plate', 'license', 'Номери']].map(([k, i, t]) => `<button class="${state.marketKind === k ? 'on' : ''}" data-act="mKind" data-k="${k}">${ic(i)}${t}</button>`).join('')}</div>`;
+  if (state.marketKind !== 'car') return kinds + (await itemMarket(state.marketKind));
+  const seg = kinds + `<div class="seg">${[['buy', 'Купити'], ['auction', 'Аукціони'], ['mine', 'Мої лоти']].map(([k, t]) => `<button class="${state.marketTab === k ? 'on' : ''}" data-act="mTab" data-k="${k}">${t}</button>`).join('')}</div>`;
   const info = (c) => `<span class="chip">${partCount(c)}/${partSlots(c)} деталей</span>`;
   if (state.marketTab === 'buy') {
     const { list, dealer, now } = await api('market/list', { cls: state.marketCls, sort: state.marketSort });
@@ -2221,7 +2224,135 @@ PAGES.market = async () => {
     <div class="h2"><span>На ринку</span></div><div class="list">${mine.length ? mine.map((l) => carRow(l.car, `<button class="btn sm red" data-act="unlist" data-id="${l.id}">Зняти</button>`).replace('</b></div>', `</b></div><div class="tiny muted">ціна ${S.fmt(l.price)}</div>`)).join('') : '<div class="empty">Немає лотів</div>'}</div>
     <div class="h2"><span>Аукціони</span></div><div class="list">${auc.length ? auc.map((x) => carRow(x.car, x.bids ? `<span class="chip">${x.bids} ставок</span>` : `<button class="btn sm red" data-act="unauction" data-id="${x.id}">Скасувати</button>`).replace('</b></div>', `</b></div><div class="tiny muted">${x.topBid ? `ставка ${S.short(x.topBid)} від ${esc(x.leader)}` : `старт ${S.short(x.startPrice)}`} · ${ic('clock')} <span data-until="${x.endsAt - (a.now - Date.now())}"></span></div>`)).join('') : '<div class="empty">Немає аукціонів</div>'}</div>`;
 };
-AFTER.market = tickUntil;
+AFTER.market = () => {
+  tickUntil();
+  bindItemFilters();
+};
+H.mKind = (d) => (state.marketKind = d.k, render());
+
+// ---------- market: parts and plates (S.ITEM_MARKET) ----------
+// Tabs «Купити» / «Мої лоти»; parts filter by type and tier, plates by text, region and class; a green «вигідна ціна»
+// chip when the piece price is ≤ 80 % of the reference (median of recent deals, or the base value).
+let itemMine = [];
+const itemTitle = (l) => (l.part ? `${S.partLabel(l.part.type, l.part.tier)}${l.count > 1 ? ` × ${l.count}` : ''}` : `номер ${l.plate.text}`);
+const dealChip = (l) => (l.deal ? `<span class="chip deal">${ic('flame')}вигідна ціна${l.pct < 0 ? ` · ${l.pct}%` : ''}</span>` : '');
+function itemRow(l, now) {
+  const until = `${ic('clock')} <span data-until="${l.expiresAt - (now - Date.now())}"></span>`;
+  const btn = l.mine ? `<button class="btn sm red" data-act="itemUnlist" data-id="${l.id}">Зняти</button>`
+    : `<button class="btn sm" data-act="itemBuy" data-id="${l.id}" data-price="${l.price}" data-name="${esc(itemTitle(l))}" ${me.balance < l.price ? 'disabled' : ''}>${S.short(l.price)}</button>`;
+  const who = l.mine ? '<span class="chip mine">твій лот</span>' : esc(l.seller);
+  if (l.part) {
+    const t = S.TIER_BY_ID[l.part.tier];
+    return `<div class="li mk-item">${partArt(l.part.type, l.part.tier, 'sm')}<div class="grow"><b>${S.PARTS[l.part.type].name}</b>
+      <div class="small"><span style="color:${S.CLASSES[t.cls].color}">${t.name}</span>${l.count > 1 ? ` × ${l.count} · ${S.short(l.unit)}/шт` : ''}</div>
+      <div class="tiny muted">${S.partEffect(l.part.type, l.part.tier)} · база ${S.short(l.base)}</div>
+      <div class="tiny muted">${who} · ${until}</div>${dealChip(l)}</div>${btn}</div>`;
+  }
+  return `<div class="li mk-item mk-plate">${plate(l.plate.text)}<div class="grow"><div class="small">${clsBadge(l.plate.cls)} ${esc(l.plate.label)}</div>
+    <div class="tiny muted">${esc(l.plate.region || '')} · оцінка ${S.short(l.base)}</div>
+    <div class="tiny muted">${who} · ${until}</div>${dealChip(l)}</div>${btn}</div>`;
+}
+const chipRow = (items, cur, actName) => `<div class="chips">${items.map(([k, t]) => `<button class="${(cur || '') === k ? 'on' : ''}" data-act="${actName}" data-k="${k}">${t}</button>`).join('')}</div>`;
+async function itemMarket(kind) {
+  const f = (state.itemF ||= { tab: 'buy', type: '', tier: '', cls: '', region: '', query: '', sort: 'new' });
+  const r = await api('market/items', { kind, type: f.type, tier: f.tier, cls: f.cls, region: f.region, query: f.query, sort: f.sort });
+  itemMine = r.mine;
+  const seg = `<div class="seg">${[['buy', 'Купити'], ['mine', `Мої лоти · ${r.mine.length}/${r.maxLots}`]].map(([k, t]) => `<button class="${f.tab === k ? 'on' : ''}" data-act="itemTab" data-k="${k}">${t}</button>`).join('')}</div>`;
+  const what = kind === 'part' ? 'деталь' : 'номер';
+  const sellBtn = `<button class="btn outline" data-act="${kind === 'part' ? 'itemSellPart' : 'itemSellPlate'}" ${r.mine.length >= r.maxLots ? 'disabled' : ''}>${ic('plus')} Виставити ${what}</button>`;
+  if (f.tab === 'mine') {
+    return seg + `<div class="btns">${sellBtn}</div>
+      <div class="tiny muted mt">Комісія ${S.FEE * 100}%. Ціна за штуку — від ${IMR(S.ITEM_MARKET.minRate)} до ${IMR(S.ITEM_MARKET.maxRate)} базової вартості. Лот висить ${S.ITEM_MARKET.hours} год, потім ${kind === 'part' ? 'деталі повертаються на склад' : 'номер знову вільний'}. Поки лот активний, деталь не поставити й не злити, а номер не повісити й не продати.</div>
+      <div class="h2"><span>Мої лоти</span><span>${r.mine.length}</span></div>
+      <div class="list">${r.mine.length ? r.mine.map((l) => itemRow(l, r.now)).join('') : '<div class="empty">Немає лотів з деталями чи номерами</div>'}</div>`;
+  }
+  const sort = chipRow([['new', 'Нові'], ['cheap', 'Дешевші'], ['expensive', 'Дорожчі'], ['deal', 'Вигідні']], f.sort, 'itemSort');
+  const filters = kind === 'part'
+    ? chipRow([['', 'Усі деталі'], ...S.PART_KEYS.map((k) => [k, S.PARTS[k].name])], f.type, 'itemType') + chipRow([['', 'Усі рівні'], ...S.TIERS.map((t) => [t.id, t.name])], f.tier, 'itemTier')
+    : `<div class="mk-search"><input id="mq" placeholder="Пошук: 7777, KA 00…" value="${esc(f.query)}" autocomplete="off" enterkeyhint="search">
+        <select id="mReg" aria-label="Регіон"><option value="">Усі регіони</option>${S.REGION_LIST.map((g) => `<option value="${esc(g.name)}" ${f.region === g.name ? 'selected' : ''}>${esc(g.name)} · ${g.codes.join('/')}</option>`).join('')}</select></div>`
+      + chipRow([['', 'Усі класи'], ...Object.keys(S.PLATE_VALUE).map((c) => [c, `${c} · ${S.CLASSES[c].name}`])], f.cls, 'itemCls');
+  const empty = f.type || f.tier || f.cls || f.region || f.query ? 'За цим фільтром лотів немає' : `Лотів поки немає. Виставляй свої ${kind === 'part' ? 'деталі' : 'номери'} у «Мої лоти»!`;
+  return seg + filters + sort + `<div class="h2"><span>${kind === 'part' ? 'Деталі від гравців' : 'Номери від гравців'}</span><span>${r.list.length}</span></div>
+    <div class="list">${r.list.length ? r.list.map((l) => itemRow(l, r.now)).join('') : `<div class="empty">${empty}</div>`}</div>`;
+}
+const IMR = (x) => `${Math.round(x * 100)}%`;
+let mqTimer;
+function bindItemFilters() {
+  const q = $('#mq');
+  if (q) {
+    if (state.itemF?.focus) {
+      q.focus();
+      q.setSelectionRange(q.value.length, q.value.length);
+      state.itemF.focus = false;
+    }
+    q.addEventListener('input', () => {
+      clearTimeout(mqTimer);
+      mqTimer = setTimeout(() => {
+        state.itemF.query = q.value.slice(0, 16);
+        state.itemF.focus = true;
+        render();
+      }, 350);
+    });
+  }
+  $('#mReg')?.addEventListener('change', (e) => (state.itemF.region = e.target.value, render()));
+}
+H.itemTab = (d) => (state.itemF.tab = d.k, render());
+H.itemSort = (d) => (state.itemF.sort = d.k, render());
+H.itemType = (d) => (state.itemF.type = d.k, render());
+H.itemTier = (d) => (state.itemF.tier = d.k, render());
+H.itemCls = (d) => (state.itemF.cls = d.k, render());
+H.itemBuy = async (d) => (await confirmBox(`Купити «${d.name}» за ${S.fmt(Number(d.price))}?`)) && act('market/item-buy', { id: Number(d.id) }, (r) => (r.part ? 'Деталі вже на складі!' : 'Номер твій! Повісь його на машину в «Номерах»'));
+H.itemUnlist = (d) => act('market/item-cancel', { id: Number(d.id) }, 'Лот знято — усе повернулося');
+// Listing a part: pick a free (not cooling) part from the warehouse, then count and price per piece.
+H.itemSellPart = () => {
+  const list = me.parts.filter((p) => p.available > 0).sort((a, b) => S.TIER_BY_ID[b.tier].index - S.TIER_BY_ID[a.tier].index);
+  const cooling = me.parts.filter((p) => p.cooling > 0).length;
+  sheet('Виставити деталь', `${list.length ? `<div class="list">${list.map((p) => `<button class="li" data-act="itemSellPartPick" data-type="${p.type}" data-tier="${p.tier}">${partArt(p.type, p.tier, 'sm')}<div class="grow"><b>${S.PARTS[p.type].name}</b><div class="small muted">${S.TIER_BY_ID[p.tier].name} · вільних ${p.available}</div></div><span class="chev">${ic('chevron-right')}</span></button>`).join('')}</div>` : '<div class="empty">На складі немає вільних деталей</div>'}
+    ${cooling ? '<div class="tiny muted">Щойно зняті з машини деталі остигають — їх виставити не можна, доки не охолонуть.</div>' : ''}`);
+};
+H.itemSellPartPick = (d) => {
+  const p = me.parts.find((x) => x.type === d.type && x.tier === d.tier);
+  if (!p) return;
+  const base = S.TIER_BY_ID[p.tier].price, [lo, hi] = S.itemPriceRange(base);
+  const max = Math.min(p.available, S.ITEM_MARKET.maxCount);
+  sheet('Виставити деталь', `<div class="li">${partArt(p.type, p.tier, 'sm')}<div class="grow"><b>${S.partLabel(p.type, p.tier)}</b><div class="small muted">${S.partEffect(p.type, p.tier)} · база ${S.fmt(base)}</div></div></div>
+    <label class="fld mt" for="itCount">Кількість (до ${max})</label><input id="itCount" inputmode="numeric" value="1">
+    <label class="fld mt" for="itPrice">Ціна за штуку, ₴</label><input id="itPrice" inputmode="numeric" value="${grp(base)}">
+    <div class="tiny muted mt">Від ${S.fmt(lo)} до ${S.fmt(hi)} за штуку · комісія ${S.FEE * 100}% · лот на ${S.ITEM_MARKET.hours} год</div>
+    <button class="btn mt" data-act="itemDoSellPart" data-type="${p.type}" data-tier="${p.tier}">Виставити</button>`, H.itemSellPart);
+};
+H.itemDoSellPart = async (d) => {
+  const count = Math.max(1, Math.round(num($('#itCount').value) || 1)), unit = num($('#itPrice').value);
+  if (await act('market/item-sell', { kind: 'part', type: d.type, tier: d.tier, count, price: unit * count }, 'Деталь на ринку')) closeModal();
+};
+// Listing a plate: not one already listed, not one on a car that is itself on the market (those can't be taken off).
+H.itemSellPlate = () => {
+  const listed = new Set(itemMine.filter((l) => l.plate).map((l) => l.plate.id));
+  const list = me.plates.filter((p) => !listed.has(p.id)).filter((p) => {
+    const c = p.carId && me.cars.find((x) => x.id === p.carId);
+    return !c || c.status === 'garage' || c.status === 'showcase';
+  });
+  sheet('Виставити номер', list.length ? `<div class="list">${list.map((p) => {
+    const c = p.carId && me.cars.find((x) => x.id === p.carId);
+    return `<button class="li" data-act="itemSellPlatePick" data-pid="${p.id}">${plate(p.text)}<div class="grow small">${clsBadge(p.cls)} ${S.short(p.value)}<div class="tiny muted ellipsis">${c ? `на ${esc(M(c.model).name)} — зніметься` : 'вільний'}</div></div><span class="chev">${ic('chevron-right')}</span></button>`;
+  }).join('')}</div>` : '<div class="empty">Немає номерів, які можна виставити</div>');
+};
+H.itemSellPlatePick = (d) => {
+  const p = me.plates.find((x) => x.id === Number(d.pid));
+  if (!p) return;
+  const c = p.carId && me.cars.find((x) => x.id === p.carId);
+  const [lo, hi] = S.itemPriceRange(p.value);
+  sheet('Виставити номер', `<div class="center" style="padding:10px 0">${plate(p.text, 'lg')}</div>
+    <div class="center small">${clsBadge(p.cls)} ${esc(S.plateInfo(p.text).label)} · оцінка ${S.fmt(p.value)}</div>
+    ${c ? `<div class="card mt small">Номер зараз на ${esc(M(c.model).name)} — під час виставлення його буде знято, вартість і дохід машини зменшаться.</div>` : ''}
+    <label class="fld mt" for="itPrice">Ціна, ₴</label><input id="itPrice" inputmode="numeric" value="${grp(p.value)}">
+    <div class="tiny muted mt">Від ${S.fmt(lo)} до ${S.fmt(hi)} · комісія ${S.FEE * 100}% · лот на ${S.ITEM_MARKET.hours} год</div>
+    <button class="btn mt" data-act="itemDoSellPlate" data-pid="${p.id}" data-detach="${c ? 1 : ''}">Виставити</button>`, H.itemSellPlate);
+};
+H.itemDoSellPlate = async (d) => {
+  if (await act('market/item-sell', { kind: 'plate', plateId: Number(d.pid), price: num($('#itPrice').value), detach: !!d.detach }, 'Номер на ринку')) closeModal();
+};
 H.mTab = (d) => (state.marketTab = d.k, render());
 H.mCls = (d) => (state.marketCls = d.k, render());
 H.mSort = (d) => (state.marketSort = d.k, render());
