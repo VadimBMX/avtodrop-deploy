@@ -6383,7 +6383,7 @@ PAGES.fair = async () => {
 };
 // Glossary of the two numbers every car shows (honest numbers, audit №1): on «Чесна гра» and behind the garage total.
 const honestGlossary = () => `<div class="card small hn-gloss"><b>Дві ціни машини</b>
-  <div class="mt"><b>Продаж</b> — скільки дасть дилер одразу. Машини з кейсів він викуповує за частку від звичайного викупу (її видно на екрані кейсу).</div>
+  <div class="mt"><b>Продаж</b> — скільки дасть дилер одразу. Викуп залежить від класу: ${['D', 'C', 'B', 'A', 'S'].map((c) => `${c} — ${Math.round(S.SELL_RATES[c] * 100)}%`).join(', ')} ціни моделі.</div>
   <div class="mt"><b>Колекційна ціна</b> — ціна моделі з деталями й номером. Вона рахується для рейтингу, доходу гаража й колекцій. У продаж деталі й номер не входять: вони повертаються тобі.</div></div>`;
 H.honestHelp = () => sheet('Продаж і колекційна ціна', honestGlossary());
 H.saveSeed = () => act('fair/seed', { clientSeed: $('#cseed').value.trim() }, 'Сід збережено');
