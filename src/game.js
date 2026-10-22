@@ -135,6 +135,7 @@ export function createGame(db, opts = {}) {
   const addPart = (uid, type, tier, n = 1) => q('INSERT INTO parts (user_id, type, tier, count) VALUES (?, ?, ?, ?) ON CONFLICT DO UPDATE SET count = count + excluded.count').run(uid, type, tier, n);
   function name(uid) {
     if (uid === 0) return 'Дилер АВТОДРОП';
+    if (S.isBattleBot(uid)) return S.BATTLE_BOT.name;
     const u = q('SELECT username, first_name FROM users WHERE id = ?').get(uid);
     if (!u) return 'Гравець';
     return u.username ? '@' + u.username : u.first_name || 'Гравець ' + uid;
@@ -481,6 +482,7 @@ export function createGame(db, opts = {}) {
     return day;
   }
   function track(uid, key, n = 1) {
+    if (key === 'race') raceStreakHit(uid); // the race streak (wave J; PvP counts where it is settled)
     const day = ensureQuests(uid);
     q('UPDATE quests SET progress = MIN(target, progress + ?) WHERE user_id = ? AND day = ? AND key = ?').run(n, uid, day, key);
     if (S.WEEKLY_QUESTS[key]) {
@@ -685,6 +687,7 @@ export function createGame(db, opts = {}) {
       legacy: isLegacy(uid), // played the first version: «Гравець з перших днів» badge in the profile
       unlocked: openKeys(u), casino: casinoMode(), // S.UNLOCKS keys open to this player; the owner's casino switch
       dream: dreamOut(u),
+      raceStreak: raceStreakOut(u), // wave J: days in a row with a race, the freeze, the next milestone
       wash: { handLeft: handLeft(u), hand: S.WASH.hand }, // free hand washes left today (S.WASH)
       now: now(),
     };
@@ -1913,6 +1916,7 @@ export function createGame(db, opts = {}) {
   function pvpList(uid) {
     const open = q("SELECT * FROM pvp WHERE status = 'open' ORDER BY id DESC LIMIT 50").all().map((p) => ({
       id: p.id, bet: p.bet, mine: p.creator_id === uid, creator: name(p.creator_id), car: JSON.parse(p.snapshot), at: p.created_at,
+      auto: !pvpLive(p.creator_id), // honest label before the bet: offline / «не турбувати» → a bot (autopilot) drives his car
     }));
     const history = q("SELECT * FROM pvp WHERE status = 'done' AND (creator_id = ? OR opponent_id = ?) ORDER BY finished_at DESC LIMIT 20").all(uid, uid).map((p) => {
       const mine = p.creator_id === uid;
@@ -1960,6 +1964,7 @@ export function createGame(db, opts = {}) {
       track(who, 'pvp');
       xp(who, 'pvp');
     }
+    raceStreakHit(uid); // only the one who raced: the creator was away, his car went on autopilot
     event(p.creator_id, winner === p.creator_id ? `🏁 Ти переміг ${name(uid)} у PvP! +${S.fmt(prize)}` : `🏁 ${name(uid)} обігнав тебе у PvP (ставка ${S.fmt(p.bet)})`);
     return { win: winner === uid, prize: winner === uid ? prize : 0, result, rival: { name: name(p.creator_id), car: JSON.parse(p.snapshot) } };
   }
@@ -1982,6 +1987,11 @@ export function createGame(db, opts = {}) {
     const c = carRow(carId);
     return c && c.owner_id === owner && c.status === 'garage' ? c : null;
   };
+  // Can this player be asked to race live right now (in the game, not on «не турбувати»)?
+  const pvpLive = (uid) => {
+    const u = userRow(uid);
+    return !!u && !u.no_invites && !!u.last_seen && u.last_seen >= now() - PVP_ONLINE_MS;
+  };
   function pvpRequest(uid, { id, carId }) {
     sweepPvp();
     const p = q("SELECT * FROM pvp WHERE id = ? AND status = 'open'").get(int(id, 1, 1e15));
@@ -1993,8 +2003,7 @@ export function createGame(db, opts = {}) {
       addMoney(p.creator_id, p.bet);
       fail('Суперник уже не має цього авто — виклик скасовано');
     }
-    const host = userRow(p.creator_id);
-    if (host.no_invites || !host.last_seen || host.last_seen < now() - PVP_ONLINE_MS) return { offline: true };
+    if (!pvpLive(p.creator_id)) return { offline: true };
     pay(uid, p.bet);
     q("UPDATE pvp SET status = 'pending', opponent_id = ?, opp_car_id = ?, opp_snapshot = ?, req_at = ? WHERE id = ?").run(uid, c.id, JSON.stringify(carOut(c)), now(), p.id);
     return pvpOut(q('SELECT * FROM pvp WHERE id = ?').get(p.id), uid);
@@ -2091,6 +2100,7 @@ export function createGame(db, opts = {}) {
     for (const who of [p.creator_id, p.opponent_id]) {
       track(who, 'pvp');
       xp(who, 'pvp');
+      raceStreakHit(who); // a live race: both raced
     }
   }
 
@@ -2561,6 +2571,7 @@ export function createGame(db, opts = {}) {
     for (const r of q("SELECT * FROM trade_rooms WHERE status = 'active' AND guest_seen < ?").all(now() - KICK_MS)) dropGuest(r, 'вийшов (немає зв’язку)');
   }
   const brief = (uid) => {
+    if (S.isBattleBot(uid)) return { id: uid, name: S.BATTLE_BOT.name, level: null, value: 0, bot: true };
     const u = q('SELECT id, level, total_value FROM users WHERE id = ?').get(uid);
     return u ? { id: u.id, name: name(u.id), level: u.level, value: u.total_value } : null;
   };
@@ -2818,23 +2829,25 @@ export function createGame(db, opts = {}) {
       creator: brief(b.creator_id), opponent: b.opponent_id ? brief(b.opponent_id) : null, winnerId: b.winner_id,
       result: b.result ? JSON.parse(b.result) : null, createdAt: b.created_at, finishedAt: b.finished_at,
       me: uid === b.creator_id || uid === b.opponent_id,
+      bot: S.isBattleBot(b.opponent_id), botAt: b.bot_ok && b.status === 'open' ? b.created_at + S.BATTLE_BOT.waitMs : null,
     };
   }
   function battleList(uid) {
+    sweepBattleBots();
     return {
       open: q("SELECT * FROM battles WHERE status = 'open' ORDER BY id DESC LIMIT 50").all().map((b) => battleOut(b, uid)),
       recent: q("SELECT * FROM battles WHERE status = 'done' ORDER BY finished_at DESC LIMIT 15").all().map((b) => battleOut(b, uid)),
       mine: q("SELECT * FROM battles WHERE status = 'done' AND (creator_id = ? OR opponent_id = ?) ORDER BY finished_at DESC LIMIT 10").all(uid, uid).map((b) => battleOut(b, uid)),
     };
   }
-  function battleCreate(uid, { caseId, count }) {
+  function battleCreate(uid, { caseId, count, botOk = false }) {
     const cs = S.CASE_BY_ID[caseId];
     if (!cs || cs.starter) fail('Обери кейс');
     const n = int(count, 1, 10, 'Кількість');
     if (!BATTLE_COUNTS.includes(n)) fail(`Кейсів у батлі: ${BATTLE_COUNTS.join(', ')}`);
     if (q("SELECT COUNT(*) n FROM battles WHERE creator_id = ? AND status = 'open'").get(uid).n >= 3) fail('Максимум 3 відкриті батли');
     pay(uid, cs.price * n);
-    const r = q('INSERT INTO battles (creator_id, case_id, count, price, created_at) VALUES (?, ?, ?, ?, ?)').run(uid, cs.id, n, cs.price * n, now());
+    const r = q('INSERT INTO battles (creator_id, case_id, count, price, created_at, bot_ok) VALUES (?, ?, ?, ?, ?, ?)').run(uid, cs.id, n, cs.price * n, now(), botOk === true || botOk === 1 ? 1 : 0);
     return { id: Number(r.lastInsertRowid) };
   }
   function battleCancel(uid, { id }) {
@@ -2888,9 +2901,160 @@ export function createGame(db, opts = {}) {
     return battleOut(q('SELECT * FROM battles WHERE id = ?').get(b.id), uid);
   }
   function battleGet(uid, { id }) {
+    sweepBattleBots();
     const b = q('SELECT * FROM battles WHERE id = ?').get(int(id, 1, Number.MAX_SAFE_INTEGER, 'ID'));
     if (!b) fail('Батл не знайдено');
     return battleOut(b, uid);
+  }
+  // ---- «Дилер Петрович» (S.BATTLE_BOT): sits in when nobody joined an agreed battle within waitMs ----
+  // Run lazily (battle list/get and every pulse), so it happens on time whenever anyone is in the game.
+  function sweepBattleBots() {
+    for (const b of q("SELECT * FROM battles WHERE status = 'open' AND bot_ok = 1 AND created_at <= ? ORDER BY id LIMIT 20").all(now() - S.BATTLE_BOT.waitMs)) {
+      // Every pulse runs this, so a battle the bot can't play (its case gone, the creator gone) must never break the
+      // call: it is undone, cancelled and paid back instead of being tried again.
+      db.exec('SAVEPOINT battle_bot');
+      try {
+        battleBotJoin(b);
+        db.exec('RELEASE battle_bot');
+      } catch {
+        db.exec('ROLLBACK TO battle_bot');
+        db.exec('RELEASE battle_bot');
+        q("UPDATE battles SET status = 'cancelled', finished_at = ? WHERE id = ?").run(now(), b.id);
+        if (userRow(b.creator_id)) addMoney(b.creator_id, b.price);
+      }
+    }
+  }
+  // The player's side of a bot battle: provably fair and in his drop history like any case roll, but at the case's own
+  // odds only — no guarantee step (its counters stay as they are), no luck, no streak save. Otherwise a player could
+  // time a due guarantee into a bot battle and win the bot's cars for free.
+  function rollBase(uid, cs) {
+    const f = nextNonce(uid);
+    const cls = pickWeighted(classEntries(cs.weights), f.roll(0));
+    const model = pickModel(cs.pool(cls), f.roll(1));
+    q('INSERT INTO drops (user_id, case_id, item, cls, seed_hash, client_seed, nonce, forced, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)')
+      .run(uid, cs.id, model, cls, sha256(f.server_seed), f.client_seed, f.nonce, now());
+    return { model, cls };
+  }
+  // The bot's side: the same odds from the server's generator. Nothing is written for him — he has no account.
+  function rollBot(cs) {
+    const cls = pickWeighted(classEntries(cs.weights), rnd());
+    return { model: pickModel(cs.pool(cls), rnd()), cls };
+  }
+  function battleBotJoin(b) {
+    const cs = S.CASE_BY_ID[b.case_id];
+    const botId = S.BATTLE_BOT.id;
+    const drop = (d) => ({ model: d.model, cls: d.cls, value: S.MODELS[d.model].price });
+    const a = { id: b.creator_id, drops: Array.from({ length: b.count }, () => drop(rollBase(b.creator_id, cs))) };
+    const o = { id: botId, bot: true, drops: Array.from({ length: b.count }, () => drop(rollBot(cs))) };
+    a.total = a.drops.reduce((s, d) => s + d.value, 0);
+    o.total = o.drops.reduce((s, d) => s + d.value, 0);
+    countOpens(b.creator_id, b.count);
+    bank(b.creator_id);
+    let winner = null, prize = [];
+    if (a.total > o.total) {
+      winner = a.id;
+      // Same rules as with a person: the winner takes every car of both sides (ids: creator's drops first).
+      prize = giveCars(a.id, [...a.drops, ...o.drops].map((d) => d.model), cs.id);
+    } else if (a.total < o.total) {
+      winner = botId; // the bot's winnings go nowhere: no car is made, nobody is paid
+    } else {
+      a.cars = giveCars(a.id, a.drops.map((d) => d.model), cs.id); // a dead heat: the player keeps his own
+    }
+    const result = { creator: a, opponent: o, consolation: null, prize, bot: true };
+    q("UPDATE battles SET opponent_id = ?, status = 'done', winner_id = ?, result = ?, finished_at = ? WHERE id = ? AND status = 'open'")
+      .run(botId, winner, JSON.stringify(result), now(), b.id);
+    recalc(a.id);
+    event(a.id, winner === a.id ? `⚔️ Ти виграв батл у бота «${S.BATTLE_BOT.name}»! Усі ${b.count * 2} авто — твої`
+      : winner === botId ? `⚔️ Бот «${S.BATTLE_BOT.name}» виграв батл (${S.short(o.total)} проти ${S.short(a.total)}). Його виграш нікому не дістається`
+        : `⚔️ Батл з ботом «${S.BATTLE_BOT.name}» — нічия, твої авто лишаються в тебе`);
+  }
+
+  // ---------- race streak (S.RACE_STREAK; wave J) ----------
+  // Kept apart from the daily bonus: a day counts only with a race. Counted from track('race') — every drag,
+  // career and drift run passes through it once (free drift training never does) — and from PvP for whoever raced.
+  const daysApart = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400e3);
+  const mondayOfDay = (date) => weekOf(Date.parse(date + 'T12:00:00Z'));
+  // The days missed between two race days (exclusive), when weekly freezes cover them all: at most one per Monday-based
+  // week, and only weeks after the one of the last freeze. Returns the last covered day (the new `freeze`), '' when
+  // nothing was missed, null when the run is broken.
+  function freezeCover(lastDay, today, lastFreeze) {
+    const gap = daysApart(lastDay, today) - 1;
+    if (gap <= 0) return '';
+    if (gap > 2) return null; // three days always put two in one week
+    let week = lastFreeze ? mondayOfDay(lastFreeze) : '';
+    let cover = null;
+    for (let i = 1; i <= gap; i++) {
+      const day = addDays(lastDay, i), w = mondayOfDay(day);
+      if (w <= week) return null;
+      week = w;
+      cover = day;
+    }
+    return cover;
+  }
+  function raceStreakHit(uid) {
+    const today = dayOf(now());
+    const r = q('SELECT * FROM race_streak WHERE user_id = ?').get(uid) || { n: 0, day: null, start: null, best: 0, freeze: null, ready: '[]' };
+    if (r.day && r.day >= today) return;
+    const cover = r.day ? freezeCover(r.day, today, r.freeze) : null;
+    const alive = cover !== null;
+    const n = alive ? r.n + 1 : 1, start = alive ? r.start : today, freeze = cover || r.freeze;
+    const ready = JSON.parse(r.ready || '[]');
+    if (S.isRaceMilestone(n)) {
+      ready.push({ m: n, start });
+      // The badge on the player card: the best milestone ever (cosmetic, nothing to claim).
+      const top = Math.min(n, 30), tier = S.FIRE_BADGE_TIER[top];
+      if (tier != null) {
+        q(`INSERT INTO badges (user_id, key, title, tier, season, place, created_at) VALUES (?, 'fire', ?, ?, NULL, NULL, ?)
+          ON CONFLICT (user_id, key) DO UPDATE SET title = excluded.title, tier = excluded.tier WHERE excluded.tier > badges.tier`).run(uid, `Вогонь ${top}`, tier, now());
+      }
+    }
+    q(`INSERT INTO race_streak (user_id, n, day, start, best, freeze, ready) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (user_id) DO UPDATE SET n = excluded.n, day = excluded.day, start = excluded.start, best = excluded.best, freeze = excluded.freeze, ready = excluded.ready`)
+      .run(uid, n, today, start, Math.max(r.best, n), freeze, JSON.stringify(ready));
+  }
+  // What the app shows: the run as it stands today (a day missed and covered is shown as frozen, the freeze is used for
+  // good on the next race), whether this week's freeze is still there, the next milestone and what it gives.
+  function raceStreakOut(u) {
+    const r = q('SELECT * FROM race_streak WHERE user_id = ?').get(u.id);
+    const today = dayOf(now()), caseId = S.levelKey(u.level);
+    const ready = JSON.parse(r?.ready || '[]');
+    const cover = r?.day ? freezeCover(r.day, today, r.freeze) : null;
+    const alive = !!r?.day && cover !== null;
+    const n = alive ? r.n : 0;
+    const lastFreeze = cover || r?.freeze || null;
+    const next = S.nextRaceMilestone(n);
+    return {
+      n, best: r?.best || 0, today: r?.day === today, alive, frozen: !!cover, fire: S.fireTier(n),
+      freezeReady: !lastFreeze || mondayOfDay(lastFreeze) < weekOf(now()),
+      next, nextReward: S.raceStreakReward(next), caseId, ready: ready.length,
+    };
+  }
+  // Milestones reached (even if the run has broken since) → fragments or keys of the level's key, all at once.
+  function raceStreakClaim(uid) {
+    const r = q('SELECT * FROM race_streak WHERE user_id = ?').get(uid);
+    const ready = JSON.parse(r?.ready || '[]');
+    if (!ready.length) fail('Немає нагород за серію заїздів');
+    // The list is emptied first: a second call (double tap, «Забрати все» in another tab) finds nothing.
+    if (!q("UPDATE race_streak SET ready = '[]' WHERE user_id = ? AND ready = ?").run(uid, r.ready).changes) fail('Нагороду вже отримано');
+    const caseId = S.levelKey(userRow(uid).level);
+    let keys = 0, frag = 0;
+    for (const x of ready) {
+      const rw = S.raceStreakReward(x.m);
+      keys += rw.keys || 0;
+      frag += rw.frag || 0;
+    }
+    if (keys) addKeys(uid, caseId, keys);
+    const newKeys = frag ? addFragments(uid, caseId, frag) : 0;
+    return { caseId, keys, frag, newKeys, milestones: ready.map((x) => x.m) };
+  }
+  // Social screens that are empty stay quiet: the menu shows a number only where something waits (wave J).
+  function socialLive(uid) {
+    sweepBattleBots();
+    return {
+      battles: q("SELECT COUNT(*) n FROM battles WHERE status = 'open' AND creator_id <> ?").get(uid).n,
+      rooms: q("SELECT COUNT(*) n FROM trade_rooms WHERE status = 'open' AND host_id <> ? AND host_seen > ?").get(uid, now() - HOST_GONE_MS).n,
+      lots: q('SELECT COUNT(*) n FROM listings WHERE seller_id NOT IN (0, ?)').get(uid).n, // players' cars (0 = the dealer)
+    };
   }
 
   // ---------- rewards ----------
@@ -3073,7 +3237,7 @@ export function createGame(db, opts = {}) {
   // PvP and battle wins: one per beaten rival per (UTC) day — two accounts racing each other at the minimum bet can't
   // farm the tiers. The rival of a finished match is creator + opponent − winner.
   const WINS_PER_RIVAL_DAY = (table) => `SELECT COUNT(DISTINCT (creator_id + opponent_id - winner_id) || ':' || (finished_at / 86400000)) n
-    FROM ${table} WHERE winner_id = ? AND status = 'done' AND opponent_id IS NOT NULL`;
+    FROM ${table} WHERE winner_id = ? AND status = 'done' AND opponent_id IS NOT NULL AND opponent_id <> ${S.BATTLE_BOT.id}`;
   const TIER_RANK = { stock: 0, street: 1, sport: 2, pro: 3, race: 4 };
   function achievementProgress(uid) {
     const u = userRow(uid);
@@ -3144,6 +3308,7 @@ export function createGame(db, opts = {}) {
   const PLAY_GAP_MS = 15e3;
   function pulse(uid) {
     sweepPvp();
+    sweepBattleBots();
     const u = userRow(uid), t = now(), day = dayOf(t);
     const gap = t - u.play_at;
     q('UPDATE users SET play_ms = play_ms + ?, play_at = ? WHERE id = ?').run(gap > 0 && gap <= PLAY_GAP_MS ? gap : 0, t, uid);
@@ -3192,6 +3357,13 @@ export function createGame(db, opts = {}) {
         const a = S.ACH_BY_KEY[s.key], tier = s.reached - 1;
         claims.push({ key: `ach:${s.key}:${tier}`, kind: 'ach', id: s.key, tier, title: `${a.title} · ${S.ACH_TIERS[tier].name}`, sub: S.achText(a, tier), money: achMoney(a, s.claimed, s.reached) });
       }
+    }
+    const rs = raceStreakOut(u);
+    if (rs.ready) {
+      const list = JSON.parse(q('SELECT ready FROM race_streak WHERE user_id = ?').get(uid).ready);
+      const last = list[list.length - 1];
+      claims.push({ key: `fire:${last.start}:${last.m}:${list.length}`, kind: 'fire', title: `Серія заїздів: ${last.m} ${S.daysWord(last.m)} поспіль!`,
+        sub: list.map((x) => S.raceStreakRewardText(S.raceStreakReward(x.m), rs.caseId)).join(' + ') });
     }
     const si = seasonInfo(u);
     if (si.ready) claims.push({ key: `pass:${si.id}:${si.level}:${si.premium ? 1 : 0}:${si.ready}`, kind: 'pass', title: `Сезонний пропуск: рівень ${si.level}`, sub: `Можна забрати: ${si.ready}` });
@@ -3527,6 +3699,10 @@ export function createGame(db, opts = {}) {
     if (achievementState(uid).some((s) => s.reached > s.claimed)) {
       const a = take('ach', () => achievementClaim(uid, {}));
       for (const k of a?.keys || []) key(k.caseId, k.count, 'Досягнення');
+    }
+    if (raceStreakOut(userRow(uid)).ready) {
+      const f = take('fire', () => raceStreakClaim(uid));
+      if (f) key(f.caseId, f.keys + f.newKeys, 'Серія заїздів');
     }
     if (seasonInfo(userRow(uid)).ready) {
       const p = take('pass', () => passClaim(uid));
@@ -4657,6 +4833,7 @@ export function createGame(db, opts = {}) {
     'room/offer': roomOffer, 'room/ready': roomReady, 'room/leave': roomLeave,
     'room/chat': (u, b) => postChat(u, roomLive(u, b.id).id, b.text),
     'battle/list': battleList, 'battle/create': battleCreate, 'battle/join': battleJoin, 'battle/cancel': battleCancel, 'battle/get': battleGet,
+    'streak/claim': raceStreakClaim, 'social/live': socialLive, // wave J: race streak rewards, live counts for the menu
     rewards, 'rewards/daily': dailyClaim, 'rewards/case': rewardCase, 'newbie/claim': newbieClaim, 'level/seen': levelSeen, 'intro/seen': introSeen, 'guide/off': guideOff, 'guide/on': guideOn,
     quests, 'quests/claim': questClaim, 'collection/claim': collectionClaim, sets, 'sets/claim': setClaim,
     weekly, 'weekly/claim': weeklyClaim, 'weekly/chest': weeklyChest,

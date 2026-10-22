@@ -693,7 +693,7 @@ function licenceCard(p) {
   const setB = (p.badges || []).filter((b) => b.key?.startsWith('set:'));
   const stamps = [
     p.vip ? `<span class="lstamp vip">${ic('crown')}VIP</span>` : '',
-    ...(p.badges || []).filter((b) => !b.key?.startsWith('set:')).map((b) => `<span class="lstamp" style="--bc:${BADGE_COLORS[b.tier] || '#8e8e93'}">${ic('trophy')}${esc(b.title)}</span>`),
+    ...(p.badges || []).filter((b) => !b.key?.startsWith('set:')).map((b) => `<span class="lstamp" style="--bc:${b.key === 'fire' ? '#ff8a3d' : BADGE_COLORS[b.tier] || '#8e8e93'}">${ic(b.key === 'fire' ? 'flame' : 'trophy')}${esc(b.title)}</span>`),
     ...setB.slice(0, 2).map((b) => `<span class="lstamp" style="--bc:${SET_TIER_COLORS[b.tier] || '#8e8e93'}">${ic('books')}${esc(b.title)}</span>`),
     setB.length > 2 ? `<span class="lstamp" style="--bc:#c3cad6">${ic('books')}+${setB.length - 2} ${plural(setB.length - 2, ['сет', 'сети', 'сетів'])}</span>` : '',
     p.legacy ? `<span class="lstamp legacy">${ic('heart')}Гравець з перших днів</span>` : '',
@@ -3118,11 +3118,11 @@ async function pvpView(car) {
   return `<div class="card"><b>Створити виклик</b><div class="list mt">${carRow(car, '<button class="btn sm ghost" data-act="pvpCar">Змінити</button>')}</div>
       <label class="fld mt" for="bet">Ставка, ₴</label><input id="bet" inputmode="numeric" placeholder="Ставка" value="${grp(Math.max(S.PVP_MIN_BET, Math.min(me.balance, 50000)))}">
       <button class="btn mt" data-act="pvpCreate">Кинути виклик</button>
-      <div class="tiny muted mt">Суперник ставить стільки ж. Переможець забирає банк мінус ${S.FEE * 100}%. Якщо суперник онлайн — гонка наживо: кожен сам жме газ і перемикає передачі. Якщо ні — за нього їде автопілот.</div></div>
+      <div class="tiny muted mt">Суперник ставить стільки ж. Переможець забирає банк мінус ${S.FEE * 100}%. Якщо суперник онлайн — гонка наживо: кожен сам жме газ і перемикає передачі. Якщо ні — це гонка з суперником-ботом: його машиною й твоєю керує автопілот.</div>${ghostHook()}</div>
     <div class="h2"><span>Відкриті виклики</span></div>
     ${data.open.length ? `<div class="list">${data.open.map((p) => carRow(p.car, p.mine ? `<button class="btn sm red" data-act="pvpCancel" data-id="${p.id}">Скасувати</button>` : `<button class="btn sm" data-act="pvpAccept" data-id="${p.id}" data-bet="${p.bet}">${S.short(p.bet)}</button>`)
-      .replace('</b></div>', `</b></div><div class="tiny muted">${esc(p.creator)} · ${dec(p.car.et, 2)} с ${p.car.et < car.et ? '<span class="lose">швидший за твою</span>' : '<span class="win">повільніший за твою</span>'}</div>`)).join('')}</div>` : emptyBox('flag-3', 'Поки немає викликів', 'Створи перший — суперник поставить стільки ж')}
-    ${data.history.length ? `<div class="h2"><span>Історія</span></div><div class="list">${data.history.map((h) => `<div class="li"><div class="grow"><b class="${h.win ? 'win' : 'lose'}">${h.win ? 'Перемога' : 'Поразка'}</b> <span class="muted small">vs ${esc(h.rival.name)}</span><div class="tiny muted">${esc(M(h.me.model).name)} проти ${esc(M(h.rival.car.model).name)}</div></div><b>${h.win ? '+' + S.short(h.result.prize - h.bet) : '−' + S.short(h.bet)}</b></div>`).join('')}</div>` : ''}`;
+      .replace('</b></div>', `</b></div><div class="tiny muted">${esc(p.creator)} · ${dec(p.car.et, 2)} с ${p.car.et < car.et ? '<span class="lose">швидший за твою</span>' : '<span class="win">повільніший за твою</span>'}</div>${p.mine ? '' : pvpWho(p)}`)).join('')}</div>` : emptyLine('flag-3', 'Поки порожньо — кинь виклик вище: його побачать усі, хто зайде в PvP')}
+    ${data.history.length ? `<div class="h2"><span>Історія</span></div><div class="list">${data.history.map((h) => `<div class="li"><div class="grow"><b class="${h.win ? 'win' : 'lose'}">${h.win ? 'Перемога' : 'Поразка'}</b> <span class="muted small">vs ${esc(h.rival.name)}${h.result?.live ? '' : ' · на автопілоті'}</span><div class="tiny muted">${esc(M(h.me.model).name)} проти ${esc(M(h.rival.car.model).name)}</div></div><b>${h.win ? '+' + S.short(h.result.prize - h.bet) : '−' + S.short(h.bet)}</b></div>`).join('')}</div>` : ''}`;
 }
 H.pvpCar = () => pickCar('Обери авто', (id) => (state.raceCar = state.raceCarPicked = id, render()));
 H.pvpCreate = () => act('pvp/create', { carId: state.raceCar, bet: num($('#bet').value) }, 'Виклик створено — чекай суперника');
@@ -3137,7 +3137,7 @@ H.pvpAccept = (d) => pickCar(`Твоє авто · ставка ${S.fmt(Number(d
     return toast(e.message, true);
   }
   if (r.offline) {
-    if (await confirmBox('Суперник зараз не в грі. Поїхати проти його автопілота?')) pvpAutopilot(id, carId);
+    if (await confirmBox(PVP_BOT_ASK)) pvpAutopilot(id, carId);
     return;
   }
   pvpWaiting(r, carId);
@@ -3167,7 +3167,7 @@ function pvpWaiting(s, carId) {
     } else if (st.status === 'released' || st.status === 'cancelled') {
       clearInterval(pvpWaitTimer);
       closeModal();
-      if (st.status === 'released' && await confirmBox('Суперник не прийняв гонку. Поїхати проти його автопілота?')) pvpAutopilot(s.id, carId);
+      if (st.status === 'released' && await confirmBox(`Суперник не прийняв гонку. ${PVP_BOT_ASK}`)) pvpAutopilot(s.id, carId);
     }
   }, 1000);
 }
@@ -3197,8 +3197,9 @@ async function pvpAutopilot(id, carId) {
   try {
     const r = await api('pvp/accept', { id, carId });
     haptic(r.win ? 'success' : 'error');
-    const show = () => sheet('PvP · автопілот', `<div class="center"><div class="big ${r.win ? 'win' : 'lose'}">${r.win ? 'Перемога!' : 'Поразка'}</div>${r.win ? `<div class="win" style="font-weight:900">+${S.fmt(r.prize)}</div>` : ''}
-      <div class="mt">Ти: ${dec(r.result.opponent.time, 3)} с</div><div>${esc(r.rival.name)} (${esc(M(r.rival.car.model).name)}): ${dec(r.result.creator.time, 3)} с</div>
+    const show = () => sheet('PvP · суперник-бот', `<div class="center"><div class="big ${r.win ? 'win' : 'lose'}">${r.win ? 'Перемога!' : 'Поразка'}</div>${r.win ? `<div class="win" style="font-weight:900">+${S.fmt(r.prize)}</div>` : ''}
+      <div class="mt">Ти (автопілот): ${dec(r.result.opponent.time, 3)} с</div><div>${esc(r.rival.name)} ${botChip('суперник-бот')} (${esc(M(r.rival.car.model).name)}): ${dec(r.result.creator.time, 3)} с</div>
+      <div class="tiny muted mt">${esc(r.rival.name)} був не в грі, тож обидві машини їхали на автопілоті: вирішили машини й трохи удачі.</div>${ghostHook()}
       <button class="btn mt" data-act="closeModal">Готово</button></div>`);
     // The result comes a moment after "Так": if the player has already moved to another screen (or opened a sheet),
     // it doesn't jump over it — a banner under the header says what happened, "Дивитись" opens the details.
@@ -3206,7 +3207,7 @@ async function pvpAutopilot(id, carId) {
     if (here) show();
     await refresh();
     // After the refresh, so the reward banners it brings don't push this one out of the stack.
-    if (!here) showBanner({ key: `pvpres:${id}`, kind: 'pvp', title: `PvP: ${r.win ? 'перемога' : 'поразка'}`, sub: `${r.win ? `<b class="win">+${S.short(r.prize)}</b>` : 'ставку програно'} · автопілот ${esc(r.rival.name)}`, ttl: 12000, open: show, buttons: [{ label: 'Дивитись', act: 'bannerOpen' }] });
+    if (!here) showBanner({ key: `pvpres:${id}`, kind: 'pvp', title: `PvP: ${r.win ? 'перемога' : 'поразка'}`, sub: `${r.win ? `<b class="win">+${S.short(r.prize)}</b>` : 'ставку програно'} · суперник-бот (${esc(r.rival.name)})`, ttl: 12000, open: show, buttons: [{ label: 'Дивитись', act: 'bannerOpen' }] });
   } catch (e) {
     toast(e.message, true);
   }
@@ -4310,19 +4311,20 @@ PAGES.market = async () => {
         <div class="small muted">Фіксовані ціни, нові лоти кожні ${S.DEALER.hours} год · покупок лишилось <b style="color:var(--text)">${dealer.left}/${dealer.perPlayer}</b></div>
         <div class="tiny muted hn-dnote">Ціни вищі за колекційні, а викуп — ${Math.round(Math.min(...Object.values(S.SELL_RATES)) * 100)}–${Math.round(Math.max(...Object.values(S.SELL_RATES)) * 100)}%: дивись «продаж потім».</div></div></div></div>
       ${fromDealer.length ? `<div class="list">${fromDealer.map(row).join('')}</div>` : emptyBox('building-store', 'Дилер усе розпродав', 'Нові лоти з’являться, щойно спливе таймер')}
-      <div class="h2"><span>Від гравців</span><span>${fromPlayers.length}</span></div>
-      ${fromPlayers.length ? `<div class="list">${fromPlayers.map(row).join('')}</div>` : emptyBox('car', 'Лотів поки немає', 'Виставити своє авто можна з картки машини → «Продати»')}`;
+      <div class="h2"><span>Від гравців</span><span>${fromPlayers.length || ''}</span></div>
+      ${fromPlayers.length ? `<div class="list">${fromPlayers.map(row).join('')}</div>` : emptyLine('car', 'Поки порожньо — виставити свою машину: картка машини → «Продати»')}`;
   }
   if (state.marketTab === 'auction') {
     const { list, now } = await api('auction/list');
     return seg + (list.length ? `<div class="list auctions">${list.map((a) => carRow(a.car, a.mine ? (a.bids ? `<span class="chip">${a.bids} ставок</span>` : `<button class="btn sm red" data-act="unauction" data-id="${a.id}">Скасувати</button>`) : `<button class="btn sm ${a.leading ? 'green' : ''}" data-act="bid" data-id="${a.id}" data-min="${a.minBid}">${a.leading ? 'Лідер' : 'Ставка'}</button>`,
-      `${a.mine ? '<span class="chip mine">твій лот</span>' : ''}<span class="chip bidc">${a.topBid ? `${S.short(a.topBid)} · ${a.bids} ${plural(a.bids, ['ставка', 'ставки', 'ставок'])}` : `старт ${S.short(a.startPrice)}`}</span><span class="chip timec">${ic('clock')} <span data-until="${a.endsAt - (now - Date.now())}"></span></span>`, !a.mine)).join('')}</div>` : emptyBox('hammer', 'Активних аукціонів немає', 'Запусти свій: картка машини → «Продати» → «На аукціон»'));
+      `${a.mine ? '<span class="chip mine">твій лот</span>' : ''}<span class="chip bidc">${a.topBid ? `${S.short(a.topBid)} · ${a.bids} ${plural(a.bids, ['ставка', 'ставки', 'ставок'])}` : `старт ${S.short(a.startPrice)}`}</span><span class="chip timec">${ic('clock')} <span data-until="${a.endsAt - (now - Date.now())}"></span></span>`, !a.mine)).join('')}</div>` : emptyLine('hammer', 'Поки порожньо — запусти свій: картка машини → «Продати» → «На аукціон»'));
   }
   const [m, a] = await Promise.all([api('market/list'), api('auction/list')]);
   const mine = m.list.filter((l) => l.mine), auc = a.list.filter((x) => x.mine);
   return seg + `<div class="tiny muted">Виставити авто можна з його картки в гаражі → «Продати».</div>
-    <div class="h2"><span>На ринку</span><span>${mine.length}</span></div>${mine.length ? `<div class="list">${mine.map((l) => carRow(l.car, `<button class="btn sm red" data-act="unlist" data-id="${l.id}">Зняти</button>`, `<span class="chip mine">ціна ${S.short(l.price)}</span>`)).join('')}</div>` : emptyBox('building-store', 'Немає лотів на ринку', 'Свою ціну ставиш сам, комісія ' + S.FEE * 100 + '%')}
-    <div class="h2"><span>Аукціони</span><span>${auc.length}</span></div>${auc.length ? `<div class="list">${auc.map((x) => carRow(x.car, x.bids ? `<span class="chip">${x.bids} ставок</span>` : `<button class="btn sm red" data-act="unauction" data-id="${x.id}">Скасувати</button>`, `<span class="chip bidc">${x.topBid ? `${S.short(x.topBid)} від ${esc(x.leader)}` : `старт ${S.short(x.startPrice)}`}</span><span class="chip timec">${ic('clock')} <span data-until="${x.endsAt - (a.now - Date.now())}"></span></span>`)).join('')}</div>` : emptyBox('hammer', 'Немає аукціонів', 'Торги тривають 1–24 год, ставка в останню хвилину продовжує')}`;
+    ${!mine.length && !auc.length ? emptyLine('building-store', `Поки порожньо — свою ціну ставиш сам (комісія ${S.FEE * 100}%), аукціон триває 1–24 год`) : ''}
+    ${mine.length ? `<div class="h2"><span>На ринку</span><span>${mine.length}</span></div>` : ''}${mine.length ? `<div class="list">${mine.map((l) => carRow(l.car, `<button class="btn sm red" data-act="unlist" data-id="${l.id}">Зняти</button>`, `<span class="chip mine">ціна ${S.short(l.price)}</span>`)).join('')}</div>` : ''}
+    ${auc.length ? `<div class="h2"><span>Аукціони</span><span>${auc.length}</span></div>` : ''}${auc.length ? `<div class="list">${auc.map((x) => carRow(x.car, x.bids ? `<span class="chip">${x.bids} ставок</span>` : `<button class="btn sm red" data-act="unauction" data-id="${x.id}">Скасувати</button>`, `<span class="chip bidc">${x.topBid ? `${S.short(x.topBid)} від ${esc(x.leader)}` : `старт ${S.short(x.startPrice)}`}</span><span class="chip timec">${ic('clock')} <span data-until="${x.endsAt - (a.now - Date.now())}"></span></span>`)).join('')}</div>` : ''}`;
 };
 AFTER.market = () => {
   tickUntil();
@@ -4374,8 +4376,8 @@ async function itemMarket(kind) {
       + chipRow([['', 'Усі класи'], ...Object.keys(S.PLATE_VALUE).map((c) => [c, `${c} · ${S.CLASSES[c].name}`])], f.cls, 'itemCls');
   const filtered = f.type || f.tier || f.cls || f.region || f.query;
   const empty = filtered ? emptyBox('adjustments', 'За цим фільтром лотів немає', 'Спробуй інший рівень, клас чи регіон')
-    : emptyBox(kind === 'part' ? 'engine' : 'license', 'Лотів поки немає', `Свої ${kind === 'part' ? 'деталі' : 'номери'} можна виставити у вкладці «Мої лоти»`);
-  return seg + filters + sort + `<div class="h2"><span>${kind === 'part' ? 'Деталі від гравців' : 'Номери від гравців'}</span><span>${r.list.length}</span></div>
+    : emptyLine(kind === 'part' ? 'engine' : 'license', `Поки порожньо — свої ${kind === 'part' ? 'деталі' : 'номери'} можна виставити у вкладці «Мої лоти»`);
+  return seg + filters + sort + `<div class="h2"><span>${kind === 'part' ? 'Деталі від гравців' : 'Номери від гравців'}</span><span>${r.list.length || ''}</span></div>
     ${r.list.length ? `<div class="list">${r.list.map((l) => itemRow(l, r.now)).join('')}</div>` : empty}`;
 }
 const IMR = (x) => `${Math.round(x * 100)}%`;
@@ -4511,20 +4513,20 @@ function bindChat() {
 const miniCars = (models) => models.map((m) => `<span class="mini art">${carArt(m)}</span>`).join('');
 function roomsHtml(h) {
   const list = [...h.rooms].sort((a, b) => b.invited - a.invited || b.mine - a.mine);
-  if (!list.length) return emptyBox('arrows-exchange', 'Відкритих кімнат зараз немає', 'Створи свою — її побачать усі в Трейд-залі');
+  if (!list.length) return emptyLine('arrows-exchange', 'Поки порожньо — створи кімнату вище: її побачать усі, хто зайде в Трейд-зал');
   return `<div class="list">${list.map((r) => `<div class="li ${r.invited ? 'invited' : ''}"><div class="grow"><b>${esc(r.host.name)}</b> <span class="chip">рів. ${r.host.level}</span>${r.invited ? ' <span class="chip mine">запрошує тебе</span>' : ''}
       ${r.note ? `<div class="small">${esc(r.note)}</div>` : ''}${r.cars.length ? `<div class="row minis">${miniCars(r.cars)}</div>` : '<div class="tiny muted">гараж ' + S.short(r.host.value) + '</div>'}</div>
       ${r.mine ? `<button class="btn sm ghost" data-act="openRoom" data-id="${r.id}">Моя</button>` : `<button class="btn sm" data-act="roomJoin" data-id="${r.id}">Увійти</button>`}</div>`).join('')}</div>`;
 }
 const onlineHtml = (h) => (h.online.length ? `<div class="list">${h.online.map((u) => `<div class="li"><span class="lb-ava on">${esc(initialOf(u.name))}</span><div class="grow"><b class="ellipsis">${esc(u.name)}</b><div class="tiny muted">рів. ${u.level} · гараж ${S.short(u.value)}</div></div>
-    <button class="btn sm ghost" data-act="roomInvite" data-id="${u.id}">Запросити</button></div>`).join('')}</div>` : emptyBox('users', 'Зараз більше нікого немає онлайн', 'Залиш кімнату відкритою — хтось зайде'));
+    <button class="btn sm ghost" data-act="roomInvite" data-id="${u.id}">Запросити</button></div>`).join('')}</div>` : '');
 function hallHtml(h) {
   return `${h.myRoom ? `<button class="card row between roomback" data-act="openRoom" data-id="${h.myRoom}"><div><b>${ic('arrows-exchange')} Ти в кімнаті обміну</b><div class="small muted">Натисни, щоб повернутися</div></div><span class="chev">›</span></button>`
     : `<div class="card"><b>Створи кімнату обміну</b><div class="small muted">Її побачать усі в Трейд-залі й зможуть зайти, щоб обмінятися з тобою наживо</div>
       <input id="roomNote" class="mt" maxlength="60" placeholder="Що шукаєш? Напр.: «міняю BMW на Supra»" autocomplete="off"><button class="btn mt" data-act="roomCreate">Створити кімнату</button></div>`}
     <div class="h2"><span>Відкриті кімнати</span></div><div id="hallRooms">${roomsHtml(h)}</div>
     <div class="h2"><span>Загальний чат</span></div>${chatBlock(h.chat, 'hallSend')}
-    <div class="h2"><span>Гравці онлайн</span><span id="onlineN">${h.online.length}</span></div><div id="hallOnline">${onlineHtml(h)}</div>`;
+    <div class="h2" id="onlineH" ${h.online.length ? '' : 'hidden'}><span>Гравці онлайн</span><span id="onlineN">${h.online.length}</span></div><div id="hallOnline">${onlineHtml(h)}</div>`;
 }
 PAGES.trades = async () => {
   const tab = state.tradesTab || 'hall';
@@ -4549,6 +4551,7 @@ AFTER.trades = () => {
       $('#hallRooms').innerHTML = roomsHtml(h);
       $('#hallOnline').innerHTML = onlineHtml(h);
       $('#onlineN').textContent = h.online.length;
+      $('#onlineH').hidden = !h.online.length;
       if (h.chat.length) state.hallChatId = h.chat.at(-1).id;
       appendChat(h.chat);
     } catch {}
@@ -4708,7 +4711,7 @@ function battleRow(b) {
     : b.me ? (b.winnerId === me.id ? '<span class="chip ready">перемога</span>' : '<span class="chip lose">поразка</span>')
       : `<span class="chip">переміг ${esc((b.winnerId === b.creator.id ? b.creator : b.opponent).name)}</span>`;
   return `<button class="li" data-act="openBattle" data-id="${b.id}"><div class="grow"><b>${caseLabel(b.caseId)} ×${b.count}</b>
-    <div class="small muted">${esc(b.creator.name)}${b.opponent ? ` vs ${esc(b.opponent.name)}` : ''}${r ? ` · ${S.short(r.creator.total)} : ${S.short(r.opponent.total)}` : ''}</div></div>${verdict}</button>`;
+    <div class="small muted">${esc(b.creator.name)}${b.opponent ? ` vs ${esc(b.opponent.name)}${b.bot ? ' (бот)' : ''}` : ''}${r ? ` · ${S.short(r.creator.total)} : ${S.short(r.opponent.total)}` : ''}</div></div>${verdict}</button>`;
 }
 // The battle form starts on the cheapest case ×1 (it used to offer «Еліта ×3 = 30 млн» — 88% of a rich player's money).
 const battleDefaultCase = () => [...S.CASES].filter((c) => !c.starter).sort((a, b) => a.price - b.price)[0]?.id || 'rust';
@@ -4721,22 +4724,23 @@ PAGES.battles = async () => {
   const n = state.bCount || 1;
   const short = cs.price * n - me.balance;
   return `<div class="card"><b class="disp" style="font-size:18px">${ic('flame')} НОВИЙ БАТЛ</b>
-      <div class="small muted">Ти і суперник відкриваєте однакові кейси. У кого машини дорожчі — забирає <b>усі</b> авто з обох боків. Той, хто програв, отримує дешеву утішну машину.</div>
+      <div class="small muted">Ти і суперник відкриваєте однакові кейси. У кого машини дорожчі — забирає <b>усі</b> авто з обох боків. Той, хто програв живому гравцеві, отримує дешеву утішну машину.</div>
       <button class="picker bpick mt" data-act="bCasePicker" style="--c:${S.CLASSES[S.CLASS_ORDER.filter((k) => cs.weights[k]).pop()].color}"><span class="picker-ic">${caseIcon(cs)}</span>
         <span class="picker-tx"><b>${esc(cs.name)}</b><span class="picker-sub">${oddsBar(cs.weights)}</span></span><b class="bpick-p">${S.short(cs.price)}</b><span class="picker-chev">${ic('chevron-right')}</span></button>
       <div class="seg mt">${[1, 3, 6, 10].map((k) => `<button class="${k === n ? 'on' : ''}" data-act="bCount" data-n="${k}">×${k}</button>`).join('')}</div>
+      ${battleBotToggle()}
       ${short > 0 ? `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(short)}</button>` : `<button class="btn yellow" data-act="battleCreate">Створити батл · ${S.fmt(cs.price * n)}</button>`}
       <div class="tiny muted center mt">Гроші знімаються одразу, скасувати можна, поки ніхто не зайшов. Якщо після перемоги не вистачить місць у гаражі — сам обереш, які машини продати.</div></div>
-    <div class="h2"><span>Чекають суперника</span><span id="bOpenN">${L.open.length}</span></div>
+    <div class="h2" id="bOpenH" ${L.open.length ? '' : 'hidden'}><span>Чекають суперника</span><span id="bOpenN">${L.open.length}</span></div>
     <div id="bOpen">${battleOpenHtml(L.open)}</div>
     ${L.mine.length ? `<div class="h2"><span>Мої батли</span></div><div class="list">${L.mine.map(battleRow).join('')}</div>` : ''}
     ${L.recent.length ? `<div class="h2"><span>Останні батли</span></div><div class="list">${L.recent.map(battleRow).join('')}</div>` : ''}`;
 };
 const battleOpenHtml = (open) => (open.length ? `<div class="list">${open.map((b) => `<div class="li"><div class="grow"><b>${caseLabel(b.caseId)} ×${b.count}</b>
-    <div class="small muted">${esc(b.creator.name)} · рів. ${b.creator.level}</div></div>
+    <div class="small muted">${esc(b.creator.name)} · рів. ${b.creator.level}</div>${battleBotWait(b)}</div>
     ${b.mine ? `<button class="btn sm ghost" data-act="battleCancel" data-id="${b.id}">Скасувати</button>`
       : `<button class="btn sm yellow" data-act="battleJoin" data-id="${b.id}" data-price="${b.price}" ${me.balance < b.price ? 'disabled' : ''}>Битись · ${S.short(b.price)}</button>`}</div>`).join('')}</div>`
-  : emptyBox('flame', 'Відкритих батлів немає', 'Створи свій — суперник відкриє такі самі кейси'));
+  : emptyLine('flame', 'Поки порожньо — створи батл вище: якщо за 30 с ніхто не зайде, зіграє бот «Дилер Петрович»'));
 // The case for a new battle: the same list as «Вибір кейсу» (styled rows, odds, price) instead of a raw <select>.
 H.bCasePicker = () => {
   const group = (g, title) => {
@@ -4763,6 +4767,8 @@ AFTER.battles = () => {
       state.battleOpenMine = L.open.filter((b) => b.mine).map((b) => b.id);
       $('#bOpen').innerHTML = battleOpenHtml(L.open);
       $('#bOpenN').textContent = L.open.length;
+      $('#bOpenH').hidden = !L.open.length;
+      tickUntil();
     } catch {}
   }, 3000);
 };
@@ -4771,7 +4777,7 @@ H.battleCreate = async () => {
   const cs = S.CASE_BY_ID[state.bCase || 'rust'], n = state.bCount || 3;
   if (!(await confirmBox(`Створити батл: ${cs.name} ×${n} за ${S.fmt(cs.price * n)}?`))) return;
   try {
-    const { id } = await api('battle/create', { caseId: cs.id, count: n });
+    const { id } = await api('battle/create', { caseId: cs.id, count: n, botOk: state.bBot !== false });
     await refresh(false);
     openBattle(id, true);
   } catch (e) {
@@ -4808,12 +4814,12 @@ PAGES.battle = async () => {
   const b = (state.battle = await api('battle/get', { id: state.battle.id }));
   if (b.status === 'open') {
     return `<div class="card center waiting"><div class="spinner"></div><b>Чекаємо суперника…</b>
-      <div class="small muted">${caseLabel(b.caseId)} ×${b.count} · банк ${S.short(b.price * 2)}. Батл видно всім у «Кейс-батлах». Щойно хтось зайде — почнеться відкриття.</div>
+      <div class="small muted">${caseLabel(b.caseId)} ×${b.count} · банк ${S.short(b.price * 2)}. Батл видно всім у «Кейс-батлах». Щойно хтось зайде — почнеться відкриття.</div>${battleBotWait(b, true)}
       ${b.mine ? `<button class="btn ghost mt" data-act="battleCancel" data-id="${b.id}">Скасувати й повернути гроші</button>` : ''}</div>`;
   }
   if (b.status !== 'done') return '<div class="card center">Батл скасовано</div><button class="btn mt" data-act="go" data-page="battles">До батлів</button>';
   const r = b.result, hide = state.battleAnim;
-  const head = (p, tot, id) => `<div class="bhead ${!hide && b.winnerId === p.id ? 'won' : ''}" id="bh${id}"><b class="ellipsis">${esc(p.name)}${p.id === me.id ? ' (ти)' : ''}</b><span class="disp" id="tot${id}">${hide ? '0' : S.short(tot)}</span></div>`;
+  const head = (p, tot, id) => `<div class="bhead ${!hide && b.winnerId === p.id ? 'won' : ''}" id="bh${id}"><b class="ellipsis">${esc(p.name)}${p.id === me.id ? ' (ти)' : ''}</b>${p.bot ? botChip() : ''}<span class="disp" id="tot${id}">${hide ? '0' : S.short(tot)}</span></div>`;
   // The car each card turned into for me (prize if I won, my own drops on a tie) — to offer selling it right here.
   const mine = (side, i) => {
     const list = b.winnerId === me.id ? r.prize || [] : !b.winnerId ? (side === 'creator' ? r.creator : r.opponent).cars || [] : [];
@@ -4838,11 +4844,13 @@ function battleVerdict(b) {
   if (!b.winnerId) html = '<b class="disp" style="font-size:22px">НІЧИЯ</b><div class="small muted">Кожен забрав свої авто</div>';
   else if (b.winnerId === me.id) html = `<b class="disp win" style="font-size:24px">ПЕРЕМОГА!</b><div class="small">Ти забираєш усі ${b.count * 2} авто на ${S.fmt(total)}</div>${r.sold ? `<div class="tiny muted mt">${r.sold} авто не влізли в гараж — продано за ${S.fmt(r.soldFor)}</div>` : ''}
     <div class="tiny muted mt">Непотрібні машини можна продати кнопками під ними.</div>`;
+  else if (b.me && b.bot) html = `<b class="disp lose" style="font-size:24px">ПОРАЗКА</b><div class="small muted">Бот «${esc(S.BATTLE_BOT.name)}» відкрив дорожче. Його виграш нікому не дістається: ці машини просто зникають.</div>
+    <div class="tiny muted mt">Утішної машини в батлі з ботом немає. Так батл з ботом дає рівно стільки, скільки дали б ці кейси, якби ти відкрив їх сам: інакше бота можна було б «доїти».</div>`;
   else if (b.me) html = `<b class="disp lose" style="font-size:24px">ПОРАЗКА</b><div class="small muted">Утішний приз:</div>
     <div class="grid mt" style="grid-template-columns:1fr;max-width:190px;margin:8px auto 0">${carTile({ id: 0, model: r.consolation.model, parts: {}, hp: M(r.consolation.model).hp, value: M(r.consolation.model).price, status: 'garage' }, { act: 'none' })}</div>
     ${r.consolation.soldFor ? `<div class="tiny muted">Гараж повний — продано за ${S.fmt(r.consolation.soldFor)}</div>` : ''}`;
   else html = `<b class="disp" style="font-size:20px">Переміг ${esc(winner.name)}</b><div class="small muted">${S.fmt(total)} у банку</div>`;
-  return `${overfullHtml()}<div class="card center mt">${html}<button class="btn mt" data-act="go" data-page="battles">До батлів</button></div>`;
+  return `${overfullHtml()}<div class="card center mt">${html}${b.bot ? `<div class="tiny muted mt">${botChip()} Суперник — бот: ті самі кейси й ті самі шанси, що показані на кейсі.</div>` : ''}<button class="btn mt" data-act="go" data-page="battles">До батлів</button></div>`;
 }
 // Garage over its limit (battle prize, auction, reward): say how many to sell and offer to sell the cheapest extras.
 function overfullHtml() {
@@ -4925,8 +4933,9 @@ async function offersHtml() {
   const inc = open.filter((t) => t.incoming), out = open.filter((t) => !t.incoming);
   return `<button class="btn" data-act="tradeNew">+ Новий обмін за ID</button>
     <div class="tiny muted center mt">Машини переходять разом з деталями й номером. Перед підтвердженням усе перевіряється ще раз.</div>
-    <div class="h2"><span>Вхідні</span><span>${inc.length || ''}</span></div>${inc.length ? inc.map(tradeCard).join('') : emptyBox('arrows-exchange', 'Немає вхідних пропозицій', 'Коли хтось запропонує обмін, він з’явиться тут')}
-    <div class="h2"><span>Мої пропозиції</span><span>${out.length || ''}</span></div>${out.length ? out.map(tradeCard).join('') : emptyBox('arrow-right', 'Ти ще нічого не пропонував', 'Обмін за ID гравця — кнопка вгорі')}
+    ${!inc.length && !out.length ? emptyLine('arrows-exchange', 'Поки порожньо — запропонуй обмін за ID гравця (кнопка вгорі) або зайди в Трейд-зал') : ''}
+    ${inc.length ? `<div class="h2"><span>Вхідні</span><span>${inc.length}</span></div>${inc.map(tradeCard).join('')}` : ''}
+    ${out.length ? `<div class="h2"><span>Мої пропозиції</span><span>${out.length}</span></div>${out.map(tradeCard).join('')}` : ''}
     ${past.length ? `<div class="h2"><span>Історія</span></div>${past.map(tradeCard).join('')}` : ''}`;
 }
 H.tradeNew = () => {
@@ -6849,6 +6858,8 @@ H.challengesOpen = () => {
   state.challengeId = null;
   go('challenges');
 };
+// PvP screen hook (social wave): «Виклик-привид другу» opens the challenges section.
+H.ghostChallenge = () => H.challengesOpen();
 H.challengeOpen = (d) => {
   state.challengeId = d.id;
   go('challenges');
@@ -7659,3 +7670,141 @@ document.addEventListener('error', (e) => {
   face.classList.remove('photo');
   face.textContent = String(me?.firstName || me?.username || '?').replace(/^@/, '').trim().charAt(0).toUpperCase() || '?';
 }, true);
+
+// ---------- social without a crowd (night wave J: audit №5, feature 10) ----------
+// Empty social lists say it once, in one quiet line with the one useful thing to do (no big empty cards); case battles
+// get «Дилер Петрович» when nobody comes in 30 s (S.BATTLE_BOT); PvP says before the bet when the rival is a bot
+// (autopilot); the race streak with its weekly freeze lives on «Гонки» and in the profile. Existing screens are
+// extended from here (wrappers over AFTER / H / openProfile) so their own code stays as it was.
+const emptyLine = (icon, text, cta = '') => `<div class="empty-line">${ic(icon)}<span>${text}</span>${cta}</div>`;
+const botChip = (label = 'бот') => `<span class="botchip">${ic('cards')}${label}</span>`;
+// ---- battles with the bot
+function battleBotToggle() {
+  const on = state.bBot !== false;
+  return `<div class="bbot mt"><span class="bbot-ic">${ic('cards')}</span><div class="grow"><b>Бот, якщо ніхто не прийде</b>
+      <div class="tiny muted">Через ${S.BATTLE_BOT.waitMs / 1000} с зіграє «${esc(S.BATTLE_BOT.name)}»: ті самі кейси й шанси, що на кейсі. Утішної машини з ботом немає, його виграш нікому не дістається.</div></div>
+    <button class="toggle ${on ? 'on' : ''}" data-act="bBotToggle" aria-label="Бот, якщо ніхто не прийде" aria-pressed="${on}"></button></div>`;
+}
+H.bBotToggle = () => {
+  state.bBot = state.bBot === false;
+  const el = $('[data-act="bBotToggle"]');
+  el?.classList.toggle('on', state.bBot);
+  el?.setAttribute('aria-pressed', String(state.bBot));
+};
+// «Через 0:21 сяде бот» under an open battle (the server seats him; anyone's poll is enough).
+const battleBotWait = (b, big = false) => {
+  if (!b.botAt) return '';
+  const t = `<span class="bw-t" data-until="${b.botAt - clockOffset}">${left(b.botAt - serverNow())}</span>`;
+  return `<div class="bwait ${big ? 'bw-big' : ''}">${ic('cards')}<span>${big ? `Якщо ніхто не зайде — через ${t} сяде бот «${esc(S.BATTLE_BOT.name)}»` : `бот сяде через ${t}`}</span></div>`;
+};
+const afterBattleBase = AFTER.battle;
+AFTER.battle = () => {
+  afterBattleBase();
+  tickUntil();
+};
+// ---- PvP: who drives the rival's car, said before the bet
+const PVP_BOT_ASK = 'Суперника зараз немає в грі — замість нього поїде суперник-бот: автопілот на його машині (і на твоїй). Ставка та сама. Поїхати?';
+const pvpWho = (p) => `<div class="pvp-who">${p.auto ? `${botChip('суперник-бот')}<span>гравця немає в грі — їде автопілот</span>` : `<span class="pvp-live">${ic('bolt')}онлайн</span><span>гонка наживо</span>`}</div>`;
+// Hook for the ghost challenge (another wave builds it): a button appears only once H.ghostChallenge exists.
+const ghostHook = () => (typeof H.ghostChallenge === 'function' ? `<button class="btn ghost mt" data-act="ghostChallenge">${ic('share')} Виклик-привид другу</button>` : '');
+// ---- race streak (S.RACE_STREAK; me.raceStreak from the server)
+REWARD_KINDS.add('fire');
+REWARD_IC.fire = 'flame';
+const rsRewardText = (m, caseId) => S.raceStreakRewardText(S.raceStreakReward(m), caseId);
+function streakTile(where = 'race') {
+  const r = me?.raceStreak;
+  if (!r) return '';
+  const prev = [0, ...S.RACE_STREAK.milestones].filter((m) => m <= r.n).pop() || (r.n >= 30 ? Math.floor(r.n / 30) * 30 : 0);
+  const share = r.next > prev ? (r.n - prev) / (r.next - prev) : 0;
+  const togo = r.next - r.n;
+  const title = r.n ? `Серія заїздів: ${r.n} ${S.daysWord(r.n)}` : 'Серія заїздів';
+  const sub = r.ready ? `<b class="acc">Нагорода чекає — забери</b>`
+    : !r.n ? `Заїзд щодня → ${S.RACE_STREAK.milestones[0]} дні поспіль: ${esc(rsRewardText(S.RACE_STREAK.milestones[0], r.caseId))}`
+      : r.today ? `сьогодні ${ic('check')} · до ${r.next} — ще ${togo} ${S.daysWord(togo)}`
+        : r.frozen ? `вчора серію врятувала заморозка — проїдь сьогодні`
+          : `<span class="rs-warn">проїдь сьогодні хоч один заїзд</span>`;
+  return `<button class="rs-tile ${where} ${r.today ? 'lit' : ''} ${r.ready ? 'ready' : ''}" data-act="streakOpen" aria-label="${esc(title)}">
+    <span class="rs-ic">${ic('flame')}</span><span class="rs-tx"><b class="ellipsis">${title}${r.fire ? ` <span class="rs-fire">Вогонь ${r.fire}</span>` : ''}</b><span class="rs-sub">${sub}</span>
+    <span class="rs-bar"><i style="width:${Math.round(Math.min(1, share) * 100)}%"></i></span></span>
+    <span class="rs-frz ${r.freezeReady ? 'on' : ''}" title="Заморозка тижня: ${r.freezeReady ? 'є' : 'вже використана'}">${ic('shield-check')}<small>${r.freezeReady ? 'заморозка' : 'вже була'}</small></span></button>`;
+}
+function streakSheet() {
+  const r = me.raceStreak;
+  const ms = [...S.RACE_STREAK.milestones];
+  const rows = ms.map((m) => {
+    const done = r.n >= m, ever = r.best >= m;
+    return `<div class="li rs-ms ${done ? 'done' : ''}"><span class="rs-ms-n">${done ? ic('check') : m}</span><div class="grow"><b>${m} ${S.daysWord(m)} поспіль</b><div class="tiny muted">${esc(rsRewardText(m, r.caseId))}${m >= 7 ? ` · знак «Вогонь ${S.fireTier(m)}» на машині` : ''}</div></div>${ever ? `<span class="chip">${ic('flame')} значок</span>` : ''}</div>`;
+  }).join('');
+  sheet('Серія заїздів', `<div class="card center rs-head"><span class="rs-big ${r.today ? 'lit' : ''}">${ic('flame')}</span><b class="disp rs-n">${r.n}</b><div class="small muted">${r.n ? `${S.daysWord(r.n)} поспіль` : 'серії зараз немає'} · рекорд ${r.best}</div>
+      <div class="small mt">${r.today ? `Сьогодні вже ${ic('check')} — наступний заїзд рахується завтра` : r.n ? 'Проїдь сьогодні хоч один заїзд, щоб серія тривала' : 'Проїдь заїзд — почнеться серія'}</div>
+      ${r.ready ? `<button class="btn yellow mt" data-act="fireClaim">${ic('gift')} Забрати нагороду за серію</button>` : ''}</div>
+    <div class="h2"><span>Віхи</span><span>далі кожні ${S.RACE_STREAK.repeat} днів</span></div><div class="list">${rows}</div>
+    <div class="card mt rs-rules"><div class="row"><span class="rs-frz ${r.freezeReady ? 'on' : ''}">${ic('shield-check')}</span><b>Заморозка: ${r.freezeReady ? 'є на цей тиждень' : 'цього тижня вже використана'}</b></div>
+      <div class="tiny muted mt">Рахуються дні за Києвом, коли був хоч один заїзд: драг, кар'єра, дрифт або PvP (безкоштовне тренування дрифту не рахується). Пропустив один день — серію сама врятує заморозка, одна на тиждень (з понеділка). Заморожений день серію тримає, але не додає. Нагороди — ключі й фрагменти ключа твого рівня («${esc(S.CASE_BY_ID[r.caseId]?.name || '')}»), значок «Вогонь» — у профілі назавжди. Це окремо від щоденного бонусу.</div></div>`);
+}
+H.streakOpen = () => (me.raceStreak?.ready ? H.fireClaim() : streakSheet());
+H.fireClaim = async () => {
+  const r = await claimQuiet('streak/claim');
+  if (!r) return;
+  closeModal();
+  toast(`Серія заїздів: ${[r.keys ? `+${r.keys} ${plural(r.keys, ['ключ', 'ключі', 'ключів'])}` : '', r.frag ? `+${r.frag} фрагменти` : ''].filter(Boolean).join(' · ')} «${S.CASE_BY_ID[r.caseId]?.name || ''}»`);
+  pulseSoon();
+  if (r.keys + r.newKeys) await revealRewards([{ kind: 'key', caseId: r.caseId, count: r.keys + r.newKeys, title: 'Серія заїздів' }]);
+  else await refresh();
+};
+const bannerClaimBase = H.bannerClaim, bannerOpenBase = H.bannerOpen;
+H.bannerClaim = async (d) => {
+  const b = banners.get(d.key);
+  if (b?.data.claim?.kind !== 'fire') return bannerClaimBase(d);
+  hideBanner(d.key);
+  return H.fireClaim();
+};
+H.bannerOpen = (d) => {
+  const b = banners.get(d.key);
+  if (!b || b.data.open || b.data.kind !== 'fire') return bannerOpenBase(d);
+  hideBanner(d.key);
+  streakSheet();
+};
+// On «Гонки» (drag view): the tile under the tabs, and the flame mark on the car you race while a 7+ run is alive.
+const afterRaceBase = AFTER.race;
+AFTER.race = () => {
+  afterRaceBase();
+  if (state.race || state.drift || state.raceView !== 'race' || !me?.raceStreak || $('#view .rs-tile')) return;
+  const anchor = $('#view .carpick')?.previousElementSibling;
+  if (!anchor) return;
+  anchor.insertAdjacentHTML('beforebegin', streakTile('race'));
+  const fire = me.raceStreak.fire, cur = $('#view .carpick .car.sel .art');
+  if (fire && cur) cur.insertAdjacentHTML('beforeend', `<span class="fire-mark">${ic('flame')}Вогонь ${fire}</span>`);
+};
+// In the profile, right under the level card.
+const openProfileBase = openProfile;
+openProfile = function () {
+  openProfileBase();
+  $('#sheet .xpcard')?.insertAdjacentHTML('afterend', `<div class="mt">${streakTile('profile')}</div>`);
+};
+// ---- the menu hub: a number only where something waits; an empty section stays quiet
+const afterMenuBase = AFTER.menu;
+AFTER.menu = async () => {
+  await afterMenuBase();
+  const C = (state.social ||= { at: 0 });
+  if (Date.now() - C.at > 30e3) {
+    try {
+      Object.assign(C, await api('social/live'), { at: Date.now() });
+    } catch {
+      return;
+    }
+  }
+  if (state.tab !== 'menu' || state.page) return;
+  const tile = (page) => document.querySelector(`.hub .hub-t[data-page="${page}"]`);
+  const live = (page, n, words) => {
+    const el = tile(page);
+    if (!el || !n || el.querySelector('.hub-live-n')) return;
+    const tx = el.querySelector('.hub-tx'), info = tx.querySelector('.hub-i');
+    const html = `<span class="hub-live-n">${n} ${plural(n, words)}</span>`;
+    if (info) info.innerHTML = html;
+    else tx.insertAdjacentHTML('beforeend', `<span class="hub-i">${html}</span>`);
+  };
+  live('battles', C.battles, ['батл чекає', 'батли чекають', 'батлів чекають']);
+  live('trades', C.rooms, ['кімната', 'кімнати', 'кімнат']);
+  live('market', C.lots, ['лот', 'лоти', 'лотів']);
+};

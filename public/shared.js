@@ -1752,12 +1752,15 @@ export const UNLOCKS = [
   { key: 'dayrace', level: 2, name: 'Заїзд дня', icon: 'flag-3', text: 'Щодня одна машина для всіх: 3 спроби, таблиця й нагороди опівночі' },
   { key: 'drift', level: 3, name: 'Дрифт', icon: 'tornado', text: 'Другий режим гонок: траса дня й три суперники' },
   { key: 'plates', level: 3, name: 'Номери', icon: 'license', text: 'Генеруй номерні знаки — рідкісні коштують мільйони' },
+  // The social side opens on the first evening (audit №5: it used to be level 4–5, day 3+, after most players had left);
+  // the auction is a tab of the market, so it opens with it. Lowering a level only ever opens things: nobody loses a
+  // feature (feats keep what was used before), see test/social.test.js.
+  { key: 'market', level: 3, name: 'Ринок', icon: 'building-store', text: 'Дилер і лоти інших гравців: машини, деталі, номери' },
+  { key: 'trades', level: 3, name: 'Обміни', icon: 'arrows-exchange', text: 'Трейд-зал і обміни з іншими гравцями' },
+  { key: 'auction', level: 3, name: 'Аукціони', icon: 'hammer', text: 'Виставляй машини на торги й роби ставки' },
   { key: 'paint', level: 4, name: 'Фарбування', icon: 'palette', text: 'Колір кузова й ліврея для твоїх машин' },
   { key: 'tradein', level: 4, name: 'Трейд-ін', icon: 'refresh', text: '3 машини одного класу → 1, з шансом класу вище' },
-  { key: 'market', level: 4, name: 'Ринок', icon: 'building-store', text: 'Дилер і лоти інших гравців: машини, деталі, номери' },
   { key: 'pvp', level: 5, name: 'PvP-заїзди', icon: 'flag-3', text: 'Драг проти живих гравців на ставку' },
-  { key: 'trades', level: 5, name: 'Обміни', icon: 'arrows-exchange', text: 'Трейд-зал і обміни з іншими гравцями' },
-  { key: 'auction', level: 5, name: 'Аукціони', icon: 'hammer', text: 'Виставляй машини на торги й роби ставки' },
   { key: 'battles', level: 6, name: 'Кейс-батли', icon: 'flame', text: 'Відкривай кейси наввипередки з іншим гравцем' },
   { key: 'upgrade', level: 8, name: 'Апгрейд', icon: 'arrow-big-up-lines', text: 'Ризикни машинами заради дорожчої' },
   { key: 'casino', level: 10, name: 'Казино', icon: 'cards', text: 'Краш, міни, рулетка, слоти — на ігрові гривні' },
@@ -1778,6 +1781,34 @@ export const casinoGameOpen = (mode, game) => mode === 'on' || (mode === 'wheel'
 export function unlockedKeys({ level = 1, feats = [], staff = false, casino = CASINO_DEFAULT } = {}) {
   return UNLOCKS.filter((u) => (u.key !== 'casino' || casino !== 'off') && (staff || level >= u.level || feats.includes(u.key))).map((u) => u.key);
 }
+
+// ---------- social without a crowd (wave J) ----------
+// Case battles: a battle nobody joins within BATTLE_BOT.waitMs gets «Дилер Петрович», if its creator agreed
+// (battle/create botOk). He opens the same cases at exactly the odds shown on the case — no guarantee, no luck — and
+// the player's side of such a battle rolls the same way, so the two sides are identical draws: a battle with the bot is
+// worth exactly what opening the cases yourself is (whoever is dearer takes both sides, so the expected haul is one
+// side). His winnings are paid to nobody (those cars never exist), and there is no consolation car against him — it
+// would make him a money printer (a D car ≈ 40 000 sale on a 55 000 case). test/social.test.js checks all of it.
+export const BATTLE_BOT = { id: -1, name: 'Дилер Петрович', waitMs: 30e3 };
+export const isBattleBot = (id) => id === BATTLE_BOT.id;
+// Race streak (ideas 6.2): Kyiv days in a row with at least one race (drag, career, drift, PvP — the free drift
+// training doesn't count). One missed day a (Monday-based Kyiv) week is covered by a freeze, used by itself; the
+// frozen day keeps the run but doesn't add to it. Milestones go to the rewards center (pieces / keys of the level's
+// key, levelKey), and every `repeat` days after the last milestone again. Badge «Вогонь N» on the player card for
+// the best milestone; the car mark «Вогонь 7/14/30» while a run that long is alive (cosmetic).
+export const RACE_STREAK = { milestones: [3, 7, 14, 30], repeat: 30 };
+export const isRaceMilestone = (n) => RACE_STREAK.milestones.includes(n) || (n > 30 && n % RACE_STREAK.repeat === 0);
+export function raceStreakReward(m) {
+  if (m >= 30) return { keys: 2 };
+  if (m >= 14) return { keys: 1 };
+  return { frag: m >= 7 ? 4 : 2 };
+}
+export const raceStreakRewardText = (rw, caseId) => (rw.keys ? `${rw.keys} × ключ «${CASE_BY_ID[caseId]?.name || ''}»` : `${rw.frag} фрагменти ключа «${CASE_BY_ID[caseId]?.name || ''}»`);
+export const nextRaceMilestone = (n) => RACE_STREAK.milestones.find((m) => m > n) || (Math.floor(n / RACE_STREAK.repeat) + 1) * RACE_STREAK.repeat;
+export const fireTier = (n) => (n >= 30 ? 30 : n >= 14 ? 14 : n >= 7 ? 7 : 0);
+export const FIRE_BADGE_TIER = { 3: 0, 7: 1, 14: 2, 30: 3 };
+// «1 день», «3 дні», «7 днів».
+export const daysWord = (n) => (n % 10 === 1 && n % 100 !== 11 ? 'день' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'дні' : 'днів');
 
 // 14 days; a missed day loses nothing — the next claim simply continues the series (it starts over every season).
 export const DAILY_BONUS = [

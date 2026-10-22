@@ -168,6 +168,13 @@ CREATE TABLE IF NOT EXISTS battles (
   price INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'open', winner_id INTEGER, result TEXT, created_at INTEGER NOT NULL, finished_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS battles_status ON battles(status, id);
+-- Race streak (S.RACE_STREAK): Kyiv days in a row with a race. n race days in the current run, which began on start;
+-- day = the last race day; best = the longest run; freeze = the last missed day a weekly freeze covered; ready = JSON
+-- list of milestones reached and not yet claimed ([{ m, start }]).
+CREATE TABLE IF NOT EXISTS race_streak (
+  user_id INTEGER PRIMARY KEY, n INTEGER NOT NULL DEFAULT 0, day TEXT, start TEXT, best INTEGER NOT NULL DEFAULT 0,
+  freeze TEXT, ready TEXT NOT NULL DEFAULT '[]'
+);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 -- Players of the first (pre-reset) version: who invited them, how many Stars they donated, whether we've thanked them.
 CREATE TABLE IF NOT EXISTS legacy (id INTEGER PRIMARY KEY, referrer_id INTEGER, stars INTEGER NOT NULL DEFAULT 0, thanked INTEGER NOT NULL DEFAULT 0);
@@ -285,6 +292,9 @@ const MIGRATIONS = [
   'ALTER TABLE pvp ADD COLUMN o_u REAL NOT NULL DEFAULT 0',
   'ALTER TABLE pvp ADD COLUMN c_run TEXT',
   'ALTER TABLE pvp ADD COLUMN o_run TEXT',
+  // Case battles: the creator agreed that «Дилер Петрович» (S.BATTLE_BOT) sits in when nobody joins in time.
+  // Battles open before this column get 0, so no bot ever joins them.
+  'ALTER TABLE battles ADD COLUMN bot_ok INTEGER NOT NULL DEFAULT 0',
   // Luck (see S.LUCK): fading totals of case spending and drop value, and when the free rescue case was last given.
   'ALTER TABLE users ADD COLUMN luck_spent REAL NOT NULL DEFAULT 0',
   'ALTER TABLE users ADD COLUMN luck_got REAL NOT NULL DEFAULT 0',
