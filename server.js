@@ -12,6 +12,7 @@ import { createSender, createReminders } from './src/reminders.js';
 import { createStatic, compressSmall } from './src/static.js';
 import { PACKS, PACKS_ON_SALE, REF_REWARD, MODELS, shareCaption } from './public/shared.js';
 import { createShareStore, SHARE } from './src/share.js';
+import * as G from './public/ghost.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
@@ -30,7 +31,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
   };
   const game = createGame(db, { notify: (uid, text) => sender?.enqueue(uid, text, { urgent: true }), admins, broadcast });
   if (token) {
-    bot = createBot({ token, webappUrl, admins, game, log });
+    bot = createBot({ token, webappUrl, admins, game, log, inline: (query, from) => inlineAnswer(query, from) });
     sender = createSender({ send: bot.sendMessage, onBlocked: game.push.block, isBlocked: game.push.isBlocked, log });
     reminders = createReminders({ game, sender, markup: () => bot.playButton('🎁 Відкрити гру'), log });
     // Tell the team what changed in this release (once per changelog entry).
@@ -222,13 +223,52 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     return send(res, 200, { preparedId, link });
   }
 
+  // Ghost challenges (public/ghost.js). The Mini App's short name (@BotFather → the app's link t.me/<bot>/<name>) makes
+  // challenge links open the game itself (startapp=ch_<id>); without it they go through the bot (/start ch_<id>).
+  const tgApp = () => (/^[A-Za-z0-9_]{3,64}$/.test(process.env.TG_APP_NAME || '') ? process.env.TG_APP_NAME : '');
+  const httpsOrigin = () => (/^https:\/\//.test(webappUrl) ? new URL(webappUrl).origin : '');
+  // POST challenge/prepare { id, card }: the challenge as a photo message for WebApp.shareMessage — the card picture
+  // (uploaded with share/card) and «Прийняти виклик». The card is kept with the challenge for the bot's inline answers.
+  async function handleChallengeShare(req, res, uid) {
+    const body = await readBody(req);
+    const info = game.challengeInfo(String(body.id ?? ''));
+    if (!info || info.creatorId !== uid) throw new GameError('Це не твій виклик');
+    if (!bot?.username) throw new GameError('Поширення стане доступним після підключення бота');
+    if (!httpsOrigin()) throw new GameError('Потрібна https-адреса гри (WEBAPP_URL)');
+    if (!shares.get(body.card)) throw new GameError('Картка застаріла, спробуй ще раз');
+    game.challengeCard(uid, info.id, body.card);
+    const link = G.challengeLink(bot.username, tgApp(), info.id);
+    const preparedId = await bot.prepareShare(uid, { photoUrl: `${httpsOrigin()}/share/${body.card}.jpg`, caption: `${G.challengeCaption(info)}\n${link}`, link, button: '🏁 Прийняти виклик' });
+    return send(res, 200, { preparedId, link });
+  }
+  // The bot's inline mode (@bot ch_<id> in any chat, or WebApp.switchInlineQuery from the challenge sheet): a live
+  // challenge as its card (an article when the card is gone) with «Прийняти виклик»; anything else — an invitation
+  // with the player's own referral link.
+  function inlineAnswer(query, from) {
+    if (!bot?.username) return [];
+    const m = G.CH_PARAM.exec(String(query || '').trim());
+    const info = m ? game.challengeInfo(m[1]) : null;
+    if (info && !info.expired) {
+      const link = G.challengeLink(bot.username, tgApp(), info.id);
+      const caption = G.challengeCaption(info);
+      const reply_markup = { inline_keyboard: [[{ text: '🏁 Прийняти виклик', url: link }]] };
+      const card = info.card && shares.get(info.card) && httpsOrigin() ? `${httpsOrigin()}/share/${info.card}.jpg` : '';
+      if (card) return [{ type: 'photo', id: 'ch_' + info.id, photo_url: card, thumbnail_url: card, caption, reply_markup }];
+      return [{ type: 'article', id: 'ch_' + info.id, title: `Виклик: ${G.challengeLine(info.model, info.time)}`, description: `${info.who} · драг 402 м · їдь проти привида`,
+        input_message_content: { message_text: `${caption}\n${link}` }, reply_markup }];
+    }
+    const link = `https://t.me/${bot.username}?start=ref_${Number(from?.id) || 0}`;
+    return [{ type: 'article', id: 'invite', title: 'Запросити в АВТОДРОП', description: 'Кейси зі справжніми авто, гонки й гараж. Перший кейс безкоштовно',
+      input_message_content: { message_text: `${shareCaption()}\n${link}` }, reply_markup: { inline_keyboard: [[{ text: '🏎 Грати в АВТОДРОП', url: link }]] } }];
+  }
+
   async function handleApi(req, res, name) {
     if (name === 'config') {
       // Community links (Telegram channel with news, players' chat) come from Railway variables; empty = button hidden.
       const community = { channel: process.env.TG_CHANNEL_URL || '', chat: process.env.TG_CHAT_URL || '' };
       // EMOJI_STATUS_ID: the custom emoji (🏁) the app offers for the Telegram status after a career milestone; empty = no offer.
       const emojiStatus = /^\d{5,25}$/.test(process.env.EMOJI_STATUS_ID || '') ? process.env.EMOJI_STATUS_ID : '';
-      return send(res, 200, { dev, bot: bot?.username || null, stars: !!bot, packs: PACKS_ON_SALE ? PACKS : [], images: carImages(), partImages: folderImages('parts'), community, emojiStatus });
+      return send(res, 200, { dev, bot: bot?.username || null, stars: !!bot, packs: PACKS_ON_SALE ? PACKS : [], images: carImages(), partImages: folderImages('parts'), community, emojiStatus, app: tgApp(), inline: !!bot?.inline });
     }
     if (req.method !== 'POST') return send(res, 405, { error: 'POST only' });
     const uid = authenticate(req);
@@ -236,6 +276,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     if (limited(uid)) return send(res, 429, { error: 'Забагато запитів, зачекай секунду' });
     if (game.isBanned(uid)) return send(res, 403, { error: 'Акаунт заблоковано адміністрацією' });
     if (name === 'share/card' || name === 'share/prepare') return await handleShare(req, res, name, uid);
+    if (name === 'challenge/prepare') return await handleChallengeShare(req, res, uid);
     const body = await readBody(req);
     if (name === 'shop/invoice') {
       if (!bot) throw new GameError('Оплата зірками стане доступною після підключення бота');

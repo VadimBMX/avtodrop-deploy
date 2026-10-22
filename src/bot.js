@@ -1,4 +1,5 @@
 import { PACKS, PACKS_ON_SALE, SHOP_BY_ID, VIP_SUB, ALL_MODELS, MAIN_COUNTRIES, REF_FRIEND_BONUS, fmt, short } from '../public/shared.js';
+import { CH_PARAM, challengeLine } from '../public/ghost.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -17,11 +18,13 @@ export const BOT_DESCRIPTION = `🏁 АВТОДРОП — гараж мрії п
 export const BOT_SHORT_DESCRIPTION = `Кейси зі справжніми авто, гонки й гараж, що заробляє. Перший кейс — безкоштовно 🎁`;
 
 // The /start reply. created: the player is new; ref: came by a friend's link (got the friend bonus);
-// pushBack: reminders were off and /start turned them on again; canButton: the «Грати» button can be shown.
-export function startText({ name, created = false, ref = false, pushBack = false, canButton = true } = {}) {
+// pushBack: reminders were off and /start turned them on again; canButton: the «Грати» button can be shown;
+// challenge: came by a ghost challenge's link ({ who, model, time }, game.challengeInfo) — the reply leads with it.
+export function startText({ name, created = false, ref = false, pushBack = false, canButton = true, challenge = null } = {}) {
   const hi = name ? `Привіт, ${name}!` : 'Привіт!';
   const lines = [];
   if (pushBack) lines.push('🔔 Нагадування знову увімкнено.', '');
+  if (challenge) lines.push(`👻 ${challenge.who} кидає тобі виклик: ${challengeLine(challenge.model, challenge.time)}`, challenge.expired ? 'Термін цього виклику вже минув — але можна кинути свій!' : 'Їдь проти його привида — тисни «Прийняти виклик» 👇', '');
   lines.push(created ? `🏁 ${hi} Вітаємо в АВТОДРОПі — тут збирають гараж мрії.` : `🏁 ${hi} Гараж чекає на тебе.`, '');
   lines.push(
     created ? '🎁 Стартовий кейс уже твій — відкрий безкоштовно' : '🎁 Щоденний бонус і кейс нагород — забирай щодня',
@@ -33,10 +36,11 @@ export function startText({ name, created = false, ref = false, pushBack = false
   return lines.join('\n');
 }
 
-export function createBot({ token, webappUrl, admins = [], game, log = console.error }) {
+// inline(query, from) → results for the bot's inline mode (server.js: a ghost challenge card or an invite), or null.
+export function createBot({ token, webappUrl, admins = [], game, inline = null, log = console.error }) {
   const base = `https://api.telegram.org/bot${token}/`;
   const canButton = /^https:\/\//.test(webappUrl || '');
-  let username = null;
+  let username = null, inlineOn = false;
   let offset = 0;
   let stopped = false;
 
@@ -56,6 +60,12 @@ export function createBot({ token, webappUrl, admins = [], game, log = console.e
   const send = (chatId, text, extra = {}) => call('sendMessage', { chat_id: chatId, text, reply_markup: playButton(), ...extra });
 
   async function handle(u) {
+    if (u.inline_query) {
+      const iq = u.inline_query;
+      const results = (inline && (await inline(iq.query, iq.from))) || [];
+      await call('answerInlineQuery', { inline_query_id: iq.id, results, cache_time: 10, is_personal: true });
+      return;
+    }
     if (u.pre_checkout_query) {
       const pq = u.pre_checkout_query;
       const [kind, packId, uid, price] = String(pq.invoice_payload).split(':');
@@ -113,7 +123,12 @@ export function createBot({ token, webappUrl, admins = [], game, log = console.e
       const u = game.ensureUser(m.from, args[0]) || {};
       const wasOff = !!game.push?.isOff(m.from.id);
       if (wasOff) game.push.set(m.from.id, true);
-      await send(m.chat.id, startText({ name: m.from.first_name, created: !!u.created, ref: !!u.ref, pushBack: wasOff, canButton }));
+      // A ghost challenge's link: the reply names it and its button opens the game right on the challenge (?ch=<id>).
+      const chM = CH_PARAM.exec(args[0] || '');
+      const challenge = chM ? game.challengeInfo?.(chM[1]) : null;
+      const chUrl = challenge && canButton ? `${webappUrl}${webappUrl.includes('?') ? '&' : '?'}ch=${challenge.id}` : null;
+      await send(m.chat.id, startText({ name: m.from.first_name, created: !!u.created, ref: !!u.ref, pushBack: wasOff, canButton, challenge }),
+        chUrl && !challenge.expired ? { reply_markup: { inline_keyboard: [[{ text: '🏁 Прийняти виклик', web_app: { url: chUrl } }]] } } : {});
     } else if (cmd === '/help') {
       await send(m.chat.id, 'Питання по оплаті — /paysupport\nПромокоди шукай у нашому каналі.');
     } else if (cmd === '/paysupport') {
@@ -137,7 +152,7 @@ export function createBot({ token, webappUrl, admins = [], game, log = console.e
   async function loop() {
     while (!stopped) {
       try {
-        const ups = await call('getUpdates', { offset, timeout: 25, allowed_updates: ['message', 'pre_checkout_query'] });
+        const ups = await call('getUpdates', { offset, timeout: 25, allowed_updates: ['message', 'pre_checkout_query', 'inline_query'] });
         for (const u of ups) {
           offset = u.update_id + 1;
           await handle(u).catch((e) => log('bot update:', e.message));
@@ -172,13 +187,14 @@ export function createBot({ token, webappUrl, admins = [], game, log = console.e
   }
 
   // A drop card the player can send to any chat from the Mini App (WebApp.shareMessage, Bot API 8.0): a photo with a
-  // caption and a «Грати» button that opens the bot with the player's referral link. Returns the prepared message id.
-  async function prepareShare(uid, { photoUrl, caption, link }) {
+  // caption and a «Грати» button that opens the bot with the player's referral link (a ghost challenge: «Прийняти
+  // виклик» with the challenge's link, `button`). Returns the prepared message id.
+  async function prepareShare(uid, { photoUrl, caption, link, button = '🏎 Грати в АВТОДРОП' }) {
     const r = await call('savePreparedInlineMessage', {
       user_id: uid,
       result: {
         type: 'photo', id: crypto.randomUUID().slice(0, 32), photo_url: photoUrl, thumbnail_url: photoUrl, caption: String(caption).slice(0, 1024),
-        reply_markup: { inline_keyboard: [[{ text: '🏎 Грати в АВТОДРОП', url: link }]] },
+        reply_markup: { inline_keyboard: [[{ text: button, url: link }]] },
       },
       allow_user_chats: true, allow_group_chats: true, allow_channel_chats: true, allow_bot_chats: false,
     });
@@ -192,9 +208,15 @@ export function createBot({ token, webappUrl, admins = [], game, log = console.e
     get username() {
       return username;
     },
+    // Inline mode is switched on for the bot in @BotFather (getMe.supports_inline_queries): the app may offer
+    // WebApp.switchInlineQuery for a challenge.
+    get inline() {
+      return inlineOn;
+    },
     async start() {
       const me = await call('getMe');
       username = me.username;
+      inlineOn = !!me.supports_inline_queries;
       await call('deleteWebhook').catch(() => {});
       if (canButton) await call('setChatMenuButton', { menu_button: { type: 'web_app', text: 'Грати', web_app: { url: webappUrl } } }).catch((e) => log(e.message));
       await call('setMyCommands', { commands: [{ command: 'start', description: 'Відкрити гру' }, { command: 'help', description: 'Допомога' }, { command: 'paysupport', description: 'Питання по оплаті' }, { command: 'stop', description: 'Вимкнути нагадування' }] }).catch(() => {});

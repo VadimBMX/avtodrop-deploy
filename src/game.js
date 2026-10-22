@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import * as S from '../public/shared.js';
 import * as T from '../public/tune.js';
+import * as G from '../public/ghost.js';
 import * as M from './metrics.js';
 import { createDayRace } from './dayrace.js';
 
@@ -562,13 +563,15 @@ export function createGame(db, opts = {}) {
       moneyFlow(S.START_BALANCE);
       if (legacyWelcome(uid)) return { created: true };
       const m = /^ref_(\d{1,20})$/.exec(startParam || '');
-      const ref = m ? Number(m[1]) : null;
+      const ch = m ? null : challengeRef(startParam); // a ghost challenge's link invites like a ref link (its creator)
+      const ref = m ? Number(m[1]) : ch ? ch.creator_id : null;
       if (ref && ref !== uid && q('SELECT id FROM users WHERE id = ?').get(ref)) {
         q('UPDATE users SET referrer_id = ? WHERE id = ?').run(ref, uid);
         addMoney(uid, S.REF_FRIEND_BONUS);
         addKeys(uid, S.REF_FRIEND_KEY, 1);
         gift(uid, 'ref', { from: name(ref), money: S.REF_FRIEND_BONUS, caseId: S.REF_FRIEND_KEY, l3: S.REF_FRIEND_L3 });
-        event(ref, `👥 ${name(uid)} приєднався за твоїм посиланням. Коли він досягне 3 рівня — отримаєш ${S.fmt(S.REF_REWARD)}`);
+        event(ref, `👥 ${name(uid)} приєднався за твоїм ${ch ? 'викликом' : 'посиланням'}. Коли він досягне 3 рівня — отримаєш ${S.fmt(S.REF_REWARD)}`);
+        if (ch) q('UPDATE challenges SET recruits = recruits + 1 WHERE id = ?').run(ch.id);
         return { created: true, ref: true };
       }
       return { created: true };
@@ -1525,7 +1528,9 @@ export function createGame(db, opts = {}) {
     const win = time < rival.time;
     if (win) addMoney(uid, race.entry + race.prize);
     const result = { win, time, rivalTime: rival.time, diff: round3(Math.abs(time - rival.time)), prize: win ? race.prize : 0, entry: race.entry, jump: run.jump, perfectStart: run.perfectStart, reaction: run.reaction, shifts, corrected: run.corrected };
+    if (!run.legacy && !expired) result.run = { launch: Number(body.launch), shiftAt: body.shiftAt.map(Number) }; // the tap times: a ghost challenge replays them
     if (rival.boss && S.BOSS_BY_ID[rival.boss]) result.boss = bossAfterRace(uid, S.BOSS_BY_ID[rival.boss], result, rival);
+    if (rival.ghost) result.challenge = challengeAfterRace(uid, rival, result);
     q("UPDATE races SET status = 'done', result = ? WHERE id = ?").run(JSON.stringify(result), race.id);
     q('UPDATE users SET races = races + 1, wins = wins + ? WHERE id = ?').run(win ? 1 : 0, uid);
     q('DELETE FROM rivals WHERE user_id = ? AND car_id = ?').run(uid, race.car_id);
@@ -4632,6 +4637,7 @@ export function createGame(db, opts = {}) {
     'plate/generate': generatePlate, 'plate/attach': attachPlate, 'plate/detach': detachPlate, 'plate/sell': sellPlate,
     'race/rivals': rivals, 'race/start': raceStart, 'race/finish': raceFinish,
     'boss/list': bossList, 'boss/start': bossStart,
+    'challenge/create': challengeCreate, 'challenge/get': challengeGet, 'challenge/start': challengeStart, 'challenge/list': challengeList,
     'drift/rivals': driftRivals, 'drift/start': driftStart, 'drift/finish': driftFinish,
     upgrade, 'dealer/tradein': tradeIn,
     'casino/slots': slots, 'casino/roulette': roulette,
@@ -4713,6 +4719,172 @@ export function createGame(db, opts = {}) {
     if (!light) recalc(uid);
     return r;
   })]));
+
+  // ---------- ghost challenges («Виклик-привид», rules and the ghost in public/ghost.js) ----------
+  // Any finished drag run (solo, career, a ghost race itself) can be thrown as a challenge: a link a friend opens to
+  // race the GHOST of that run — its stored reaction and gear changes replayed on the drag scene, its time to beat.
+  // The friend picks any car of his own (with an empty garage he gets the creator's model at stock for this race
+  // only); his run is a normal drag race (a `races` row, checked by race/finish → dragRun) and is judged against the
+  // stored time. No bets: the game pays a win (once per challenge, G.CHALLENGE.winPays a day) and pays the creator for
+  // a defence (each player's first loss, .defendPays a day). The first start against a challenge is free of fuel.
+  // A new player who came by the link becomes the creator's referral (ensureUser: the same rewards as a ref link).
+  const chRow = (id) => (G.CH_ID.test(String(id ?? '')) ? q('SELECT * FROM challenges WHERE id = ?').get(String(id)) || null : null);
+  function challengeRef(startParam) {
+    const m = G.CH_PARAM.exec(typeof startParam === 'string' ? startParam : '');
+    return m ? chRow(m[1]) : null;
+  }
+  function chOut(ch, uid) {
+    return { id: ch.id, creator: { id: ch.creator_id, name: name(ch.creator_id) }, car: JSON.parse(ch.car), time: ch.time,
+      createdAt: ch.created_at, expiresAt: ch.expires_at, expired: now() >= ch.expires_at,
+      accepted: ch.accepted, beaten: ch.beaten, defended: ch.accepted - ch.beaten, recruits: ch.recruits, mine: ch.creator_id === uid };
+  }
+  const chToday = (uid) => q('SELECT COUNT(*) n FROM challenges WHERE creator_id = ? AND day = ?').get(uid, dayOf(now())).n;
+  const chWinsPaid = (uid) => q('SELECT COUNT(*) n FROM challenge_tries WHERE user_id = ? AND prize_day = ?').get(uid, dayOf(now())).n;
+  const chRivals = (chId) => q('SELECT user_id, best, won_at, tries FROM challenge_tries WHERE challenge_id = ? AND tries > 0 ORDER BY won_at IS NULL, best LIMIT 10').all(chId)
+    .map((r) => ({ name: name(r.user_id), best: r.best, won: !!r.won_at, tries: r.tries }));
+  const chTry = (chId, uid) => q('SELECT * FROM challenge_tries WHERE challenge_id = ? AND user_id = ?').get(chId, uid) || null;
+  // The car a challenge is raced with, as the race saw it: { model, cls, hp, kg, base, shift, parts, look, loaner? }.
+  const chCar = (c) => ({ model: c.model, cls: S.MODELS[c.model].cls, hp: c.hp, kg: c.kg, base: c.base, shift: c.shift || 0, parts: c.parts || {}, look: c.look || null, ...(c.loaner ? { loaner: true } : {}) });
+  function challengeCreate(uid, { raceId }) {
+    const race = q('SELECT * FROM races WHERE id = ? AND user_id = ?').get(int(raceId, 1, 1e15, 'ID заїзду'), uid);
+    if (!race || race.status !== 'done' || !race.result) fail('Спершу доїдь заїзд до фінішу');
+    const left = () => Math.max(0, G.CHALLENGE.perDay - chToday(uid));
+    const old = q('SELECT * FROM challenges WHERE race_id = ?').get(race.id);
+    if (old) return { challenge: chOut(old, uid), left: left(), again: true }; // the same run shared again: one challenge
+    const rival = JSON.parse(race.rival), res = JSON.parse(race.result);
+    if (!(res.time < 99) || !res.run) fail('Цей заїзд не можна кинути викликом — проїдь ще раз');
+    if (now() - race.created_at > G.CHALLENGE.maxAgeH * 3600e3) fail('Заїзд застарів — проїдь новий і кинь виклик');
+    if (!left()) fail(`Ліміт — ${G.CHALLENGE.perDay} викликів на день. Завтра можна знову`);
+    // A ghost race keeps the car it was raced with; otherwise the car itself, if it hasn't changed since the race.
+    let car = rival.me?.model ? rival.me : null;
+    if (!car) {
+      const o = carOut(carRow(race.car_id));
+      if (!o || o.base !== rival.me?.base || (o.shift || 0) !== (rival.me?.shift || 0)) fail('Машину змінили після заїзду — проїдь ще раз і кинь виклик');
+      car = o;
+    }
+    const snap = chCar(car);
+    const reaction = S.reactionOf(res.run.launch, rival.greenMs ?? S.RACE_GREEN[0]);
+    const plan = G.ghostPlan(snap, reaction, res.run.shiftAt, res.shifts);
+    if (Math.abs(plan.time - res.time) > 0.0005) fail('Цей заїзд не можна кинути викликом — проїдь ще раз');
+    let id;
+    do id = crypto.randomBytes(5).toString('hex'); while (chRow(id));
+    const t = now();
+    q('INSERT INTO challenges (id, creator_id, race_id, car, run, time, day, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, uid, race.id, JSON.stringify(snap), JSON.stringify({ reaction, shiftAt: res.run.shiftAt, shifts: plan.shifts }), res.time, dayOf(t), t, t + G.CHALLENGE.ttlDays * 86400e3);
+    return { challenge: chOut(chRow(id), uid), left: left(), again: false };
+  }
+  // The challenge screen: who threw it, the car (class, power) and the time; my runs against it; what a win pays;
+  // whether the next start is free; the loaner when my garage is empty; for the creator — who raced it.
+  function challengeGet(uid, { id }) {
+    const ch = chRow(id);
+    if (!ch) fail('Виклик не знайдено — можливо, посилання неповне');
+    const out = { challenge: chOut(ch, uid) };
+    if (ch.creator_id === uid) return { ...out, rivals: chRivals(ch.id) };
+    const tr = chTry(ch.id, uid);
+    const snap = JSON.parse(ch.car);
+    const empty = !q("SELECT 1 FROM cars WHERE owner_id = ? AND status = 'garage' LIMIT 1").get(uid);
+    return { ...out, my: tr ? { starts: tr.starts, tries: tr.tries, best: tr.best, won: !!tr.won_at, prize: tr.prize } : null,
+      free: !tr?.starts, winPaysLeft: Math.max(0, G.CHALLENGE.winPays - chWinsPaid(uid)),
+      loaner: empty ? { id: 0, model: snap.model, loaner: true, look: null, parts: {}, ...S.carStats({ model: snap.model }) } : null };
+  }
+  function challengeStart(uid, { id, carId, loaner }) {
+    startLimit(uid, 'races');
+    const ch = chRow(id);
+    if (!ch) fail('Виклик не знайдено');
+    if (ch.creator_id === uid) fail('Це твій виклик — надішли його другу');
+    if (now() >= ch.expires_at) fail('Термін виклику минув — кинь свій!');
+    const snap = JSON.parse(ch.car);
+    let c = null, car;
+    if (loaner) {
+      if (q("SELECT 1 FROM cars WHERE owner_id = ? AND status = 'garage' LIMIT 1").get(uid)) fail('Позичена машина — лише коли гараж порожній. Обери свою');
+      car = { id: 0, model: snap.model, loaner: true, look: null, parts: {}, ...S.carStats({ model: snap.model }) };
+    } else {
+      c = ownCar(uid, carId);
+      car = carOut(c);
+    }
+    const tr = chTry(ch.id, uid);
+    const free = !tr?.starts;
+    if (!free) useFuel(uid);
+    q("UPDATE races SET status = 'expired' WHERE user_id = ? AND status = 'running'").run(uid);
+    if (c) soil(c);
+    q('INSERT INTO challenge_tries (challenge_id, user_id, starts, first_at, last_at) VALUES (?, ?, 1, ?, ?) ON CONFLICT DO UPDATE SET starts = starts + 1, last_at = excluded.last_at')
+      .run(ch.id, uid, now(), now());
+    const run = JSON.parse(ch.run);
+    const plan = G.ghostPlan(snap, run.reaction, run.shiftAt, run.shifts);
+    const greenMs = S.RACE_GREEN[0] + Math.floor(rnd() * (S.RACE_GREEN[1] - S.RACE_GREEN[0]));
+    const r = { id: 'ghost', ghost: ch.id, label: 'Привид', name: name(ch.creator_id), model: snap.model, hp: snap.hp, look: snap.look, base: snap.base, shift: snap.shift,
+      time: ch.time, plan, entry: 0, prize: 0 };
+    const rec = { ...r, me: chCar(car), greenMs, free };
+    const raceId = Number(q('INSERT INTO races (user_id, car_id, rival, entry, prize, created_at) VALUES (?, ?, ?, 0, 0, ?)').run(uid, car.id, JSON.stringify(rec), now()).lastInsertRowid);
+    return { raceId, car, rival: r, greenMs, shiftPoints: S.SHIFT_POINTS, free };
+  }
+  // After race/finish of a ghost race: the run is counted against the challenge; a first win pays the prize (daily
+  // cap); a player's first run tells the creator how it went — a loss is a defence (paid, daily cap), a first win
+  // («побив твій час») invites a rematch. Later losses of the same player stay quiet.
+  function challengeAfterRace(uid, rival, result) {
+    const ch = chRow(rival.ghost);
+    if (!ch) return { id: rival.ghost };
+    const t = now(), day = dayOf(t);
+    const tr = chTry(ch.id, uid) || { tries: 0, best: null, won_at: null };
+    const first = !tr.tries, firstWin = result.win && !tr.won_at;
+    const snap = JSON.parse(ch.car), mine = rival.me?.model || snap.model;
+    let prize = 0;
+    if (firstWin && chWinsPaid(uid) < G.CHALLENGE.winPays) {
+      prize = G.winPrize(S.MODELS[snap.model].price, S.MODELS[mine].price);
+      addMoney(uid, prize);
+    }
+    const best = tr.best == null ? result.time : Math.min(tr.best, result.time);
+    q(`INSERT INTO challenge_tries (challenge_id, user_id, starts, tries, best, won_at, prize, prize_day, first_at, last_at) VALUES (?, ?, 1, 1, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT DO UPDATE SET tries = tries + 1, best = excluded.best, won_at = COALESCE(won_at, excluded.won_at), prize = prize + excluded.prize,
+       prize_day = COALESCE(excluded.prize_day, prize_day), last_at = excluded.last_at`)
+      .run(ch.id, uid, best, result.win ? t : null, prize, prize ? day : null, t, t);
+    if (first) q('UPDATE challenges SET accepted = accepted + 1 WHERE id = ?').run(ch.id);
+    if (firstWin) q('UPDATE challenges SET beaten = beaten + 1 WHERE id = ?').run(ch.id);
+    const who = name(uid), diff = Math.abs(ch.time - result.time);
+    let defend = 0;
+    if (first && !result.win && result.time < 99) {
+      const paid = q('SELECT COUNT(*) n FROM challenge_tries t JOIN challenges c ON c.id = t.challenge_id WHERE c.creator_id = ? AND t.defend_day = ?').get(ch.creator_id, day).n;
+      if (paid < G.CHALLENGE.defendPays) {
+        defend = G.defendPay(S.MODELS[snap.model].price);
+        addMoney(ch.creator_id, defend);
+        q('UPDATE challenge_tries SET defend_pay = ?, defend_day = ? WHERE challenge_id = ? AND user_id = ?').run(defend, day, ch.id, uid);
+      }
+      event(ch.creator_id, `👻 Твій привид переміг ${who}: ${G.chTime(result.time)} с проти твоїх ${G.chTime(ch.time)} с${defend ? ` · +${S.fmt(defend)}` : ''}`);
+    } else if (firstWin) {
+      event(ch.creator_id, `⚔️ ${who} побив твій час на ${diff.toFixed(diff < 0.01 ? 3 : 2).replace('.', ',')} с (${G.chTime(result.time)} проти ${G.chTime(ch.time)}) на ${S.MODELS[mine].name} — реванш?`);
+    }
+    result.prize = prize;
+    return { id: ch.id, creator: name(ch.creator_id), time: ch.time, first, firstWin, won: result.win || !!tr.won_at, prize, capped: firstWin && !prize,
+      best, tries: tr.tries + 1, expired: t >= ch.expires_at, loaner: !!rival.me?.loaner };
+  }
+  // «Виклики»: what I threw (with who raced it) and what I accepted, plus the totals («7–3»).
+  function challengeList(uid) {
+    const since = now() - G.CHALLENGE.listDays * 86400e3;
+    const sent = q('SELECT * FROM challenges WHERE creator_id = ? AND created_at > ? ORDER BY created_at DESC LIMIT 50').all(uid, since)
+      .map((ch) => ({ ...chOut(ch, uid), rivals: ch.accepted ? chRivals(ch.id) : [] }));
+    const got = q(`SELECT c.*, t.tries t_tries, t.best t_best, t.won_at t_won, t.prize t_prize FROM challenge_tries t JOIN challenges c ON c.id = t.challenge_id
+                   WHERE t.user_id = ? AND t.last_at > ? ORDER BY t.last_at DESC LIMIT 50`).all(uid, since)
+      .map((r) => ({ ...chOut(r, uid), my: { tries: r.t_tries, best: r.t_best, won: !!r.t_won, prize: r.t_prize } }));
+    const s = q('SELECT COUNT(*) n, COALESCE(SUM(accepted), 0) acc, COALESCE(SUM(beaten), 0) bt, COALESCE(SUM(recruits), 0) rc FROM challenges WHERE creator_id = ?').get(uid);
+    const a = q('SELECT COUNT(*) n, COALESCE(SUM(won_at IS NOT NULL), 0) w FROM challenge_tries WHERE user_id = ? AND tries > 0').get(uid);
+    return { sent, got, left: Math.max(0, G.CHALLENGE.perDay - chToday(uid)), winPaysLeft: Math.max(0, G.CHALLENGE.winPays - chWinsPaid(uid)),
+      stats: { sent: s.n, accepted: s.acc, beaten: s.bt, defended: s.acc - s.bt, recruits: s.rc, wins: a.w, losses: a.n - a.w } };
+  }
+  // For the bot (the /start reply, inline answers): who threw it, on what, the time; null when there is no such one.
+  const challengeInfo = (id) => {
+    const ch = chRow(id);
+    if (!ch) return null;
+    const car = JSON.parse(ch.car);
+    return { id: ch.id, who: name(ch.creator_id), creatorId: ch.creator_id, model: car.model, time: ch.time, expired: now() >= ch.expires_at, card: ch.card || null };
+  };
+  // The share card uploaded for a challenge (server.js share store id), kept for inline answers of the bot.
+  const challengeCard = (uid, id, card) => db.tx(() => {
+    const ch = chRow(id);
+    if (!ch || ch.creator_id !== uid) fail('Це не твій виклик');
+    if (card != null && !/^[0-9a-f]{32}$/.test(String(card))) fail('Некоректна картка');
+    q('UPDATE challenges SET card = ? WHERE id = ?').run(card ?? null, ch.id);
+    return chOut(chRow(id), uid);
+  });
 
   // ---------- owner metrics (admin «Метрики»; the arithmetic is in src/metrics.js) ----------
   // What moved the money right now, for money_src: the API call's name, 'admin/<action>', or the job that pays out on
@@ -4881,5 +5053,5 @@ export function createGame(db, opts = {}) {
     alog('bot', 'promo', null, { code: c, amount: Number(amount), uses: Number(uses), days: days || null });
     return c;
   });
-  return { api, admin, adminCall, announceUpdates, push, pushCandidates: push.candidates, pushMark: push.mark, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, vipSub: (uid) => db.tx(() => vipSub(uid)), vipSubSet: (uid, cancel) => db.tx(() => vipSubSet(uid, cancel)), createPromo: botPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)) };
+  return { api, admin, adminCall, announceUpdates, push, pushCandidates: push.candidates, pushMark: push.mark, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, vipSub: (uid) => db.tx(() => vipSub(uid)), vipSubSet: (uid, cancel) => db.tx(() => vipSubSet(uid, cancel)), createPromo: botPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)), challengeInfo, challengeCard };
 }

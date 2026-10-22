@@ -11,6 +11,9 @@ import * as SFX from './sfx.js';
 // «Заїзд дня»: the car of the day and the prizes (shared with the server); the share card is loaded when needed.
 import * as DRS from './dayrace.js';
 import * as WOW from './wow.js';
+// Ghost challenges: the ghost's replay and the rules (shared with the server), the share card.
+import * as G from './ghost.js';
+import { challengeCard } from './challenge-card.js';
 
 const tg = window.Telegram?.WebApp;
 const $ = (s, el = document) => el.querySelector(s);
@@ -100,6 +103,7 @@ function devUser() {
   } catch {}
   if (!u) {
     u = p.get('as') ? { id: Number(p.get('as')), first_name: p.get('name') || 'Гравець', username: p.get('name') || null } : { id: 1e9 + Math.floor(Math.random() * 1e6), first_name: 'Тестер' };
+    if (p.get('start')) u.start_param = p.get('start'); // DEV: a deep link's start parameter for a new test player
     try {
       localStorage.setItem(key, JSON.stringify(u));
     } catch {}
@@ -1772,6 +1776,7 @@ TABS.race = async () => {
       <div class="grow"><b class="ellipsis">${esc(r.name)}</b><div class="small muted rv-meta"><span class="ellipsis">${esc(M(r.model).name)}</span><span class="nw">· ${r.hp} к.с.</span></div>${r.driver ? `<div class="tiny muted rv-drv">водій: ${esc(r.driver)}</div>` : ''}
         <div class="row mt" style="gap:6px"><span class="diff ${r.id}">${r.label}</span>${rivalChanceChip(r)}</div></div>
       <div class="center"><b class="win">+${S.short(r.prize)}</b><div class="tiny muted">${r.entry ? `внесок ${S.short(r.entry)}` : 'без внеску'}</div>${r.et ? `<div class="tiny muted">${dec(r.et, 2)} с</div>` : ''}</div></button>`).join('')}</div>
+    ${challengeRaceRow()}
     <details class="dr-how"><summary>${ic('info-circle')} Як їздити</summary><div class="tiny muted">Тисни на суперника, щоб почати. Три жовті — чекай; щойно загориться зелений, жми «ГАЗ». Натиснеш до зеленого — фальстарт (−8% потужності). Реакція 0,10–0,15 с — ідеальний старт (+4%). Під час заїзду перемикай передачі, коли стрілка тахометра в зеленій зоні; не встигнеш — передача перемкнеться сама на відсічці, але пізно. Програв — внесок згоряє.</div>
       <div class="tiny muted mt">${RIVAL_HONEST_TEXT}</div></details>`;
 };
@@ -1940,7 +1945,7 @@ function raceScreen() {
   const neon = '<div class="dr-ntile"><i class="dr-bb" style="left:24px;--c:#ff3ea5">ДРАГ 402</i><i class="dr-bb" style="left:206px;--c:#3ee0ff">АВТОДРОП</i></div>';
   const car = (who, model, look, tag) => `<div class="dr-car ${who}" id="dr-${who}"><div class="dr-tag">${tag}</div><i class="dr-shd"></i>
     <div class="dr-smoke"><i></i><i></i><i></i><i></i><i></i></div><div class="dr-bod"><i class="dr-beam"></i>${carArt(model, { look })}<i class="dr-flame"></i></div></div>`;
-  return `<div class="drag${DR_RM ? ' rm' : ''}" id="drag">
+  return `<div class="drag${DR_RM ? ' rm' : ''}${R.rival.plan ? ' ghost' : ''}" id="drag">
   <div class="dr-scene" id="drScene">
     <div class="dr-sky"></div>
     <div class="dr-par dr-city">${city}${city}</div>
@@ -1949,7 +1954,7 @@ function raceScreen() {
     <div class="dr-lamps">${'<i class="dr-lamp"></i>'.repeat(4)}</div>
     ${DR_MARKS.map(([m, k, t]) => `<div class="dr-mk ${k}" data-m="${m}"><b>${t}</b></div>`).join('')}
     <div class="dr-streaks">${'<i></i>'.repeat(6)}</div>
-    ${car('rv', R.rival.model, R.rival.look, `<b class="ellipsis">${esc(R.rival.name)}</b><span>${R.rival.hp} к.с.</span>`)}
+    ${car('rv', R.rival.model, R.rival.look, `${R.rival.plan ? ic('ghost') : ''}<b class="ellipsis">${esc(R.rival.name)}</b><span>${R.rival.hp} к.с.</span>`)}
     ${car('me', R.car.model, R.car.look, `<b>Ти</b><span>${R.car.hp} к.с.</span>`)}
     <div class="dr-off l" id="drOffL"></div><div class="dr-off r" id="drOffR"></div>
     <div class="dr-hud"><div><small>Час</small><b id="rTimer">0,000</b></div><div class="right"><small>Розрив</small><b id="rGap">—</b></div></div>
@@ -2151,6 +2156,7 @@ function runRace() {
     doShift(S.tapQuality(rpmAt(u)), u, ms);
   });
   let shownRivalD = 0, myFin = null, rvFin = null, txt = {};
+  const ghost = R.rival.plan ? G.ghostDrive(R.rival, R.rival.plan) : null; // { react, drive } of a ghost challenge's run
   const coast = (t, v) => (DR_RM ? 0 : v * 1.1 * (1 - Math.exp(-t / 1.1))); // metres rolled past the line (t in race s)
   const set = (k, el, v) => txt[k] !== v && el && (el.textContent = txt[k] = v);
   function frame() {
@@ -2176,6 +2182,12 @@ function runRace() {
       rd = shownRivalD;
       ru = 1; // my own finish ends my run; the result waits for the rival
       rvGo = rd > 0.0005;
+    } else if (ghost) {
+      // A ghost challenge: the creator's stored run on the same timeline as my car (public/ghost.js).
+      ru = G.ghostU(R.rival, R.rival.plan, tau);
+      rd = Math.pow(ru, 1.6);
+      rvGo = tau > ghost.react;
+      if (ru >= 1 && rvFin == null) rvFin = tau;
     } else {
       const rReact = 0.25;
       ru = Math.max(0, Math.min(1, (tau - rReact) / (R.rival.time - rReact)));
@@ -2186,7 +2198,7 @@ function runRace() {
     if (rvGo) scene.launch('rv');
     if (u >= 1 && myFin == null) myFin = tau;
     const myV = (402 * 1.6) / S.dragDrive(R.car, R.reaction, R.shifts).drive;
-    const rvV = R.live ? myV : (402 * 1.6) / Math.max(0.5, R.rival.time - 0.25);
+    const rvV = R.live ? myV : ghost ? (402 * 1.6) / ghost.drive : (402 * 1.6) / Math.max(0.5, R.rival.time - 0.25);
     const myM = pd * 402 + (myFin != null ? coast(tau - myFin, myV) : 0);
     const rvM = rd * 402 + (rvFin != null ? coast(tau - rvFin, rvV) : 0);
     const rpm = R.phase === 'run' && u < 1 ? Math.max(0, Math.min(1.04, rpmAt(u))) : Math.max(0.12, 0.5 * Math.exp(-(tau - (myFin ?? tau)) * 2));
@@ -2390,6 +2402,7 @@ H.pvpExit = () => {
 function raceResult() {
   if (state.race.live) return liveResult();
   if (state.race.rival.boss) return bossResult();
+  if (state.race.rival.ghost) return ghostResult();
   // Solo result: the verdict and the money, a photo finish (the loser behind by the real gap at the line), both
   // times, then what decided it — the start, every shift with what it cost — and one tip.
   const R = state.race, r = R.result, car = R.car;
@@ -2417,6 +2430,7 @@ function raceResult() {
     <div class="dr-times">
       <div class="${r.win ? 'won' : ''}"><small>Ти</small><b>${dec(r.time, 3)} с</b><span class="ellipsis">${esc(M(car.model).name)}</span></div>
       <div class="${r.win ? '' : 'won'}"><small class="ellipsis">${esc(R.rival.name)}</small><b>${dec(r.rivalTime, 3)} с</b><span class="ellipsis">${esc(M(R.rival.model).name)}</span></div></div>
+    ${challengeCta(R)}
     <div class="card dr-sum">
       <div class="dr-row"><span class="dr-dot q-${st.q}"></span><div class="grow"><b>${st.t}</b><div class="small muted">${st.s}</div></div></div>
       <div class="dr-row"><span class="dr-dot q-${lost > 0.0005 ? 'late' : lost < -0.0005 ? 'perfect' : 'good'}"></span><div class="grow"><b>Передачі: ${shiftsTxt}</b>
@@ -3084,6 +3098,7 @@ function bossResult() {
   return raceSheetHtml({ tag: `Бос · ${esc(b.nick)}${hard ? ' · складний' : ''}`, win: r.win, diff: r.diff, amount, note,
     rows: [{ who: 'Ти', model: R.car.model, look: R.car.look, time: r.time, won: r.win }, { who: b.nick, model: b.model, time: r.rivalTime, won: !r.win }], start: startTxt, shifts: r.shifts })
     + reward
+    + challengeCta(R)
     + (nx && bo.first ? `<button class="btn yellow" data-act="bossNext" data-id="${nx.id}">Наступний бос: ${esc(nx.nick)}</button>`
       : `<button class="btn yellow" data-act="bossAgain" data-id="${b.id}" ${hard && !r.win ? 'data-hard="1"' : ''} ${me.fuel < 1 ? 'disabled' : ''}>${r.win ? 'Реванш' : hard ? 'Ще спроба · складний' : 'Ще спроба'} · пальне ${me.fuel}/${S.FUEL_MAX}</button>`)
     + `<button class="btn outline mt" data-act="raceExit">До кар'єри</button>`;
@@ -3928,7 +3943,7 @@ TABS.menu = () => {
   const H2 = (t, r = '') => `<div class="hub-h"><span>${t}</span>${r ? `<span>${r}</span>` : ''}</div>`;
   const nextLock = S.UNLOCKS.find((u) => !isOpen(u.key) && !(u.key === 'casino' && casinoOff()));
   return `<div class="hub">${head}${pass}${homeCard()}
-    ${H2('Нагороди й прогрес')}<div class="hub-grid g2">${tiles.join('')}</div>
+    ${H2('Нагороди й прогрес')}<div class="hub-grid g2">${tiles.join('')}</div>${challengeHubRow()}
     ${H2('Торгівля', nextLock && ['market', 'trades', 'tradein', 'plates'].includes(nextLock.key) ? `${ic('lock')} далі: ${nextLock.name} · рів. ${nextLock.level}` : '')}<div class="hub-grid g4">${trade.join('')}</div>
     ${H2('Ризикнути')}<div class="hub-grid g2">${risk.join('')}</div>
     ${H2('Магазин')}${store}
@@ -6760,9 +6775,10 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide']) {
     const story = S.storyFor(me, whatsNewSeenHere());
     const st = guideOn() && S.GUIDE_STEPS.find((s) => s.key === me.guide);
     if (st?.tab) state.tab = st.tab; // back in the middle of the first steps: open where the next one is
+    const fromLink = challengeFromLink(); // a ghost challenge's link opens on the challenge (over the intro's end too)
     render();
     // A new player gets neither the rewards window nor banners over the first steps: the guide brings them to the gift.
-    if (me.dailyReady && !guideOn() && !me.intro) {
+    if (me.dailyReady && !guideOn() && !me.intro && !fromLink) {
       openRewards();
       skipDailyBanner = true;
     }
@@ -6796,6 +6812,289 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide']) {
     } catch {}
   }, 20000);
 })();
+
+// ---------- ghost challenges («Виклик-привид»: public/ghost.js, public/challenge-card.js) ----------
+// After any finished drag run «Кинути виклик другу» throws it as a challenge: the share sheet with the card picture —
+// «Надіслати в чат» (WebApp.shareMessage with a «Прийняти виклик» button; else the t.me/share/url link), «Через @bot»
+// (switchInlineQuery, when the bot's inline mode is on) and «Скопіювати посилання». The link opens the game on the
+// challenge (page «Виклики» with state.challengeId): who, the car (class, power), the time to beat; the friend picks
+// any car of his (an empty garage gets the creator's model at stock for this race) and races the ghost — the stored
+// run replayed on the drag scene (runRace with R.rival.plan); the server checks the run like any drag race.
+PAGE_TITLES.challenges = 'Виклики';
+const chLink = (id) => G.challengeLink(config.bot, config.app, id) || (config.dev ? `${location.origin}/?ch=${id}` : '');
+const chT = (t) => `${dec(t, 3)} с`;
+// The challenge in the link: start_param ch_<id> (t.me/<bot>/<app>?startapp=…), ?ch=<id> (the bot's «Прийняти
+// виклик» button) or, in DEV, ?start=ch_<id>. Opens the page once, at boot.
+function challengeFromLink() {
+  const p = new URLSearchParams(location.search);
+  const sp = tg?.initDataUnsafe?.start_param || p.get('start') || '';
+  const id = G.CH_PARAM.exec(sp)?.[1] || (G.CH_ID.test(p.get('ch') || '') ? p.get('ch') : null);
+  if (!id) return false;
+  state.challengeId = id;
+  state.page = 'challenges';
+  return true;
+}
+// A result screen's call to throw this very run (it needs the run's tap times, which every current app sends).
+function challengeCta(R, title = 'Кинути виклик другу') {
+  const r = R.result;
+  if (!r?.run || !(r.time < 99)) return '';
+  return `<button class="chg-cta" data-act="challengeThrow" data-race="${R.id}"><span class="chg-ic">${ic('ghost')}</span>
+    <span class="grow"><b>${title}</b><small>${chT(r.time)} · друг їде проти твого привида</small></span>${ic('chevron-right')}</button>`;
+}
+const challengeHubRow = () => `<button class="hub-store chg-hub" data-act="challengesOpen"><span class="hub-ic">${ic('ghost')}</span><span class="grow"><b>Виклики друзям</b>
+  <span class="hub-i">кинь виклик — друг їде проти твого привида</span></span><span class="chev">${ic('chevron-right')}</span></button>`;
+const challengeRaceRow = () => `<button class="chg-row" data-act="challengesOpen">${ic('ghost')}<span class="grow"><b>Виклики друзям</b>
+  <small>Після заїзду тисни «Кинути виклик» — друг поїде проти твого привида</small></span>${ic('chevron-right')}</button>`;
+H.challengesOpen = () => {
+  state.challengeId = null;
+  go('challenges');
+};
+H.challengeOpen = (d) => {
+  state.challengeId = d.id;
+  go('challenges');
+};
+H.challengeThrow = async (d, el) => {
+  if (el) el.disabled = true;
+  try {
+    const r = await api('challenge/create', { raceId: Number(d.race) });
+    haptic('success');
+    openChallengeShare(r.challenge, r);
+  } catch (e) {
+    toast(e.message, true);
+  }
+  if (el) el.disabled = false;
+};
+H.challengeShare = async (d) => {
+  try {
+    openChallengeShare((await api('challenge/get', { id: d.id })).challenge);
+  } catch (e) {
+    toast(e.message, true);
+  }
+};
+
+// The share sheet: the card is drawn here and uploaded only when a Telegram share needs its URL.
+let chShare = null;
+async function openChallengeShare(ch, { left = null } = {}) {
+  const m = M(ch.car.model);
+  const link = chLink(ch.id);
+  sheet('Кинути виклик', `<div class="chg-prev" id="chgPrev"><div class="share-wait">${ic('ghost')} Малюю картку…</div></div>
+    <div class="chg-sline"><b>${chT(ch.time)}</b><span>на ${esc(m.name)}</span>${clsBadge(m.cls)}<span class="muted">${ch.car.hp} к.с.</span></div>
+    <div class="share-acts" id="chgActs"></div>
+    <div class="tiny muted center mt">Друг їде проти твого привида — твого точного заїзду. Виклик діє ${G.CHALLENGE.ttlDays} днів${left != null ? ` · сьогодні ще ${left} з ${G.CHALLENGE.perDay}` : ''}.
+      Новачок за твоїм викликом стає твоїм рефералом: ${S.short(S.REF_REWARD)} тобі, коли він досягне 3 рівня.</div>`);
+  const token = (chShare = { ch, link, blob: null, card: null });
+  const who = me.firstName || (me.username ? '@' + me.username : '');
+  const blob = await challengeCard({ model: ch.car.model, time: ch.time, hp: ch.car.hp, who, bot: config.bot }).catch(() => null);
+  if (chShare !== token || !$('#chgPrev')) return; // the sheet was closed or another one opened
+  chShare.blob = blob;
+  if (blob) chShare.preview = URL.createObjectURL(blob);
+  $('#chgPrev').innerHTML = blob ? `<img src="${chShare.preview}" alt="Картка виклику: ${esc(G.challengeLine(ch.car.model, ch.time))}">` : '<div class="share-wait">Картку не вдалося намалювати — поділися посиланням</div>';
+  const inline = !!(config.inline && tgAt('6.7') && tg.switchInlineQuery);
+  $('#chgActs').innerHTML = `<button class="btn yellow" data-act="challengeSend">${ic('share')} Надіслати в чат</button>
+    <div class="btns">${inline ? `<button class="btn ghost" data-act="challengeInline">${ic('ghost')} Через @${esc(config.bot)}</button>` : ''}<button class="btn ghost" data-act="challengeCopy" ${link ? '' : 'disabled'}>${ic('copy')} Скопіювати посилання</button></div>
+    ${link ? `<div class="mono chg-link">${esc(link)}</div>` : ''}`;
+}
+async function challengePrepared(st) {
+  if (!st.card) {
+    const r = await fetch('/api/share/card', { method: 'POST', headers: authHeaders('image/jpeg'), body: st.blob });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'Не вдалося завантажити картку');
+    st.card = j.id;
+  }
+  return api('challenge/prepare', { id: st.ch.id, card: st.card });
+}
+const chCaption = (st) => G.challengeCaption({ who: me.firstName || (me.username ? '@' + me.username : ''), model: st.ch.car.model, time: st.ch.time });
+H.challengeSend = async (d, el) => {
+  const st = chShare;
+  if (!st) return;
+  if (shareCaps().message && st.blob) {
+    el.disabled = true;
+    try {
+      const r = await challengePrepared(st);
+      el.disabled = false;
+      return tg.shareMessage(r.preparedId, (ok) => ok && (toast('Виклик надіслано!'), haptic('success')));
+    } catch {
+      el.disabled = false; // no bot / no https: the plain share link below
+    }
+  }
+  if (st.link) return H.shareRef({ link: st.link, text: chCaption(st) });
+  copyText(chCaption(st), 'Текст виклику скопійовано');
+};
+H.challengeInline = async (d, el) => {
+  const st = chShare;
+  if (!st) return;
+  el.disabled = true;
+  if (st.blob) await challengePrepared(st).catch(() => {}); // the bot's inline answer then shows the card picture
+  el.disabled = false;
+  tg.switchInlineQuery('ch_' + st.ch.id, ['users', 'groups', 'channels']);
+};
+H.challengeCopy = () => chShare?.link && copyText(chShare.link, 'Посилання скопійовано');
+function copyText(text, ok) {
+  const done = () => (toast(ok), haptic('success'));
+  const old = () => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;opacity:0;top:0';
+    document.body.append(ta);
+    ta.select();
+    let r = false;
+    try {
+      r = document.execCommand('copy');
+    } catch {}
+    ta.remove();
+    r ? done() : toast(text);
+  };
+  navigator.clipboard?.writeText ? navigator.clipboard.writeText(text).then(done, old) : old();
+}
+
+// «Виклики»: one challenge (from a link or the list), or the lists of thrown and accepted ones.
+PAGES.challenges = async () => (state.challengeId ? challengeView(state.challengeId) : challengeLists());
+AFTER.challenges = () => {
+  tickUntil();
+  const pick = $('.chg-pick .carpick'), cur = pick?.querySelector('.car.sel');
+  if (cur) pick.scrollLeft += cur.getBoundingClientRect().left - pick.getBoundingClientRect().left - 16;
+};
+const chStatus = (ch) => (ch.expired ? '<span class="chip chg-exp">термін минув</span>' : `<span class="chip">ще ${untilSpan(ch.expiresAt)}</span>`);
+async function challengeLists() {
+  const d = await api('challenge/list');
+  const s = d.stats;
+  const sent = d.sent.map((ch) => {
+    const m = M(ch.car.model);
+    const who = ch.rivals.slice(0, 3).map((r) => `<span class="${r.won ? 'lose' : 'win'}">${esc(r.name)}</span>`).join(', ');
+    return `<div class="li chg-li" data-act="challengeOpen" data-id="${ch.id}" role="button">${miniCar(ch.car.model, '', ch.car.look)}<div class="grow">
+      <div class="row between"><b class="ellipsis">${esc(m.name)}</b><b class="rtime">${chT(ch.time)}</b></div>
+      <div class="tiny muted">${ch.accepted ? `прийняли ${ch.accepted} · <span class="win">захистив ${ch.defended}</span> · <span class="lose">побили ${ch.beaten}</span>` : 'ще ніхто не прийняв'}${ch.recruits ? ` · ${ic('users')} ${ch.recruits}` : ''}</div>
+      ${who ? `<div class="tiny ellipsis">${who}</div>` : ''}<div class="row mt" style="gap:6px">${chStatus(ch)}</div></div>
+      ${ch.expired ? '' : `<button class="btn sm ghost chg-again" data-act="challengeShare" data-id="${ch.id}" aria-label="Поділитися ще раз">${ic('share')}</button>`}</div>`;
+  }).join('');
+  const got = d.got.map((ch) => {
+    const m = M(ch.car.model), my = ch.my;
+    return `<div class="li chg-li" data-act="challengeOpen" data-id="${ch.id}" role="button">${miniCar(ch.car.model, '', ch.car.look)}<div class="grow">
+      <div class="row between"><b class="ellipsis">${esc(ch.creator.name)}</b><b class="rtime">${chT(ch.time)}</b></div>
+      <div class="tiny muted ellipsis">${esc(m.name)} · ${ch.car.hp} к.с.</div>
+      <div class="row mt" style="gap:6px">${my.tries ? `<span class="chip ${my.won ? 'chg-won' : 'chg-lost'}">${my.won ? 'побив' : 'не побив'} · найкращий ${chT(my.best)}</span>` : '<span class="chip">не доїхав</span>'}${chStatus(ch)}</div></div></div>`;
+  }).join('');
+  return `<div class="card chg-top"><div class="chg-kick">${ic('ghost')} Виклик-привид</div>
+      <div class="small muted">Проїдь драг і на екрані результату тисни «Кинути виклик другу». Друг відкриє посилання й поїде проти твого привида — твого точного заїзду. Ставок немає: приз платить гра.</div>
+      <div class="stat chg-stat"><div><b>${s.sent}</b><span>кинуто</span></div><div><b class="win">${s.defended}</b><span>захищено</span></div><div><b class="lose">${s.beaten}</b><span>побили</span></div><div><b>${s.wins}–${s.losses}</b><span>мої заїзди</span></div></div>
+      <button class="btn yellow mt" data-act="challengeGoRace">${ic('flag-3')} До заїзду</button>
+      <div class="tiny muted center mt">Сьогодні ще ${d.left} з ${G.CHALLENGE.perDay} викликів${s.recruits ? ` · за викликами прийшло друзів: ${s.recruits}` : ''}</div></div>
+    <div class="h2"><span>Мої виклики</span><span>${d.sent.length}</span></div>
+    ${sent ? `<div class="list">${sent}</div>` : emptyBox('ghost', 'Ще жодного виклику', 'Проїдь драг — і кинь свій час другу')}
+    <div class="h2"><span>Прийняті</span><span>${d.got.length}</span></div>
+    ${got ? `<div class="list">${got}</div>` : emptyBox('flag-3', 'Ти ще не приймав викликів', 'Коли друг кине тобі виклик — він з’явиться тут')}`;
+}
+H.challengeGoRace = () => {
+  state.page = null;
+  state.tab = 'race';
+  state.raceView = 'race';
+  window.scrollTo(0, 0);
+  render();
+};
+// One challenge. The creator sees who raced it; a friend — the car, the time, his runs, what a win pays, his garage
+// to pick from (or the loaner) and «Прийняти виклик».
+async function challengeView(id) {
+  const d = await api('challenge/get', { id });
+  const ch = d.challenge, m = M(ch.car.model), color = S.CLASSES[m.cls].color;
+  const parts = Object.keys(ch.car.parts || {}).length;
+  const hero = `<div class="chg-hero" style="--c:${color}">
+      <div class="chg-kick">${ic('ghost')} Виклик-привид · драг 402 м</div>
+      <div class="chg-who"><b>${esc(ch.creator.name)}</b> ${ch.mine ? '— твій виклик' : 'кидає тобі виклик'}</div>
+      <div class="chg-time">${dec(ch.time, 3)}<small>с</small></div>
+      <div class="chg-art">${carArt(ch.car.model, { look: ch.car.look })}</div>
+      <div class="chg-car"><b>${esc(m.name)}</b>${clsBadge(m.cls)}<span>${ch.car.hp} к.с.</span><span>${ch.car.loaner ? 'позичена' : parts ? `деталей: ${parts}` : 'стандарт'}</span></div>
+      <div class="chg-hero-f">${chStatus(ch)}${ch.accepted ? `<span class="chip">прийняли ${ch.accepted} · побили ${ch.beaten}</span>` : ''}</div></div>`;
+  const back = `<button class="btn outline mt" data-act="challengesOpen">Усі виклики</button>`;
+  if (ch.mine) {
+    const rv = (d.rivals || []).map((r) => `<div class="li"><span class="chg-res ${r.won ? 'lose' : 'win'}">${ic(r.won ? 'flag-3' : 'ghost')}</span><div class="grow"><b class="ellipsis">${esc(r.name)}</b>
+      <div class="tiny muted">${r.won ? 'побив твій час' : 'привид переміг'} · ${r.tries} ${plural(r.tries, ['спроба', 'спроби', 'спроб'])}</div></div><b class="rtime ${r.won ? 'lose' : ''}">${chT(r.best)}</b></div>`).join('');
+    return hero + `<div class="h2"><span>Хто їхав</span><span>${ch.accepted}</span></div>
+      ${rv ? `<div class="list">${rv}</div>` : emptyBox('users', 'Ще ніхто не прийняв', 'Надішли виклик у чат друзів')}
+      ${ch.expired ? '' : `<button class="btn yellow mt" data-act="challengeShare" data-id="${ch.id}">${ic('share')} Поділитися ще раз</button>`}${back}`;
+  }
+  if (ch.expired) return hero + `<div class="card center"><b>Термін цього виклику минув</b><div class="small muted mt">Кинь свій: проїдь драг і на екрані результату тисни «Кинути виклик другу».</div>
+      <button class="btn yellow mt" data-act="challengeGoRace">${ic('flag-3')} До заїзду</button></div>${back}`;
+  const my = d.my;
+  const garage = me.cars.filter((c) => c.status === 'garage');
+  if (!d.loaner && !garage.some((c) => c.id === state.chCar)) state.chCar = [...garage].sort((a, b) => a.et - b.et)[0]?.id ?? null;
+  const car = d.loaner || garage.find((c) => c.id === state.chCar);
+  const prize = car ? G.winPrize(m.price, M(car.model).price) : 0;
+  const prizeTxt = my?.won ? 'Ти вже побив цей виклик — приз отримано, можна покращити час'
+    : d.winPaysLeft ? `Перемога: <b class="win">+${S.short(prize)}</b> від гри (не від суперника)` : `Сьогодні вже ${G.CHALLENGE.winPays} призів за виклики — перемога зарахується без призу`;
+  const pick = d.loaner ? `<div class="card chg-loan">${miniCar(d.loaner.model)}<div class="grow"><b>Позичена ${esc(M(d.loaner.model).name)}</b>
+        <div class="tiny muted">стандарт · ${d.loaner.hp} к.с. · лише на цей виклик — у гараж не потрапить</div></div></div>`
+    : `<div class="chg-pick"><div class="h2"><span>Твоя машина — будь-яка</span><span>${garage.length}</span></div>
+        <div class="carpick">${garage.map((c) => carTile(c, { act: 'challengePick', sel: c.id === state.chCar })).join('')}</div></div>`;
+  const vs = car ? `<div class="chg-vs"><div><small>Ти</small><b class="ellipsis">${esc(M(car.model).name)}</b><span>${clsBadge(M(car.model).cls)} ${car.hp} к.с. · ~${dec(car.et, 2)} с</span></div>
+      <i>VS</i><div><small>${ic('ghost')} Привид</small><b class="ellipsis">${esc(m.name)}</b><span>${clsBadge(m.cls)} ${ch.car.hp} к.с. · ${chT(ch.time)}</span></div></div>` : '';
+  const fuel = d.free ? 'перша спроба — без пального' : `спроба = 1 пальне · ${me.fuel}/${S.FUEL_MAX}`;
+  return hero + (my?.tries ? `<div class="card chg-my"><span>Твої заїзди: <b>${my.tries}</b></span><span>найкращий <b class="${my.won ? 'win' : ''}">${chT(my.best)}</b></span><span class="chip ${my.won ? 'chg-won' : 'chg-lost'}">${my.won ? 'побив' : 'ще не побив'}</span></div>` : '')
+    + pick + vs
+    + `<div class="small center mt chg-prize">${prizeTxt}</div>
+      <button class="btn yellow btn2 mt" data-act="challengeRace" data-id="${ch.id}" ${d.loaner ? 'data-loaner="1"' : ''} ${!car || (!d.free && fuelNow() < 1) ? 'disabled' : ''}><span>${ic('flag-3')} Прийняти виклик</span><small>${fuel}</small></button>
+      ${!car ? '<div class="tiny muted center mt">Для заїзду потрібна машина в гаражі</div>' : ''}
+      <div class="tiny muted center mt">Привид — точний запис заїзду: той самий старт і кожна передача. Твій заїзд сервер перевіряє, як звичайну гонку.</div>${back}`;
+}
+H.challengePick = (d) => {
+  state.chCar = Number(d.id);
+  const y = window.scrollY, x = $('.chg-pick .carpick')?.scrollLeft || 0;
+  render().then(() => {
+    window.scrollTo(0, y);
+    const p = $('.chg-pick .carpick');
+    if (p) p.scrollLeft = x;
+  });
+};
+H.challengeRace = async (d, el) => {
+  const loaner = d.loaner === '1';
+  if (el) el.disabled = true;
+  let r;
+  try {
+    r = await api('challenge/start', loaner ? { id: d.id, loaner: true } : { id: d.id, carId: state.chCar });
+  } catch (e) {
+    if (el) el.disabled = false;
+    return toast(e.message, true);
+  }
+  if (!r.free) me.fuel--;
+  renderHeader();
+  hideClaimBanners();
+  closeModal();
+  state.page = null;
+  state.tab = 'race';
+  state.race = { phase: 'lights', id: r.raceId, car: r.car, rival: r.rival, greenMs: r.greenMs, reaction: null, shifts: [], gear: 1, result: null, chId: d.id, loaner };
+  state.race.coach = !me.stats.races; // a newcomer's first race: the short «how to drive» card first
+  window.scrollTo(0, 0);
+  await render();
+  if (state.race.coach && !drSeen()) return dragCoach(state.race);
+  runRace();
+};
+H.challengeAgain = (d) => {
+  const R = state.race;
+  if (R && !R.loaner) state.chCar = R.car.id;
+  state.race = null;
+  H.challengeRace({ id: d.id, loaner: R?.loaner ? '1' : '' });
+};
+H.challengeBack = (d) => {
+  state.race = null;
+  state.challengeId = d.id;
+  go('challenges');
+};
+// The ghost race's result: the timing sheet, what the creator will hear, «Реванш», and the run thrown back.
+function ghostResult() {
+  const R = state.race, r = R.result, c = r.challenge || {};
+  const startTxt = r.jump ? 'Фальстарт −8%' : r.perfectStart ? 'Ідеальний старт +4%' : r.reaction >= 1.5 ? 'Пізній старт' : `Реакція ${dec(r.reaction, 3)} с`;
+  const amount = r.prize ? '+' + S.fmt(r.prize) : r.win ? 'Привида побито' : 'Привид швидший';
+  const note = r.prize ? 'приз від гри за перемогу над викликом' : c.capped ? `сьогодні вже ${G.CHALLENGE.winPays} призів за виклики — завтра ще` : r.win ? 'приз за цей виклик ти вже отримав' : 'реванш — і привид не встоїть';
+  const told = c.first || c.firstWin ? `<div class="chg-told">${ic('bell')}<span>${esc(c.creator || R.rival.name)} отримає повідомлення: ${r.win ? `«${esc(me.firstName || 'Ти')} побив твій час на ${dec(r.diff, r.diff < 0.01 ? 3 : 2)} с»` : '«Твій привид переміг»'}</span></div>` : '';
+  const again = !c.expired;
+  return raceSheetHtml({ tag: `${ic('ghost')} Виклик · ${esc(R.rival.name)}`, win: r.win, diff: r.diff, amount, note,
+    rows: [{ who: 'Ти', model: R.car.model, look: R.car.look, time: r.time, won: r.win, sub: R.car.loaner ? 'позичена' : `${R.car.hp} к.с.` },
+      { who: `Привид · ${R.rival.name}`, model: R.rival.model, look: R.rival.look, time: r.rivalTime, won: !r.win, sub: `${R.rival.hp} к.с.` }], start: startTxt, shifts: r.shifts })
+    + told
+    + challengeCta(R, r.win ? 'Кинути виклик у відповідь' : 'Кинути свій виклик')
+    + `<div class="dr-btns">${again ? `<button class="btn yellow btn2" data-act="challengeAgain" data-id="${esc(R.chId || R.rival.ghost)}" ${me.fuel < 1 ? 'disabled' : ''}><span>${ic('refresh')} Реванш</span><small>${ic('gas-station')}${me.fuel}/${S.FUEL_MAX}</small></button>` : ''}
+      <button class="btn outline" data-act="challengeBack" data-id="${esc(R.chId || R.rival.ghost)}">До виклику</button></div>`;
+}
 
 // ---------- «вау»: the rare-drop takeover, sharing a drop, the dream car (public/wow.js, public/wow.css) ----------
 WOW.init({ haptic, esc, ic, showroom: SHOWROOM_SVG });

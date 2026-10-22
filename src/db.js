@@ -197,6 +197,26 @@ CREATE TABLE IF NOT EXISTS support (
 CREATE INDEX IF NOT EXISTS support_user ON support(user_id, id);
 CREATE TABLE IF NOT EXISTS invite_log (from_id INTEGER NOT NULL, to_id INTEGER NOT NULL, at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS invite_log_from ON invite_log(from_id, at);
+-- Ghost challenges (public/ghost.js): a finished drag run (race_id, one challenge per run) a friend races against.
+-- car: the creator's car as it raced ({ model, hp, kg, cls, base, shift, parts, look }); run: { reaction, shiftAt,
+-- shifts } — the ghost; day: the Kyiv day it was thrown (the daily limit). accepted / beaten: players who finished a
+-- run against it / beat it; recruits: new players who came by its link (they became the creator's referrals).
+CREATE TABLE IF NOT EXISTS challenges (
+  id TEXT PRIMARY KEY, creator_id INTEGER NOT NULL, race_id INTEGER NOT NULL UNIQUE, car TEXT NOT NULL, run TEXT NOT NULL,
+  time REAL NOT NULL, day TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL,
+  accepted INTEGER NOT NULL DEFAULT 0, beaten INTEGER NOT NULL DEFAULT 0, recruits INTEGER NOT NULL DEFAULT 0, card TEXT
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS challenges_creator ON challenges(creator_id, created_at);
+-- One row per player who started a race against a challenge: starts (the first is free of fuel), finished runs, the
+-- best time, the first win, the prize paid for it and its Kyiv day (the daily cap); defended: the creator was paid
+-- for this player's first loss, on that Kyiv day (his daily cap).
+CREATE TABLE IF NOT EXISTS challenge_tries (
+  challenge_id TEXT NOT NULL, user_id INTEGER NOT NULL, starts INTEGER NOT NULL DEFAULT 0, tries INTEGER NOT NULL DEFAULT 0,
+  best REAL, won_at INTEGER, prize INTEGER NOT NULL DEFAULT 0, prize_day TEXT, defend_pay INTEGER NOT NULL DEFAULT 0, defend_day TEXT,
+  first_at INTEGER NOT NULL, last_at INTEGER NOT NULL, PRIMARY KEY (challenge_id, user_id)
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS challenge_tries_user ON challenge_tries(user_id, last_at);
+CREATE INDEX IF NOT EXISTS challenge_tries_defend ON challenge_tries(defend_day);
 -- For achievement progress (wins and friends are counted on every poll).
 CREATE INDEX IF NOT EXISTS pvp_winner ON pvp(winner_id);
 CREATE INDEX IF NOT EXISTS battles_winner ON battles(winner_id);
