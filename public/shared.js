@@ -446,14 +446,14 @@ for (const [name, hp, kg, body, country, year, price, ev] of SECRETS) {
 // Season cars: the premium pass's level-30 reward of each season. A livery of a real car (its photo through a paint
 // filter, `img` + `filter`) or its own photo, never in a case. Like a secret car it can't be sold, traded or burned in an upgrade,
 // and it doesn't count in collections; it stays in the garage for good — the proof you were there that season.
-// Season 1: the R34 in its exclusive «Сезон 1» colour (Midnight Purple over the Bayside Blue photo; wave E, audit №7).
+// Season 1: the BMW X5 M «Monte Carlo Blue» (owner's choice; the R34 livery from wave E was rolled back 22.10).
 export const SEASON_CARS = [
-  { season: 1, name: 'Nissan Skyline GT-R R34 «Сезон 1»', hp: 600, kg: 1540, body: 'coupe', country: 'JP', year: 2002, price: 150000000,
-    img: 'nissan-skyline-gt-r-r34', filter: 'hue-rotate(42deg) saturate(1.3) brightness(.9)' },
+  { season: 1, name: 'BMW X5 M E70 «Monte Carlo Blue»', hp: 555, kg: 2380, body: 'suv', country: 'DE', year: 2010, price: 150000000 },
 ];
 // Former season prizes: no longer given, kept as models so a car already in a garage stays valid.
 const OLD_SEASON_CARS = [
-  { season: 1, name: 'BMW X5 M E70 «Monte Carlo Blue»', hp: 555, kg: 2380, body: 'suv', country: 'DE', year: 2010, price: 150000000 },
+  { season: 1, name: 'Nissan Skyline GT-R R34 «Сезон 1»', hp: 600, kg: 1540, body: 'coupe', country: 'JP', year: 2002, price: 150000000,
+    img: 'nissan-skyline-gt-r-r34', filter: 'hue-rotate(42deg) saturate(1.3) brightness(.9)' },
 ];
 for (const c of [...SEASON_CARS, ...OLD_SEASON_CARS]) {
   const id = slug(c.name);

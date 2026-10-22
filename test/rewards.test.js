@@ -110,7 +110,7 @@ test('season pass: money scales with the garage income, never below the base (45
   assert.equal(S.passReward(1, 4, true, 3500000).money, S.passMoneyFor(4, 3500000), 'premium money scales too');
   // Free track: cosmetics every 5 levels, the R34 at premium 30.
   assert.deepEqual([5, 10, 15, 20, 25].map((l) => S.cosmeticOf(S.passReward(1, l, false).cosmetic).kind), ['livery', 'frame', 'showcase', 'gold', 'badge']);
-  assert.equal(S.MODELS[S.passReward(1, 30, true).seasonCar].name, 'Nissan Skyline GT-R R34 «Сезон 1»');
+  assert.equal(S.MODELS[S.passReward(1, 30, true).seasonCar].name, 'BMW X5 M E70 «Monte Carlo Blue»');
   assert.ok(S.MODELS['bmw-x5-m-e70-monte-carlo-blue'], 'the old season car stays a valid model');
 });
 
