@@ -1070,7 +1070,7 @@ function dtLine(g, type) {
   if (g.dt <= -T.TUNE_EPS) return `<div class="dt win">${T.fmtDt(g.dt)} на 402 м</div>`;
   if (g.worse) return `<div class="dt">гірша за встановлену: ${T.fmtDt(g.dt)}</div>`;
   if (g.dt >= T.TUNE_EPS) return `<div class="dt">повільніше: ${T.fmtDt(g.dt)}</div>`;
-  return `<div class="dt">≈0 с: ${st === 'grip' ? 'машина й так не буксує' : st === 'shift' ? 'у повільній машині перемикання майже не важать' : 'майже нічого не дає'}</div>`;
+  return `<div class="dt">≈0 с: ${st === 'grip' ? 'машина й так не буксує' : st === 'shift' ? 'у повільній машині перемикання майже не важать' : st === 'hp' || st === 'kg' ? 'колеса вже буксують — шини й підвіска дадуть більше' : 'майже нічого не дає'}</div>`;
 }
 // What the installed part gives the car now.
 function shareLine(c, type) {

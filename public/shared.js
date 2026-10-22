@@ -919,10 +919,13 @@ export function carStats(car) {
     value, income: Math.round(carIncomeOf(car)), set: hasSet(car),
   };
 }
-// Hale quarter-mile formula plus a traction penalty for too much power on weak tyres.
+// Hale quarter-mile formula plus a traction penalty for power on weak tyres (+2 s per hp/kg above the grip). Past
+// SPIN_PW hp/kg the penalty grows faster than the power helps, so there the tyres simply can't put more down: the time
+// stays at its best and more power never makes a car slower (owner 22.10: a 2600 hp car lost to a 923 hp boss).
+export const SPIN_PW = Math.pow((5.825 * Math.cbrt(2.2046)) / 6, 0.75); // d(Hale)/d(pw) = −2 here (~1.19 hp/kg)
 export function raceBaseTime(hp, kg, grip) {
-  const pw = hp / kg;
-  return 5.825 * Math.cbrt((kg * 2.2046) / hp) + Math.max(0, pw - grip) * 2;
+  const pw = Math.min(hp / kg, Math.max(grip, SPIN_PW));
+  return 5.825 * Math.cbrt(2.2046 / pw) + Math.max(0, pw - grip) * 2;
 }
 
 // ---------- race ----------
@@ -2741,7 +2744,7 @@ const BOSS_RAW = {
   GB: [
     ['gb-lord', 'Лорд Чипс', 'McLaren 570S', 'race', 'street', 'A', 'Чай — о п\'ятій. Перемога — на восьмій секунді.', 4000000, [1, 'race']],
     ['gb-agent', 'Агент 007-й', 'Aston Martin DBS Superleggera', 'race', 'pro', 'S', 'Ім\'я — Бонд. Час — швидший за твій.', 5000000, [1, 'race']],
-    ['gb-volt', 'Леді Вольт', 'Lotus Evija', 'race', 'pro', 'S', 'Дві тисячі сил і жодного звуку. Почуєш тільки, як програв.', 6000000, [2, 'race']],
+    ['gb-volt', 'Леді Вольт', 'Lotus Evija', 'pro', 'pro', 'S', 'Дві тисячі сил і жодного звуку. Почуєш тільки, як програв.', 6000000, [2, 'race']],
     ['gb-king', 'Король Лондона', 'McLaren P1', 'race', 'street', 'S', 'Корона на мені. Хочеш зняти — дожени.', 12000000, null],
   ],
   IT: [

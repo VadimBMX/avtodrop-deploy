@@ -65,25 +65,20 @@ test('bestTune: a full set of a lower tier beats a mixed kit when the +5% is wor
   assert.ok(Math.abs(r.after - Math.min(set, mixed)) < 1e-9);
 });
 
-test('wheelspin: Bugatti Bolide gets no power parts, an installed one is taken off, the effect says why', () => {
+test('wheelspin: on a spinning Bolide power parts add nothing but never slow it; grip parts help (owner 22.10)', () => {
   const bolide = { model: 'bugatti-bolide', parts: {} };
   assert.ok(T.spinning(bolide));
   const eng = T.partGain(bolide, 'eng', 'race');
-  assert.ok(eng.dt > 0.05 && eng.spin, 'more power, slower car');
-  assert.equal(T.fmtDt(eng.dt).startsWith('+'), true);
+  assert.ok(eng.dt <= T.TUNE_EPS && !eng.spin, 'more power is never slower');
   const wheels = T.partGain(bolide, 'wheels', 'race');
   assert.ok(wheels.dt < -0.1 && !wheels.spin);
   const keys = S.partKeysOf('bugatti-bolide');
   const r = T.bestTune(bolide, stockOf(keys, ['race']));
-  for (const k of ['eng', 'turbo', 'exhaust', 'body']) assert.equal(r.parts[k], undefined, k);
   for (const k of ['suspension', 'wheels', 'brakes', 'gearbox']) assert.equal(r.parts[k], 'race', k);
-  // A partial tune that made it slower (more power on factory tyres): the best kit takes the engine parts off.
   const partial = { model: 'bugatti-bolide', parts: { eng: 'race', turbo: 'race' } };
-  assert.ok(T.tuneTime(partial) > T.tuneTime(bolide));
-  assert.ok(T.partShare(partial, 'eng').spin);
-  const fix = T.bestTune(partial, stockOf(keys, ['race']));
-  assert.deepEqual(fix.changes.filter((c) => !c.to).map((c) => c.type).sort(), ['eng', 'turbo']);
-  assert.ok(fix.after < T.tuneTime(bolide));
+  assert.ok(T.tuneTime(partial) <= T.tuneTime(bolide) + T.TUNE_EPS);
+  // The race time never grows with power, on any tyres.
+  for (const grip of [0.35, 0.5, 0.69]) for (let hp = 100; hp < 5000; hp += 50) assert.ok(S.raceBaseTime(hp + 50, 1400, grip) <= S.raceBaseTime(hp, 1400, grip) + 1e-9, `${hp} hp, grip ${grip}`);
 });
 
 test('grip parts do nothing on a car that does not spin; the gearbox is worth more in a fast car', () => {
