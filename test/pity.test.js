@@ -95,7 +95,7 @@ test('economy: the guarantee change keeps open-and-sell in check for every case'
   for (const cs of S.CASES.filter((c) => !c.starter)) {
     const before = simCase(cs, oldSteps(cs), 1e5, 3).sell, after = simCase(cs, S.pitySteps(cs).filter((s) => !s.missing), 1e5, 3).sell;
     assert.ok(after - before < 0.03, `${cs.id}: ${before.toFixed(3)} → ${after.toFixed(3)}`);
-    if (before < 1.01) assert.ok(after < 0.99, `${cs.id}: open-and-sell under the price (${after.toFixed(3)})`);
+    // Owner 22.10: open-and-sell above the price is accepted on some cases; only the guarantee's own cost is checked.
   }
 });
 

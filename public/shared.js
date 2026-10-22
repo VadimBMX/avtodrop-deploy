@@ -482,7 +482,7 @@ export const FRAGMENTS_PER_KEY = 8;
 // Instant sale by class: grey 60%, blue 55%, purple 50%, gold 45%, red and secret 40%; no daily limit; a car out of a
 // case gets ORIGIN_SELL of that. With boost, luck, the losing-streak save and key fragments counted, open-and-sell is
 // 0.82–0.92 on a plain day and under ~1 on deal days (tools/sim-cases.mjs, tools/sim-events.mjs, test/caseev.test.js).
-export const SELL_RATES = { D: 0.45, C: 0.4, B: 0.3, A: 0.22, S: 0.18, X: 0.18 }; // owner 22.10 (2nd): grey 45 / blue 40 / purple 30 / gold 22 / red 18 — every case under its price (+ IT/GB/UA odds)
+export const SELL_RATES = { D: 0.5, C: 0.45, B: 0.4, A: 0.35, S: 0.3, X: 0.3 }; // owner 22.10 (3rd): grey 50 / blue 45 / purple 40 / gold 35 / red 30 — some dear cases stay above 1 (owner OK)
 // Collector cars (homeOnly: the gold Soviet rarities) sell instantly for this share of their value instead (1,2–2,3 M,
 // still 22–41× the 55k case), so a gold car every ~230 opens keeps the case's open-and-sell at ~1.00 (tools/sim-ua.mjs).
 export const HOME_SELL_RATE = 0.1;
@@ -576,7 +576,7 @@ export const CASES = [
   { id: 'tuning', name: 'Тюнінг-ательє', icon: 'tool', group: 'rarity', price: 900000, weights: { C: 74.83, B: 24, A: 1.1, S: 0.07 }, pity: [['A', 200]], hi: 340 },
   { id: 'sport', name: 'Спорткар', icon: 'flag-3', group: 'rarity', price: 2000000, weights: { B: 92.15, A: 7.6, S: 0.25 }, pity: [['A', 30]], hi: 150 },
   { id: 'premium', name: 'Преміум', icon: 'diamond', group: 'rarity', price: 5000000, weights: { B: 55.2, A: 43, S: 1.8 }, pity: [['S', 130]], hi: 61 },
-  { id: 'elite', name: 'Еліта', icon: 'crown', group: 'rarity', price: 10000000, weights: { A: 92.5, S: 7.5 }, pity: [['S', 30]], hi: 31 },
+  { id: 'elite', name: 'Еліта', icon: 'crown', group: 'rarity', price: 10000000, weights: { A: 94.5, S: 5.5 }, pity: [['S', 30]], hi: 31 },
 ];
 // Country cases start cheap and have a wider ceiling (hi), so the country's dear cars — the ones its collection needs —
 // can still drop from its own case, rarely. Ukraine's gold Soviet rarities drop only from here (homeOnly).

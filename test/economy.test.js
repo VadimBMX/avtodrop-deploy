@@ -14,8 +14,8 @@ const sellBack = (cs) => {
   return v / cs.price;
 };
 
-test('instant sale: grey 45%, blue 40%, purple 30%, gold 22%, red 18%, no daily limit', () => {
-  assert.deepEqual(S.SELL_RATES, { D: 0.45, C: 0.4, B: 0.3, A: 0.22, S: 0.18, X: 0.18 });
+test('instant sale: grey 50%, blue 45%, purple 40%, gold 35%, red 30%, no daily limit', () => {
+  assert.deepEqual(S.SELL_RATES, { D: 0.5, C: 0.45, B: 0.4, A: 0.35, S: 0.3, X: 0.3 });
   const db = openDb(':memory:');
   const g = createGame(db, { now: () => Date.parse('2026-10-19T10:00:00Z'), notify: () => {} });
   g.ensureUser({ id: 1, first_name: 'A' });
