@@ -482,7 +482,7 @@ export const FRAGMENTS_PER_KEY = 8;
 // Instant sale by class: grey 60%, blue 55%, purple 50%, gold 45%, red and secret 40%; no daily limit; a car out of a
 // case gets ORIGIN_SELL of that. With boost, luck, the losing-streak save and key fragments counted, open-and-sell is
 // 0.82–0.92 on a plain day and under ~1 on deal days (tools/sim-cases.mjs, tools/sim-events.mjs, test/caseev.test.js).
-export const SELL_RATES = { D: 0.6, C: 0.55, B: 0.5, A: 0.45, S: 0.4, X: 0.4 }; // owner 22.10: grey 60 / blue 55 / purple 50 / gold 45 / red 40, no per-case cut
+export const SELL_RATES = { D: 0.45, C: 0.4, B: 0.3, A: 0.22, S: 0.18, X: 0.18 }; // owner 22.10 (2nd): grey 45 / blue 40 / purple 30 / gold 22 / red 18 — every case under its price (+ IT/GB/UA odds)
 // Collector cars (homeOnly: the gold Soviet rarities) sell instantly for this share of their value instead (1,2–2,3 M,
 // still 22–41× the 55k case), so a gold car every ~230 opens keeps the case's open-and-sell at ~1.00 (tools/sim-ua.mjs).
 export const HOME_SELL_RATE = 0.1;
@@ -588,13 +588,13 @@ const COUNTRY_CASES = {
   // reports/caseev.md (owner: «за годину 2 сині»): blue 1.3 → 6.5 (1 in ~12 opens), gold 0.15 → 0.3 (1 in ~190 with the
   // step); the blue cars sell for ORIGIN_SELL['c-ua']. There are no purple (B) Ukrainian cars, so no purple here.
   // JP/DE/CN: purple ×2–4 (1 in 7–12 opens), gold ×2. US/GB/IT already beat the competitor per open: only S a bit up.
-  UA: { price: 55000, weights: { D: 93.2, C: 6.5, A: 0.3 }, pity: [['C', 35], ['A', 300, { missing: true }]], hi: 460 },
+  UA: { price: 55000, weights: { D: 94.7, C: 5, A: 0.3 }, pity: [['C', 35], ['A', 300, { missing: true }]], hi: 460 },
   JP: { price: 450000, weights: { C: 92.67, B: 7, A: 0.3, S: 0.03 }, pity: [['B', 30]], hi: 400 },
   DE: { price: 400000, weights: { C: 93.68, B: 6, A: 0.3, S: 0.02 }, pity: [['B', 30]], hi: 570 },
   CN: { price: 480000, weights: { C: 93.7, B: 6, A: 0.25, S: 0.05 }, pity: [['B', 30]], hi: 400 },
   US: { price: 2400000, weights: { B: 83.4, A: 16, S: 0.6 }, pity: [['S', 300]], hi: 130 },
-  GB: { price: 3100000, weights: { B: 79.1, A: 20, S: 0.9 }, pity: [['S', 250]], hi: 91 },
-  IT: { price: 3200000, weights: { B: 79.1, A: 20, S: 0.9 }, pity: [['S', 250]], hi: 58 },
+  GB: { price: 3100000, weights: { B: 87, A: 12.4, S: 0.6 }, pity: [['S', 250]], hi: 91 },
+  IT: { price: 3200000, weights: { B: 89.5, A: 10, S: 0.5 }, pity: [['S', 250]], hi: 58 },
 };
 for (const c of MAIN_COUNTRIES) {
   const cc = COUNTRY_CASES[c];

@@ -26,8 +26,11 @@ const FLOOR = {
 const share = (w, c) => w[c] / Object.values(w).reduce((a, b) => a + b, 0);
 
 test('caseev: prices unchanged; every class above the floor drops at least as often as before, and the floors hold', () => {
+  // Owner 22.10 (2nd): Italy, Britain and Ukraine got rarer A/S (UA: rarer C) so open-and-sell stays under the price.
+  const RETUNED = new Set(['c-it', 'c-gb', 'c-ua']);
   for (const cs of S.CASES.filter((c) => !c.starter)) {
     assert.equal(cs.price, PRICES[cs.id], `${cs.id} price`);
+    if (RETUNED.has(cs.id)) continue;
     const cl = Object.keys(BEFORE[cs.id]);
     assert.deepEqual(Object.keys(cs.weights), cl, `${cs.id} classes`);
     for (const c of cl.slice(1)) assert.ok(share(cs.weights, c) >= share(BEFORE[cs.id], c) - 1e-12, `${cs.id} ${c}: ${cs.weights[c]} < ${BEFORE[cs.id][c]}`);
@@ -35,11 +38,11 @@ test('caseev: prices unchanged; every class above the floor drops at least as of
   }
 });
 
-test.skip('caseev: open-and-sell under the price for every case on a plain day and on its deal days (fixed-seed Monte Carlo)', () => {
+test('caseev: open-and-sell under the price for every case on a plain day and on its deal days (fixed-seed Monte Carlo)', () => {
   for (const cs of S.CASES.filter((c) => !c.starter)) {
     const r = caseReturns(cs, 1e5, 11);
-    assert.ok(r.normal > 0.78 && r.normal < 0.95, `${cs.id}: plain day ${r.normal.toFixed(3)}`);
-    assert.ok(r.deal < 1.01, `${cs.id}: ${r.dealWhy} ${r.deal.toFixed(3)}`);
+    assert.ok(r.normal > 0.45 && r.normal < 0.95, `${cs.id}: plain day ${r.normal.toFixed(3)}`);
+    assert.ok(r.deal < 1, `${cs.id}: ${r.dealWhy} ${r.deal.toFixed(3)}`);
     if (r.luck != null) assert.ok(r.luck < 1, `${cs.id}: luck weekend ${r.luck.toFixed(3)}`);
   }
 });
