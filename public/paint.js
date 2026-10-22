@@ -276,6 +276,35 @@ function liveryLayer(car, kind, num, lightPaint) {
       const xa = k === 0 ? 0 : x0 + ((x1 - x0) * k) / n, xb = k === n - 1 ? w : x0 + ((x1 - x0) * (k + 1)) / n;
       x.fillRect(Math.floor(xa), 0, Math.ceil(xb - xa) + 1, h);
     }
+  } else if (kind === 'xneon') {
+    // «Стиль» · Нічний неон: a near-black body, a cyan neon line along the sill with a magenta one under it, a thin
+    // cyan line on the shoulder.
+    x.fillStyle = '#14151f'; x.fillRect(0, 0, w, h);
+    const t = Math.max(2, H * 0.03);
+    x.fillStyle = '#00e5ff'; x.fillRect(0, top + H * 0.62, w, t);
+    x.fillStyle = '#ff2bd6'; x.fillRect(0, top + H * 0.62 + t * 1.8, w, t * 0.7);
+    x.fillStyle = '#00e5ff'; x.fillRect(0, top + H * 0.36, w, Math.max(1, t * 0.5));
+  } else if (kind === 'xcarbon') {
+    // «Стиль» · Карбон: a 2×2 twill weave in two dark greys, a thin red pinstripe.
+    const c = Math.max(3, Math.round(w / 110));
+    for (let gy = 0; gy * c < h; gy++) for (let gx = 0; gx * c < w; gx++) {
+      x.fillStyle = ((gx + gy) >> 1) & 1 ? '#2e3138' : '#1b1d22';
+      x.fillRect(gx * c, gy * c, c, c);
+    }
+    x.fillStyle = '#d0142c'; x.fillRect(0, top + H * 0.5, w, Math.max(1, H * 0.012));
+  } else if (kind === 'xchrome') {
+    // «Стиль» · Chrome: mirror bands — light sky on top, the dark horizon at the waist, the bright ground reflection low.
+    const stops = [[0, [242, 245, 249]], [0.42, [150, 158, 170]], [0.5, [52, 58, 70]], [0.58, [196, 202, 212]], [1, [120, 128, 140]]];
+    const n = 28;
+    for (let k = 0; k < n; k++) {
+      const f = k / (n - 1);
+      let i = 0;
+      while (i < stops.length - 2 && f > stops[i + 1][0]) i++;
+      const [f0, a] = stops[i], [f1, b] = stops[i + 1], u = Math.min(1, Math.max(0, (f - f0) / (f1 - f0)));
+      x.fillStyle = `rgb(${a.map((v, j) => Math.round(v + (b[j] - v) * u)).join(',')})`;
+      const ya = k === 0 ? 0 : top + (H * k) / n, yb = k === n - 1 ? h : top + (H * (k + 1)) / n;
+      x.fillRect(0, Math.floor(ya), w, Math.ceil(yb - ya) + 1);
+    }
   }
   return x.getImageData(0, 0, w, h).data;
 }

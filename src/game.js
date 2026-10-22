@@ -675,6 +675,8 @@ export function createGame(db, opts = {}) {
       noInvites: !!u.no_invites, pushOn: !u.push_off, pushBlocked: !!u.push_blocked,
       luck: luckOf(u.id), rescueAt: rescueNext(u),
       stars: u.stars, vipUntil: u.vip_until, vip: u.vip_until > now(), starterBought: !!u.starter_bought,
+      style: styleOf(uid, claims.filter((k) => k.startsWith('cos:'))), // «Стиль»: what is worn (owned ones are in claims)
+      homeOffer: !claims.includes('home-screen') && daysPlayed(uid) >= S.HOME_SCREEN.day, // offer the home-screen shortcut
       season: (({ claimed, ...s }) => s)(seasonInfo(u)), badges: badgesOf(uid),
       legacy: isLegacy(uid), // played the first version: «Гравець з перших днів» badge in the profile
       unlocked: openKeys(u), casino: casinoMode(), // S.UNLOCKS keys open to this player; the owner's casino switch
@@ -1096,7 +1098,7 @@ export function createGame(db, opts = {}) {
     const id = livery ? String(livery) : null;
     if (id && !S.LIVERY_BY_ID[id]) fail('Невідома ліврея');
     // A season livery is a pass reward: only for its owner, and free.
-    if (id && S.LIVERY_BY_ID[id].season && !q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(uid, S.LIVERY_BY_ID[id].cos)) fail('Ця ліврея — нагорода сезонного пропуску');
+    if (id && S.LIVERY_BY_ID[id].cos && !q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(uid, S.LIVERY_BY_ID[id].cos)) fail(S.LIVERY_BY_ID[id].star ? 'Ця ліврея продається в «Стилі» за зірки' : 'Ця ліврея — нагорода сезонного пропуску');
     const cur = S.LIVERY_BY_ID[c.livery] ? c.livery : null;
     if (cur === id) fail(id ? 'Ця ліврея вже на машині' : 'На машині немає лівреї');
     const price = id ? S.liveryPrice(c.model, id) : 0;
@@ -2117,9 +2119,11 @@ export function createGame(db, opts = {}) {
   const dealerBought = (uid) => q('SELECT n FROM dealer_buys WHERE batch = ? AND user_id = ?').get(dealerBatch(), uid)?.n || 0;
   function marketList(uid, { cls, sort } = {}) {
     restockDealer();
+    const styles = new Map(); // the seller's «Стиль» (name colour, plate frame), once per seller
+    const sellerStyle = (id) => (id === DEALER_ID ? null : styles.get(id) || styles.set(id, styleOf(id)).get(id));
     let list = q('SELECT * FROM listings ORDER BY id DESC LIMIT 500').all().map((l) => ({
       id: l.id, price: l.price, mine: l.seller_id === uid, seller: name(l.seller_id), car: carOut(carRow(l.car_id)), at: l.created_at,
-      dealer: l.seller_id === DEALER_ID,
+      dealer: l.seller_id === DEALER_ID, sellerStyle: sellerStyle(l.seller_id),
     }));
     if (cls && S.CLASSES[cls]) list = list.filter((l) => S.MODELS[l.car.model].cls === cls);
     if (sort === 'cheap') list.sort((a, b) => a.price - b.price);
@@ -2411,7 +2415,7 @@ export function createGame(db, opts = {}) {
       id: pid, name: name(pid), level: u.level, value: u.total_value, cars: cars.filter((c) => c.status === 'garage'),
       showcase: cars.filter((c) => c.status === 'showcase'), best, carCount: cars.length,
       collection: q('SELECT COUNT(*) n FROM collection WHERE user_id = ?').get(pid).n, self: pid === uid,
-      vip: u.vip_until > now(), badges: badgesOf(pid),
+      vip: u.vip_until > now(), badges: badgesOf(pid), style: styleOf(pid),
       // Read-only extras for the player card: the three dearest cars, a few counters, the first-days badge.
       top: [...cars].sort((a, b) => b.value - a.value).slice(0, 3),
       stats: { cases: u.cases_opened, wins: u.wins, races: u.races }, legacy: isLegacy(pid),
@@ -2929,6 +2933,55 @@ export function createGame(db, opts = {}) {
     if (!cos) return;
     q('INSERT OR IGNORE INTO claims (user_id, key) VALUES (?, ?)').run(uid, cos.id);
     if (cos.kind === 'badge') q('INSERT OR IGNORE INTO badges (user_id, key, title, tier, season, place, created_at) VALUES (?, ?, ?, 1, NULL, NULL, ?)').run(uid, cos.id, `Сезон ${cos.season} · пропуск`, now());
+  }
+  // ---------- «Стиль» (S.STYLE_ITEMS): what a player wears, seen by everyone ----------
+  const cosClaims = (uid) => q("SELECT key FROM claims WHERE user_id = ? AND key LIKE 'cos:%'").all(uid).map((r) => r.key);
+  function styleSet(uid) {
+    try {
+      const s = JSON.parse(q('SELECT style FROM users WHERE id = ?').get(uid)?.style || '{}');
+      return s && typeof s === 'object' && !Array.isArray(s) ? s : {};
+    } catch {
+      return {};
+    }
+  }
+  // Worn cosmetic ids per slot ({frame, showcase, name, glow}, null = none) — the public part, for any player.
+  const styleOf = (uid, claims = null) => S.styleWorn(claims || cosClaims(uid), styleSet(uid));
+  // Put on a cosmetic the player owns ('' = take the slot off).
+  function styleEquip(uid, { slot, id }) {
+    const sl = String(slot || '');
+    if (!S.STYLE_SLOTS.includes(sl)) fail('Невідомий слот');
+    const want = id ? String(id) : '';
+    if (want) {
+      const c = S.cosmeticOf(want);
+      if (!c || c.kind !== sl) fail('Цей предмет сюди не підходить');
+      if (!q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(uid, want)) fail('Спершу купи цей предмет у «Стилі»');
+    }
+    q('UPDATE users SET style = ? WHERE id = ?').run(JSON.stringify({ ...styleSet(uid), [sl]: want }), uid);
+    return { style: styleOf(uid) };
+  }
+  // A cosmetic just bought goes on at once (its slot), liveries wait in the paint shop.
+  function styleWear(uid, cosId) {
+    const c = S.cosmeticOf(cosId);
+    if (c && S.STYLE_SLOTS.includes(c.kind)) q('UPDATE users SET style = ? WHERE id = ?').run(JSON.stringify({ ...styleSet(uid), [c.kind]: cosId }), uid);
+  }
+  // ---------- home-screen shortcut and emoji status (Telegram WebApp, Bot API 8.0) ----------
+  const daysPlayed = (uid) => q('SELECT COUNT(*) n FROM user_days WHERE user_id = ?').get(uid).n;
+  // The app saw WebApp.checkHomeScreenStatus = 'added' (or the homeScreenAdded event): one key, once per account.
+  function homeAdded(uid) {
+    if (q("SELECT 1 FROM claims WHERE user_id = ? AND key = 'home-screen'").get(uid)) return { already: true };
+    if (daysPlayed(uid) < S.HOME_SCREEN.day) fail(`Подарунок за ярлик — з ${S.HOME_SCREEN.day}-го дня гри`);
+    q("INSERT INTO claims (user_id, key) VALUES (?, 'home-screen')").run(uid);
+    addKeys(uid, S.HOME_SCREEN.caseId, S.HOME_SCREEN.count);
+    return { caseId: S.HOME_SCREEN.caseId, count: S.HOME_SCREEN.count };
+  }
+  // The player put the game's emoji into their Telegram status (WebApp.setEmojiStatus) after a career milestone: kept as
+  // a claim so the owner can count them. Only for a player who has the career badge.
+  function emojiSet(uid, { kind }) {
+    const k = String(kind || '');
+    if (k !== 'career') fail('Невідомий статус');
+    if (!q("SELECT 1 FROM badges WHERE user_id = ? AND key = 'boss'").get(uid)) fail("Статус дається за фінального боса кар'єри");
+    q('INSERT OR IGNORE INTO claims (user_id, key) VALUES (?, ?)').run(uid, 'emoji:' + k);
+    return {};
   }
   function dailyClaim(uid) {
     const u = userRow(uid);
@@ -3504,7 +3557,7 @@ export function createGame(db, opts = {}) {
     const cur = S.seasonOf(now());
     const rows = q('SELECT id, season_xp score FROM users WHERE season_id = ? AND season_xp > 0 AND banned = 0 ORDER BY score DESC, id LIMIT 100').all(cur);
     const vips = new Set(q('SELECT id FROM users WHERE vip_until > ?').all(now()).map((r) => r.id));
-    const list = rows.map((r, i) => ({ place: i + 1, id: r.id, name: name(r.id), score: r.score, me: r.id === uid, vip: vips.has(r.id), level: S.passLevel(r.score).level }));
+    const list = rows.map((r, i) => ({ place: i + 1, id: r.id, name: name(r.id), score: r.score, me: r.id === uid, vip: vips.has(r.id), level: S.passLevel(r.score).level, style: styleOf(r.id) }));
     const u = userRow(uid);
     const myScore = u.season_id === cur ? u.season_xp : 0;
     const myPlace = q('SELECT COUNT(*) n FROM users WHERE season_id = ? AND banned = 0 AND (season_xp > ? OR season_xp = ? AND id < ?)').get(cur, myScore, myScore, uid).n + 1;
@@ -3519,7 +3572,31 @@ export function createGame(db, opts = {}) {
     if (it.once && u.starter_bought) fail('Стартовий набір можна купити лише один раз');
     if (it.id === 'pass' && u.premium_season === S.seasonOf(now())) fail('Преміум-пропуск цього сезону вже куплено');
     if (it.id === 'slot' && u.slots >= S.MAX_SLOTS) fail('Максимум місць');
+    if (it.cos && q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(uid, it.cos)) fail('Цей предмет «Стилю» вже твій');
+    if (it.sub && subActive(uid)) fail('VIP-підписка вже діє — керувати нею можна в магазині');
     return S.shopPrice(it, u.star_slots);
+  }
+  // ---------- VIP subscription (S.VIP_SUB, Telegram Stars subscription invoices) ----------
+  const subRow = (uid) => q('SELECT * FROM vip_subs WHERE user_id = ?').get(uid);
+  const subActive = (uid) => { const s = subRow(uid); return s && s.expires_at > now() ? s : null; };
+  const subOut = (s) => (s && s.expires_at > now() ? { active: true, canceled: !!s.canceled, expiresAt: s.expires_at, stars: s.stars, renewals: s.renewals, since: s.started_at } : null);
+  // A paid period of the subscription (first payment or a renewal): VIP +30 days, the row follows Telegram's period end.
+  function subPaid(uid, { chargeId, stars, renewal, expires }) {
+    const until = Number.isSafeInteger(expires) && expires > now() ? expires : now() + S.VIP_SUB.days * 86400e3;
+    const s = subRow(uid);
+    if (renewal && s) q('UPDATE vip_subs SET last_charge = ?, renewed_at = ?, expires_at = ?, renewals = renewals + 1, stars = ? WHERE user_id = ?').run(chargeId, now(), until, stars, uid);
+    else q('INSERT OR REPLACE INTO vip_subs (user_id, charge_id, last_charge, stars, started_at, renewed_at, expires_at, renewals, canceled) VALUES (?, ?, ?, ?, ?, NULL, ?, 0, 0)').run(uid, chargeId, chargeId, stars, now(), until);
+  }
+  // For server.js: the active subscription's Telegram ids (cancel / resume goes through the bot), then the new state.
+  function vipSub(uid) {
+    const s = subActive(uid);
+    if (!s) fail('Активної VIP-підписки немає');
+    return { chargeId: s.charge_id, lastCharge: s.last_charge, canceled: !!s.canceled, expiresAt: s.expires_at };
+  }
+  function vipSubSet(uid, cancel) {
+    if (!subActive(uid)) fail('Активної VIP-підписки немає');
+    q('UPDATE vip_subs SET canceled = ? WHERE user_id = ?').run(cancel ? 1 : 0, uid);
+    return { sub: subOut(subRow(uid)) };
   }
   function applyItem(uid, itemId) {
     const it = S.SHOP_BY_ID[itemId];
@@ -3541,6 +3618,11 @@ export function createGame(db, opts = {}) {
     }
     if (it.id === 'cool') q('DELETE FROM parts_cool WHERE user_id = ?').run(uid);
     if (it.id === 'slot') q('UPDATE users SET slots = MIN(?, slots + 1), star_slots = star_slots + 1 WHERE id = ?').run(S.MAX_SLOTS, uid);
+    if (it.cos) {
+      grantCosmetic(uid, it.cos);
+      styleWear(uid, it.cos);
+      out.cosmetic = it.cos;
+    }
     return out;
   }
   function shop(uid) {
@@ -3549,28 +3631,41 @@ export function createGame(db, opts = {}) {
     return {
       stars: u.stars, vipUntil: u.vip_until, starterBought: !!u.starter_bought, premium: u.premium_season === cur,
       items: S.SHOP_ITEMS.map((it) => ({ ...it, price: S.shopPrice(it, u.star_slots) })),
+      sub: subOut(subRow(uid)), // the VIP subscription: active, renewal cancelled, end of the paid period
     };
   }
   // Paid from the stars on the account (season prizes).
   function buyWithStars(uid, { item }) {
+    if (S.SHOP_BY_ID[String(item)]?.sub) fail('Підписка оформлюється лише через Telegram Stars — з рахунку можна взяти VIP на 14 днів');
     const price = itemPrice(uid, String(item));
     if (!q('UPDATE users SET stars = stars - ? WHERE id = ? AND stars >= ?').run(price, uid, price).changes) fail('Недостатньо зірок на рахунку');
     return { ...applyItem(uid, String(item)), paid: price };
   }
-  // Paid in Telegram Stars through the bot (each charge once).
-  function creditItem({ chargeId, userId, itemId, stars }) {
+  // Paid in Telegram Stars through the bot (each charge once). A subscription item (vipsub) also comes back every 30
+  // days by itself: `recurring` without `first` = a renewal (Telegram's is_recurring / is_first_recurring), `expires` =
+  // the end of the paid period (subscription_expiration_date, ms).
+  function creditItem({ chargeId, userId, itemId, stars, recurring = false, first = false, expires = 0 }) {
     return db.tx(() => {
       if (!S.SHOP_BY_ID[itemId]) fail('Невідомий товар');
       if (q('SELECT 1 FROM payments WHERE charge_id = ?').get(chargeId)) return { duplicate: true };
       const it = S.SHOP_BY_ID[itemId], u = userRow(userId);
-      // Two invoices paid back to back both pass the pre-checkout; the second one would buy nothing (or a once-only pack twice).
-      if ((it.once && u.starter_bought) || (it.id === 'pass' && u.premium_season === S.seasonOf(now()))) {
+      const renewal = !!(it.sub && recurring && !first);
+      // Two invoices paid back to back both pass the pre-checkout; the second one would buy nothing (or a once-only pack
+      // twice, a cosmetic owned already, a second subscription next to the running one — that one is also cancelled).
+      const owned = it.cos && q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(userId, it.cos);
+      const running = it.sub && !renewal ? subActive(userId) : null;
+      const twoSubs = !!(running && running.charge_id !== chargeId);
+      if ((it.once && u.starter_bought) || (it.id === 'pass' && u.premium_season === S.seasonOf(now())) || owned || twoSubs) {
         q('INSERT INTO payments (charge_id, user_id, pack, stars, amount, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(chargeId, userId, 'refund:' + itemId, stars, 0, now());
-        return { refund: true, item: itemId };
+        return { refund: true, item: itemId, ...(twoSubs ? { cancelSub: true } : {}) };
       }
-      q('INSERT INTO payments (charge_id, user_id, pack, stars, amount, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(chargeId, userId, 'item:' + itemId, stars, 0, now());
+      q('INSERT INTO payments (charge_id, user_id, pack, stars, amount, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(chargeId, userId, (renewal ? 'renew:' : 'item:') + itemId, stars, 0, now());
       const out = applyItem(userId, itemId);
-      event(userId, `⭐ Оплата пройшла! ${S.SHOP_BY_ID[itemId].name} — уже твоє`);
+      if (it.sub) {
+        subPaid(userId, { chargeId, stars, renewal, expires });
+        out.sub = subOut(subRow(userId));
+      }
+      event(userId, renewal ? `⭐ VIP-підписку продовжено ще на ${S.VIP_SUB.days} днів` : `⭐ Оплата пройшла! ${it.name} — уже твоє`);
       return out;
     });
   }
@@ -3589,7 +3684,7 @@ export function createGame(db, opts = {}) {
     const rows = week
       ? q('SELECT id, total_value - week_start_value score FROM users WHERE week_id = ? ORDER BY score DESC, id LIMIT 50').all(cur)
       : q('SELECT id, total_value score FROM users ORDER BY score DESC, id LIMIT 50').all();
-    const list = rows.map((r, i) => ({ place: i + 1, id: r.id, name: name(r.id), score: r.score, me: r.id === uid }));
+    const list = rows.map((r, i) => ({ place: i + 1, id: r.id, name: name(r.id), score: r.score, me: r.id === uid, style: styleOf(r.id) }));
     const u = userRow(uid);
     const myScore = week ? u.total_value - u.week_start_value : u.total_value;
     // Ties go to the earlier player (lower id), the same order as the list and the weekly prizes.
@@ -4560,6 +4655,7 @@ export function createGame(db, opts = {}) {
     weekly, 'weekly/claim': weeklyClaim, 'weekly/chest': weeklyChest,
     leaderboard, promo: redeemPromo, events,
     season, 'season/claim': passClaim, shop, 'shop/stars': buyWithStars, feed: dropFeed,
+    'style/equip': styleEquip, 'home/added': homeAdded, 'emoji/set': emojiSet,
     'rewards/all': rewardsAll,
     'dream/set': dreamSet,
   };
@@ -4753,5 +4849,5 @@ export function createGame(db, opts = {}) {
     alog('bot', 'promo', null, { code: c, amount: Number(amount), uses: Number(uses), days: days || null });
     return c;
   });
-  return { api, admin, adminCall, announceUpdates, push, pushCandidates: push.candidates, pushMark: push.mark, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, createPromo: botPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)) };
+  return { api, admin, adminCall, announceUpdates, push, pushCandidates: push.candidates, pushMark: push.mark, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, vipSub: (uid) => db.tx(() => vipSub(uid)), vipSubSet: (uid, cancel) => db.tx(() => vipSubSet(uid, cancel)), createPromo: botPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)) };
 }

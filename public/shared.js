@@ -2128,6 +2128,9 @@ export function packMult(level, garage) {
   return Math.max(1, Math.pow(PACK_SCALE.level, Math.max(0, level - 1)), Math.pow(Math.max(1, garage / PACK_SCALE.garageBase), PACK_SCALE.garagePow));
 }
 export const packAmount = (pack, level, garage) => niceRound(pack.amount * packMult(level, garage));
+// Hryvnia packs are no longer on sale (owner: stars buy looks and VIP, not progress; hryvnias only in the one starter
+// pack). The list stays for invoices made before, the payments history and refunds (creditPayment).
+export const PACKS_ON_SALE = false;
 export const PACKS = [
   { id: 'p1', stars: 50, amount: 1500000, title: '1,5 млн ₴' },
   { id: 'p2', stars: 150, amount: 5000000, title: '5 млн ₴', tag: '+11%' },
@@ -2208,7 +2211,7 @@ const COSMETIC_INFO = {
 export function cosmeticOf(id) {
   const m = /^cos:s(\d{1,3}):([a-z]+)$/.exec(String(id || ''));
   const info = m && COSMETIC_INFO[m[2]];
-  if (!info) return null;
+  if (!info) return styleCosmetic(id); // «Стиль» items for stars: "cos:x:<item>" (STYLE_ITEMS)
   const season = Number(m[1]);
   return { id, season, kind: m[2], ...info, name: info.name.replace('{n}', season), livery: m[2] === 'livery' ? `szn${season}` : m[2] === 'gold' ? `szn${season}g` : null };
 }
@@ -2217,7 +2220,7 @@ export function passCosmetic(season, lvl) {
 }
 // The cosmetics a player owns (from me.claims) and whether a kind is on for the season shown (the newest one wins).
 export const ownedCosmetics = (claims) => (claims || []).map(cosmeticOf).filter(Boolean);
-export const cosmeticOn = (claims, kind) => ownedCosmetics(claims).filter((c) => c.kind === kind).sort((a, b) => b.season - a.season)[0] || null;
+export const cosmeticOn = (claims, kind) => ownedCosmetics(claims).filter((c) => c.kind === kind && c.season).sort((a, b) => b.season - a.season)[0] || null;
 // Season rating: by season XP. Prizes are stars on the player's account (spent in the shop) and a badge that stays.
 export const SEASON_PRIZES = [500, 250, 250, 50, 50, 50, 50, 50, 50, 50];
 export const SEASON_BADGE_TOP = 100;
@@ -2232,16 +2235,81 @@ export function seasonBadge(place) {
 export const VIP = { days: 14, stars: 300, fuelMult: 2, extraHours: 4, daily: 150000 };
 // What stars buy besides money packs. Paid in Telegram Stars or from the stars on the account (season prizes).
 // `slot` gets dearer with every slot bought for stars (×2), `starter` can be bought once.
+// VIP as a Telegram Stars subscription (createInvoiceLink subscription_period: Telegram allows only 30 days): renews by
+// itself every 30 days until cancelled (in the shop or in Telegram), a bit cheaper than two 14-day VIPs (600 ⭐).
+export const VIP_SUB = { days: 30, stars: 499, period: 2592000 };
 export const SHOP_ITEMS = [
-  { id: 'starter', name: 'Стартовий набір', stars: 99, once: true, money: 3000000, keys: { city: 2 }, vipDays: 3 },
+  // The only hryvnias for stars: one modest pack per account (PACKS are off sale).
+  { id: 'starter', name: 'Стартовий пакет', stars: 99, once: true, money: 1500000, keys: { city: 2 }, vipDays: 3 },
+  { id: 'vipsub', name: `VIP-підписка · ${VIP_SUB.days} днів`, stars: VIP_SUB.stars, vipDays: VIP_SUB.days, sub: true },
   { id: 'vip', name: `VIP на ${VIP.days} днів`, stars: VIP.stars, vipDays: VIP.days },
   { id: 'pass', name: 'Преміум-пропуск сезону', stars: SEASON.premiumStars },
   { id: 'refuel', name: 'Повний бак', stars: 25 },
   { id: 'cool', name: 'Охолодити деталі', stars: 10 },
   { id: 'slot', name: '+1 місце в гаражі', stars: 100 },
 ];
-export const SHOP_BY_ID = Object.fromEntries(SHOP_ITEMS.map((i) => [i.id, i]));
+
+// ---------- «Стиль»: cosmetics for stars (no stats, only looks) ----------
+// Owned for good as claims "cos:x:<item>" — the same storage as the season cosmetics (cosmeticOf, ownedCosmetics) —
+// and worn per slot through users.style ({frame, showcase, name, glow}: a cosmetic id, '' = off). Liveries are not a
+// slot: once owned they are free in the paint shop on any own car. Other players see what is worn: the name colour in
+// the rating, on the player card and the market; the plate frame on the owner's plates; the backdrop and the glow on
+// the showcase and the card.
+export const STYLE_SLOTS = ['frame', 'showcase', 'name', 'glow'];
+export const STYLE_KINDS = {
+  frame: { title: 'Рамки номерів', short: 'Рамка номера', icon: 'license', where: 'на всіх твоїх номерах — їх бачать на ринку, у вітрині й у картці' },
+  showcase: { title: 'Фони вітрини', short: 'Фон вітрини', icon: 'building-arch', where: 'за твоєю вітриною — її відкривають з рейтингу' },
+  livery: { title: 'Ексклюзивні лівреї', short: 'Ліврея', icon: 'brush', where: 'у «Фарбуванні» на будь-яку свою машину, безкоштовно' },
+  name: { title: 'Колір імені', short: 'Колір імені', icon: 'sparkles', where: 'у рейтингу, на картці гравця й на ринку' },
+  glow: { title: 'Підсвітка під машиною', short: 'Підсвітка', icon: 'bolt', where: 'під машинами на вітрині й у картці гравця' },
+};
+export const STYLE_ITEMS = [
+  { id: 'frame-neon', kind: 'frame', look: 'neon', name: 'Рамка «Неон»', stars: 50, hint: 'блакитне неонове світіння' },
+  { id: 'frame-carbon', kind: 'frame', look: 'carbon', name: 'Рамка «Карбон»', stars: 50, hint: 'плетіння карбону' },
+  { id: 'frame-chrome', kind: 'frame', look: 'chrome', name: 'Рамка «Хром»', stars: 50, hint: 'полірований метал' },
+  { id: 'frame-flame', kind: 'frame', look: 'flame', name: 'Рамка «Вогонь»', stars: 50, hint: 'помаранчево-червона' },
+  { id: 'frame-ua', kind: 'frame', look: 'ua', name: 'Рамка «Синьо-жовта»', stars: 50, hint: 'синій верх, жовтий низ' },
+  { id: 'bg-city', kind: 'showcase', look: 'city', name: 'Фон «Нічне місто»', stars: 100, hint: 'вогні багатоповерхівок' },
+  { id: 'bg-track', kind: 'showcase', look: 'track', name: 'Фон «Гоночний трек»', stars: 100, hint: 'шахова лінія фінішу' },
+  { id: 'bg-neon', kind: 'showcase', look: 'neon', name: 'Фон «Неоновий гараж»', stars: 100, hint: 'фіолетова сітка й неон' },
+  { id: 'bg-mount', kind: 'showcase', look: 'mount', name: 'Фон «Карпати»', stars: 100, hint: 'гори на світанку' },
+  { id: 'lv-neon', kind: 'livery', look: 'xneon', name: 'Ліврея «Нічний неон»', stars: 150, hint: 'темний кузов, неонові лінії' },
+  { id: 'lv-carbon', kind: 'livery', look: 'xcarbon', name: 'Ліврея «Карбон»', stars: 150, hint: 'карбоновий кузов' },
+  { id: 'lv-chrome', kind: 'livery', look: 'xchrome', name: 'Ліврея «Chrome»', stars: 150, hint: 'дзеркальний хром' },
+  { id: 'nm-gold', kind: 'name', look: 'gold', name: 'Золоте ім’я', stars: 75, hint: 'золотий градієнт' },
+  { id: 'nm-neon', kind: 'name', look: 'neon', name: 'Неонове ім’я', stars: 75, hint: 'блакитне світіння' },
+  { id: 'nm-flame', kind: 'name', look: 'flame', name: 'Вогняне ім’я', stars: 75, hint: 'від жовтого до червоного' },
+  { id: 'nm-ua', kind: 'name', look: 'ua', name: 'Синьо-жовте ім’я', stars: 75, hint: 'синій і жовтий' },
+  { id: 'gl-cyan', kind: 'glow', look: 'cyan', name: 'Підсвітка «Блакитна»', stars: 75, hint: 'неон під днищем' },
+  { id: 'gl-magenta', kind: 'glow', look: 'magenta', name: 'Підсвітка «Фіолетова»', stars: 75, hint: 'неон під днищем' },
+  { id: 'gl-amber', kind: 'glow', look: 'amber', name: 'Підсвітка «Бурштин»', stars: 75, hint: 'теплий неон під днищем' },
+].map((it) => ({ ...it, cos: 'cos:x:' + it.id }));
+const STYLE_BY_COS = Object.fromEntries(STYLE_ITEMS.map((it) => [it.cos, it]));
+// A «Стиль» item as a cosmetic (same shape as a season one; season 0).
+function styleCosmetic(id) {
+  const it = STYLE_BY_COS[id];
+  if (!it) return null;
+  const k = STYLE_KINDS[it.kind];
+  return { id, season: 0, kind: it.kind, look: it.look, item: it.id, stars: it.stars, short: k.short, name: it.name, icon: k.icon, hint: it.hint, shop: true, livery: it.kind === 'livery' ? it.look : null };
+}
+// What a player wears in each slot: the chosen cosmetic while owned; nothing chosen yet → the newest season frame /
+// backdrop (as before «Стиль»); '' = switched off. Same on the server (public output) and in the app.
+export function styleWorn(claims, style) {
+  const own = ownedCosmetics(claims), out = {};
+  for (const slot of STYLE_SLOTS) {
+    const pick = style && Object.prototype.hasOwnProperty.call(style, slot) ? style[slot] : undefined;
+    if (pick === '' || pick === null) out[slot] = null;
+    else if (pick && own.some((c) => c.id === pick && c.kind === slot)) out[slot] = pick;
+    else out[slot] = own.filter((c) => c.kind === slot && c.season).sort((a, b) => b.season - a.season)[0]?.id || null;
+  }
+  return out;
+}
+// The look of a worn cosmetic for CSS classes: 'season' for a season one, else the item's look (neon, carbon…).
+export const styleLook = (id) => { const c = cosmeticOf(id); return c ? (c.season ? 'season' : c.look) : null; };
+export const SHOP_BY_ID = Object.fromEntries([...SHOP_ITEMS, ...STYLE_ITEMS].map((i) => [i.id, i]));
 export const shopPrice = (item, starSlots = 0) => (item.id === 'slot' ? item.stars * Math.pow(2, starSlots) : item.stars);
+// Home-screen shortcut (WebApp.addToHomeScreen): offered from the 3rd day in the game, one key once it's added.
+export const HOME_SCREEN = { day: 3, caseId: 'city', count: 1 };
 
 // "What's new" story shown once after an update (bump `id` to show it again).
 export const WHATS_NEW = {
@@ -2582,13 +2650,15 @@ export const LIVERY_BY_ID = Object.fromEntries(LIVERIES.map((l) => [l.id, l]));
 export const PAINT = { rate: 0.03, min: 5000, liveryRate: 0.05, liveryMin: 8000 };
 const paintRound = (x) => (x < 1e6 ? Math.round(x / 1000) * 1000 : Math.round(x / 10000) * 10000);
 export const paintPrice = (model) => Math.max(PAINT.min, paintRound((MODELS[model]?.price || 0) * PAINT.rate));
-export const liveryPrice = (model, livery = null) => (LIVERY_BY_ID[livery]?.season ? 0 : Math.max(PAINT.liveryMin, paintRound((MODELS[model]?.price || 0) * PAINT.liveryRate)));
+export const liveryPrice = (model, livery = null) => (LIVERY_BY_ID[livery]?.cos ? 0 : Math.max(PAINT.liveryMin, paintRound((MODELS[model]?.price || 0) * PAINT.liveryRate)));
 // Season liveries (passCosmetic: levels 5 and 20 of the pass): not on sale, free on any own car once earned (the claim
 // in `cos`). Ids "szn<n>" / "szn<n>g"; public/paint.js draws them with the season number on the door.
 for (let n = 1; n <= 26; n++) {
   LIVERY_BY_ID['szn' + n] = { id: 'szn' + n, name: `Сезон ${n}`, hint: 'нагорода пропуску', season: n, cos: `cos:s${n}:livery` };
   LIVERY_BY_ID['szn' + n + 'g'] = { id: 'szn' + n + 'g', name: `Сезон ${n} · Золото`, hint: 'нагорода пропуску', season: n, gold: true, cos: `cos:s${n}:gold` };
 }
+// «Стиль» liveries (STYLE_ITEMS, kind livery): bought for stars once, then free on any own car (the claim in `cos`).
+for (const it of STYLE_ITEMS.filter((x) => x.kind === 'livery')) LIVERY_BY_ID[it.look] = { id: it.look, name: it.name.replace(/^Ліврея «(.+)»$/, '$1'), hint: it.hint, star: true, cos: it.cos };
 
 // ---------- career: country bosses («Кар'єра») ----------
 // A ladder of named bosses, country by country (Україна → Японія → Німеччина → Китай → США → Британія → Італія). Each

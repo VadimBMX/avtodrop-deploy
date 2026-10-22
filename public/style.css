@@ -3081,3 +3081,91 @@ button.li:active { background-color: #ffffff08; }
 /* narrow phones and a done step: the «N/8» says the progress, the dots give their room to the text */
 .guide.pill.ready .guide-dots { display: none; }
 @media (max-width: 380px) { .guide.pill .guide-dots { display: none; } .guide-rw { margin-right: 6px; padding: 3px 6px; } }
+/* ===== «Стиль» і VIP-підписка (agent K): магазин без гривень, косметика за зірки, ярлик, емодзі-статус ===== */
+.st-seg button .i { font-size: 16px; }
+.st-starter .chip { display: inline-flex; align-items: center; gap: 4px; }
+.st-starter .chip .i { font-size: 12px; }
+.vip-card .vip-buy { align-items: flex-end; }
+.vip-price { font: 800 22px/1 var(--f-disp); color: var(--accent); display: inline-flex; align-items: center; gap: 4px; }
+.vip-price small { font: 600 13px var(--f-disp); color: var(--muted); }
+.vip-sub, .vip-once { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: #0b0f16b3; box-shadow: inset 0 0 0 1px #ffc40033; }
+.vip-sub b { display: inline-flex; align-items: center; gap: 5px; color: #4be08f; }
+.vip-sub.off b { color: var(--text); }
+.vip-sub .grow, .vip-once .grow { min-width: 0; }
+.vip-once { box-shadow: inset 0 0 0 1px #ffffff12; }
+.st-style-promo { width: 100%; text-align: left; color: var(--text); border-color: #4b2f8a; background: linear-gradient(135deg, #22163f, var(--card) 75%); }
+.st-style-promo .chev { color: #8a7bff; display: inline-flex; }
+.sty-note .i { color: #b48cff; flex: none; margin-top: 1px; }
+.sty-me { border-color: #4b2f8a; background: linear-gradient(160deg, #1d1438, var(--card) 70%); }
+.sty-me-row { display: flex; align-items: center; gap: 10px; margin: 10px 0; min-width: 0; }
+.sty-me-row b { font: 700 16px var(--f-disp); min-width: 0; }
+.sty-me-sc { grid-template-columns: minmax(0, 1fr); max-width: 220px; margin: 0 auto; }
+.sty-where { margin: -4px 2px 8px; }
+.h2 .i { color: #b48cff; vertical-align: -2px; }
+.sty-list { display: grid; gap: 8px; margin-bottom: 14px; }
+.sty-item { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px 12px; padding: 9px 10px; border-radius: 12px; background: var(--card); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.sty-item > .sty-pv { grid-row: span 2; }
+.sty-item > .btn, .sty-item > .row { justify-self: start; }
+.sty-item.own { box-shadow: inset 0 0 0 1px #4b2f8a; }
+.sty-item.on { box-shadow: inset 0 0 0 1.5px #b48cff; background: linear-gradient(135deg, #22163f, var(--card) 70%); }
+.sty-item .btn { flex: none; }
+.sty-item .btn.on { color: #b48cff; }
+.sty-tx { min-width: 0; display: flex; flex-direction: column; gap: 2px; align-self: end; }
+.sty-tx b { font: 700 14px/1.15 var(--f-disp); }
+.sty-tx small { font-size: 11px; color: var(--muted); display: inline-flex; align-items: center; gap: 3px; }
+.sty-item.own .sty-tx small { color: #b48cff; }
+.sty-pv { flex: none; width: 92px; height: 50px; border-radius: 10px; display: grid; place-items: center; background: #0b0f16; box-shadow: inset 0 0 0 1px #ffffff0d; overflow: hidden; position: relative; }
+.sty-pv b { font: 800 15px var(--f-disp); white-space: nowrap; }
+.sty-pv .art { width: 84px; height: 40px; position: relative; isolation: isolate; }
+.sty-pv .art img { width: 100%; height: 100%; object-fit: contain; }
+.sty-pv.sty-bg { box-shadow: inset 0 0 0 1px #ffffff1a; }
+@media (max-width: 370px) { .sty-pv { width: 74px; } .sty-pv .art { width: 68px; } }
+/* plate frames (S.STYLE_ITEMS kind frame): rings round the plate, like the season frame */
+.plate.pf-neon { box-shadow: 0 0 0 max(1.5px, calc(var(--h) * .07)) #00e5ff, 0 0 max(6px, calc(var(--h) * .45)) #00e5ffaa; }
+.plate.pf-carbon { box-shadow: 0 0 0 max(1px, calc(var(--h) * .035)) #6b717c, 0 0 0 max(2.5px, calc(var(--h) * .11)) #23262c, 0 0 0 max(3.5px, calc(var(--h) * .15)) #0c0d10, 0 2px 8px #0009; }
+.plate.pf-chrome { box-shadow: 0 0 0 max(1px, calc(var(--h) * .04)) #f4f6f9, 0 0 0 max(2px, calc(var(--h) * .09)) #8d96a3, 0 0 0 max(3px, calc(var(--h) * .13)) #e1e5ea, 0 2px 8px #0008; }
+.plate.pf-flame { box-shadow: 0 0 0 max(1.5px, calc(var(--h) * .06)) #ffb000, 0 0 0 max(3px, calc(var(--h) * .13)) #e0251b, 0 0 max(6px, calc(var(--h) * .4)) #ff4d0088; }
+.plate.pf-ua { box-shadow: 0 0 0 max(1.5px, calc(var(--h) * .07)) #ffd500, 0 0 0 max(3px, calc(var(--h) * .14)) #0057b7, 0 2px 8px #0008; }
+/* showcase backdrops (kind showcase): behind a showcase grid and in the «Стиль» preview */
+.grid.sc-city, .grid.sc-track, .grid.sc-neon, .grid.sc-mount { position: relative; isolation: isolate; padding: 10px; border-radius: 14px; }
+.grid.sc-city .car, .grid.sc-track .car, .grid.sc-neon .car, .grid.sc-mount .car { background: color-mix(in srgb, var(--card) 78%, transparent); }
+.sc-city { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 60' preserveAspectRatio='none'%3E%3Cpath fill='%23060a15' d='M0 60V36H10V24H18V36H26V16H40V30H48V22H60V40H68V12H78V4H86V12H92V34H104V26H116V20H124V44H136V30H146V18H158V36H170V28H182V40H200V60Z'/%3E%3Cg fill='%23ffd76a' opacity='.6'%3E%3Crect x='30' y='20' width='2' height='2'/%3E%3Crect x='35' y='26' width='2' height='2'/%3E%3Crect x='71' y='18' width='2' height='2'/%3E%3Crect x='74' y='26' width='2' height='2'/%3E%3Crect x='80' y='10' width='2' height='2'/%3E%3Crect x='108' y='30' width='2' height='2'/%3E%3Crect x='149' y='24' width='2' height='2'/%3E%3Crect x='152' y='30' width='2' height='2'/%3E%3Crect x='13' y='30' width='2' height='2'/%3E%3C/g%3E%3C/svg%3E") bottom / 100% 55% no-repeat,
+  radial-gradient(ellipse 70% 50% at 50% 100%, #ff8a3d33, transparent 70%), linear-gradient(180deg, #0a1030, #182a5c 70%, #2b3f7a); box-shadow: inset 0 0 0 1px #6f8cff33; }
+.sc-track { background: conic-gradient(#e8e8e8 25%, #151515 0 50%, #e8e8e8 0 75%, #151515 0) top left / 14px 14px repeat-x,
+  repeating-linear-gradient(90deg, transparent 0 46%, #f5b30155 46% 54%, transparent 54% 100%) 0 55% / 100% 4px no-repeat, linear-gradient(180deg, #2a2e35 14px, #16191e); box-shadow: inset 0 0 0 1px #ffffff1a; }
+.grid.sc-track { padding-top: 22px; }
+.sc-neon { background: linear-gradient(#ff2bd626 1px, transparent 1px) 0 0 / 100% 18px, linear-gradient(90deg, #ff2bd626 1px, transparent 1px) 0 0 / 18px 100%,
+  radial-gradient(ellipse 80% 60% at 50% 100%, #00e5ff33, transparent 70%), linear-gradient(180deg, #1a0630, #07040f); box-shadow: inset 0 0 0 1px #ff2bd655, 0 0 14px #ff2bd622; }
+.sc-mount { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 60' preserveAspectRatio='none'%3E%3Cpath fill='%234a2f63' d='M0 60V34L18 22L30 30L52 10L70 28L84 20L104 36L126 14L146 30L164 18L184 32L200 24V60Z'/%3E%3Cpath fill='%23120d1f' d='M0 60V46L22 36L40 44L62 30L80 42L100 34L118 46L140 32L160 44L180 38L200 46V60Z'/%3E%3C/svg%3E") bottom / 100% 60% no-repeat,
+  linear-gradient(180deg, #24184a, #6e3567 45%, #e2804d 78%, #f4bd68); box-shadow: inset 0 0 0 1px #f4bd6844; }
+/* name colour (kind name) */
+.nm-gold, .nm-flame, .nm-ua { -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+.nm-gold { background-image: linear-gradient(180deg, #fff1b8, #f5b301 55%, #b97b00); }
+.nm-flame { background-image: linear-gradient(90deg, #ffd23f, #ff7a00 50%, #ff2a2a); }
+.nm-ua { background-image: linear-gradient(180deg, #5aa7ff 52%, #ffd500 52%); }
+.nm-neon { color: #8ff6ff; text-shadow: 0 0 5px #00e5ffaa, 0 0 11px #00e5ff55; }
+/* underglow (kind glow): a neon pool under the cars of a showcase grid, the player card and the preview */
+.gl-cyan, .gl-magenta, .gl-amber { --gl: #00e5ff; }
+.gl-magenta { --gl: #ff2bd6; }
+.gl-amber { --gl: #ffae00; }
+.grid.gl-cyan .car .art, .grid.gl-magenta .car .art, .grid.gl-amber .car .art,
+.licence.gl-cyan .lbay .art, .licence.gl-magenta .lbay .art, .licence.gl-amber .lbay .art, .sty-glow .art { position: relative; isolation: isolate; }
+.grid.gl-cyan .car .art::before, .grid.gl-magenta .car .art::before, .grid.gl-amber .car .art::before,
+.licence.gl-cyan .lbay .art::before, .licence.gl-magenta .lbay .art::before, .licence.gl-amber .lbay .art::before, .sty-glow .art::before {
+  content: ''; position: absolute; z-index: -1; left: 8%; right: 8%; bottom: -3px; height: 26%; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, var(--gl), color-mix(in srgb, var(--gl) 35%, transparent) 60%, transparent); opacity: .9; }
+/* «Стиль» liveries: swatches in the paint shop, locked ones lead to «Стиль» */
+.lv-xneon i { background: linear-gradient(#14151f 0 52%, #00e5ff 52% 60%, #14151f 60% 66%, #ff2bd6 66% 71%, #14151f 71%); }
+.lv-xcarbon i { background: repeating-conic-gradient(#2e3138 0 25%, #1b1d22 0 50%) 0 0 / 6px 6px; }
+.lv-xchrome i { background: linear-gradient(#f2f5f9, #969eaa 42%, #343a46 50%, #c4cad4 58%, #78808c); }
+.lv[data-id^="x"] b::after { content: ' ★'; color: #b48cff; }
+.lv.lv-lock { opacity: .72; }
+.lv.lv-lock span { display: inline-flex; align-items: center; gap: 3px; color: #b48cff; }
+/* home-screen shortcut card in the menu, emoji-status offer after a final boss */
+.hub-home { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 10px; padding: 11px 12px; border-radius: 14px; text-align: left; --c: #22c3e6;
+  background: linear-gradient(100deg, #22c3e61a, transparent 60%), var(--surf, var(--card)); box-shadow: inset 0 0 0 1px #22c3e640; color: var(--text); }
+.hub-home b { display: block; font: 700 15px/1.2 var(--f-disp); }
+.hub-home .chev { color: #4a5568; display: inline-flex; }
+.hub-home:active { transform: scale(.985); }
+.emoji-offer { margin-top: 10px; }
+.hub-home .hub-i { white-space: normal; }

@@ -139,6 +139,12 @@ CREATE TABLE IF NOT EXISTS payments (
   charge_id TEXT PRIMARY KEY, user_id INTEGER NOT NULL, pack TEXT NOT NULL, stars INTEGER NOT NULL,
   amount INTEGER NOT NULL, created_at INTEGER NOT NULL
 );
+-- VIP as a Telegram Stars subscription (S.VIP_SUB), one row per player: the first payment's charge id (Telegram's id of
+-- the subscription, for editUserStarSubscription), the latest renewal's, the end of the paid period, renewal switched off.
+CREATE TABLE IF NOT EXISTS vip_subs (
+  user_id INTEGER PRIMARY KEY, charge_id TEXT NOT NULL, last_charge TEXT, stars INTEGER NOT NULL, started_at INTEGER NOT NULL,
+  renewed_at INTEGER, expires_at INTEGER NOT NULL, renewals INTEGER NOT NULL DEFAULT 0, canceled INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS events (
   id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, text TEXT NOT NULL,
   seen INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL
@@ -282,6 +288,8 @@ const MIGRATIONS = [
   'ALTER TABLE users ADD COLUMN vip_until INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE users ADD COLUMN star_slots INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE users ADD COLUMN starter_bought INTEGER NOT NULL DEFAULT 0',
+  // «Стиль» (S.STYLE_SLOTS): what the player wears per slot, JSON {frame, showcase, name, glow} of cosmetic ids ('' = off).
+  "ALTER TABLE users ADD COLUMN style TEXT NOT NULL DEFAULT '{}'",
   // Paint 2.0 (S.PAINT_COLORS): the car's body colour id, NULL = factory. The column comes from the first CSS repaint,
   // whose colour ids are kept, so cars painted back then stay painted.
   'ALTER TABLE cars ADD COLUMN paint TEXT',

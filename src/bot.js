@@ -1,4 +1,4 @@
-import { PACKS, SHOP_BY_ID, ALL_MODELS, MAIN_COUNTRIES, REF_FRIEND_BONUS, fmt, short } from '../public/shared.js';
+import { PACKS, PACKS_ON_SALE, SHOP_BY_ID, VIP_SUB, ALL_MODELS, MAIN_COUNTRIES, REF_FRIEND_BONUS, fmt, short } from '../public/shared.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -58,19 +58,27 @@ export function createBot({ token, webappUrl, admins = [], game, log = console.e
   async function handle(u) {
     if (u.pre_checkout_query) {
       const pq = u.pre_checkout_query;
-      const [kind, packId, uid] = String(pq.invoice_payload).split(':');
+      const [kind, packId, uid, price] = String(pq.invoice_payload).split(':');
       const pack = PACKS.find((p) => p.id === packId);
       let ok = Number(uid) === pq.from.id && pq.currency === 'XTR';
-      if (kind === 'pack') ok = ok && pack && pq.total_amount === pack.stars;
-      else if (kind === 'item') {
-        // Checked again at payment time: the starter pack once, the pass once a season, the slot price may have grown.
+      let why = 'Пакет недійсний, спробуй ще раз з гри';
+      // Hryvnia packs are off sale (S.PACKS_ON_SALE): an old invoice is declined here, so no stars are taken.
+      if (kind === 'pack') {
+        ok = ok && PACKS_ON_SALE && !!pack && pq.total_amount === pack.stars;
+        if (!PACKS_ON_SALE) why = 'Пакети гривень більше не продаються — у магазині гри є «Стиль» і VIP';
+      } else if (kind === 'item' && SHOP_BY_ID[packId]?.sub) {
+        // The VIP subscription: its price is fixed in the invoice (renewals keep it), a second one is refunded later.
+        ok = ok && pq.total_amount === Number(price) && pq.total_amount > 0;
+      } else if (kind === 'item') {
+        // Checked again at payment time: the starter pack once, the pass once a season, a cosmetic once, the slot price may have grown.
         try {
           ok = ok && pq.total_amount === game.itemPrice(pq.from.id, packId);
-        } catch {
+        } catch (e) {
           ok = false;
+          if (e?.message) why = e.message.slice(0, 200);
         }
       } else ok = false;
-      await call('answerPreCheckoutQuery', ok ? { pre_checkout_query_id: pq.id, ok: true } : { pre_checkout_query_id: pq.id, ok: false, error_message: 'Пакет недійсний, спробуй ще раз з гри' });
+      await call('answerPreCheckoutQuery', ok ? { pre_checkout_query_id: pq.id, ok: true } : { pre_checkout_query_id: pq.id, ok: false, error_message: why });
       return;
     }
     const m = u.message;
@@ -79,10 +87,14 @@ export function createBot({ token, webappUrl, admins = [], game, log = console.e
       const sp = m.successful_payment;
       const [kind, packId, , amount] = String(sp.invoice_payload).split(':');
       if (kind === 'item') {
-        const r = game.creditItem({ chargeId: sp.telegram_payment_charge_id, userId: m.from.id, itemId: packId, stars: sp.total_amount });
+        // Subscription payments (VIP_SUB) carry is_recurring; the first one also is_first_recurring, renewals don't.
+        const r = game.creditItem({ chargeId: sp.telegram_payment_charge_id, userId: m.from.id, itemId: packId, stars: sp.total_amount,
+          recurring: !!sp.is_recurring, first: !!sp.is_first_recurring, expires: sp.subscription_expiration_date ? sp.subscription_expiration_date * 1000 : 0 });
         if (r?.refund) {
+          // A second VIP subscription next to the running one: stop its renewals too, then give the stars back.
+          if (r.cancelSub) await editStarSubscription(m.from.id, sp.telegram_payment_charge_id, true).catch((e) => log('sub cancel:', e.message));
           await call('refundStarPayment', { user_id: m.from.id, telegram_payment_charge_id: sp.telegram_payment_charge_id });
-          await send(m.chat.id, 'Цю покупку вже зроблено раніше — зірки повернуто.');
+          await send(m.chat.id, r.cancelSub ? 'VIP-підписка в тебе вже діє — другу скасовано, зірки повернуто.' : 'Цю покупку вже зроблено раніше — зірки повернуто.');
         }
         return;
       }
@@ -137,17 +149,26 @@ export function createBot({ token, webappUrl, admins = [], game, log = console.e
     }
   }
 
-  // A shop item (VIP, pass, starter pack…) at the player's current price.
+  // A shop item (VIP, pass, starter pack, «Стиль»…) at the player's current price. The VIP subscription is a Telegram
+  // Stars subscription invoice (subscription_period: 30 days, renews by itself; the player can cancel in Telegram too).
   function itemInvoiceLink(uid, itemId, price) {
     const it = SHOP_BY_ID[itemId];
     if (!it) throw new Error('bad item');
+    const full = `${it.name} · АВТОДРОП`; // Telegram: title 1–32 characters
     return call('createInvoiceLink', {
-      title: `${it.name} · АВТОДРОП`,
-      description: 'Зарахується одразу після оплати. Ігрові цінності не можна вивести чи обміняти на реальні гроші.',
+      title: full.length <= 32 ? full : it.name.slice(0, 32),
+      description: it.sub
+        ? `VIP на ${VIP_SUB.days} днів, продовжується сам кожні ${VIP_SUB.days} днів. Скасувати можна в магазині гри або в Telegram (Налаштування → Мої зірки).`
+        : 'Зарахується одразу після оплати. Ігрові цінності не можна вивести чи обміняти на реальні гроші.',
       payload: `item:${it.id}:${uid}:${price}`,
       currency: 'XTR',
       prices: [{ label: it.name, amount: price }],
+      ...(it.sub ? { subscription_period: VIP_SUB.period } : {}),
     });
+  }
+  // Cancel (true) or resume (false) the renewal of a Stars subscription (Bot API editUserStarSubscription).
+  function editStarSubscription(uid, chargeId, cancel) {
+    return call('editUserStarSubscription', { user_id: uid, telegram_payment_charge_id: chargeId, is_canceled: !!cancel });
   }
 
   // A drop card the player can send to any chat from the Mini App (WebApp.shareMessage, Bot API 8.0): a photo with a
@@ -166,6 +187,7 @@ export function createBot({ token, webappUrl, admins = [], game, log = console.e
 
   return {
     itemInvoiceLink,
+    editStarSubscription,
     prepareShare,
     get username() {
       return username;

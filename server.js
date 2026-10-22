@@ -10,7 +10,7 @@ import { verifyInitData } from './src/auth.js';
 import { createBot } from './src/bot.js';
 import { createSender, createReminders } from './src/reminders.js';
 import { createStatic, compressSmall } from './src/static.js';
-import { PACKS, REF_REWARD, MODELS, shareCaption } from './public/shared.js';
+import { PACKS, PACKS_ON_SALE, REF_REWARD, MODELS, shareCaption } from './public/shared.js';
 import { createShareStore, SHARE } from './src/share.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -224,7 +224,9 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     if (name === 'config') {
       // Community links (Telegram channel with news, players' chat) come from Railway variables; empty = button hidden.
       const community = { channel: process.env.TG_CHANNEL_URL || '', chat: process.env.TG_CHAT_URL || '' };
-      return send(res, 200, { dev, bot: bot?.username || null, stars: !!bot, packs: PACKS, images: carImages(), partImages: folderImages('parts'), community });
+      // EMOJI_STATUS_ID: the custom emoji (🏁) the app offers for the Telegram status after a career milestone; empty = no offer.
+      const emojiStatus = /^\d{5,25}$/.test(process.env.EMOJI_STATUS_ID || '') ? process.env.EMOJI_STATUS_ID : '';
+      return send(res, 200, { dev, bot: bot?.username || null, stars: !!bot, packs: PACKS_ON_SALE ? PACKS : [], images: carImages(), partImages: folderImages('parts'), community, emojiStatus });
     }
     if (req.method !== 'POST') return send(res, 405, { error: 'POST only' });
     const uid = authenticate(req);
@@ -236,8 +238,25 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     if (name === 'shop/invoice') {
       if (!bot) throw new GameError('Оплата зірками стане доступною після підключення бота');
       if (body.item) return send(res, 200, { link: await bot.itemInvoiceLink(uid, String(body.item), game.itemPrice(uid, String(body.item))) });
+      if (!PACKS_ON_SALE) throw new GameError('Пакети гривень більше не продаються — загляни в «Стиль» і VIP');
       if (!PACKS.some((p) => p.id === body.pack)) throw new GameError('Невідомий пакет');
       return send(res, 200, { link: await bot.invoiceLink(uid, body.pack, game.packAmountFor(uid, body.pack)) });
+    }
+    // VIP subscription: cancel (cancel: true) or resume the renewal — Telegram first (editUserStarSubscription), then
+    // the game. The subscription's id is its first charge; the latest renewal's charge is tried if Telegram refuses it.
+    if (name === 'shop/sub') {
+      if (!bot) throw new GameError('Оплата зірками стане доступною після підключення бота');
+      const cancel = body.cancel !== false;
+      const s = game.vipSub(uid);
+      try {
+        await bot.editStarSubscription(uid, s.chargeId, cancel);
+      } catch (e) {
+        if (!s.lastCharge || s.lastCharge === s.chargeId) throw new GameError('Telegram не змінив підписку — спробуй у Telegram: Налаштування → Мої зірки');
+        await bot.editStarSubscription(uid, s.lastCharge, cancel).catch(() => {
+          throw new GameError('Telegram не змінив підписку — спробуй у Telegram: Налаштування → Мої зірки');
+        });
+      }
+      return send(res, 200, game.vipSubSet(uid, cancel));
     }
     if (name === 'ref') {
       const invited = db.q('SELECT COUNT(*) n, COALESCE(SUM(ref_paid), 0) paid FROM users WHERE referrer_id = ?').get(uid);
