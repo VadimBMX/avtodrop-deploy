@@ -210,6 +210,7 @@ async function act(name, body, ok, { rerender = true } = {}) {
       SFX.win();
     }
     await refresh(rerender);
+    if (CELEBRATE.has(name)) pulseSoon(); // a reward claimed here takes its «Забрати» banner along (showClaimBanners)
     return r;
   } catch (e) {
     toast(e.message, true);
@@ -783,7 +784,7 @@ async function openRewards(result) {
     ${r.ready ? `<div class="day-now">${ic('gift')} <b>День ${r.nextDay}</b> — ${esc(S.dailyText(r.days[r.nextDay - 1]))}</div>` : ''}
     <div class="tiny muted mt">Заходь щодня: на 5-й і 10-й день — машина, на 7-й — кейс «Спорткар» (машина ${S.caseClassSpan('sport')}), на 14-й — кейс «Еліта» (машина ${S.caseClassSpan('elite')}). Кейс відкривається одразу після «Забрати». Новий день — опівночі за Києвом. Пропустив день — нічого не згорає, продовжиш з того ж місця.</div>
     ${r.vip ? `<div class="tiny mt" style="color:var(--accent)">${ic('crown')} VIP: ще +${S.short(r.vipDaily)} щодня до бонусу</div>` : `<div class="tiny muted mt">${ic('crown')} VIP додає ще +${S.short(r.vipDaily)} щодня</div>`}
-    <button class="btn mt" data-act="claimDaily" ${r.ready ? '' : 'disabled'}>${r.ready ? `Забрати · день ${r.nextDay}${r.days[r.nextDay - 1].caseId ? ' · відкрити кейс' : ''}` : 'Наступний опівночі · <span data-until="' + (S.kyivMidnightOf(S.kyivDateOf(serverNow()), 1) - clockOffset) + '"></span>'}</button></div>
+    <button class="btn mt ${liveRewardClaims().length ? 'soft' : ''}" data-act="claimDaily" ${r.ready ? '' : 'disabled'}>${r.ready ? `Забрати · день ${r.nextDay}${r.days[r.nextDay - 1].caseId ? ' · відкрити кейс' : ''}` : 'Наступний опівночі · <span data-until="' + (S.kyivMidnightOf(S.kyivDateOf(serverNow()), 1) - clockOffset) + '"></span>'}</button></div>
     <div class="h2"><span>Кейс нагород</span><span>раз на ${S.REWARD_CASE_HOURS} год</span></div>
     <div class="card row"><span class="ic tint" style="--c:#ffc400">${ic('gift')}</span><div class="grow"><b>Кейс нагород</b><div class="small muted">Гроші, деталь, повний бак або машина</div></div>
       ${caseReady ? '<button class="btn sm" data-act="claimRewardCase">Відкрити</button>' : `<span class="chip" data-until="${r.rewardCaseAt - clockOffset}"></span>`}</div>
@@ -2969,7 +2970,8 @@ function bossFitHint(b) {
   return `<div class="tiny muted bc-hint">У гаражі такої немає. Підійде, наприклад: ${S.bossCarHint(b).map((id) => esc(M(id).name)).join(', ')}</div>`;
 }
 H.bossPickCar = async (d) => {
-  state.raceCar = Number(d.id);
+  // A car the player picked himself: careerView must not swap it back to one for the next boss (readyRaceCar).
+  state.raceCar = state.raceCarPicked = Number(d.id);
   prefSet('raceCar', state.raceCar);
   if (!$('#modal').hidden) closeModal();
   await render();
@@ -5058,6 +5060,7 @@ H.questClaim = (d) => act('quests/claim', { key: d.k }, (r) => `+${S.fmt(r.got)}
 // gave (class C / B of the daily bonus, the season car) gets a reel of its own class that stops on it. The reward case
 // spins a 2-second strip of what it can give. One at a time; «Далі» moves on, «Пропустити» leaves the keys in the cases.
 const REWARD_KINDS = new Set(['daily', 'rcase', 'newbie', 'quest', 'weekly', 'wchest', 'coll', 'set', 'ach', 'achAll', 'pass']);
+const PAGE_CLAIMS = { quests: ['quest', 'weekly', 'wchest', 'newbie'], season: ['pass'], achievements: ['ach', 'achAll'], collection: ['coll', 'set'] };
 const REWARD_IC = { daily: 'gift', rcase: 'box', newbie: 'sparkles', quest: 'target-arrow', weekly: 'calendar', wchest: 'gift', coll: 'books', set: 'books', ach: 'diamond', achAll: 'diamond', pass: 'ticket' };
 CELEBRATE.add('rewards/all');
 let rewardClaims = []; // reward claims of the last pulse: the rewards center lists them, the gift badge counts them
@@ -5084,11 +5087,19 @@ const hashStr = (str) => {
 // (its single rewards are remembered as shown, so they don't come back one by one). Other claims stay as they were.
 function showClaimBanners(claims) {
   const one = (c) => showBanner({ ...c, claim: c, sub: esc(countFix(c.sub)) + (c.money ? ` · <b class="win">+${S.short(c.money)}</b>` : ''), ttl: 8000, buttons: [{ label: 'Забрати', act: 'bannerClaim' }] });
-  for (const c of claims) if (!REWARD_KINDS.has(c.kind) && !bannerSeen.has(c.key) && !(c.kind === 'newbie' && $('#guide'))) one(c);
-  const rw = claims.filter((c) => REWARD_KINDS.has(c.kind) && !(c.kind === 'daily' && skipDailyBanner));
+  for (const c of claims) if (!REWARD_KINDS.has(c.kind) && !bannerSeen.has(c.key)) one(c);
+  // First steps: the pill on top of the screen has its own «Забрати» — no second one in a banner (newbie is a reward kind).
+  // Nor for what the open page claims itself (Завдання, Сезон, Досягнення, Колекція): one «Забрати» per reward on screen.
+  const here = PAGE_CLAIMS[state.page] || [];
+  const rw = claims.filter((c) => REWARD_KINDS.has(c.kind) && !(c.kind === 'daily' && skipDailyBanner) && !(c.kind === 'newbie' && $('#guide')) && !here.includes(c.kind));
+  // A reward taken elsewhere (the pill, Завдання, the rewards window) takes its banner with it: a stale «Забрати» failed
+  // or, for the steps, claimed the next one under the old title.
+  const live = new Set(rw.map((c) => c.key));
+  const allKey = rw.length >= 2 ? 'rwall:' + hashStr(rw.map((c) => c.key).sort().join('|')) : null;
+  for (const [k, b] of banners) if (b.data.claim && (b.data.kind === 'rwall' ? k !== allKey : REWARD_KINDS.has(b.data.kind) && !live.has(k))) hideBanner(k, false);
   if (rw.length === 1 && !bannerSeen.has(rw[0].key)) return one(rw[0]);
   if (rw.length < 2) return;
-  const key = 'rwall:' + hashStr(rw.map((c) => c.key).sort().join('|'));
+  const key = allKey;
   if (bannerSeen.has(key) || banners.has(key)) return;
   for (const [k, b] of banners) if (b.data.claim && REWARD_KINDS.has(b.data.kind)) hideBanner(k, false);
   rw.forEach((c) => rememberBanner(c.key));
@@ -5279,7 +5290,7 @@ function rvlResult(res, cs) {
     if (rank >= 3) setTimeout(() => SFX.rare(rank), 120);
     setTimeout(() => FX.dropShow(rank, color, { host: $('#rvlReveal'), target: $('#rvlArt'), newEl: $('#rvlRes .newtag') }), 150);
   };
-  if (WOW.pickDrop([res])) WOW.celebrate(res, { casePrice: cs?.price || 0, onShare: (r) => openShare(r.car, { mult: cs?.price ? r.car.value / cs.price : 0 }) }).then(fx);
+  if (WOW.pickDrop([res])) WOW.celebrate(res, { casePrice: cs?.price || 0, onShare: (r) => openShare(r.car, { mult: cs?.price ? (S.saleOf(r.car) ?? 0) / cs.price : 0 }) }).then(fx);
   else fx();
 }
 function rvlMsg(icon, title, text) {
@@ -5441,7 +5452,7 @@ PAGES.season = async () => {
       ${s.ready ? `<button class="btn yellow mt" data-act="passClaim">${ic('gift')} Забрати нагороди · ${s.ready}</button>` : ''}</div>
     ${car ? `<div class="card center season-car"><div class="small muted">Рівень ${S.SEASON.levels} · преміум</div><div class="showroom">${SHOWROOM_SVG}<div class="sr-refl" aria-hidden="true">${carArt(car.id)}</div><div class="art">${carArt(car.id)}</div></div><b style="font-size:17px">${esc(car.name)}</b>
       <div class="small muted">${car.hp} к.с. · колекційна ${S.short(car.price)} · лише в цьому сезоні</div>
-      ${s.premium ? `<div class="mt" style="color:var(--accent)">${ic('crown')} Преміум активний</div>` : `<button class="btn yellow mt" data-act="buyItem" data-id="pass">${ic('crown')} Преміум · ${ic('star')} ${S.SEASON.premiumStars}</button><div class="tiny muted mt">Нагороди правої доріжки за вже пройдені рівні — одразу після покупки</div>`}</div>` : ''}
+      ${s.premium ? `<div class="mt" style="color:var(--accent)">${ic('crown')} Преміум активний</div>` : `<button class="btn ${s.ready ? 'soft' : 'yellow'} mt" data-act="buyItem" data-id="pass">${ic('crown')} Преміум · ${ic('star')} ${S.SEASON.premiumStars}</button><div class="tiny muted mt">Нагороди правої доріжки за вже пройдені рівні — одразу після покупки</div>`}</div>` : ''}
     ${seasonCosStrip(s)}
     <div class="prow head"><span class="plvl">#</span><span>Безкоштовно</span><span>${ic('crown')} Преміум</span></div>
     <div class="ptable">${s.levels.map(row).join('')}</div>`;

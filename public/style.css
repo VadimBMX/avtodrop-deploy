@@ -3035,7 +3035,6 @@ button.li:active { background-color: #ffffff08; }
 .dtrain { border: 1px solid #1d4a31; }
 .d2 .dtip { min-height: 38px; padding: 8px 10px; border-radius: 10px; background: #0b0f16; border: 1px solid var(--line);
   font: 800 15px/1.25 var(--f-disp); color: #facc15; }
-=======
 /* ---------- progression (wD): one shared tank, «Перші кроки», the next unlock ---------- */
 /* An empty tank: the card says when the next one comes; the rivals under it grey out but stay tappable (a tap points
    at the card, no error toast). */
