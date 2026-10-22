@@ -3342,7 +3342,7 @@ export function createGame(db, opts = {}) {
     const regular = [...owned].filter((id) => !S.MODELS[id]?.secret).length;
     for (const m of S.COLLECTION_MILESTONES) if (regular >= m.n && !S.milestoneTaken(m, have)) claims.push({ key: 'coll:' + S.milestoneId(m), kind: 'coll', id: S.milestoneId(m), title: 'Нагорода за колекцію', sub: m.label || `Зібрано ${m.n} машин`, money: m.money });
     for (const c of S.MAIN_COUNTRIES) {
-      if (!have.has('c' + c) && S.countryModels(c).every((m) => owned.has(m.id))) claims.push({ key: 'coll:c' + c, kind: 'coll', id: 'c' + c, title: `Колекція «${S.COUNTRIES[c].name}» зібрана!`, sub: 'Секретна машина й гроші', money: S.COUNTRY_REWARD[c] });
+      if (!have.has('c' + c) && S.countryDone(c, owned)) claims.push({ key: 'coll:c' + c, kind: 'coll', id: 'c' + c, title: `Колекція «${S.COUNTRIES[c].name}» зібрана!`, sub: 'Секретна машина й гроші', money: S.COUNTRY_REWARD[c] });
     }
     for (const s of S.SETS) {
       if (!have.has('set:' + s.id) && S.setProgress(s, owned).done) claims.push({ key: 'set:' + s.id, kind: 'set', id: s.id, title: `Сет «${s.name}» зібрано!`, sub: `Значок ${S.SET_TIERS[s.tier].name} · ${S.setRewardText(s)}` });
@@ -3526,7 +3526,7 @@ export function createGame(db, opts = {}) {
     } else if (k.startsWith('c')) {
       const c = k.slice(1);
       if (!S.MAIN_COUNTRIES.includes(c)) fail('Невідома нагорода');
-      if (!S.countryModels(c).every((m) => owned.has(m.id))) fail(`Збери всі машини: ${S.COUNTRIES[c].name}`);
+      if (!S.countryDone(c, owned)) fail(`Збери всі машини кейса «${S.COUNTRIES[c].name}»`);
       rw = { money: S.COUNTRY_REWARD[c], secret: S.SECRET_BY_COUNTRY[c] };
     } else fail('Невідома нагорода');
     q('INSERT INTO claims (user_id, key) VALUES (?, ?)').run(uid, k);
@@ -3716,7 +3716,7 @@ export function createGame(db, opts = {}) {
     const regular = [...owned].filter((id) => !S.MODELS[id]?.secret).length;
     for (const m of S.COLLECTION_MILESTONES) if (regular >= m.n && !S.milestoneTaken(m, have)) take('coll', () => collectionClaim(uid, { key: S.milestoneId(m) }));
     for (const c of S.MAIN_COUNTRIES) {
-      if (have.has('c' + c) || !S.countryModels(c).every((m) => owned.has(m.id))) continue;
+      if (have.has('c' + c) || !S.countryDone(c, owned)) continue;
       const r = take('coll', () => collectionClaim(uid, { key: 'c' + c }));
       car(r?.reward.carOut, `Колекція «${S.COUNTRIES[c].name}» зібрана`);
     }
@@ -5220,6 +5220,62 @@ export function createGame(db, opts = {}) {
     });
   }
 
+  // Secret cars that never came (22.10): a country collection used to need every car of the country, also the cheap
+  // ones its own case never drops, so a player with the whole country case ✓ got nothing. Now it is the country case
+  // (S.countryDone). At start, once per database (meta flag) — and harmless if run again, it only fills what is
+  // missing: a player who meets S.countryDone, or already has the 'c<country>' claim, and owns no car of that
+  // country's secret model gets one (on the showcase if the garage is full, like collectionClaim). The money is paid
+  // only together with a new claim row: a claim row means it was paid. The bot message goes out after start
+  // (flushStartupNotes, once the sender exists); the event row and the in-app window are written now.
+  const startupNotes = [];
+  function backfillSecrets({ force = false } = {}) {
+    if (!force && metaGet('secret_backfill_1')) return { cars: 0, players: 0 };
+    let cars = 0;
+    const players = new Set();
+    db.tx(() => {
+      for (const { id: uid } of q('SELECT id FROM users WHERE id > 0 ORDER BY id').all()) {
+        const owned = new Set(q('SELECT model FROM collection WHERE user_id = ?').all(uid).map((r) => r.model));
+        for (const c of S.MAIN_COUNTRIES) {
+          const secret = S.SECRET_BY_COUNTRY[c];
+          if (!secret || q('SELECT 1 FROM cars WHERE owner_id = ? AND model = ?').get(uid, secret)) continue;
+          const claimed = !!q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(uid, 'c' + c);
+          if (!claimed && !S.countryDone(c, owned)) continue;
+          bank(uid);
+          let money = 0;
+          if (!claimed) {
+            q('INSERT INTO claims (user_id, key) VALUES (?, ?)').run(uid, 'c' + c);
+            addMoney(uid, (money = S.COUNTRY_REWARD[c]));
+          }
+          const { id } = giveCar(uid, secret);
+          const full = garageCount(uid) > userRow(uid).slots;
+          if (full) q("UPDATE cars SET status = 'showcase' WHERE id = ?").run(id);
+          const text = `🎁 Ти зібрав колекцію «${S.COUNTRIES[c].name}» — секретна машина ${S.MODELS[secret].name} у твоєму гаражі${full ? ' (на вітрині: гараж повний)' : ''}${money ? ` +${S.fmt(money)}` : ''}`;
+          q('INSERT INTO events (user_id, text, created_at) VALUES (?, ?, ?)').run(uid, text, now());
+          gift(uid, 'secret', { model: secret, carId: id, country: c, money }, text);
+          startupNotes.push([uid, text]);
+          alog('system', 'secret-backfill', uid, { country: c, model: secret, carId: id, money });
+          recalc(uid);
+          cars++;
+          players.add(uid);
+        }
+      }
+      metaSet('secret_backfill_1', now());
+    });
+    if (cars || q('SELECT 1 FROM users WHERE id > 0 LIMIT 1').get()) console.log(`secret backfill: ${cars} cars to ${players.size} players`);
+    return { cars, players: players.size };
+  }
+  // Bot messages queued at start (backfillSecrets): sent once the server has its sender.
+  function flushStartupNotes(send = notify) {
+    const list = startupNotes.splice(0);
+    for (const [uid, text] of list) {
+      try {
+        send(uid, text);
+      } catch {}
+    }
+    return list.length;
+  }
+  backfillSecrets();
+
   importLegacy();
   migrateNewbieOrder();
   migrateProgress();
@@ -5230,5 +5286,5 @@ export function createGame(db, opts = {}) {
     alog('bot', 'promo', null, { code: c, amount: Number(amount), uses: Number(uses), days: days || null });
     return c;
   });
-  return { api, admin, adminCall, announceUpdates, push, pushCandidates: push.candidates, pushMark: push.mark, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, vipSub: (uid) => db.tx(() => vipSub(uid)), vipSubSet: (uid, cancel) => db.tx(() => vipSubSet(uid, cancel)), createPromo: botPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)), challengeInfo, challengeCard };
+  return { api, admin, adminCall, announceUpdates, push, pushCandidates: push.candidates, pushMark: push.mark, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, vipSub: (uid) => db.tx(() => vipSub(uid)), vipSubSet: (uid, cancel) => db.tx(() => vipSubSet(uid, cancel)), createPromo: botPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)), challengeInfo, challengeCard, flushStartupNotes, backfillSecrets: (o) => backfillSecrets({ force: true, ...o }) };
 }

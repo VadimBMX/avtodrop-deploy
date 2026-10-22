@@ -671,6 +671,19 @@ for (const cs of CASES) {
   cs.sellEv = Math.round(caseEV(effectiveWeights(cs), cs.pool, (m) => sellPriceOf(m.id, Infinity, cs.id)));
 }
 export const CASE_BY_ID = Object.fromEntries(CASES.map((c) => [c.id, c]));
+// What a country collection asks for (its secret car + COUNTRY_REWARD): every car of that country's own case — the
+// «Що всередині» list the player sees on the case. It used to be every car of the country (countryModels), which
+// also took the cheap D/C cars that drop only from the rarity cases: a player with the whole country case ✓ got
+// nothing (22.10). A country without a case of its own keeps countryModels. The list is built from the pool, so a
+// model added later joins it the same way it joins the case.
+const COUNTRY_CASE_ID = Object.fromEntries(CASES.filter((c) => c.country && !c.starter).map((c) => [c.country, c.id]));
+export const countryNeed = (c) => {
+  const cs = CASE_BY_ID[COUNTRY_CASE_ID[c]];
+  if (!cs) return countryModels(c);
+  const ids = new Set(Object.keys(cs.weights).flatMap((cls) => cs.pool(cls).map((m) => m.id)));
+  return ALL_MODELS.filter((m) => ids.has(m.id) && !m.secret);
+};
+export const countryDone = (c, owned) => countryNeed(c).every((m) => owned.has(m.id));
 // Case of the day: one rarity case (never the starter) is CASE_OF_DAY.off cheaper for the whole Kyiv day; its hidden
 // boost is CASE_OF_DAY.boost instead of BOOST (that is what keeps the discount from farming money).
 export const CASE_OF_DAY = { off: 0.1, boost: 0 };

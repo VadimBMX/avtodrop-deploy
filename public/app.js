@@ -1528,6 +1528,7 @@ H.odds = () => {
   const total = Object.values(W).reduce((a, b) => a + b, 0);
   sheet('Що всередині', `<div class="row"><span style="font-size:24px">${caseIcon(cs)}</span><b>${esc(cs.name)}</b></div>
     <div class="small muted mt">Спочатку випадає клас, потім машина. Чим дорожча машина, тим рідше вона випадає. Вказано мінімальні шанси — з удачею випадає й краще. ✓ — уже є в колекції. Сума під машиною — скільки дасть продаж одразу; колекційна ціна моделі вища.</div>
+    ${countryGoal(cs, owned)}
     ${S.pitySteps(cs).map((st) => `<div class="small mt">${ic('shield-check')} Гарантія: якщо ${st.n} відкриттів поспіль цього кейса без ${clsBadge(st.cls)} або кращого, ${st.n}-те дає ${clsBadge(st.cls)} або краще. Ключі теж рахуються.${st.missing ? ` Гарантована — машина, якої ще немає в колекції; поки колекція неповна, лічильник скидає лише нова. Це колекційні машини: дилер викуповує їх за ${S.HOME_SELL_RATE * 100}% вартості, в апгрейд і трейд-ін вони не йдуть.` : ''}</div>`).join('')}
     ${Object.keys(W).map((cls) => {
       const list = cs.pool(cls);
@@ -1537,6 +1538,16 @@ H.odds = () => {
         <div class="grid">${list.map((m, i) => `<div class="car" style="min-height:0;--c:${S.CLASSES[cls].color}">${owned.has(m.id) ? '<span class="tr win">✓</span>' : ''}<div class="art" style="height:54px">${carArt(m.id)}</div><div class="nm tiny">${esc(m.name)}</div><div class="meta">${pct((p * w[i]) / sw)} · ${S.short(S.dropSaleOf(m.id, cs))}</div></div>`).join('')}</div>`;
     }).join('')}`);
 };
+// A country case: what finishing it gives (the secret car, S.countryNeed is exactly this case's list) and the claim
+// button right here once every car is ✓.
+function countryGoal(cs, owned) {
+  const c = cs.country;
+  if (!c || !S.MAIN_COUNTRIES.includes(c) || !S.SECRET_BY_COUNTRY[c]) return '';
+  const need = S.countryNeed(c), have = need.filter((m) => owned.has(m.id)).length, sec = M(S.SECRET_BY_COUNTRY[c]);
+  const done = me.claims.includes('c' + c);
+  const right = done ? '<span class="win">✓</span>' : have >= need.length ? `<button class="btn sm yellow" data-act="collClaim" data-k="c${c}">Забрати</button>` : `<span class="small muted">${have}/${need.length}</span>`;
+  return `<div class="li secret-goal mt"><span class="ic">${ic('trophy')}</span><div class="grow"><b>Збери весь кейс — секретна ${esc(sec.name)}</b><div class="small muted">${done ? 'Колекцію зібрано, секретна машина твоя' : `усі ${need.length} машин зі списку нижче · +${S.short(S.COUNTRY_REWARD[c])}`}</div><div class="progress mt"><i style="width:${(have / need.length) * 100}%"></i></div></div>${right}</div>`;
+}
 H.openCase = async (d, el) => {
   if (state.opening) return;
   const cs = S.CASE_BY_ID[state.caseId];
@@ -3836,7 +3847,7 @@ function claimableCollection() {
   const n = me.collection.filter((id) => !M(id)?.secret).length;
   if (S.COLLECTION_MILESTONES.some((m) => n >= m.n && !S.milestoneTaken(m, me.claims))) return true;
   if (setsReady() > 0) return true;
-  return S.MAIN_COUNTRIES.some((c) => !me.claims.includes('c' + c) && S.countryModels(c).every((m) => owned.has(m.id)));
+  return S.MAIN_COUNTRIES.some((c) => !me.claims.includes('c' + c) && S.countryDone(c, owned));
 }
 // The «Меню» hub: who I am on top, then what pays off today (pass, quests, events, collection, achievements, rating,
 // friends) as big tiles with live numbers, then trading and the risky games as small tiles, the shop, help and one
@@ -4035,11 +4046,14 @@ const collectionCars = () => {
   const rows = [
     ...ms.map((m) => ({ key: S.milestoneId(m), done: S.milestoneTaken(m, me.claims), title: m.label || `Збери ${m.n} машин`, sub: rewardText({ money: m.money, slots: m.slots }), have: Math.min(n, m.n), need: m.n, ic: ic('car') })),
     ...S.MAIN_COUNTRIES.map((c) => {
-      const list = S.countryModels(c);
-      return { key: 'c' + c, title: `Усі машини: ${S.COUNTRIES[c].name}`, sub: `+${S.short(S.COUNTRY_REWARD[c])} · секретна машина`, have: list.filter((m) => owned.has(m.id)).length, need: list.length, ic: S.COUNTRIES[c].flag };
+      const list = S.countryNeed(c); // the country's own case (S.countryNeed), as the server counts it
+      return { key: 'c' + c, title: `Колекція «${S.COUNTRIES[c].name}»`, sub: `усі машини кейса · +${S.short(S.COUNTRY_REWARD[c])} · секретна ${M(S.SECRET_BY_COUNTRY[c])?.name || 'машина'}`, have: list.filter((m) => owned.has(m.id)).length, need: list.length, ic: S.COUNTRIES[c].flag };
     }),
   ];
-  const visible = state.collAll ? rows : rows.filter((r) => !(r.done ?? me.claims.includes(r.key))).slice(0, 3);
+  // Every reward ready to take is shown (a finished country never hides behind milestones), then the next ones up to 3.
+  const rowReady = (r) => !(r.done ?? me.claims.includes(r.key)) && r.have >= r.need;
+  const openRows = rows.filter((r) => !(r.done ?? me.claims.includes(r.key))), ready = openRows.filter(rowReady);
+  const visible = state.collAll ? rows : [...ready, ...openRows.filter((r) => !rowReady(r)).slice(0, Math.max(0, 3 - ready.length))];
   const filter = state.collFilter, missing = state.collMissing;
   const pool = S.ALL_MODELS.filter((m) => !m.season || owned.has(m.id));
   const models = pool.filter((m) => !filter || m.country === filter);
@@ -4051,7 +4065,7 @@ const collectionCars = () => {
   }).join('');
   const R = 34, C = 2 * Math.PI * R;
   const countryCount = (c) => {
-    const l = pool.filter((m) => m.country === c && !m.secret);
+    const l = S.countryNeed(c); // the same list the secret car asks for
     return [l.filter((m) => owned.has(m.id)).length, l.length];
   };
   const tile = (m) => {
@@ -4084,7 +4098,8 @@ const collectionCars = () => {
     }).join('')}`;
 };
 H.collMissing = () => (state.collMissing = !state.collMissing, render());
-H.collClaim = (d) => act('collection/claim', { key: d.k }, (r) => `Отримано: ${S.short(r.reward.money)}${r.reward.secret ? ' + секретна машина!' : ''}`).then(wowSecret);
+const collClaimText = (r) => `Отримано: ${S.short(r.reward.money)}${r.reward.secret ? (r.reward.carOut?.status === 'showcase' ? ' + секретна машина (гараж повний — вона на вітрині)' : ' + секретна машина!') : ''}`;
+H.collClaim = (d) => act('collection/claim', { key: d.k }, collClaimText).then(wowSecret);
 H.collAll = () => (state.collAll = !state.collAll, render());
 H.collFilter = (d) => (state.collFilter = d.k, render());
 
@@ -6542,8 +6557,9 @@ function showGift() {
   if (!g) return;
   const d = g.data;
   let art = '', title = 'Подарунок!', color = '#ff9f0a';
-  if (g.kind === 'car') {
+  if (g.kind === 'car' || g.kind === 'secret') {
     const m = M(d.model);
+    if (g.kind === 'secret') title = 'Колекцію зібрано!';
     color = S.CLASSES[m.cls].color;
     art = `<div class="hero"><div class="art reveal">${carArt(d.model, { glow: true })}</div></div><div class="result-name pop" style="--c:${color}">${esc(m.name)}</div><div class="mt">${clsBadge(m.cls)} <span class="chip" style="color:${color}">${S.CLASSES[m.cls].name}</span></div>`;
   } else if (g.kind === 'money') {
@@ -6582,7 +6598,7 @@ function showGift() {
   }
   sheet(title, `<div class="center gift">${art}
     ${g.note ? `<div class="gift-note">${esc(g.note)}</div>` : ''}
-    ${g.kind === 'comeback' || g.kind === 'ref' ? '' : '<div class="tiny muted mt">від адміністрації АВТОДРОП</div>'}
+    ${g.kind === 'comeback' || g.kind === 'ref' || g.kind === 'secret' ? '' : '<div class="tiny muted mt">від адміністрації АВТОДРОП</div>'}
     <button class="btn yellow mt2" data-act="giftOk">${g.kind === 'message' ? 'Зрозуміло' : g.kind === 'thanks' ? 'Дякую! 💛' : g.kind === 'comeback' ? 'Погнали!' : 'Забрати'}</button></div>`);
   haptic('success');
   if (g.kind !== 'message') setTimeout(() => {
@@ -6705,7 +6721,7 @@ H.bannerClaim = async (d) => {
   if (c.kind === 'quest') return act('quests/claim', { key: c.id }, (r) => `+${S.fmt(r.got)}`);
   if (c.kind === 'weekly') return H.wkClaim({ k: c.id });
   if (c.kind === 'wchest') return H.wkChest({ d: c.id });
-  if (c.kind === 'coll') return act('collection/claim', { key: c.id }, (r) => `Отримано: ${S.short(r.reward.money)}${r.reward.secret ? ' + секретна машина!' : ''}`).then(wowSecret);
+  if (c.kind === 'coll') return act('collection/claim', { key: c.id }, collClaimText).then(wowSecret);
   if (c.kind === 'set') return H.setClaim({ id: c.id });
   if (c.kind === 'ach') return act('ach/claim', { key: c.id }, (r) => `Досягнення: ${r.text}`);
   if (c.kind === 'achAll') return act('ach/claim', {}, (r) => `${r.tiers} досягнень: ${r.text}`);

@@ -33,6 +33,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
   if (token) {
     bot = createBot({ token, webappUrl, admins, game, log, inline: (query, from) => inlineAnswer(query, from) });
     sender = createSender({ send: bot.sendMessage, onBlocked: game.push.block, isBlocked: game.push.isBlocked, log });
+    game.flushStartupNotes(); // bot messages from start-up fixes (secret cars handed out by backfillSecrets)
     reminders = createReminders({ game, sender, markup: () => bot.playButton('🎁 Відкрити гру'), log });
     // Tell the team what changed in this release (once per changelog entry).
     try {
