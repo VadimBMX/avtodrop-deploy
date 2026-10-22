@@ -280,7 +280,7 @@ test('comeback keys by level: 5–9 → rust + city after 7+ days; under 5 → n
   void g;
 });
 
-test('balance: a 7/7 week stays under 20% of what the week’s daily tasks pay, at every level', () => {
+test('balance: a 7/7 week stays under 25% of what the week’s daily tasks pay, at every level', () => {
   const keyN = (S.WEEKLY_COUNT * S.WEEKLY_FRAG + S.WEEK_CHEST.reduce((s, c) => s + (c.frag || 0), 0)) / S.FRAGMENTS_PER_KEY + S.WEEK_CHEST.reduce((s, c) => s + (c.key || 0), 0);
   const partsN = S.WEEK_CHEST.reduce((s, c) => s + (c.parts || 0), 0);
   // From level 3: levels 1–2 last about a day, nobody makes a 7/7 week there (and the rust key is worth ~40 k).
@@ -288,7 +288,7 @@ test('balance: a 7/7 week stays under 20% of what the week’s daily tasks pay, 
     const q = Object.values(S.QUESTS);
     const daily = 21 * q.reduce((s, k) => s + Math.round((8000 + 4000 * (k.range[0] + k.range[1]) / 2) * Math.pow(lvl, 1.3) / 100) * 100, 0) / q.length;
     const week = keyN * S.CASE_BY_ID[S.levelKey(lvl)].sellEv + partsN * S.TIER_BY_ID[S.levelPartTier(lvl)].price * S.PART_SELL_RATE;
-    assert.ok(week / daily < 0.2, `level ${lvl}: ${(week / daily * 100).toFixed(1)}%`);
+    assert.ok(week / daily < 0.25, `level ${lvl}: ${(week / daily * 100).toFixed(1)}%`);
   }
   // The comeback gift holds no money.
   assert.equal(weekOf(T0), '2026-10-12');

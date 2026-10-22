@@ -482,7 +482,7 @@ export const FRAGMENTS_PER_KEY = 8;
 // Instant sale by class: grey 60%, blue 55%, purple 50%, gold 45%, red and secret 40%; no daily limit; a car out of a
 // case gets ORIGIN_SELL of that. With boost, luck, the losing-streak save and key fragments counted, open-and-sell is
 // 0.82–0.92 on a plain day and under ~1 on deal days (tools/sim-cases.mjs, tools/sim-events.mjs, test/caseev.test.js).
-export const SELL_RATES = { D: 0.6, C: 0.55, B: 0.5, A: 0.45, S: 0.4, X: 0.4 };
+export const SELL_RATES = { D: 0.6, C: 0.55, B: 0.5, A: 0.45, S: 0.4, X: 0.4 }; // owner 22.10: grey 60 / blue 55 / purple 50 / gold 45 / red 40, no per-case cut
 // Collector cars (homeOnly: the gold Soviet rarities) sell instantly for this share of their value instead (1,2–2,3 M,
 // still 22–41× the 55k case), so a gold car every ~230 opens keeps the case's open-and-sell at ~1.00 (tools/sim-ua.mjs).
 export const HOME_SELL_RATE = 0.1;
@@ -496,10 +496,8 @@ export const FRESH_SELL = { rate: 1, hours: 24 };
 // open-and-sell ~0.9 of the price (under 1 on deal days) while the garage value, income and collections of those cars
 // stay whole. Cars from before this change, the dealer, rewards, the starter case and the collector cars (they have
 // HOME_SELL_RATE) keep the full rate; an upgrade or trade-in result inherits the lowest share of the cars put in.
-export const ORIGIN_SELL = {
-  rust: 0.8, city: 0.62, tuning: 0.75, sport: 0.6, premium: 0.57, elite: 0.6,
-  'c-ua': 0.7, 'c-jp': 0.85, 'c-de': 0.85, 'c-cn': 1, 'c-us': 0.58, 'c-gb': 0.45, 'c-it': 0.42,
-};
+// Owner 22.10: no per-case cut — a car from a case sells at its class rate like any other.
+export const ORIGIN_SELL = {};
 export const originSellOf = (origin) => (origin && ORIGIN_SELL[origin]) || 1;
 // origin: the case id the car came out of (cars.origin), or null.
 export const sellPriceOf = (model, ageMs = Infinity, origin = null) =>
