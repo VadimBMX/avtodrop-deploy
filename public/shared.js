@@ -921,24 +921,72 @@ export function carStats(car) {
   const power = m.ev ? fx(car, 'motor') + fx(car, 'battery') : fx(car, 'eng') + fx(car, 'turbo') + fx(car, 'exhaust');
   const hp = m.hp * (1 + power) * (hasSet(car) ? 1 + SET_BONUS.hp : 1);
   const kg = m.kg * (1 - fx(car, 'body'));
-  const grip = 0.35 + fx(car, 'suspension') + fx(car, 'wheels');
+  const gripParts = fx(car, 'suspension') + fx(car, 'wheels');
+  // grip: the parts on top of the old common 0.35 — what the drift model reads (drift keeps its own balance);
+  // tyre: the factory tyres of this model; traction: tyre + grip parts — what the drag race reads.
+  const grip = 0.35 + gripParts, tyre = tyreGrip(car.model), traction = tyre + gripParts;
   const shift = m.ev ? fx(car, 'reducer') : fx(car, 'gearbox');
-  const base = raceBaseTime(hp, kg, grip) * (1 - fx(car, 'brakes'));
+  const brakes = 1 - fx(car, 'brakes');
+  const base = raceBaseTime(hp, kg, traction) * brakes;
   const value = carValue(car);
   return {
     hp: Math.round(hp), kg: Math.round(kg), grip: Math.round(grip * 100) / 100, shift,
+    tyre: Math.round(tyre * 100) / 100, traction: Math.round(traction * 100) / 100,
     base: Math.round(base * 1000) / 1000,
+    // slip: what the wheelspin costs this car (s): its time against the same car on tyres that hold all its power.
+    slip: Math.round((base - raceBaseTime(hp, kg, Infinity) * brakes) * 1000) / 1000,
     et: Math.round((base + 0.2) * 100) / 100, // typical run: reaction 0.2 s, good shifts
     value, income: Math.round(carIncomeOf(car)), set: hasSet(car),
   };
 }
-// Hale quarter-mile formula plus a traction penalty for power on weak tyres (+2 s per hp/kg above the grip). Past
-// SPIN_PW hp/kg the penalty grows faster than the power helps, so there the tyres simply can't put more down: the time
-// stays at its best and more power never makes a car slower (owner 22.10: a 2600 hp car lost to a 923 hp boss).
-export const SPIN_PW = Math.pow((5.825 * Math.cbrt(2.2046)) / 6, 0.75); // d(Hale)/d(pw) = −2 here (~1.19 hp/kg)
+// Drag physics (owner 22.10, «як я програв, коли стільки сил маю»): the Hale quarter-mile formula on the power the
+// tyres can USE. Every model leaves the factory on tyres for its power (tyreGrip): an ordinary car (up to
+// TRACTION.hold hp/kg) holds all of it, a supercar only part of what it has above that — a 2000 hp hypercar comes on
+// far better tyres than a Lada, but still spins. Power above the grip still counts for TRACTION.over (the car keeps
+// pulling once it hooks up), so more power is always faster, grip parts are how big power gets used, and the top cars
+// keep their differences instead of all hitting one ceiling. Monotone by construction: more hp or grip never slower.
+export const TRACTION = { base: 0.35, hold: 0.45, share: 0.5, max: 0.8, over: 0.3 };
+export function tyreGrip(model) {
+  const m = MODELS[model];
+  const pw = m ? m.hp / m.kg : 0, T = TRACTION;
+  return Math.min(T.max, pw <= T.hold ? Math.max(T.base, pw) : T.hold + T.share * (pw - T.hold));
+}
+export const usablePw = (pw, grip) => Math.min(pw, grip) + TRACTION.over * Math.max(0, pw - grip);
 export function raceBaseTime(hp, kg, grip) {
-  const pw = Math.min(hp / kg, Math.max(grip, SPIN_PW));
-  return 5.825 * Math.cbrt(2.2046 / pw) + Math.max(0, pw - grip) * 2;
+  return 5.825 * Math.cbrt(2.2046 / usablePw(hp / kg, grip));
+}
+
+// Why a car with more power lost (the race result, owner 22.10: «як я програв, коли стільки сил маю»): up to two short
+// lines in plain words with the real numbers, the biggest reason first. me / rival: { model, parts }; time / rivalTime:
+// the two finish times. Empty when you won or had no more power (hp or hp per kg) than the rival.
+const secs = (x) => x.toFixed(2).replace('.', ',');
+export function raceWhy(me, rival, { time, rivalTime } = {}) {
+  if (!MODELS[me?.model] || !MODELS[rival?.model] || !(time > rivalTime)) return [];
+  const a = carStats(me), b = carStats(rival);
+  if (a.hp <= b.hp && a.hp / a.kg <= b.hp / b.kg) return [];
+  // The car was quicker: the start and the shifts decided it (nothing else to explain).
+  if (a.base < b.base) return [`Твоя машина швидша на ${secs(b.base - a.base)} с — програно на старті й передачах`];
+  const out = [], grip100 = (x) => Math.round(x * 100); // grip in the units the parts show («+20 до зчеплення»)
+  // Your tyres can't hold your power: what it costs, and what the best grip parts give back.
+  if (a.slip >= 0.05) {
+    const top = TIERS[TIERS.length - 1].id, grip = { ...(me.parts || {}), suspension: top, wheels: top };
+    const back = a.base - carStats({ ...me, parts: grip }).base;
+    out.push({ s: a.slip, t: `Колеса буксували — втрачено ${secs(a.slip)} с. ${back >= 0.05 ? `Шини й підвіска ${TIER_BY_ID[top].name} повернуть ${back >= a.slip - 0.005 ? 'їх' : secs(back) + ' с'}` : 'Шини вже найкращі — сила впирається в зчеплення'}` });
+  }
+  // The rival's tuning: its kit and what it gives over the same car from the factory.
+  const rs = carStats({ model: rival.model }), tiers = Object.values(rival.parts || {}).filter((t) => TIER_BY_ID[t]);
+  const tuned = rs.base - b.base;
+  if (tuned >= 0.05 && tiers.length) {
+    const top = tiers.reduce((x, y) => (TIER_BY_ID[y].index > TIER_BY_ID[x].index ? y : x));
+    const more = [b.hp > rs.hp ? `${b.hp} к.с. замість ${rs.hp}` : '', b.traction > a.traction ? `зчеплення ${grip100(b.traction)} проти твого ${grip100(a.traction)}` : ''].filter(Boolean).join(', ');
+    out.push({ s: tuned, t: `Суперник на тюнінгу ${TIER_BY_ID[top].name}${more ? ` (${more})` : ''}: це ${secs(tuned)} с швидше, ніж із заводу` });
+  }
+  // More horsepower, but not per kilo.
+  if (a.hp > b.hp && a.hp / a.kg <= b.hp / b.kg) {
+    const pk = (x) => x.toFixed(2).replace('.', ',');
+    out.push({ s: 0.01, t: `Сил у тебе більше, але й ваги: ${a.kg} кг проти ${b.kg}. На кілограм у суперника ${pk(b.hp / b.kg)} к.с., у тебе ${pk(a.hp / a.kg)}` });
+  }
+  return out.sort((x, y) => y.s - x.s).slice(0, 2).map((x) => x.t);
 }
 
 // ---------- race ----------
@@ -1163,61 +1211,6 @@ export function rivalPool(cls) {
   const out = ALL_MODELS.filter((m) => !m.secret && near.includes(m.cls)).map((m) => ({ model: m.id, cls: m.cls, hp: m.hp, kg: m.kg }));
   return (rivalPoolCache[cls] = out);
 }
-// The power a model needs to run `base` on the factory grip (the same formula as carStats), so the shown power and
-// the rival's real pace always agree. On factory tyres the time has a best power (above it the wheels spin, see
-// raceBaseTime): of the two powers that give `base`, the one nearer the model's own; null if it can't run that fast.
-export function bestHp(kg, grip = 0.35) {
-  let a = 1, b = 50000;
-  for (let i = 0; i < 80; i++) {
-    const m1 = a + (b - a) / 3, m2 = b - (b - a) / 3;
-    if (raceBaseTime(m1, kg, grip) < raceBaseTime(m2, kg, grip)) b = m2;
-    else a = m1;
-  }
-  return (a + b) / 2;
-}
-export function hpForBase(kg, base, near, grip = 0.35) {
-  const t = (hp) => raceBaseTime(hp, kg, grip);
-  const opt = bestHp(kg, grip);
-  if (t(opt) > base) return null;
-  const solve = (lo, hi, rising) => {
-    for (let i = 0; i < 60; i++) {
-      const mid = (lo + hi) / 2;
-      if (t(mid) > base === rising) lo = mid;
-      else hi = mid;
-    }
-    return (lo + hi) / 2;
-  };
-  const low = solve(1, opt, true), high = t(50000) <= base ? 50000 : solve(opt, 50000, false);
-  return Math.abs(Math.log(low / near)) <= Math.abs(Math.log(high / near)) ? low : high;
-}
-// Picks the rival car for a target base: the model that needs the least tuning (or detuning) to run it, preferring
-// the own class, and for a hard rival a car with more power than yours (for an easy one, less), so the list reads
-// right. Returns { model, hp (shown = the power it needs), tuned (it runs on more power than from the factory) }.
-export function pickRival(cls, target, { hp, harder = null, rand = Math.random, avoid = [] } = {}) {
-  const own = cls === 'X' ? 'S' : cls;
-  let best = null, bs = Infinity;
-  for (const c of rivalPool(cls)) {
-    const need = hpForBase(c.kg, target, c.hp);
-    if (need == null) continue;
-    const mul = need / c.hp;
-    // A little tuning is fine (a rival on more power than from the factory), a detuned car is not.
-    let s = mul >= 0.98 ? Math.log(mul) / 0.06 : 0.3 - Math.log(mul) / 0.015;
-    if (mul > 1.4) s += 20;
-    if (c.cls !== own) s += 6 + 4 * (CLASS_ORDER.indexOf(c.cls) < CLASS_ORDER.indexOf(own));
-    if (harder != null && (harder ? need <= hp * 1.05 : need >= hp)) s += 5;
-    if (avoid.includes(c.model)) s += 6;
-    s += rand() * 2.5;
-    if (s < bs) ((bs = s), (best = { model: c.model, hp: Math.round(need), tuned: mul > 1.03 }));
-  }
-  if (best) return best;
-  // Faster than any car of the class can run on factory tyres (a heavily tuned car): the quickest one, tuned.
-  let quick = null, qt = Infinity;
-  for (const c of rivalPool(cls)) {
-    const hpOpt = bestHp(c.kg), t = raceBaseTime(hpOpt, c.kg, 0.35);
-    if (c.cls === own && t < qt) ((qt = t), (quick = { model: c.model, hp: Math.round(Math.max(hpOpt, c.hp)), tuned: true }));
-  }
-  return quick;
-}
 // ---------- solo drag rivals: an honest roster («чесний ростер», rivals 3) ----------
 // A rival is a real model with a kit a player could build, and the power it shows is that car's own: within
 // RIVAL_HP_DEV of the factory figure (one power part at most; grip, weight and brake parts change no power). The pace a
@@ -1257,6 +1250,11 @@ function rivalKits(model) {
     out.push({ kit: 'grip', tier: t, parts: grip }, { kit: 'light', tier: t, parts: light });
     const pw = keys.filter((k) => PARTS[k].stat === 'hp' && PARTS[k].fx[ti] <= RIVAL_HP_DEV).sort((a, b) => PARTS[b].fx[ti] - PARTS[a].fx[ti])[0];
     if (pw) out.push({ kit: 'power', tier: t, parts: { ...light, [pw]: t } });
+    // Tuned like you (physics 22.10): every power part of the tier too — still no gearbox, so never a set. Only for a
+    // player whose own car runs that much more power (pickRivalCar `power`): a fully tuned hypercar is faster than any
+    // car on factory power can be, and its rivals are tuned the way it is, with that real power shown.
+    const all = keys.filter((k) => PARTS[k].stat === 'hp');
+    out.push({ kit: 'tuned', tier: t, parts: { ...light, ...Object.fromEntries(all.map((k) => [k, t])) } });
   }
   return out;
 }
@@ -1267,7 +1265,7 @@ export function rivalCandidates(cls) {
   for (const p of rivalPool(cls)) {
     for (const k of rivalKits(p.model)) {
       const st = carStats({ model: p.model, parts: k.parts });
-      out.push({ model: p.model, cls: p.cls, kit: k.kit, tier: k.tier, parts: k.parts, hp: st.hp, base: st.base });
+      out.push({ model: p.model, cls: p.cls, kit: k.kit, tier: k.tier, parts: k.parts, hp: st.hp, base: st.base, gain: st.hp / MODELS[p.model].hp - 1 });
     }
   }
   return (rivalCandCache[cls] = out);
@@ -1307,10 +1305,14 @@ function skillCurve(base) {
 // fit wins — own class, the tier's usual skill, more power than yours for a hard rival (less for an easy one), a
 // model not yet in the list, no more parts than needed — then the level nearest to p is found on that very car.
 // Returns { model, parts, kit, tier, hp, base, skill, ai, offsets (sorted), et (median time) }.
-export function pickRivalCar(cls, ref, p, target, { hp, harder = null, skill = 0.55, rand = Math.random, avoid = [] } = {}) {
+// power: how much more power than from the factory the player's own car runs (0.45 = +45%); a rival may carry up to
+// that (and always up to RIVAL_HP_DEV).
+export function pickRivalCar(cls, ref, p, target, { hp, harder = null, skill = 0.55, rand = Math.random, avoid = [], power = 0 } = {}) {
   const own = cls === 'X' ? 'S' : cls, med = skillCurve(target), KS = SKILL_SELECT / 2, step = 2 / SKILL_LEVELS;
+  const maxGain = Math.max(RIVAL_HP_DEV, power) + 1e-9;
   let best = null, bs = Infinity;
   for (const c of rivalCandidates(cls)) {
+    if (c.gain > maxGain) continue;
     const need = target - c.base; // the median offset its driver must run
     let k, off = 0;
     if (need >= med[0]) ((k = 0), (off = need - med[0]));
@@ -1321,11 +1323,12 @@ export function pickRivalCar(cls, ref, p, target, { hp, harder = null, skill = 0
       k = (j + (med[j] - need) / Math.max(1e-9, med[j] - med[j + 1])) * step;
     }
     const dk = Math.abs(k - skill);
-    let s = off * 40 + dk * 8 + Math.max(0, dk - 0.25) * 30;
+    let s = off * 80 + dk * 8 + Math.max(0, dk - 0.25) * 30;
     if (c.cls !== own) s += 6 + 4 * (CLASS_ORDER.indexOf(c.cls) < CLASS_ORDER.indexOf(own));
     if (harder != null && (harder ? c.hp <= hp * 1.05 : c.hp >= hp)) s += 3;
-    if (avoid.includes(c.model)) s += 6;
-    if (c.kit) s += 0.4 * ({ grip: 1, light: 2, power: 3 }[c.kit]) + 0.3 * (TIER_BY_ID[c.tier].index - minTierFor(c.cls));
+    const dup = avoid.filter((x) => x === c.model).length; // a model already in the list (again: a bit more)
+    if (dup) s += 4 + 2 * dup;
+    if (c.kit) s += 0.4 * ({ grip: 1, light: 2, power: 3, tuned: 6 }[c.kit]) + 0.3 * (TIER_BY_ID[c.tier].index - minTierFor(c.cls));
     s += rand() * 2.5;
     if (s < bs) ((bs = s), (best = c));
   }
@@ -2724,6 +2727,8 @@ export const BOSS_AI = {
   champ: { name: 'Чемпіон', stars: 5, react: [0.125, 0.012], jump: 0.005, sd: 20, bias: 0 }, // «Реванш · складний» only
 };
 // [id, nickname, car name, kit tier (null = no parts), AI, required class, taunt, money, parts {n, tier}]
+// Physics 22.10 (factory tyres, TRACTION): Кайзер street driver, Тесляр Street kit + Профі, Сапфір Street kit + Ас, Леді
+// Вольт Stock kit — so the class windows keep their odds for the median car of the window (tools/boss-ladder.mjs).
 const BOSS_RAW = {
   UA: [
     ['ua-panas', 'Дід Панас', 'ЗАЗ-968М «Запорожець»', 'sport', 'street', 'D', 'Онучку, я на «Запорі» ще з колгоспу всіх обганяв. Сідай, покатаю.', 50000, [1, 'stock']],
@@ -2741,7 +2746,7 @@ const BOSS_RAW = {
     ['de-hans', 'Ганс з Мукачева', 'Volkswagen Golf GTI Mk7', 'sport', 'street', 'C', 'Орднунг простий: спершу я, потім ти.', 300000, [1, 'sport']],
     ['de-bumer', 'Бумер', 'BMW M3 E46', 'stock', 'street', 'B', 'Бумер у дзеркалі ближче, ніж здається. Потім — уже ні.', 500000, [1, 'pro']],
     ['de-emka', 'Вітя М-ка', 'BMW M2 Competition', 'street', 'street', 'B', 'Задній привід, механіка і ніякої жалості.', 800000, [2, 'pro']],
-    ['de-kaiser', 'Кайзер', 'Porsche 911 Turbo S', null, 'pro', 'B', 'Дев\'ятсот одинадцятий не старіє. Старіють ті, хто з ним змагається.', 1500000, null],
+    ['de-kaiser', 'Кайзер', 'Porsche 911 Turbo S', null, 'street', 'B', 'Дев\'ятсот одинадцятий не старіє. Старіють ті, хто з ним змагається.', 1500000, null],
   ],
   CN: [
     ['cn-li', 'Пан Лі з Харкова', 'Xiaomi SU7 Max', 'sport', 'street', 'B', 'Мій телефон і моя машина — одна фірма. Обидва швидші за тебе.', 1000000, [1, 'pro']],
@@ -2750,14 +2755,14 @@ const BOSS_RAW = {
   ],
   US: [
     ['us-cowboy', 'Ковбой Мирон', 'Dodge Viper ACR', 'sport', 'street', 'A', 'У Техасі кажуть: більше об\'єм — менше розмов.', 2000000, [1, 'pro']],
-    ['us-tesliar', 'Тесляр', 'Tesla Model S Plaid', 'sport', 'street', 'A', 'Автопілот вимкнув — щоб у тебе був хоч якийсь шанс.', 2500000, [1, 'race']],
-    ['us-sapphire', 'Сапфір', 'Lucid Air Sapphire', 'sport', 'pro', 'A', 'Тиха, розкішна і зла. Як я.', 3000000, [2, 'pro']],
+    ['us-tesliar', 'Тесляр', 'Tesla Model S Plaid', 'street', 'pro', 'A', 'Автопілот вимкнув — щоб у тебе був хоч якийсь шанс.', 2500000, [1, 'race']],
+    ['us-sapphire', 'Сапфір', 'Lucid Air Sapphire', 'street', 'ace', 'A', 'Тиха, розкішна і зла. Як я.', 3000000, [2, 'pro']],
     ['us-sheriff', 'Шериф', 'Ford GT', 'pro', 'pro', 'A', 'Ford GT розбив Ferrari в Ле-Мані. А ти — навіть не Ferrari.', 6000000, null],
   ],
   GB: [
     ['gb-lord', 'Лорд Чипс', 'McLaren 570S', 'race', 'street', 'A', 'Чай — о п\'ятій. Перемога — на восьмій секунді.', 4000000, [1, 'race']],
     ['gb-agent', 'Агент 007-й', 'Aston Martin DBS Superleggera', 'race', 'pro', 'S', 'Ім\'я — Бонд. Час — швидший за твій.', 5000000, [1, 'race']],
-    ['gb-volt', 'Леді Вольт', 'Lotus Evija', 'pro', 'pro', 'S', 'Дві тисячі сил і жодного звуку. Почуєш тільки, як програв.', 6000000, [2, 'race']],
+    ['gb-volt', 'Леді Вольт', 'Lotus Evija', 'stock', 'pro', 'S', 'Дві тисячі сил і жодного звуку. Почуєш тільки, як програв.', 6000000, [2, 'race']],
     ['gb-king', 'Король Лондона', 'McLaren P1', 'race', 'street', 'S', 'Корона на мені. Хочеш зняти — дожени.', 12000000, null],
   ],
   IT: [
@@ -2776,6 +2781,8 @@ export const BOSS_BADGES = {
 // The pretty plate a country's last boss gives (its class — the plate's value range, PLATE_VALUE).
 export const BOSS_PLATE = { UA: 'C', JP: 'C', DE: 'B', CN: 'B', US: 'A', GB: 'A', IT: 'S' };
 const bossKit = (model, tier) => (tier ? Object.fromEntries(partKeysOf(model).map((k) => [k, tier])) : {});
+// The parts a boss (or its hard rematch, S.bossHard) runs on — for the race result's explanation (raceWhy).
+export const bossParts = (b) => bossKit(b.model, b.kit);
 export const BOSSES = [];
 for (const c of BOSS_COUNTRIES) {
   BOSS_RAW[c].forEach(([id, nick, car, kit, ai, req, taunt, money, parts], i, list) => {

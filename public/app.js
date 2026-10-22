@@ -988,7 +988,7 @@ function carSheet(id, best = null) {
       ${PAINT.canPaint(c.model) || c.look ? `<button class="li" data-act="carPaint" data-id="${c.id}"><span class="ic">${ic('palette')}</span><div class="grow"><b>Фарбування</b><div class="small muted">${c.look ? [S.PAINT_BY_ID[c.look.paint]?.name, S.LIVERY_BY_ID[c.look.livery] && 'ліврея «' + S.LIVERY_BY_ID[c.look.livery].name + '»'].filter(Boolean).join(' · ') : 'заводський колір'}</div></div>${c.look?.paint ? `<span class="sw-dot ${S.PAINT_BY_ID[c.look.paint].finish}" style="--sw:${S.PAINT_BY_ID[c.look.paint].hex}"></span>` : '<span class="chev">›</span>'}</button>` : ''}
     </div>
     <div class="h2 tune-h"><span>Тюнінг <b>${partCount(c)}</b>/${partSlots(c)}</span><span>${isOpen('parts') ? '' : lockChip('parts') + ' '}${m.ev ? `${ic('bolt')} електро · ` : ''}деталі від ${S.TIERS[minTier].name}</span></div>
-    ${isOpen('parts') ? tuneBest(c, best) : ''}
+    ${slipNote(c)}${isOpen('parts') ? tuneBest(c, best) : ''}
     <div class="tune">${S.partKeysOf(c.model).map((k) => {
       const t = c.parts[k];
       const tdt = isOpen('parts') ? tileDt(c, k) : '';
@@ -998,6 +998,13 @@ function carSheet(id, best = null) {
     }).join('')}</div>
     ${c.status === 'garage' ? `<div class="btns"><button class="btn yellow" data-act="raceWith" data-id="${c.id}">${ic('flag-3')} Гонка</button>${m.secret ? '' : `<button class="btn ghost" data-act="carSellMenu" data-id="${c.id}">${ic('cash')} Продати</button>`}</div>
       ${m.secret ? '<div class="tiny muted center mt">Секретна машина — нагорода за колекцію. Її не можна продати, обміняти чи поставити в апгрейд.</div>' : ''}` : ''}`}`);
+}
+// The wheels spin (physics 22.10): what it costs on 402 m, so a stock hypercar's time never puzzles anyone.
+function slipNote(c) {
+  const st = S.carStats(c);
+  if (!(st.slip >= 0.05)) return '';
+  const tyres = !c.parts?.suspension && !c.parts?.wheels ? 'Шини заводські' : 'Шини не тримають усю силу';
+  return `<div class="inc-note muted slip-note">${ic('flame')} ${tyres}: колеса буксують, це −${dec(st.slip, 2)} с на 402 м. Підвіска й шини перетворять силу на час.</div>`;
 }
 // Honest numbers: installed parts and the plate raise the collection price, not the sale — selling the car gives
 // them back (parts to the warehouse, the plate to the player), so the card says so instead of hiding the gap.
@@ -1067,7 +1074,7 @@ function dtLine(g, type) {
   const st = S.PARTS[type].stat;
   if (g.spin) return `<div class="dt spin">${ic('flame')}${spinText(type)}: ${T.fmtDt(g.dt)}</div>`;
   if (g.same) return '<div class="dt">така сама вже стоїть</div>';
-  if (g.dt <= -T.TUNE_EPS) return `<div class="dt win">${T.fmtDt(g.dt)} на 402 м</div>`;
+  if (g.dt <= -T.TUNE_EPS) return `<div class="dt win">${T.fmtDt(g.dt)} на 402 м${g.slip ? '<span class="muted"> · колеса буксують — шини й підвіска дадуть більше</span>' : ''}</div>`;
   if (g.worse) return `<div class="dt">гірша за встановлену: ${T.fmtDt(g.dt)}</div>`;
   if (g.dt >= T.TUNE_EPS) return `<div class="dt">повільніше: ${T.fmtDt(g.dt)}</div>`;
   return `<div class="dt">≈0 с: ${st === 'grip' ? 'машина й так не буксує' : st === 'shift' ? 'у повільній машині перемикання майже не важать' : st === 'hp' || st === 'kg' ? 'колеса вже буксують — шини й підвіска дадуть більше' : 'майже нічого не дає'}</div>`;
@@ -2411,6 +2418,11 @@ H.pvpExit = () => {
   state.raceView = 'pvp';
   render();
 };
+// Why you lost with more power (S.raceWhy, owner 22.10): one or two lines in plain words with the real numbers.
+function whyLines(car, rival, r) {
+  return r && !r.win && rival?.model ? S.raceWhy({ model: car.model, parts: car.parts || {} }, rival, { time: r.time, rivalTime: r.rivalTime }) : [];
+}
+const whyHtml = (lines) => (lines.length ? `<div class="card dr-why">${lines.map((t) => `<div class="dr-why-l">${ic('flame')}<span>${esc(t)}</span></div>`).join('')}</div>` : '');
 function raceResult() {
   if (state.race.live) return liveResult();
   if (state.race.rival.boss) return bossResult();
@@ -2424,11 +2436,12 @@ function raceResult() {
   const v = (402 * 1.6) / S.dragDrive(car, reaction, r.shifts).drive; // m per race second at the line
   const gapM = r.diff * v;
   const n = (q) => r.shifts.filter((x) => x === q).length;
+  const why = whyLines(car, { model: R.rival.model, parts: R.rival.parts || {} }, r);
   const tip = r.jump ? 'Три жовті — ще ні. Чекай зеленого і тільки тоді тисни «Газ».'
     : n('late') >= 2 ? 'Перемикай, щойно стрілка в зеленій зоні, — не чекай червоної відсічки.'
     : n('early') ? 'Не поспішай із передачею: дочекайся, поки стрілка зайде в зелену зону.'
     : reaction >= 0.3 ? 'Тисни «Газ», щойно спалахне зелений: кожна десята секунди реакції — це час на фініші.'
-    : !r.win ? 'Ти проїхав чисто — суперник просто швидший. Деталі з Майстерні додають потужності.' : '';
+    : !r.win && !why.length ? 'Ти проїхав чисто — суперник просто швидший. Деталі з Майстерні додають потужності.' : '';
   const px = Math.min(120, gapM * 6);
   const amount = r.win ? '+' + S.fmt(r.prize) : r.entry ? '−' + S.fmt(r.entry) : 'Тренування';
   const note = r.win ? (r.entry ? `приз · внесок ${S.short(r.entry)} повернувся` : 'приз') : r.entry ? 'внесок згорів' : 'без внеску — нічого не втрачено';
@@ -2442,6 +2455,7 @@ function raceResult() {
     <div class="dr-times">
       <div class="${r.win ? 'won' : ''}"><small>Ти</small><b>${dec(r.time, 3)} с</b><span class="ellipsis">${esc(M(car.model).name)}</span></div>
       <div class="${r.win ? '' : 'won'}"><small class="ellipsis">${esc(R.rival.name)}</small><b>${dec(r.rivalTime, 3)} с</b><span class="ellipsis">${esc(M(R.rival.model).name)}</span></div></div>
+    ${whyHtml(why)}
     ${challengeCta(R)}
     <div class="card dr-sum">
       <div class="dr-row"><span class="dr-dot q-${st.q}"></span><div class="grow"><b>${st.t}</b><div class="small muted">${st.s}</div></div></div>
@@ -3110,6 +3124,7 @@ function bossResult() {
       <div class="small muted mt">${nx ? `Відкрито: <b>${esc(nx.nick)}</b> · ${esc(M(nx.model).name)}${nx.country !== b.country ? ` · нова країна — ${S.COUNTRIES[nx.country].name}!` : ''}` : "Ти пройшов усю кар'єру!"}</div></div>` : !r.win ? `<div class="taunt">${esc(b.nick)}: «${esc(b.taunt)}»</div>` : '';
   return raceSheetHtml({ tag: `Бос · ${esc(b.nick)}${hard ? ' · складний' : ''}`, win: r.win, diff: r.diff, amount, note,
     rows: [{ who: 'Ти', model: R.car.model, look: R.car.look, time: r.time, won: r.win }, { who: b.nick, model: b.model, time: r.rivalTime, won: !r.win }], start: startTxt, shifts: r.shifts })
+    + whyHtml(whyLines(R.car, { model: b.model, parts: S.bossParts(hard ? S.bossHard(b) : b) }, r))
     + reward
     + challengeCta(R)
     + (nx && bo.first ? `<button class="btn yellow" data-act="bossNext" data-id="${nx.id}">Наступний бос: ${esc(nx.nick)}</button>`
@@ -7128,6 +7143,7 @@ function ghostResult() {
   return raceSheetHtml({ tag: `${ic('ghost')} Виклик · ${esc(R.rival.name)}`, win: r.win, diff: r.diff, amount, note,
     rows: [{ who: 'Ти', model: R.car.model, look: R.car.look, time: r.time, won: r.win, sub: R.car.loaner ? 'позичена' : `${R.car.hp} к.с.` },
       { who: `Привид · ${R.rival.name}`, model: R.rival.model, look: R.rival.look, time: r.rivalTime, won: !r.win, sub: `${R.rival.hp} к.с.` }], start: startTxt, shifts: r.shifts })
+    + whyHtml(whyLines(R.car, { model: R.rival.model, parts: R.rival.parts || {} }, r))
     + told
     + challengeCta(R, r.win ? 'Кинути виклик у відповідь' : 'Кинути свій виклик')
     + `<div class="dr-btns">${again ? `<button class="btn yellow btn2" data-act="challengeAgain" data-id="${esc(R.chId || R.rival.ghost)}" ${me.fuel < 1 ? 'disabled' : ''}><span>${ic('refresh')} Реванш</span><small>${ic('gas-station')}${me.fuel}/${S.FUEL_MAX}</small></button>` : ''}

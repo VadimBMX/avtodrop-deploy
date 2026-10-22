@@ -23,10 +23,11 @@ const withPart = (car, type, tier) => {
   return { model: car.model, parts };
 };
 const idx = (tier) => (tier ? S.TIER_BY_ID[tier].index : -1);
-// The wheels spin: more power per kilo than the tyres hold (the penalty in S.raceBaseTime).
+// The wheels spin: more power per kilo than the tyres hold (factory tyres + grip parts: S.carStats traction). Since
+// physics 22.10 the power above that still counts for S.TRACTION.over, so it never makes the car slower.
 export const spinning = (car) => {
   const st = S.carStats(car);
-  return st.hp / st.kg > st.grip;
+  return st.hp / st.kg > st.traction + 1e-9;
 };
 // Can this car take this part at all: the slot exists (petrol / electric) and the tier is not below the car's class.
 export const canTake = (model, type, tier) => !!S.MODELS[model] && S.partFits(model, type) && idx(tier) >= S.minTierFor(S.MODELS[model].cls);
@@ -39,7 +40,9 @@ export function partGain(car, type, tier) {
   const dt = tuneTime(next) - tuneTime(car);
   const cur = car.parts?.[type] || null;
   const up = idx(tier) > idx(cur);
-  return { dt, spin: dt > TUNE_EPS && up && spinning(next), worse: !up && tier !== cur && !!tier, same: tier === cur };
+  // slip: a power or weight part that helps, but on tyres that can't hold it all (grip parts would give more).
+  const slip = dt < -TUNE_EPS && up && ['hp', 'kg'].includes(S.PARTS[type].stat) && spinning(next);
+  return { dt, spin: dt > TUNE_EPS && up && spinning(next), slip, worse: !up && tier !== cur && !!tier, same: tier === cur };
 }
 // What the installed part in that slot gives the car now (dt < 0: it makes the car faster; > 0 with spin: it slows it).
 export function partShare(car, type) {

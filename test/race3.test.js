@@ -95,9 +95,14 @@ test('roster: S-class rivals are different real cars with their factory power (�
       const carId = g.giveCar(1, id).id;
       if (kit) for (const k of S.partKeysOf(id)) (g.addPart(1, k, kit, 1), g.api['parts/install'](1, { carId, type: k, tier: kit }));
       const list = Object.values(fresh(carId));
+      // Physics 22.10: a fully tuned hypercar outruns any car on factory power, so its rivals may be tuned like it —
+      // never more power over the factory than the player's own car runs; the shown power is that kit's real power.
+      const ownGain = S.carStats({ model: id, parts: kit ? Object.fromEntries(S.partKeysOf(id).map((k) => [k, kit])) : {} }).hp / S.MODELS[id].hp - 1;
       for (const r of list) {
         const m = S.MODELS[r.model];
-        assert.ok(Math.abs(r.hp / m.hp - 1) <= S.RIVAL_HP_DEV + 0.01, `${n}${kit ? '+' + kit : ''} vs ${m.name}: ${r.hp} hp, factory ${m.hp}`);
+        assert.equal(r.hp, S.carStats({ model: r.model, parts: r.parts }).hp);
+        assert.ok(Math.abs(r.hp / m.hp - 1) <= Math.max(S.RIVAL_HP_DEV, ownGain) + 0.01, `${n}${kit ? '+' + kit : ''} vs ${m.name}: ${r.hp} hp, factory ${m.hp}`);
+        if (!kit) assert.ok(Math.abs(r.hp / m.hp - 1) <= S.RIVAL_HP_DEV + 0.01, 'a stock car meets rivals on factory power ±10%');
         seen.add(r.model);
       }
       assert.ok(new Set(list.map((r) => r.model)).size >= 3, `${n}: at least 3 different cars in one list`);

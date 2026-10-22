@@ -3390,3 +3390,8 @@ button.li:active { background-color: #ffffff08; }
 .bwait.bw-big > span { text-align: center; }
 .chatbox .chat:has(> .chat-empty) { min-height: 0; }
 .chatbox .chat > .chat-empty { margin: 2px auto 6px; font-size: 12px; }
+/* physics 22.10: why you lost with more power (S.raceWhy) and the wheelspin note in the workshop */
+.dr-why { display: grid; gap: 6px; margin-top: 10px; padding: 10px 12px; border-color: #ff8a3d55; background: #ff8a3d12; }
+.dr-why .dr-why-l { display: flex; gap: 8px; font-size: 13px; line-height: 1.4; color: #ffd9bf; }
+.dr-why .dr-why-l .i { flex: none; width: 16px; height: 16px; margin-top: 1px; color: #ff8a3d; }
+.slip-note .i { width: 14px; height: 14px; vertical-align: -2px; color: #ff8a3d; }

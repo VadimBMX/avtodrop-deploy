@@ -65,11 +65,12 @@ test('bestTune: a full set of a lower tier beats a mixed kit when the +5% is wor
   assert.ok(Math.abs(r.after - Math.min(set, mixed)) < 1e-9);
 });
 
-test('wheelspin: on a spinning Bolide power parts add nothing but never slow it; grip parts help (owner 22.10)', () => {
+test('wheelspin: on a spinning Bolide power parts still help a little and never slow it; grip parts help (owner 22.10)', () => {
   const bolide = { model: 'bugatti-bolide', parts: {} };
   assert.ok(T.spinning(bolide));
   const eng = T.partGain(bolide, 'eng', 'race');
-  assert.ok(eng.dt <= T.TUNE_EPS && !eng.spin, 'more power is never slower');
+  // Physics 22.10: power above the grip counts for S.TRACTION.over (it used to add nothing past a hard ceiling).
+  assert.ok(eng.dt < -T.TUNE_EPS && !eng.spin && eng.slip, 'more power is faster, the tyres just hold it back');
   const wheels = T.partGain(bolide, 'wheels', 'race');
   assert.ok(wheels.dt < -0.1 && !wheels.spin);
   const keys = S.partKeysOf('bugatti-bolide');

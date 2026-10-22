@@ -1254,7 +1254,7 @@ export function createGame(db, opts = {}) {
 
   // ---------- racing ----------
   function rivalSig(c) {
-    return JSON.stringify([3, c.model, carParts(c.id), carPlate(c.id)?.id || 0]);
+    return JSON.stringify([4, c.model, carParts(c.id), carPlate(c.id)?.id || 0]);
   }
   // The player's form (S.RACE_FORM): the median of what their last solo runs with at least two own shifts took over
   // the car's base time. AFK runs and runs left to the limiter don't count; too few runs → null (a good driver).
@@ -1323,7 +1323,9 @@ export function createGame(db, opts = {}) {
     const names = [...S.RIVAL_NAMES].sort(() => rnd() - 0.5);
     const used = [c.model];
     const plainRef = timesOf(ref, 'average');
-    const list = tiers.map((op, i) => {
+    // Picked from the hardest tier down (physics 22.10): for a fully tuned hypercar only a couple of cars can run the
+    // hard pace, so those go first and the slower tiers take other cars.
+    const list = tiers.map((op, i) => [op, i]).reverse().map(([op, i]) => {
       let p = op.chance + (rnd() * 2 - 1) * op.spread;
       let pace = S.baseForChance(refTimes, refOffsets, p);
       if (op.id === 'train') {
@@ -1331,7 +1333,7 @@ export function createGame(db, opts = {}) {
         if (easy > pace) ((pace = easy), (p = S.oddsVs(refTimes, refOffsets, pace)));
       }
       const target = pace + refMed;
-      const pick = S.pickRivalCar(cls, refTimes, p, target, { hp: ref.stock.hp, harder: op.id === 'hard' ? true : op.id === 'mid' ? null : false, skill: S.RIVAL_SKILL[op.id], rand: rnd, avoid: used });
+      const pick = S.pickRivalCar(cls, refTimes, p, target, { hp: ref.stock.hp, harder: op.id === 'hard' ? true : op.id === 'mid' ? null : false, skill: S.RIVAL_SKILL[op.id], rand: rnd, avoid: used, power: o.hp / S.MODELS[c.model].hp - 1 });
       used.push(pick.model);
       const base = pick.base;
       let chance = Math.round(S.oddsVs(mine, pick.offsets, base) * 100);
@@ -1340,7 +1342,7 @@ export function createGame(db, opts = {}) {
       if (floor && !tough) chance = Math.max(chance, Math.min(floor, Math.round(S.oddsVs(plain, pick.offsets, base) * 100)));
       return { id: op.id, label: op.name, name: names[i] || 'Інструктор', model: pick.model, hp: pick.hp, tuned: !!pick.kit, kit: pick.kit, tier: pick.tier, parts: pick.parts,
         base, ai: pick.ai, skill: pick.skill, driver: S.rivalLevel(pick.skill), et: pick.et, ...money(op), chance, ...(tough ? { tough: true } : {}) };
-    });
+    }).reverse();
     q('INSERT INTO rivals (user_id, car_id, sig, data) VALUES (?, ?, ?, ?) ON CONFLICT DO UPDATE SET sig = excluded.sig, data = excluded.data').run(uid, c.id, sig, JSON.stringify(list));
     return { car: o, list };
   }
@@ -4989,7 +4991,7 @@ export function createGame(db, opts = {}) {
     const run = JSON.parse(ch.run);
     const plan = G.ghostPlan(snap, run.reaction, run.shiftAt, run.shifts);
     const greenMs = S.RACE_GREEN[0] + Math.floor(rnd() * (S.RACE_GREEN[1] - S.RACE_GREEN[0]));
-    const r = { id: 'ghost', ghost: ch.id, label: 'Привид', name: name(ch.creator_id), model: snap.model, hp: snap.hp, look: snap.look, base: snap.base, shift: snap.shift,
+    const r = { id: 'ghost', ghost: ch.id, label: 'Привид', name: name(ch.creator_id), model: snap.model, parts: snap.parts || {}, hp: snap.hp, look: snap.look, base: snap.base, shift: snap.shift,
       time: ch.time, plan, entry: 0, prize: 0 };
     const rec = { ...r, me: chCar(car), greenMs, free };
     const raceId = Number(q('INSERT INTO races (user_id, car_id, rival, entry, prize, created_at) VALUES (?, ?, ?, 0, 0, ?)').run(uid, car.id, JSON.stringify(rec), now()).lastInsertRowid);
