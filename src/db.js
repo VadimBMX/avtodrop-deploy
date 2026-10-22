@@ -212,6 +212,19 @@ CREATE TABLE IF NOT EXISTS boss_runs (
   user_id INTEGER NOT NULL, boss TEXT NOT NULL, tries INTEGER NOT NULL DEFAULT 0, wins INTEGER NOT NULL DEFAULT 0,
   best REAL, beaten_at INTEGER, PRIMARY KEY (user_id, boss)
 );
+-- «Заїзд дня» (public/dayrace.js, src/dayrace.js). Runs are ordinary drag races in \`races\` (rival.dayrace = the day).
+-- Attempts per player and Kyiv day (counted at the start); each player's best finished time of the day (the board;
+-- place / field / prize are written once, by the midnight settlement; claimed_at when the prize was taken); the days
+-- already settled (one row each — the guard that pays a day exactly once).
+CREATE TABLE IF NOT EXISTS dayrace_tries (day TEXT NOT NULL, user_id INTEGER NOT NULL, n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, user_id)) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS dayrace_best (
+  day TEXT NOT NULL, user_id INTEGER NOT NULL, model TEXT NOT NULL, time REAL NOT NULL, at INTEGER NOT NULL, race_id INTEGER,
+  flag INTEGER NOT NULL DEFAULT 0, dq INTEGER NOT NULL DEFAULT 0, place INTEGER, field INTEGER, prize TEXT, claimed_at INTEGER,
+  PRIMARY KEY (day, user_id)
+);
+CREATE INDEX IF NOT EXISTS dayrace_best_board ON dayrace_best(day, time, at);
+CREATE INDEX IF NOT EXISTS dayrace_best_user ON dayrace_best(user_id, day);
+CREATE TABLE IF NOT EXISTS dayrace_days (day TEXT PRIMARY KEY, model TEXT NOT NULL, total INTEGER NOT NULL, settled_at INTEGER NOT NULL);
 -- Weekly route (S.WEEKLY_QUESTS): four tasks per player and Kyiv week (Monday date). Chest claims live in claims
 -- under "wk:<week>:<days>".
 CREATE TABLE IF NOT EXISTS weekly_quests (

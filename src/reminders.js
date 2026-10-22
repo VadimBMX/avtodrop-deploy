@@ -15,7 +15,8 @@ export const PUSH = {
 };
 // The order of lines in a bundled message. 'event': a game event began (S.EVENTS) — same limits as the rest
 // (2 a day, quiet hours, idle players only); each event is told once and only in its first hours (game.js EVENT_PUSH_H).
-export const KINDS = ['event', 'daily', 'income', 'rcase', 'fuel', 'season'];
+// 'dayrace': «Заїзд дня» from 19:00 Kyiv for players who haven't raced it today (src/dayrace.js remind), same limits.
+export const KINDS = ['event', 'dayrace', 'daily', 'income', 'rcase', 'fuel', 'season'];
 
 const HOUR = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Kyiv', hour: '2-digit', hourCycle: 'h23' });
 export const kyivHour = (t) => Number(HOUR.format(new Date(t)));

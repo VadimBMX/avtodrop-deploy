@@ -2,6 +2,7 @@
 import * as S from './shared.js';
 import { carArt, setImages } from './car.js';
 import { metricsPage } from './admin-metrics.js';
+import { dayRacePage, dayRaceActions } from './admin-dayrace.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -320,6 +321,10 @@ H.days = (d) => ((state.days = Number(d.n)), render());
 // ---------- metrics for the owner (public/admin-metrics.js) ----------
 VIEWS.metrics = () => metricsPage({ api, esc, ic, short, days: state.mDays || 30 });
 H.mdays = (d) => ((state.mDays = Number(d.n)), render());
+// ---------- «Заїзд дня»: the car schedule and today's board (public/admin-dayrace.js) ----------
+VIEWS.dayrace = () => dayRacePage({ api, esc, cls, userLink });
+Object.assign(H, dayRaceActions({ mutate, esc, $ }));
+Object.assign(ACTIONS, { 'dayrace-set': 'Заїзд дня: машина', 'dayrace-dq': 'Заїзд дня: результат' });
 function userTable(list, rich) {
   if (!list.length) return '<div class="empty">Гравців поки немає</div>';
   return `<div class="tbl-wrap"><table><tr><th>Гравець</th><th class="num">${rich ? 'Гараж + гривні' : 'Зареєстр.'}</th></tr>

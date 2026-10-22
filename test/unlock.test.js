@@ -28,7 +28,7 @@ test('ladder: one constant, levels ascending, every gated key in it; casino and 
   assert.deepEqual(levels, [...levels].sort((a, b) => a - b));
   assert.ok(S.unlockLevel('casino') >= 10 && S.unlockLevel('upgrade') >= 8);
   assert.equal(S.unlockLevel('nothing'), 1);
-  assert.deepEqual(S.unlocksBetween(1, 3).map((u) => u.key), ['parts', 'wash', 'drift', 'plates']);
+  assert.deepEqual(S.unlocksBetween(1, 3).map((u) => u.key), ['parts', 'wash', 'dayrace', 'drift', 'plates']);
   for (const t of S.NEWBIE_TASKS) if (t.feature) assert.ok(S.UNLOCK_BY_KEY[t.feature]);
   // Newbie tasks follow the ladder: no task needs a feature that opens later than the step before it allows.
   const at = S.NEWBIE_TASKS.map((t) => (t.feature ? S.unlockLevel(t.feature) : t.key === 'level3' ? 3 : 1));
@@ -61,7 +61,7 @@ test('a level-1 player: core loop open, everything else refused by the API with 
   call(5, 'casino/mines/state');
   // The level opens them.
   setLevel(5, 2);
-  assert.deepEqual(call(5, 'me').unlocked, ['parts', 'wash']);
+  assert.deepEqual(call(5, 'me').unlocked, ['parts', 'wash', 'dayrace']);
   call(5, 'parts/open', { caseId: 'scrap', count: 1 });
   call(5, 'wash/hand', { carId: car.id });
   setLevel(5, 10);
@@ -180,8 +180,8 @@ test('grandfathering: the feats backfill keeps what an existing player used; lev
     db = openDb(file);
     const feats = (id) => JSON.parse(db.prepare('SELECT feats FROM users WHERE id = ?').get(id).feats);
     assert.deepEqual(feats(21).sort(), ['casino', 'plates', 'pvp']);
-    // The backfill lists the features of its day; later ones (the wash, level 2) open by level anyway.
-    assert.deepEqual(feats(22).sort(), S.UNLOCKS.map((u) => u.key).filter((k) => k !== 'wash').sort());
+    // The backfill lists the features of its day; later ones (the wash, «Заїзд дня», level 2) open by level anyway.
+    assert.deepEqual(feats(22).sort(), S.UNLOCKS.map((u) => u.key).filter((k) => k !== 'wash' && k !== 'dayrace').sort());
     assert.deepEqual(feats(23).sort(), ['casino', 'upgrade'], 'untraceable games stay open from level 3');
     assert.deepEqual(feats(24), []);
     // With the ladder on: 21 (level 1) keeps plates, PvP and the casino, nothing else.

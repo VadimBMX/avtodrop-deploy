@@ -8,6 +8,8 @@ import * as PAINT from './paint.js';
 import * as DIRT from './dirt.js';
 import * as FX from './fx.js';
 import * as SFX from './sfx.js';
+// «Заїзд дня»: the car of the day and the prizes (shared with the server); the share card is loaded when needed.
+import * as DRS from './dayrace.js';
 import * as WOW from './wow.js';
 
 const tg = window.Telegram?.WebApp;
@@ -7044,6 +7046,308 @@ H.dreamCls = (d) => {
 H.dreamClear = async () => {
   closeModal();
   await act('dream/set', { model: null }, 'Мрію прибрано');
+};
+
+// ---------- «Заїзд дня» (audit §4 feature 1; rules public/dayrace.js, server src/dayrace.js) ----------
+// A tile on top of «Гонки»; the day's screen (the car, rules and prizes, attempts, the «Усі / Друзі» boards, refreshed
+// while open); a run is the usual drag scene (runRace — the server finishes it through race/finish, with the replay);
+// then the result with the place and the gap to the next one, «Ще спроба» and a share card (public/dayrace-card.js).
+// Hooked in from here only: the page, the «Гонки» tab and the reward claims are wrapped, nothing above is edited.
+PAGE_TITLES.dayrace = 'Заїзд дня';
+PAGE_FEATURE.dayrace = 'dayrace';
+REWARD_KINDS.add('drace');
+REWARD_IC.drace = 'flag-3';
+const DR_SEEN = 'drSeen'; // the «Нове» chip on the tile until the screen has been opened once
+const drN = (n) => grp(n).replace(/ /g, ' ');
+const drT = (t) => `${DRS.fmtTime(t)} с`;
+const drPips = (left, max) => `<span class="dr-pips" aria-label="спроби: ${left} з ${max}">${Array.from({ length: max }, (_, i) => `<i class="${i < left ? 'on' : ''}"></i>`).join('')}</span>`;
+let drData = null, drPoll = 0, drKey = '';
+
+// The tile: the car, your time and place, attempts left. Locked (level 1): one quiet row, and none during the first steps.
+function dayRaceTile() {
+  if (!isOpen('dayrace')) return guideOn() ? '' : `<button class="drt locked" data-act="locked" data-k="dayrace">${ic('lock')}<span class="grow ellipsis"><b>Заїзд дня</b> · одна машина для всіх</span>${lockChip('dayrace')}</button>`;
+  const d = me.dayRace;
+  if (!d || !M(d.model)) return '';
+  const m = M(d.model);
+  const stat = d.time != null ? `твій час <b>${DRS.fmtTime(d.time)}</b>${d.place ? ` · <b>${d.place}-й</b> з ${drN(d.total)}` : ''}`
+    : d.total ? `уже проїхали: ${drN(d.total)} · ${d.left ? 'твоя черга' : 'спроби закінчились'}` : 'ще ніхто не проїхав — будь першим';
+  const tag = d.ready ? '<em class="rw">нагорода</em>' : !prefGet(DR_SEEN) ? '<em>нове</em>' : '';
+  return `<button class="drt" data-act="drOpen" style="--c:${S.CLASSES[m.cls].color}">
+    <span class="drt-tx"><span class="drt-h">${ic('flag-3')} Заїзд дня${tag}</span><b class="drt-car ellipsis">${esc(m.name)}</b><span class="drt-st">${stat}</span>
+      <span class="drt-at">${drPips(d.left, d.max)}<small>${d.left ? `спроби ${d.left}/${d.max}` : 'спроби закінчились'}</small></span></span>
+    <span class="drt-art">${carArt(d.model)}</span><span class="chev">${ic('chevron-right')}</span></button>`;
+}
+{
+  const base = TABS.race;
+  TABS.race = async () => {
+    if (state.race?.rival?.dayrace) state.race = null; // back from the day's screen: the tab starts fresh
+    const html = await base();
+    return (state.race && state.race.phase !== 'idle') || state.drift ? html : dayRaceTile() + html;
+  };
+}
+H.drOpen = () => {
+  state.race = null;
+  go('dayrace');
+};
+
+// ---- the day's screen
+PAGES.dayrace = async () => {
+  if (state.race?.rival?.dayrace) return state.race.phase === 'done' ? drResult() : raceScreen();
+  drData = await api('dayrace');
+  drKey = '';
+  prefSet(DR_SEEN, 1);
+  return drPage(drData);
+};
+AFTER.dayrace = () => {
+  clearInterval(drPoll);
+  if (state.race?.rival?.dayrace) return resultFx();
+  drPoll = setInterval(drLive, 8000);
+};
+function drPage(v) {
+  const m = M(v.car.model), color = S.CLASSES[m.cls].color, tm = M(v.tomorrow);
+  const hero = `<div class="card drh" style="--c:${color}">
+    <div class="drh-top"><span class="chip">${ic('calendar')} ${DRS.dayLabel(v.day)}</span><span class="chip">${ic('clock')} нова машина через ${untilSpan(v.endsAt)}</span></div>
+    <div class="drh-art">${carArt(m.id, { glow: true })}</div>
+    <b class="drh-nm">${esc(m.name)}</b>
+    <div class="drh-meta">${clsBadge(m.cls)} ${originChip(m.id)}</div>
+    <div class="drh-specs"><span><b>${drN(v.car.hp)}</b>к.с.</span><span><b>${drN(v.car.kg)}</b>кг</span><span><b>${dec(v.car.et, 2)}</b>с — еталон</span></div>
+    <div class="tiny muted center">Заводська машина для всіх: без деталей і фарби — вирішують старт і передачі</div></div>`;
+  const yd = v.yesterday;
+  const yCard = yd?.place ? `<div class="card dry"><span class="dry-ic">${ic('trophy')}</span><div class="grow"><b>Вчора · ${esc(M(yd.model)?.name || '')}</b>
+      <div class="small muted">${yd.place}-й з ${drN(yd.field)} · ${drT(yd.time)}</div></div>${yd.claimed ? `<span class="chip">${ic('check')} забрано</span>` : `<button class="btn sm ghost" data-act="drClaim" data-day="${yd.day}">Забрати</button>`}</div>`
+    : yd?.field ? `<div class="tiny muted center dry-none">Вчора на ${esc(M(yd.model)?.name || '')} проїхали ${drN(yd.field)}</div>` : '';
+  const R = DRS.DAYRACE, cn = (id) => esc(S.CASE_BY_ID[id]?.name || id);
+  const rules = `<div class="card drr"><div class="hook-t">${ic('gift')} Нагороди опівночі</div>
+    <div class="drr-list">
+      <div><span class="drr-ic">${ic('key')}</span><span><b>Кожному, хто проїхав</b> — фрагмент ключа «${cn(R.fragCase)}»</span></div>
+      <div><span class="drr-ic">${ic('star')}</span><span><b>Топ-10%</b>${v.topN ? ` (зараз — ${v.topN} ${plural(v.topN, ['місце', 'місця', 'місць'])})` : ''} — ключ «${cn(R.topKey)}»</span></div>
+      <div><span class="drr-ic gold">${ic('crown')}</span><span><b>Топ-3</b> — ключ «${cn(R.podiumKey)}» і значок «Заїзд дня: №1/2/3»</span></div></div>
+    <details class="dr-how"><summary>${ic('info-circle')} Правила</summary><div class="tiny muted">О 00:00 за Києвом — нова машина, однакова для всіх: заводська, без деталей і фарби. ${R.attempts} безкоштовні спроби на день, пальне не потрібне; більше спроб не купити. У таблицю йде твій найкращий час; при однаковому часі вище той, хто проїхав раніше. Сервер перевіряє кожен заїзд — старт і всі перемикання, як у звичайному драгу. Нагороди за місця — коли проїхали щонайменше ${R.minField} гравців; забрати — в «Нагородах».${tm ? ` Завтра: ${esc(tm.name)}.` : ''}</div></details></div>`;
+  const tab = state.drTab || 'all';
+  const tabs = `<div class="seg drb-tabs">${[['all', `Усі · ${drN(v.total)}`], ['friends', `Друзі${v.friends.list.length > 1 ? ` · ${v.friends.list.length}` : ''}`]].map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-act="drBoard" data-k="${k}">${t}</button>`).join('')}</div>`;
+  return `${hero}<div class="card drs" id="drMe">${drMeHtml(v)}</div>${yCard}
+    <div class="h2"><span>Таблиця дня</span><span class="drb-live">${ic('refresh')} наживо</span></div>${tabs}<div id="drList">${drBoardHtml(v)}</div>${rules}`;
+}
+function drMeHtml(v) {
+  const a = v.attempts, mine = v.me;
+  const line = !mine ? `<span class="muted">Ще немає часу — ${a.left ? `перша спроба безкоштовна, як і всі ${a.max}` : 'спроби закінчились'}</span>`
+    : mine.dq ? '<span class="muted">Результат знято адміністрацією</span>'
+    : `<b class="drs-t">${drT(mine.time)}</b><span class="drs-pl"><b>${mine.place}-й</b> з ${drN(v.total)}</span>`;
+  const btn = a.left ? `<button class="btn yellow btn2" data-act="drStart"><span>${ic('flag-3')} ${mine ? 'Ще спроба' : 'Їхати'}</span><small>спроба ${a.used + 1} з ${a.max} · без пального</small></button>`
+    : `<button class="btn" disabled>Спроби закінчились · нова машина через ${untilSpan(v.endsAt)}</button>`;
+  const share = mine && !mine.dq ? `<button class="drs-share" data-act="drShare">${ic('share')} Поділитися часом</button>` : '';
+  return `<div class="row between"><span class="hook-t">${ic('trophy')} Твій найкращий час</span>${drPips(a.left, a.max)}</div><div class="drs-row">${line}</div>${btn}${share}`;
+}
+const drRow = (r, extra = '') => `<button class="lb ${r.me ? 'me' : ''}" data-act="playerCard" data-id="${r.id}"><span class="pl">${r.place <= 3 ? `<span class="medal m${r.place}">${r.place}</span>` : r.place}</span><span class="lb-ava">${esc(initialOf(r.name))}</span><span class="grow ellipsis">${esc(r.name)}</span>${extra}<b class="nw drb-t">${drT(r.time)}</b></button>`;
+function drBoardHtml(v) {
+  if ((state.drTab || 'all') === 'friends') {
+    const f = v.friends;
+    const rows = f.list.length > 1 || f.friends ? f.list.map((r) => drRow(r, `<span class="tiny muted nw">#${r.global}</span>`)).join('') : '';
+    const empty = !f.friends ? emptyBox('users', 'Друзів у грі поки немає', 'Тут — ті, кого ти запросив або хто запросив тебе, і з ким ти міняв машини чи гонявся. Запроси друзів за посиланням.', '<button class="btn sm ghost" data-act="go" data-page="friends">Запросити друзів</button>') : '';
+    const wait = f.waiting ? `<div class="tiny muted center mt">Ще не проїхали: ${f.waiting} ${plural(f.waiting, ['друг', 'друзі', 'друзів'])}</div>` : '';
+    return (rows ? `<div class="list drb">${rows}</div>` : '') + empty + wait;
+  }
+  if (!v.board.length) return emptyBox('flag-3', 'Таблиця поки порожня', 'Проїдь першим — і твоє ім’я буде вгорі');
+  // Folded: the top 10 and your neighbours (2 above, 2 below); «Весь топ-100» unfolds it.
+  const list = v.board, mine = list.find((r) => r.me), fold = !state.drAll && list.length > 15;
+  const rows = !fold ? list : mine && mine.place > 12 ? [...list.slice(0, 10), null, ...list.slice(mine.place - 3, mine.place + 2)] : list.slice(0, 15);
+  const html = rows.map((r) => (r ? drRow(r) : '<div class="drb-gap">· · ·</div>')).join('');
+  const more = list.length > 15 ? `<button class="btn ghost sm drb-more" data-act="drAll">${fold ? `Весь топ-${list.length}` : 'Згорнути'}</button>` : '';
+  const bar = v.me && !v.me.dq && v.me.place && !mine ? `<div class="mybar"><span>Ти: #${v.me.place}</span><span class="grow"></span><span>${drT(v.me.time)}</span></div>` : '';
+  return `<div class="list drb">${html}</div>${more}${bar}`;
+}
+H.drAll = () => {
+  state.drAll = !state.drAll;
+  if (drData && $('#drList')) $('#drList').innerHTML = drBoardHtml(drData);
+};
+H.drBoard = (d) => {
+  state.drTab = d.k;
+  document.querySelectorAll('.drb-tabs button').forEach((b) => b.classList.toggle('on', b.dataset.k === d.k));
+  if (drData && $('#drList')) $('#drList').innerHTML = drBoardHtml(drData);
+};
+// Live: the board and your line follow the server while the screen is open (not during a run or under a window).
+async function drLive() {
+  if (state.page !== 'dayrace' || state.race) return clearInterval(drPoll);
+  if (document.hidden || !$('#modal').hidden) return;
+  try {
+    const v = await api('dayrace');
+    if (state.page !== 'dayrace' || state.race) return;
+    if (v.day !== drData?.day) return render(); // midnight passed while the screen was open: the new car
+    const key = JSON.stringify([v.board, v.friends, v.me, v.attempts, v.total]);
+    if (key === drKey) return;
+    drKey = key;
+    drData = v;
+    if ($('#drMe')) $('#drMe').innerHTML = drMeHtml(v);
+    if ($('#drList')) $('#drList').innerHTML = drBoardHtml(v);
+  } catch {}
+}
+
+// ---- a run: the drag scene of every race, against a ghost (the next place up, your record, the middle of the board)
+H.drStart = async (d, el) => {
+  if (el) el.disabled = true;
+  let r;
+  try {
+    r = await api('dayrace/start');
+  } catch (e) {
+    toast(e.message, true);
+    return refresh();
+  }
+  clearInterval(drPoll);
+  hideClaimBanners();
+  if (me.dayRace) Object.assign(me.dayRace, { used: r.attempts.used, left: r.attempts.left });
+  state.race = { phase: 'lights', id: r.raceId, car: r.car, rival: r.rival, greenMs: r.greenMs, reaction: null, shifts: [], gear: 1, result: null, coach: !me.stats.races };
+  state.page = 'dayrace';
+  window.scrollTo(0, 0);
+  await render();
+  $('#drag')?.classList.add('dr-ghost');
+  if (state.race.coach && !drSeen()) return dragCoach(state.race);
+  runRace();
+};
+H.drAgain = () => {
+  state.race = null;
+  return H.drStart();
+};
+H.drBack = () => {
+  state.race = null;
+  window.scrollTo(0, 0);
+  render();
+};
+// The result: was it a record, the place, the gap to the next place (or the lead), the start and the shifts.
+function drResult() {
+  const R = state.race, r = R.result, dr = r.dayrace, car = R.car, m = M(car.model);
+  const best = dr.counted && dr.newBest;
+  if (state.resultFx) state.resultFx = { win: best }; // confetti for a new best, not for beating the ghost
+  const reaction = r.jump ? -1 : r.reaction;
+  const st = drStart(reaction, R.jumpBy || 0);
+  const lost = r.shifts.reduce((a, q) => a + drLoss(q, car), 0);
+  const shiftsTxt = lost > 0.0005 ? `втрачено ${dec(lost, 2)} с` : lost < -0.0005 ? `виграно ${dec(-lost, 2)} с` : 'без втрат';
+  const title = !dr.counted ? 'Не зараховано' : !dr.newBest ? 'Рекорд не побито' : dr.prevBest == null ? 'Є час!' : 'Новий рекорд!';
+  const sub = !dr.counted ? (dr.expired ? 'заїзд тривав понад 3 хвилини' : 'заїзд почався до опівночі — у новий день він не йде')
+    : dr.newBest && dr.prevBest != null ? `краще на <b>${dec(dr.prevBest - r.time, 3)} с</b>` : dr.newBest ? 'перший час дня — тепер ти в таблиці' : `твій рекорд — <b>${drT(dr.best)}</b>`;
+  const placeLine = dr.place ? `<div class="drres-pl"><b>${dr.place}-й</b> з ${drN(dr.total)}${dr.prevPlace > dr.place ? ` <span class="up">↑ ${dr.prevPlace - dr.place}</span>` : ''}</div>` : '';
+  const gap = dr.next ? `<div class="drres-gap">${ic('target-arrow')}<span><span>${dr.next.gap > 0 ? `До ${dr.next.place}-го місця: <b>−${dec(dr.next.gap, 3)} с</b>` : `Той самий час, що в ${dr.next.place}-го, але він проїхав раніше — потрібна хоч <b>0,001 с</b>`}</span><small class="ellipsis">${esc(dr.next.name)} · ${drT(dr.next.time)}</small></span></div>`
+    : dr.lead ? `<div class="drres-gap lead">${ic('crown')}<span><span>Ти перший! Відрив: <b>${dec(dr.lead.gap, 3)} с</b></span><small class="ellipsis">2-й — ${esc(dr.lead.name)} · ${drT(dr.lead.time)}</small></span></div>`
+    : dr.place === 1 ? `<div class="drres-gap lead">${ic('crown')}<span>Ти перший у таблиці дня</span></div>` : '';
+  const a = dr.attempts, beat = r.time < r.rivalTime, tie = r.time === r.rivalTime;
+  const again = a.left ? `<button class="btn yellow btn2" data-act="drAgain"><span>${ic('refresh')} Ще спроба</span><small>залишилось ${a.left} з ${a.max}</small></button>` : '';
+  return `<div class="rhero drres ${best ? 'win' : 'flat'}"><div class="rhero-tag">${ic('flag-3')} Заїзд дня · ${esc(m.name)}</div><div class="rhero-t">${title}</div>
+      <div class="rhero-sub">${sub}</div><div class="rhero-amt">${drT(r.time)}</div>${placeLine}</div>
+    ${gap}
+    <div class="dr-times">
+      <div class="${beat ? 'won' : ''}"><small>Ти</small><b>${dec(r.time, 3)} с</b><span class="ellipsis">${esc(m.name)}</span></div>
+      <div class="${beat || tie ? '' : 'won'}"><small class="ellipsis">Привид · ${esc(dr.ghostName || R.rival.name)}</small><b>${dec(r.rivalTime, 3)} с</b><span class="ellipsis">${beat ? 'обігнав' : tie ? 'так само' : 'попереду'}</span></div></div>
+    <div class="card dr-sum">
+      <div class="dr-row"><span class="dr-dot q-${st.q}"></span><div class="grow"><b>${st.t}</b><div class="small muted">${st.s}</div></div></div>
+      <div class="dr-row"><span class="dr-dot q-${lost > 0.0005 ? 'late' : lost < -0.0005 ? 'perfect' : 'good'}"></span><div class="grow"><b>Передачі: ${shiftsTxt}</b>
+        <div class="dr-chips">${r.shifts.map((q, i) => `<span class="qchip q-${q}">${i + 1}→${i + 2} ${QLABEL[q]}</span>`).join('')}</div></div></div></div>
+    <div class="dr-btns drres-btns">${again}<div class="btns"><button class="btn ${a.left ? 'outline' : 'yellow'}" data-act="drShare" ${dr.best != null ? '' : 'disabled'}>${ic('share')} Поділитися</button><button class="btn ghost" data-act="drBack">До таблиці</button></div></div>`;
+}
+
+// ---- prizes: one banner claims its own day; «Забрати все» takes them with the rest (server: rewards/all)
+async function drClaim(day) {
+  const r = await claimQuiet('dayrace/claim', { day });
+  if (!r) return;
+  toast(`Заїзд дня ${DRS.dayLabel(r.day)}: ${r.text}`);
+  pulseSoon();
+  if (r.keys.length) await revealRewards(r.keys.map((k) => ({ kind: 'key', caseId: k.caseId, count: k.count, title: r.title })));
+  else await refresh();
+}
+H.drClaim = (d) => drClaim(d.day);
+{
+  const claimBase = H.bannerClaim, openBase = H.bannerOpen;
+  H.bannerClaim = async (d) => {
+    const b = banners.get(d.key);
+    if (b?.data.claim?.kind !== 'drace') return claimBase(d);
+    hideBanner(d.key);
+    return drClaim(b.data.claim.id);
+  };
+  H.bannerOpen = (d) => {
+    const b = banners.get(d.key);
+    if (b?.data.kind !== 'drace') return openBase(d);
+    hideBanner(d.key);
+    openRewards();
+  };
+}
+
+// ---- sharing: the card (time, place, car) and the caption come from the player's own result on the server
+H.drShare = async () => {
+  const day = state.race?.result?.dayrace?.day || drData?.day;
+  let c;
+  try {
+    c = await api('dayrace/caption', { day });
+  } catch (e) {
+    return toast(e.message, true);
+  }
+  const m = M(c.model);
+  const who = me.username ? '@' + me.username : me.firstName || '';
+  sheet('Поділитися часом', `<div class="share-prev" id="sharePrev" style="--c:${S.CLASSES[m.cls].color}"><div class="share-wait">${ic('sparkles')} Малюю картку…</div></div>
+    <div class="share-acts" id="shareActs"></div>
+    <div class="tiny muted center mt">Друг за твоїм посиланням отримає ${S.short(S.REF_FRIEND_BONUS)} на старт і з’явиться в твоїй таблиці «Друзі»</div>`);
+  const token = (shareState = { car: { model: c.model }, blob: null, link: '', dayrace: c });
+  const [blob, ref] = await Promise.all([import('./dayrace-card.js').then((x) => x.dayRaceCard({ ...c, who, bot: config.bot })).catch(() => null), api('ref').catch(() => ({}))]);
+  if (shareState !== token || !$('#sharePrev')) return;
+  Object.assign(shareState, { blob, link: ref.link || '' });
+  shareState.preview = blob ? URL.createObjectURL(blob) : '';
+  $('#sharePrev').innerHTML = blob ? `<img src="${shareState.preview}" alt="Картка: ${esc(m.name)}, ${drT(c.time)}">` : '<div class="share-wait">Картку не вдалося намалювати — можна поділитися посиланням</div>';
+  const can = shareCaps();
+  $('#shareActs').innerHTML = `<button class="btn yellow" data-act="drShareChat">${ic('share')} Надіслати друзям</button>
+    <div class="btns">${can.story && blob ? `<button class="btn ghost" data-act="drShareStory">${ic('sparkles')} В історію</button>` : ''}${blob ? '<button class="btn ghost" data-act="drShareSave">Зберегти картинку</button>' : ''}</div>`;
+};
+H.drShareChat = async (d, el) => {
+  const st = shareState;
+  if (!st?.dayrace) return;
+  if (shareCaps().message && st.blob) {
+    el.disabled = true;
+    try {
+      await uploadCard();
+      const r = await api('share/prepare', { id: st.id, dayrace: st.dayrace.day });
+      el.disabled = false;
+      return tg.shareMessage(r.preparedId, (ok) => ok && (toast('Надіслано!'), haptic('success')));
+    } catch {
+      el.disabled = false; // no bot or no https: the plain share link below
+    }
+  }
+  if (st.link) return H.shareRef({ link: st.link, text: st.dayrace.caption });
+  navigator.clipboard?.writeText(st.dayrace.caption).then(() => toast('Текст скопійовано — посилання з’явиться після підключення бота'), () => toast(st.dayrace.caption));
+};
+H.drShareStory = async (d, el) => {
+  const st = shareState;
+  if (!st?.dayrace) return;
+  el.disabled = true;
+  try {
+    await uploadCard();
+    const premium = !!tg.initDataUnsafe?.user?.is_premium;
+    const head = `🏁 Заїзд дня: ${M(st.dayrace.model).name} — ${drT(st.dayrace.time)}. Поб’єш?`;
+    const text = (premium || !st.link ? head : `${head} ${st.link}`).slice(0, 200);
+    tg.shareToStory(st.url, premium && st.link ? { text, widget_link: { url: st.link, name: 'Грати в АВТОДРОП' } } : { text });
+  } catch (e) {
+    toast(e.message, true);
+  }
+  el.disabled = false;
+};
+H.drShareSave = async (d, el) => {
+  const st = shareState;
+  if (!st?.blob || !st.dayrace) return;
+  const file = `avtodrop-${st.dayrace.day}.jpg`;
+  try {
+    if (shareCaps().download) {
+      el.disabled = true;
+      await uploadCard();
+      el.disabled = false;
+      return tg.downloadFile({ url: st.url, file_name: file });
+    }
+    const f = typeof File === 'function' ? new File([st.blob], file, { type: 'image/jpeg' }) : null;
+    if (f && navigator.canShare?.({ files: [f] })) return await navigator.share({ files: [f], text: st.dayrace.caption });
+    const a = document.createElement('a');
+    a.href = st.preview;
+    a.download = file;
+    document.body.append(a);
+    a.click();
+    a.remove();
+  } catch (e) {
+    el.disabled = false;
+    if (e?.name !== 'AbortError') toast(e.message || 'Не вдалося зберегти', true);
+  }
 };
 
 // Telegram photo blocked or gone: show the player's initial instead of a broken image (header, menu hub, profile).

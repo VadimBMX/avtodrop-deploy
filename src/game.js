@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import * as S from '../public/shared.js';
 import * as T from '../public/tune.js';
 import * as M from './metrics.js';
+import { createDayRace } from './dayrace.js';
 
 export class GameError extends Error {}
 const fail = (msg) => {
@@ -4659,6 +4660,37 @@ export function createGame(db, opts = {}) {
     'rewards/all': rewardsAll,
     'dream/set': dreamSet,
   };
+
+  // «Заїзд дня» (src/dayrace.js): its own calls; its runs finish through race/finish like every drag race (the same
+  // replay and checks); `me` carries the «Гонки» tile, pulse and «Забрати все» its prizes, the reminders its 19:00 nudge.
+  const DR = createDayRace({ db, q, now, rnd, dayOf, fail, int, name, metaGet, metaSet, dragRun, startLimit, addKeys,
+    addFragments: (...a) => addFragments(...a), xp: (...a) => xp(...a), track: (...a) => track(...a), alog: (...a) => alog(...a),
+    isGameError: (e) => e instanceof GameError });
+  Object.assign(GATES, DR.gates);
+  Object.assign(handlers, DR.api);
+  {
+    const meBase = handlers.me, pulseBase = handlers.pulse, finishBase = handlers['race/finish'], allBase = handlers['rewards/all'];
+    handlers.me = (uid, b) => {
+      const dayRace = isOpen(uid, 'dayrace') ? DR.brief(uid) : null; // first: it settles a finished day (badges below)
+      return { ...meBase(uid, b), dayRace };
+    };
+    handlers.pulse = (uid, b) => {
+      const p = pulseBase(uid, b);
+      p.claims.push(...DR.claims(uid));
+      return p;
+    };
+    handlers['race/finish'] = (uid, b) => (DR.isRun(uid, b?.raceId) ? DR.finish(uid, b) : finishBase(uid, b));
+    handlers['rewards/all'] = (uid, b) => DR.rewardsAll(uid, () => allBase(uid, b));
+  }
+  push.candidates = ((base) => (rules) => DR.remind(base(rules), rules))(push.candidates);
+  for (const [k, fn] of Object.entries(DR.admin)) {
+    admin[k] = (who, body = {}) => db.tx(() => {
+      if (!canDo(actorRole(who), k)) fail('Немає прав на цю дію');
+      return fn(who, body || {});
+    });
+  }
+  for (const k of DR.mutating) ADMIN_MUTATING.add(k);
+  HELPER_ACTIONS.add('dayrace'); // helpers may look at the day's board and schedule, not change them
   // Every call runs in one transaction, settles the weekly race and refreshes the caller's garage value — except the
   // frequent polls below (every few seconds, or several times a second in a live race), which change no cars.
   const LIGHT = new Set(['pulse', 'pvp/progress', 'pvp/state']);

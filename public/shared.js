@@ -1748,6 +1748,8 @@ export const DAILY_XP_CAP = 300;
 export const UNLOCKS = [
   { key: 'parts', level: 2, name: 'Деталі й склад', icon: 'tool', text: 'Кейси з деталями, установка й злиття — машина їде швидше' },
   { key: 'wash', level: 2, name: 'Мийка', icon: 'droplet', text: 'Помита машина блищить: +5% доходу на 6 год' },
+  // A new feature, not a gate on anything players had: open by level only (no feats backfill needed — L2 ≈ 4 min).
+  { key: 'dayrace', level: 2, name: 'Заїзд дня', icon: 'flag-3', text: 'Щодня одна машина для всіх: 3 спроби, таблиця й нагороди опівночі' },
   { key: 'drift', level: 3, name: 'Дрифт', icon: 'tornado', text: 'Другий режим гонок: траса дня й три суперники' },
   { key: 'plates', level: 3, name: 'Номери', icon: 'license', text: 'Генеруй номерні знаки — рідкісні коштують мільйони' },
   { key: 'paint', level: 4, name: 'Фарбування', icon: 'palette', text: 'Колір кузова й ліврея для твоїх машин' },
