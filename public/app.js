@@ -1555,7 +1555,7 @@ function countryGoal(cs, owned) {
   const need = S.countryNeed(c), have = need.filter((m) => owned.has(m.id)).length, sec = M(S.SECRET_BY_COUNTRY[c]);
   const done = me.claims.includes('c' + c);
   const right = done ? '<span class="win">✓</span>' : have >= need.length ? `<button class="btn sm yellow" data-act="collClaim" data-k="c${c}">Забрати</button>` : `<span class="small muted">${have}/${need.length}</span>`;
-  return `<div class="li secret-goal mt"><span class="ic">${ic('trophy')}</span><div class="grow"><b>Збери весь кейс — секретна ${esc(sec.name)}</b><div class="small muted">${done ? 'Колекцію зібрано, секретна машина твоя' : `усі ${need.length} машин зі списку нижче · +${S.short(S.COUNTRY_REWARD[c])}`}</div><div class="progress mt"><i style="width:${(have / need.length) * 100}%"></i></div></div>${right}</div>`;
+  return `<div class="li secret-goal mt"><span class="ic">${ic('trophy')}</span><div class="grow"><b>Збери весь кейс — ${done ? `секретна ${esc(sec.name)}` : 'секретна машина ❓'}</b><div class="small muted">${done ? 'Колекцію зібрано, секретна машина твоя' : `усі ${need.length} машин зі списку нижче · +${S.short(S.COUNTRY_REWARD[c])}`}</div><div class="progress mt"><i style="width:${(have / need.length) * 100}%"></i></div></div>${right}</div>`;
 }
 H.openCase = async (d, el) => {
   if (state.opening) return;
@@ -4065,7 +4065,7 @@ const collectionCars = () => {
     ...ms.map((m) => ({ key: S.milestoneId(m), done: S.milestoneTaken(m, me.claims), title: m.label || `Збери ${m.n} машин`, sub: rewardText({ money: m.money, slots: m.slots }), have: Math.min(n, m.n), need: m.n, ic: ic('car') })),
     ...S.MAIN_COUNTRIES.map((c) => {
       const list = S.countryNeed(c); // the country's own case (S.countryNeed), as the server counts it
-      return { key: 'c' + c, title: `Колекція «${S.COUNTRIES[c].name}»`, sub: `усі машини кейса · +${S.short(S.COUNTRY_REWARD[c])} · секретна ${M(S.SECRET_BY_COUNTRY[c])?.name || 'машина'}`, have: list.filter((m) => owned.has(m.id)).length, need: list.length, ic: S.COUNTRIES[c].flag };
+      return { key: 'c' + c, title: `Колекція «${S.COUNTRIES[c].name}»`, sub: `усі машини кейса · +${S.short(S.COUNTRY_REWARD[c])} · ${owned.has(S.SECRET_BY_COUNTRY[c]) ? `секретна ${M(S.SECRET_BY_COUNTRY[c])?.name || 'машина'}` : 'секретна машина ❓'}`, have: list.filter((m) => owned.has(m.id)).length, need: list.length, ic: S.COUNTRIES[c].flag };
     }),
   ];
   // Every reward ready to take is shown (a finished country never hides behind milestones), then the next ones up to 3.
