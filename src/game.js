@@ -1359,7 +1359,11 @@ export function createGame(db, opts = {}) {
     const o = carOut(c);
     const h = sha256(`drift:${uid}:${c.id}:${dayOf(now())}`);
     const trackSeed = parseInt(h.slice(48, 56), 16);
-    const par = S.driftPar(S.driftModel(S.carStats({ model: c.model })), S.driftTrack(trackSeed));
+    const tr = S.driftTrack(trackSeed);
+    const parStock = S.driftPar(S.driftModel(S.carStats({ model: c.model })), tr), parCar = S.driftPar(S.driftModel(o), tr);
+    const par = Math.round(parStock + S.DRIFT_PARTS_EDGE * Math.max(0, parCar - parStock));
+    const winsToday = q("SELECT COUNT(*) n FROM drift_runs WHERE user_id = ? AND status = 'done' AND created_at > ? AND json_extract(result, '$.win') = 1 AND json_extract(result, '$.training') IS NULL").get(uid, now() - 864e5).n;
+    const repeat = winsToday >= S.DRIFT_FULL_WINS;
     const pool = S.ALL_MODELS.filter((m) => m.cls === S.MODELS[c.model].cls && !m.secret);
     // Names from the same hash, but never twice in one list (two «Вовк» side by side): a taken one moves to the next.
     const taken = new Set();
@@ -1372,7 +1376,8 @@ export function createGame(db, opts = {}) {
     const list = S.DRIFT_RIVALS.map((r, i) => {
       const x = parseInt(h.slice(i * 6, i * 6 + 6), 16) / 0xffffff;
       const base = S.raceMoney(S.OPPONENTS.find((op) => op.id === r.id), S.MODELS[c.model].price);
-      const money = { ...base, prize: S.eventPrize(base.prize, evFx()) };
+      const full = S.eventPrize(base.prize, evFx());
+      const money = { ...base, prize: repeat ? Math.round(full * S.DRIFT_REPEAT_PRIZE) : full, ...(repeat ? { repeat: true } : {}) };
       return { id: r.id, label: r.name, name: nameAt(parseInt(h.slice(20 + i * 2, 22 + i * 2), 16)),
         model: pool[Math.floor(x * pool.length)]?.id || c.model, target: Math.max(10, Math.round((par * r.share * (0.96 + 0.08 * x)) / 10) * 10), ...money };
     });

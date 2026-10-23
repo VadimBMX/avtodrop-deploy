@@ -125,7 +125,7 @@ test('drift: car stats matter — grip widens the zone and holds the line, power
 });
 
 // Rival targets are tuned with tools/sim-drift.mjs; this keeps the tuning honest on a smaller sample.
-test('drift: an average driver (skill 0.5) beats easy ~90%, medium ~55%, hard ~20% of the time in stock cars', () => {
+test('drift (owner 23.10, harder): an average driver beats easy ~80%, medium ~25%, hard rarely; a good one beats hard ~45%', () => {
   const rnd = lcg(2026);
   const cars = [{ hp: 72, kg: 1030, grip: 0.35 }, { hp: 220, kg: 1400, grip: 0.35 }, { hp: 720, kg: 1400, grip: 0.35 }];
   const wins = [0, 0, 0], good = [0, 0, 0], weak = [0, 0, 0];
@@ -147,9 +147,9 @@ test('drift: an average driver (skill 0.5) beats easy ~90%, medium ~55%, hard ~2
     }
   }
   const [easy, mid, hard] = wins.map((w) => w / n);
-  assert.ok(easy >= 0.8 && easy <= 0.98, `easy ${easy}`);
-  assert.ok(mid >= 0.42 && mid <= 0.68, `mid ${mid}`);
-  assert.ok(hard >= 0.1 && hard <= 0.32, `hard ${hard}`);
-  assert.ok(good[2] / n >= 0.75, 'a good driver usually beats even the hard rival');
+  assert.ok(easy >= 0.75 && easy <= 0.98, `easy ${easy}`);
+  assert.ok(mid >= 0.1 && mid <= 0.4, `mid ${mid}`);
+  assert.ok(hard <= 0.08, `hard ${hard}`);
+  assert.ok(good[2] / n >= 0.25 && good[2] / n <= 0.65, `a good driver beats the hard rival sometimes: ${good[2] / n}`);
   assert.ok(weak[1] / n <= 0.1 && weak[0] / n >= 0.1, 'a beginner can still beat the easy rival sometimes');
 });

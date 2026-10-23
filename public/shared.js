@@ -1422,11 +1422,16 @@ export const driftMult = (streak) => (streak < 1 ? 1 : 1 + DRIFT.comboStep * (Ma
 // Rival targets are a share of the track's par: what an average driver (driftBot at skill 0.5) scores on that day's
 // track in the car's stock form, so parts still help. Tuned with tools/sim-drift.mjs so an average player beats the
 // easy rival ~90% of the time, the medium ~55%, the hard ~20%.
+// Owner 23.10 («найважчий дрифт проходиться дуже легко»): a skilled driver scored 2–2.5× the hard target and a race
+// kit doubled the score, so the targets moved up and the par now counts half of what the car's parts add
+// (DRIFT_PARTS_EDGE: parts still help, they no longer make the hard rival free). Repeat wins pay less: past
+// DRIFT_FULL_WINS wins in 24 h a drift prize is DRIFT_REPEAT_PRIZE of itself.
 export const DRIFT_RIVALS = [
   { id: 'easy', name: 'Легкий', share: 0.73 },
-  { id: 'mid', name: 'Середній', share: 0.9 },
-  { id: 'hard', name: 'Складний', share: 1.12 },
+  { id: 'mid', name: 'Середній', share: 1.2 },
+  { id: 'hard', name: 'Складний', share: 1.8 },
 ];
+export const DRIFT_PARTS_EDGE = 0.5, DRIFT_FULL_WINS = 5, DRIFT_REPEAT_PRIZE = 0.5;
 // «Тренування» in drift: free (no entry, no fuel, no prize, no XP or race counters), hints over every corner; its
 // target is the easy rival's share of the par, just to aim at.
 export const DRIFT_TRAIN = { id: 'train', name: 'Тренування', share: 0.73 };

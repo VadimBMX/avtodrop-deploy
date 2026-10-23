@@ -3503,3 +3503,8 @@ button.li:active { background-color: #ffffff08; }
 .ctr.done .ctr-seal, .ctr.done .ctr-sil { opacity: 0; }
 .ctr.done .ctr-door.l { transform: rotateY(-58deg); }
 .ctr.done .ctr-door.r { transform: rotateY(58deg); }
+
+/* Drop screen: sale buttons and the total appear only after the cards have flipped in (owner 23.10). */
+.lockin { animation: dropLock var(--lk, 900ms) steps(1, end) both, dropLockFade .25s ease-out var(--lk, 900ms) both; }
+@keyframes dropLock { from { visibility: hidden; pointer-events: none; } to { visibility: visible; pointer-events: auto; } }
+@keyframes dropLockFade { from { opacity: 0; } to { opacity: 1; } }

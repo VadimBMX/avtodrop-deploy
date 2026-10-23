@@ -1403,7 +1403,7 @@ TABS.cases = () => {
         : r.sold ? '<div class="dropsell done">Продано</div>' : '';
       return `<div class="dcell r${rk} ${fresh ? 'flip-in' : ''} ${rk >= 1 ? 'rare' : ''} ${rk === best && best >= 2 ? 'best' : ''} ${r.sold ? 'sold' : ''}" style="--c:${c};animation-delay:${i * 180}ms">${r.sold ? carTile(r.car, { act: 'none', collLine: 'short' }) : carTile(r.car, { act: 'car', isNew: r.isNew, collLine: 'short' })}${sell}</div>`;
     }).join('')}</div>
-    <div class="multi-sum ${fresh ? 'pop2' : ''}"><span>${d.length} ${plural(d.length, ['машина', 'машини', 'машин'])}${d.some((r) => r.isNew) ? ` · <span class="newc">${ic('sparkles')} ${(() => { const k = d.filter((r) => r.isNew).length; return `${k} ${plural(k, ['нова', 'нові', 'нових'])}`; })()}</span>` : ''}</span><b>Продаж разом ${S.short(sellTotal(d.map((r) => r.car)))}<small> · колекційна ${S.short(d.reduce((s, r) => s + r.car.value, 0))}</small></b></div>`;
+    <div class="multi-sum ${fresh ? 'pop2 lockin' : ''}" style="--lk:${dropLockMs(d)}ms"><span>${d.length} ${plural(d.length, ['машина', 'машини', 'машин'])}${d.some((r) => r.isNew) ? ` · <span class="newc">${ic('sparkles')} ${(() => { const k = d.filter((r) => r.isNew).length; return `${k} ${plural(k, ['нова', 'нові', 'нових'])}`; })()}</span>` : ''}</span><b>Продаж разом ${S.short(sellTotal(d.map((r) => r.car)))}<small> · колекційна ${S.short(d.reduce((s, r) => s + r.car.value, 0))}</small></b></div>`;
   } else {
     stage = `<div class="reel-wrap" id="reelWrap"><div class="reel" id="reel">${Array.from({ length: 6 }, () => reelCard(weightedModel(cs), cs)).join('')}</div></div>`;
   }
@@ -1422,7 +1422,7 @@ TABS.cases = () => {
       if (free < n) return noRoomHtml(n, free);
       // Not enough money: say so on the button, with how much is missing.
       if (paid && short > 0) return `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(short)}</button>`;
-      return `<button class="btn opencase ${onDrop ? 'second' : deal.off ? 'yellow' : ''}" data-act="openCase">${paid ? `<span class="oc-l">${d && state.dropCase === cs.id ? 'Відкрити ще' : 'Відкрити'}</span><span class="oc-p">${S.fmt(price * paid)}${deal.off ? ` <s>${S.short(cs.price * paid)}</s>` : ''}${keys ? ` + ${ic('key')}${Math.min(keys, n)}` : ''}</span>` : cs.starter ? 'Відкрити безкоштовно' : `Відкрити ключем ${ic('key')} ${n}`}</button>`;
+      return `<button class="btn opencase ${onDrop ? 'second' : deal.off ? 'yellow' : ''}${onDrop && state.fx?.type === 'case' ? ` lockin" style="--lk:${dropLockMs(d)}ms` : ''}" data-act="openCase">${paid ? `<span class="oc-l">${d && state.dropCase === cs.id ? 'Відкрити ще' : 'Відкрити'}</span><span class="oc-p">${S.fmt(price * paid)}${deal.off ? ` <s>${S.short(cs.price * paid)}</s>` : ''}${keys ? ` + ${ic('key')}${Math.min(keys, n)}` : ''}</span>` : cs.starter ? 'Відкрити безкоштовно' : `Відкрити ключем ${ic('key')} ${n}`}</button>`;
     })()}
     ${cs.starter ? '<div class="tiny muted center mt">Подарунок новачку</div>' : ''}
     ${cs.starter ? '' : brokeCard()}
@@ -1431,7 +1431,8 @@ TABS.cases = () => {
       const sum = sellTotal(alive.map((r) => r.car));
       // The only car can't be sold (the server says «Останню машину продати не можна»), so it isn't offered.
       const last = alive.length && me.cars.length - alive.length < 1;
-      const sellBtn = alive.length && !last ? `<button class="btn ghost btn2" data-act="sellDrops"><span>${ic('cash')} ${alive.length > 1 ? 'Продати все' : 'Продати'}</span><small>${S.short(sum)}</small></button>` : '';
+      const lock = state.fx?.type === 'case' ? ` lockin" style="--lk:${dropLockMs(d)}ms` : '';
+      const sellBtn = alive.length && !last ? `<button class="btn ghost btn2${lock}" data-act="sellDrops"><span>${ic('cash')} ${alive.length > 1 ? 'Продати все' : 'Продати'}</span><small>${S.short(sum)}</small></button>` : '';
       return `<div class="btns mt"><button class="btn ${alive.length ? '' : 'outline'}" data-act="toGarage">У гараж</button>${sellBtn}</div>${last ? '<div class="tiny muted center mt">Це твоя єдина машина: на ній ганяєш і заробляєш, тому продати її не можна</div>' : ''}${wowShareRow(d)}`;
     })() : ''}
     <div class="fastrow"><span>${ic('bolt')} Швидке відкриття <small>без рулетки</small></span><button class="toggle ${state.fast ? 'on' : ''}" data-act="toggleFast" aria-label="Швидке відкриття"></button></div>
@@ -1511,6 +1512,9 @@ H.sellDrops = (d, el) => {
 };
 H.pickCount = (d) => (state.count = Number(d.n), state.countPicked = true, render());
 H.toggleFast = () => (state.fast = !state.fast, render());
+// Right after a drop, «Продати все», the total and «Відкрити ще» wait until every card has flipped in (owner 23.10: with
+// the quick open you saw the money and sold before looking at the cars). Pure CSS (.lockin): hidden, then shown.
+const dropLockMs = (d) => (!d?.length ? 0 : d.length > 1 ? 700 + d.length * 180 : state.fast ? 900 : 400);
 H.casePicker = () => {
   const group = (g, title) => {
     const list = S.CASES.filter((c) => c.group === g && (!c.starter || me.keys[c.id]));
