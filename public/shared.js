@@ -1777,11 +1777,15 @@ export function levelReward(lvl) {
   if (lvl % 10 === 0) r.slots = 1;
   return r;
 }
-export const XP = { win: 25, race: 10, newCar: 20, daily: 30, task: 30, quest: 60, case: 5, plate: 5, merge: 10, install: 5, pvp: 30, trade: 30, market: 20, upgrade: 10, casino: 2 };
+export const XP = { win: 25, race: 10, newCar: 20, daily: 30, task: 30, quest: 60, case: 5, partcase: 5, plate: 5, merge: 10, install: 5, pvp: 30, trade: 30, market: 20, upgrade: 10, casino: 2, backfill: 1 };
 // Gambling-like actions (cases, parts, plates; the upgrade and casino too) share the daily cap so levels can't be farmed
 // by spamming them. Races, bosses, the daily bonus, tasks and quests are never capped.
-export const CAPPED_XP = ['case', 'plate', 'merge', 'install', 'upgrade', 'casino'];
+export const CAPPED_XP = ['partcase', 'plate', 'merge', 'install', 'upgrade', 'casino'];
 export const DAILY_XP_CAP = 300;
+// Car cases (owner 23.10: «1400 кейсів, половина елітні — а я 5 рівень»): xp by the case price, 5 for the 60 тис
+// Іржавий up to 22 for the 10 млн Еліта, with a cap of their own (CASE_XP_CAP a day) instead of the shared 300.
+export const CASE_XP_CAP = 1500;
+export const caseXp = (cs) => Math.max(XP.case, Math.round(XP.case * (1 + 1.5 * Math.log10(Math.max(1, cs?.price || 0) / 60000))));
 
 // ---------- progressive unlock ----------
 // What opens at which level, so a newcomer isn't met by twenty screens at once. Level 1 always has the core loop:

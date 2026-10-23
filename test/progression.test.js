@@ -44,7 +44,7 @@ test('xp: the owner\'s table for levels 1–8, a smooth bridge to 300·L^1.6 fro
 });
 
 test('xp: the daily cap is only for cases, parts and plates (and the upgrade/casino); races, the daily bonus and tasks are uncapped', () => {
-  for (const k of ['case', 'plate', 'merge', 'install']) assert.ok(S.CAPPED_XP.includes(k), k);
+  for (const k of ['partcase', 'plate', 'merge', 'install']) assert.ok(S.CAPPED_XP.includes(k), k);
   for (const k of ['win', 'race', 'daily', 'task', 'quest', 'newCar', 'pvp']) assert.ok(!S.CAPPED_XP.includes(k), k);
   const { mk, call, g, set, user, drive } = setup(undefined, { allUnlocked: true });
   mk(1);

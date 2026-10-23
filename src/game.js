@@ -283,11 +283,17 @@ export function createGame(db, opts = {}) {
   }
 
   // ---------- xp, levels, tasks ----------
-  function xp(uid, kind, mult = 1) {
-    let amount = (S.XP[kind] || 0) * mult;
+  function xp(uid, kind, mult = 1, { season: toSeason = true } = {}) {
+    let amount = Math.round((S.XP[kind] || 0) * mult);
     if (!amount) return;
     const u = userRow(uid);
-    if (S.CAPPED_XP.includes(kind)) {
+    if (kind === 'case') {
+      const today = dayOf(now());
+      const used = u.xp_case_day === today ? u.xp_case_used : 0;
+      amount = Math.max(0, Math.min(amount, S.CASE_XP_CAP - used));
+      q('UPDATE users SET xp_case_day = ?, xp_case_used = ? WHERE id = ?').run(today, used + amount, uid);
+      if (!amount) return;
+    } else if (S.CAPPED_XP.includes(kind)) {
       const today = dayOf(now());
       const used = u.xp_day === today ? u.xp_day_capped : 0;
       amount = Math.max(0, Math.min(amount, S.DAILY_XP_CAP - used));
@@ -295,7 +301,7 @@ export function createGame(db, opts = {}) {
       if (!amount) return;
     }
     const season = S.seasonOf(now());
-    q('UPDATE users SET season_xp = CASE WHEN season_id = ? THEN season_xp + ? ELSE ? END, season_id = ? WHERE id = ?').run(season, amount, amount, season, uid);
+    if (toSeason) q('UPDATE users SET season_xp = CASE WHEN season_id = ? THEN season_xp + ? ELSE ? END, season_id = ? WHERE id = ?').run(season, amount, amount, season, uid);
     let { level, xp: cur } = u;
     cur += amount;
     while (cur >= S.xpForLevel(level)) {
@@ -672,7 +678,7 @@ export function createGame(db, opts = {}) {
       income: { rate: Math.round(inc.rate), pending: inc.pending, capH: inc.capH, since: u.income_at, banked: u.banked, comebackUntil: u.comeback_cap_until > now() ? u.comeback_cap_until : 0 },
       fuel: fuel.fuel, fuelNext: fuel.next, cars, keys, collection, pity, plates, parts: inventory(uid),
       level: u.level, levelSeen: u.level_seen, xp: u.xp, xpNeed: S.xpForLevel(u.level),
-      xpToday: u.xp_day === day ? u.xp_day_capped : 0, newbie: newbieState(u),
+      xpToday: u.xp_day === day ? u.xp_day_capped : 0, xpCaseToday: u.xp_case_day === day ? u.xp_case_used : 0, newbie: newbieState(u),
       dailyReady: u.streak_day !== day, streak: u.streak, rewardCaseAt: u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3,
       claims,
       caseOfDay: evFx().noCaseOfDay ? null : S.caseOfDay(day), gameEvents: gameEvents(),
@@ -836,7 +842,7 @@ export function createGame(db, opts = {}) {
       }
       results.push({ car: carOut(carRow(id)), isNew, forced: !!forced, lucky: !!lucky, fragment, ...(dream ? { dream: true } : {}) });
     }
-    countOpens(uid, n);
+    countOpens(uid, n, cs);
     if (cs.group === 'country') track(uid, 'country', n);
     const fragmentsNow = q('SELECT count FROM fragments WHERE user_id = ? AND case_id = ?').get(uid, cs.id)?.count || 0;
     flag(uid, cs.starter ? 'open_starter' : 'open_case');
@@ -928,9 +934,9 @@ export function createGame(db, opts = {}) {
     q('UPDATE users SET rescue_at = ? WHERE id = ?').run(now(), uid);
     return { caseId: 'rust' };
   }
-  function countOpens(uid, n) {
+  function countOpens(uid, n, cs) {
     q('UPDATE users SET cases_opened = cases_opened + ? WHERE id = ?').run(n, uid);
-    xp(uid, 'case', n);
+    xp(uid, 'case', (n * S.caseXp(cs)) / S.XP.case);
     track(uid, 'open', n);
   }
   function dropHistory(uid) {
@@ -978,7 +984,7 @@ export function createGame(db, opts = {}) {
         .run(uid, caseId, `${t}:${tier}`, S.TIER_BY_ID[tier].cls, sha256(f.server_seed), f.client_seed, f.nonce, now());
       results.push({ type: t, tier });
     }
-    xp(uid, 'case', n);
+    xp(uid, 'partcase', n);
     track(uid, 'parts', n);
     flag(uid, 'part_case');
     if (n === 1) partOpenedAt.set(uid, now());
@@ -2881,7 +2887,7 @@ export function createGame(db, opts = {}) {
     pay(uid, b.price);
     const side = (who) => {
       const drops = Array.from({ length: b.count }, () => rollCase(who, cs)).map((d) => ({ model: d.model, cls: d.cls, value: S.MODELS[d.model].price }));
-      countOpens(who, b.count);
+      countOpens(who, b.count, cs);
       return { id: who, drops, total: drops.reduce((s, d) => s + d.value, 0) };
     };
     const a = side(b.creator_id), o = side(uid);
@@ -2964,7 +2970,7 @@ export function createGame(db, opts = {}) {
     const o = { id: botId, bot: true, drops: Array.from({ length: b.count }, () => drop(rollBot(cs))) };
     a.total = a.drops.reduce((s, d) => s + d.value, 0);
     o.total = o.drops.reduce((s, d) => s + d.value, 0);
-    countOpens(b.creator_id, b.count);
+    countOpens(b.creator_id, b.count, cs);
     bank(b.creator_id);
     let winner = null, prize = [];
     if (a.total > o.total) {
@@ -4411,7 +4417,7 @@ export function createGame(db, opts = {}) {
     q('DELETE FROM plates WHERE owner_id = ?').run(uid);
     q('DELETE FROM races WHERE user_id = ? AND status = ?').run(uid, 'running');
     q(`UPDATE users SET balance = ?, slots = ?, showcase_slots = ?, cap_level = 0, income_at = ?, banked = 0, fuel = ?, fuel_at = ?,
-       level = 1, level_seen = 1, xp = 0, xp_day = NULL, xp_day_capped = 0, newbie_step = 0, newbie_flags = '[]', feats = '[]',
+       level = 1, level_seen = 1, xp = 0, xp_day = NULL, xp_day_capped = 0, xp_case_day = NULL, xp_case_used = 0, newbie_step = 0, newbie_flags = '[]', feats = '[]',
        streak = 0, streak_day = NULL, reward_case_at = 0, total_value = 0, week_id = ?, week_start_value = 0, last_week_id = NULL, last_week_growth = NULL,
        cases_opened = 0, races = 0, wins = 0, merges = 0 WHERE id = ?`)
       .run(S.START_BALANCE, S.START_SLOTS, S.SHOWCASE_START, t, S.FUEL_MAX, t, weekOf(t), uid);
@@ -5148,9 +5154,9 @@ export function createGame(db, opts = {}) {
   // Level-ups: the reward money is 'level', and every new level up to M.FUNNEL_LEVEL_MAX is a funnel mark ('L3', …).
   xp = ((inner) => {
     const labelled = srcWrap('level', inner);
-    return (uid, kind, mult) => {
+    return (uid, kind, mult, o) => {
       const before = q('SELECT level FROM users WHERE id = ?').get(uid)?.level;
-      labelled(uid, kind, mult);
+      labelled(uid, kind, mult, o);
       const after = q('SELECT level FROM users WHERE id = ?').get(uid)?.level;
       for (let l = before + 1; l <= Math.min(after, M.FUNNEL_LEVEL_MAX); l++) funnelMark(uid, 'L' + l);
     };
@@ -5305,6 +5311,44 @@ export function createGame(db, opts = {}) {
     return list.length;
   }
   backfillSecrets();
+  // Owner 23.10: car cases now pay xp by their price with a cap of their own. The opens before it are paid once: per
+  // player and Kyiv day, the new rule (min(CASE_XP_CAP, Σ caseXp)) minus what the old one could have given (min(300,
+  // 5 per open)); level rewards come as usual, the season pass is not touched.
+  function backfillCaseXp({ force = false } = {}) {
+    if (!force && metaGet('xp_case_backfill_1')) return { players: 0, xp: 0 };
+    let total = 0, players = 0;
+    db.tx(() => {
+      const rows = q('SELECT user_id, case_id, created_at FROM drops WHERE user_id > 0').all();
+      const per = new Map();
+      for (const r of rows) {
+        const cs = S.CASE_BY_ID[r.case_id];
+        if (!cs || cs.starter) continue;
+        const key = `${r.user_id}|${dayOf(r.created_at)}`;
+        const d = per.get(key) || { uid: r.user_id, n: 0, xp: 0 };
+        d.n++;
+        d.xp += S.caseXp(cs);
+        per.set(key, d);
+      }
+      const byUser = new Map();
+      for (const d of per.values()) byUser.set(d.uid, (byUser.get(d.uid) || 0) + Math.max(0, Math.min(S.CASE_XP_CAP, d.xp) - Math.min(S.DAILY_XP_CAP, d.n * S.XP.case)));
+      for (const [uid, add] of byUser) {
+        if (add <= 0 || !q('SELECT 1 FROM users WHERE id = ?').get(uid)) continue;
+        const before = userRow(uid).level;
+        xp(uid, 'backfill', add, { season: false });
+        const after = userRow(uid).level;
+        const text = `🎓 Досвід за кейси тепер залежить від ціни кейсу. За вже відкриті кейси: +${add.toLocaleString('uk-UA')} досвіду${after > before ? ` — рівень ${before} → ${after}` : ''}`;
+        q('INSERT INTO events (user_id, text, created_at) VALUES (?, ?, ?)').run(uid, text, now());
+        startupNotes.push([uid, text]);
+        alog('system', 'xp-case-backfill', uid, { xp: add, before, after });
+        total += add;
+        players++;
+      }
+      metaSet('xp_case_backfill_1', now());
+    });
+    if (players || q('SELECT 1 FROM users WHERE id > 0 LIMIT 1').get()) console.log(`xp case backfill: ${total} xp to ${players} players`);
+    return { players, xp: total };
+  }
+  backfillCaseXp();
 
   importLegacy();
   migrateNewbieOrder();

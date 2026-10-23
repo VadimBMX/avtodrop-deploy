@@ -412,6 +412,9 @@ const MIGRATIONS = [
   'ALTER TABLE cars ADD COLUMN origin TEXT',
   // The serial number of a «тиражна» car (S.EDITION_CARS: «№ 007»); NULL for every other car.
   'ALTER TABLE cars ADD COLUMN serial INTEGER',
+  // Car-case xp has its own daily cap (S.CASE_XP_CAP): the Kyiv day and how much of it is used.
+  'ALTER TABLE users ADD COLUMN xp_case_day TEXT',
+  'ALTER TABLE users ADD COLUMN xp_case_used INTEGER NOT NULL DEFAULT 0',
 ];
 
 export function openDb(file) {

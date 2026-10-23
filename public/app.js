@@ -735,7 +735,7 @@ function openProfile() {
     <div class="btns mt"><button class="btn ghost btn2" data-act="shareCard"><span>${ic('share')} Поділитися</span><small>картка гравця</small></button><button class="btn ghost btn2" data-act="go" data-page="season"><span>${ic('ticket')} Пропуск</span><small>рівень ${me.season.level}/${S.SEASON.levels}</small></button></div>
     <div class="card xpcard mt"><div class="row between"><span class="hook-t">${ic('sparkles')} До ${me.level + 1} рівня</span><b>${S.fmt(me.xp).replace(' ₴', '')}<small> / ${S.fmt(me.xpNeed).replace(' ₴', '')}</small></b></div>
       <div class="progress mt"><i style="width:${(me.xp / me.xpNeed) * 100}%"></i></div>
-      <div class="row between tiny muted mt"><span>Подарунок за рівень: <b class="win">+${S.short(S.levelReward(me.level + 1).money)}</b></span><span>сьогодні ${me.xpToday}/${S.DAILY_XP_CAP} за кейси й деталі</span></div>
+      <div class="row between tiny muted mt"><span>Подарунок за рівень: <b class="win">+${S.short(S.levelReward(me.level + 1).money)}</b></span><span>сьогодні кейси ${me.xpCaseToday || 0}/${S.CASE_XP_CAP} · деталі й номери ${me.xpToday}/${S.DAILY_XP_CAP}</span></div>
       ${(() => {
         const nx = S.UNLOCKS.filter((u) => !isOpen(u.key) && !(u.key === 'casino' && casinoOff()));
         const lvl = nx[0]?.level;
@@ -747,7 +747,7 @@ function openProfile() {
     <div><b>${me.stats.wins}/${me.stats.races}</b><span>перемог/гонок</span></div><div><b>${me.stats.merges}</b><span>злиттів</span></div><div><b>${playTime(me.stats.playMs)}</b><span>у грі</span></div></div>
     <div class="h2"><span>Досягнення</span><span id="achCount"></span></div>
     <div class="card" data-act="go" data-page="achievements" style="cursor:pointer"><div class="badges" id="achBadges"><div class="tiny muted">Завантаження…</div></div></div>
-    <div class="tiny muted mt">Досвід дають гонки (перемоги більше), нові машини в колекції, щоденний бонус і завдання — без обмежень. Кейси, номери, злиття й встановлення деталей — до ${S.DAILY_XP_CAP} досвіду на день.</div>
+    <div class="tiny muted mt">Досвід дають гонки (перемоги більше), нові машини в колекції, щоденний бонус і завдання — без обмежень. Кейси з машинами — від ціни кейсу (Іржавий ${S.caseXp(S.CASE_BY_ID.rust)}, Еліта ${S.caseXp(S.CASE_BY_ID.elite)}), до ${S.CASE_XP_CAP} на день. Кейси деталей, номери, злиття й встановлення — до ${S.DAILY_XP_CAP} на день.</div>
     <button class="btn ghost mt" data-act="go" data-page="quests">${ic('target-arrow')} Завдання на сьогодні</button>`);
   api('achievements').then(({ list }) => {
     const box = $('#achBadges');
