@@ -5,6 +5,7 @@ import * as T from '../public/tune.js';
 import * as G from '../public/ghost.js';
 import * as M from './metrics.js';
 import { createDayRace } from './dayrace.js';
+import { createContainers } from './containers.js';
 
 export class GameError extends Error {}
 const fail = (msg) => {
@@ -170,7 +171,7 @@ export function createGame(db, opts = {}) {
     const st = S.carStats({ model: c.model, parts, plateValue: plate?.value || 0 });
     const t = tankState(c);
     return { id: c.id, model: c.model, status: c.status, parts, plate, look: lookOf(c), tank: t.tank, tankNext: t.next, sell: S.sellPriceOf(c.model, now() - c.created_at, c.origin), origin: c.origin || null, ...st,
-      dirt: Math.floor(S.dirtNow(c.dirt, c.dirt_at, now())), shineUntil: c.shine_until > now() ? c.shine_until : 0 };
+      dirt: Math.floor(S.dirtNow(c.dirt, c.dirt_at, now())), shineUntil: c.shine_until > now() ? c.shine_until : 0, ...(c.serial ? { serial: c.serial } : {}) };
   }
   // Paint and livery as the client draws them (n = the race livery's number); null for a factory car. Unknown ids
   // (an old colour that was dropped) count as factory.
@@ -195,6 +196,7 @@ export function createGame(db, opts = {}) {
   // rate through an upgrade or a trade-in either.
   function noCollector(c) {
     if (S.isCollector(c.model)) fail('Колекційну машину не можна поставити в апгрейд чи трейд-ін');
+    if (S.isEdition(c.model)) fail('Тиражну машину не можна поставити в апгрейд чи трейд-ін');
     return c;
   }
   const garageCount = (uid) => q("SELECT COUNT(*) n FROM cars WHERE owner_id = ? AND status <> 'showcase'").get(uid).n;
@@ -208,7 +210,8 @@ export function createGame(db, opts = {}) {
   function giveCar(uid, model, origin = null) {
     // The one door every car comes in by: a car not in the game (a NEW_RAW car still without its photo) never gets in.
     if (!S.MODELS[model]) fail('Невідома модель');
-    const isNew = !q('SELECT 1 FROM collection WHERE user_id = ? AND model = ?').get(uid, model);
+    // «Тиражні» (S.EDITION_CARS) never enter the collection: not counted in collections, sets or country secrets.
+    const isNew = !S.MODELS[model].edition && !q('SELECT 1 FROM collection WHERE user_id = ? AND model = ?').get(uid, model);
     const r = q('INSERT INTO cars (owner_id, model, tank, tank_at, created_at, dirt_at, origin) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uid, model, S.CAR_TANK, now(), now(), now(), origin);
     if (isNew) {
       q('INSERT INTO collection (user_id, model, at) VALUES (?, ?, ?)').run(uid, model, now());
@@ -1085,6 +1088,7 @@ export function createGame(db, opts = {}) {
   const paintable = opts.paintable || paintableModels();
   function paintTarget(uid, carId) {
     const c = ownCar(uid, carId, ['garage', 'showcase']);
+    if (S.isEdition(c.model)) fail('Тиражна машина має заводську ліврею — її не перефарбувати');
     if (!paintable.has(c.model)) fail('Для цієї машини фарбування поки недоступне');
     return c;
   }
@@ -2246,7 +2250,12 @@ export function createGame(db, opts = {}) {
     q("UPDATE auctions SET status = 'cancelled' WHERE id = ?").run(a.id);
     return {};
   }
+  let CT = null; // the container auction («Причал», src/containers.js), created below with the game's helpers
+  function sweepContainers() {
+    return CT ? db.tx(() => CT.sweep()) : 0;
+  }
   function settleAuctions() {
+    sweepContainers(); // lots of «Причал» with live bidding: the bots' answers and endings, even when nobody looks
     const due = q("SELECT * FROM auctions WHERE status = 'open' AND ends_at <= ?").all(now());
     for (const a of due) {
       db.tx(() => {
@@ -4876,9 +4885,22 @@ export function createGame(db, opts = {}) {
   }
   for (const k of DR.mutating) ADMIN_MUTATING.add(k);
   HELPER_ACTIONS.add('dayrace'); // helpers may look at the day's board and schedule, not change them
+  // «Причал» (src/containers.js): its calls, its admin tab and its gate (it opens with the auctions).
+  CT = createContainers({ db, q, now, fail, int, name, addMoney, pay, notify, giveCar, carRow, carOut, garageCount, userRow, metaGet, metaSet, bank,
+    alog: (...a) => alog(...a), recalc: (...a) => recalc(...a), seed: opts.containerSeed });
+  Object.assign(GATES, CT.gates);
+  Object.assign(handlers, CT.api);
+  for (const [k, fn] of Object.entries(CT.admin)) {
+    admin[k] = (who, body = {}) => db.tx(() => {
+      if (!canDo(actorRole(who), k)) fail('Немає прав на цю дію');
+      return fn(who, body || {});
+    });
+  }
+  for (const k of CT.mutating) ADMIN_MUTATING.add(k);
+  HELPER_ACTIONS.add('containers'); // helpers may watch the lots, not switch or close them
   // Every call runs in one transaction, settles the weekly race and refreshes the caller's garage value — except the
   // frequent polls below (every few seconds, or several times a second in a live race), which change no cars.
-  const LIGHT = new Set(['pulse', 'pvp/progress', 'pvp/state']);
+  const LIGHT = new Set(['pulse', 'pvp/progress', 'pvp/state', 'containers/lot']);
   const WEEKLY_AFTER = { 'drift/finish': 'drift' };
   const api = Object.fromEntries(Object.entries(handlers).map(([k, fn]) => [k, (uid, body = {}) => db.tx(() => {
     const light = LIGHT.has(k);
@@ -5114,6 +5136,7 @@ export function createGame(db, opts = {}) {
   settleSeason = srcWrap('season', settleSeason);
   checkComeback = srcWrap('comeback', checkComeback);
   settleAuctions = srcWrap('auction', settleAuctions);
+  sweepContainers = srcWrap('containers', sweepContainers);
   creditPayment = srcWrap('shop', creditPayment);
   creditItem = srcWrap('shop', creditItem);
   adminGive = srcWrap('admin/give', adminGive);

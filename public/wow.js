@@ -47,7 +47,8 @@ function scene(color) {
 
 // result: one case result ({ car, isNew, dream }); casePrice: what one opening cost (for the ×multiplier).
 // Resolves when the player taps through (or after a long idle), so the caller can then play the normal result.
-export function celebrate(result, { casePrice = 0, onShare } = {}) {
+// kicker / priceLabel (optional): the headline and the «×N …» label for other sources (the container auction).
+export function celebrate(result, { casePrice = 0, onShare, kicker = '', priceLabel = 'від ціни кейсу' } = {}) {
   return new Promise((resolve) => {
     const { esc, ic, haptic } = ctx;
     const car = result.car, m = S.MODELS[car.model];
@@ -66,13 +67,13 @@ export function celebrate(result, { casePrice = 0, onShare } = {}) {
     el.setAttribute('aria-label', `${m.name} — ${S.CLASSES[m.cls].name}`);
     el.innerHTML = `<div class="wow-bg"></div><div class="wow-sweep"></div>
       <div class="wow-body">
-        <div class="wow-kicker">${dream ? `${ic('heart')} МАШИНА МРІЇ!` : TITLES[Math.min(5, rank)]}</div>
+        <div class="wow-kicker">${dream ? `${ic('heart')} МАШИНА МРІЇ!` : kicker ? esc(kicker) : TITLES[Math.min(5, rank)]}</div>
         <div class="wow-stage"><div class="wow-rays"></div><div class="wow-scene">${scene(color)}</div>
           <div class="wow-refl" aria-hidden="true">${carArt(car.model, { look: car.look })}</div><div class="wow-car">${carArt(car.model, { look: car.look })}</div></div>
         <div class="wow-tags"><span class="stamp r${S.rankOf(m.cls)}" style="--c:${S.CLASSES[m.cls].color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span>${result.isNew ? `<span class="wow-new">${ic('sparkles')} Нова в колекції</span>` : ''}</div>
         <div class="wow-name">${esc(m.name)}</div>
-        <div class="wow-val"><span class="wow-lbl">${sale == null ? 'Колекційна ціна' : 'Продаж'}</span><b class="wow-num">${S.fmt(main)}</b>${mult ? `<span class="wow-mult ${mult >= 1 ? 'up' : ''}">${S.multText(mult)} <small>від ціни кейсу</small></span>` : ''}
-          <span class="wow-coll">${sale == null ? 'трофей колекції — не продається' : `Колекційна ціна ${S.fmt(car.value)}${casePrice ? ` · ${S.multText(car.value / casePrice)} у колекції` : ''}`}</span></div>
+        <div class="wow-val"><span class="wow-lbl">${sale == null ? 'Колекційна ціна' : 'Продаж'}</span><b class="wow-num">${S.fmt(main)}</b>${mult ? `<span class="wow-mult ${mult >= 1 ? 'up' : ''}">${S.multText(mult)} <small>${esc(priceLabel)}</small></span>` : ''}
+          <span class="wow-coll">${sale == null ? 'трофей колекції — не продається' : `Колекційна ціна ${S.fmt(car.value)}${casePrice ? ` · ${S.multText(car.value / casePrice)} у колекції` : ''}${car.serial ? ` · тираж ${S.serialText(car.serial)}` : ''}`}</span></div>
         ${dream ? `<div class="wow-dream">${ic('trophy')} Мрію здійснено! Обери наступну в гаражі</div>` : ''}
         <div class="wow-acts"><button class="btn yellow wow-share" type="button">${ic('share')} Поділитися</button></div>
         <div class="wow-tap">Торкнись, щоб продовжити</div>

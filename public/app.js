@@ -1,7 +1,8 @@
 import * as S from './shared.js';
 // Workshop maths: a part's real effect on the 402 m time, «Встановити найкраще», parts no car needs.
 import * as T from './tune.js';
-import { carArt, setImages } from './car.js';
+import { carArt, setImages, bodySilhouette } from './car.js';
+import * as CN from './containers.js';
 // Painted cars get their recoloured photo once the picture is in the page.
 import * as PAINT from './paint.js';
 // Dirty cars (S.WASH) get their dirt layer the same way; the hand-wash mini-game takes its scene from here too.
@@ -349,7 +350,7 @@ function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false,
   return `<button class="car r${S.rankOf(m.cls)} ${sel ? 'sel' : ''} ${c.status === 'market' || c.status === 'auction' ? 'listed' : ''}" data-act="${act}" data-id="${c.id}" style="--c:${S.CLASSES[m.cls].color}">
     ${clsBadge(m.cls, 'tl')}<span class="tr">${isNew ? `<span class="new">${ic('sparkles')}нова</span>` : ''}<span class="chip">${ic('tool')}${partCount(c)}/${partSlots(c)}</span></span>
     <div class="art">${carArt(c.model, { look: c.look, dirt: c.dirt })}${dirtPip(c)}</div>
-    <div class="nm clamp2" title="${esc(m.name)}">${esc(m.name)}</div>
+    <div class="nm clamp2" title="${esc(m.name)}">${esc(m.name)}${c.serial ? ` <span class="ed-no">${S.serialText(c.serial)}</span>` : ''}</div>
     ${c.plate ? `<div class="meta">${plate(c.plate.text, 'sm', c.pf)}</div>` : ''}
     <div class="meta row between" style="gap:4px"><span>${c.hp} к.с.</span><b class="disp hn-sale" style="color:var(--text);font-size:14px;font-weight:600" title="${sale == null ? 'Колекційна ціна' : 'Продаж'}">${sale == null ? S.short(c.value) : `${ic('cash')}${S.short(sale)}`}</b></div>${collLine ? `<div class="meta sellp">${sale == null ? 'не продається' : `${collLine === 'short' ? 'колекц.' : 'колекційна'} ${S.short(c.value)}`}</div>` : ''}
     ${incLine && c.status === 'garage' ? tileInc(c) : ''}
@@ -427,7 +428,8 @@ function go(page) {
 function back() {
   if (!$('#modal').hidden) return sheetBack ? sheetBack() : closeModal();
   if (state.race && state.race.phase !== 'done') return;
-  state.page = state.page === 'tradeNew' || state.page === 'room' ? 'trades' : state.page === 'battle' ? 'battles' : null;
+  if (state.page === 'lot') state.marketTab = 'pier';
+  state.page = state.page === 'tradeNew' || state.page === 'room' ? 'trades' : state.page === 'battle' ? 'battles' : state.page === 'lot' ? 'market' : null;
   render();
 }
 document.querySelectorAll('#tabs button').forEach((b) =>
@@ -561,7 +563,7 @@ function paintNextUnlock() {
 // ---------- trade-in (S.TRADE_IN) ----------
 PAGES.tradein = () => {
   const T = (state.tradein ||= { cars: new Set(), result: null });
-  const garage = me.cars.filter((c) => c.status === 'garage' && !M(c.model).secret && !S.isCollector(c.model)).sort((a, b) => b.value - a.value || b.id - a.id);
+  const garage = me.cars.filter((c) => c.status === 'garage' && !M(c.model).secret && !S.isCollector(c.model) && !S.isEdition(c.model)).sort((a, b) => b.value - a.value || b.id - a.id);
   for (const id of [...T.cars]) if (!garage.some((c) => c.id === id)) T.cars.delete(id);
   const picked = [...T.cars].map((id) => garage.find((c) => c.id === id));
   const cls = picked[0] ? M(picked[0].model).cls : null;
@@ -975,10 +977,10 @@ function carSheet(id, best = null) {
   const locked = c.status === 'market' || c.status === 'auction';
   const rank = S.rankOf(m.cls), color = S.CLASSES[m.cls].color;
   sheet(esc(m.name), `
-    <div class="rarity-row sheet-tags"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span>${originChip(c.model)}<span class="chip">${m.year}</span>${dirtTag(c)}</div>
+    <div class="rarity-row sheet-tags"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span>${originChip(c.model)}<span class="chip">${m.year}</span>${c.serial ? `<span class="chip ed-chip">${ic('box')}тираж ${S.serialText(c.serial)}</span>` : ''}${dirtTag(c)}</div>
     <div class="hero r${rank} ${shining(c) ? 'shining' : ''}" style="--c:${color}"><div class="art">${carArt(c.model, { glow: rank >= 3, look: c.look, dirt: c.dirt })}</div>${c.plate ? `<div class="plate-on">${plate(c.plate.text)}</div>` : ''}</div>
     <div class="stat four"><div><b>${c.hp}${c.hp > m.hp ? `<em class="win">+${c.hp - m.hp}</em>` : ''}</b><span>к.с.</span></div><div><b>${dec(c.et, 2)}</b><span>с на 402 м</span></div><div class="val">${m.secret ? `<b>${S.short(c.value)}</b><span>колекційна ціна</span><span class="sellp">не продається</span>` : `<b>${S.short(sellPrice(c))}</b><span>продаж</span><span class="sellp">колекційна ${S.short(c.value)}</span>`}</div>${incStat(c)}</div>
-    ${incNote(c)}${honestNote(c)}
+    ${incNote(c)}${honestNote(c)}${m.edition ? `<div class="card mt small ed-note">${ic('box')} <b>Тиражна машина з «Причалу».</b> Заводська ліврея (не перефарбувати), номер ${c.serial ? S.serialText(c.serial) : 'тиражу'}. Продаж на ринку й обмін — так; дилер викуповує за ${Math.round(S.EDITION_SELL * 100)}%; не йде в колекцію, сети, апгрейд і трейд-ін.</div>` : ''}
     ${locked ? `<div class="card mt center muted">Авто виставлено на ${c.status === 'market' ? 'ринок' : 'аукціон'} — керуй ним у «Меню → Ринок → Мої лоти».</div>` : `
     <div class="list mt">
       <button class="li" data-act="carShowcase" data-id="${c.id}"><span class="ic">${ic('building-arch')}</span><div class="grow"><b>${c.status === 'showcase' ? 'Повернути в гараж' : 'Виставити на вітрину'}</b><div class="small muted">${c.status === 'showcase' ? 'знову приноситиме дохід' : `вільно місць: ${me.showcaseSlots - me.cars.filter((x) => x.status === 'showcase').length}`}</div></div><span class="chev">›</span></button>
@@ -3954,6 +3956,7 @@ TABS.menu = () => {
     hubTile({ page: 'plates', k: 'plates', icon: 'license', c: Y, title: 'Номери', size: 'mini', info: me.plates.length ? String(me.plates.length) : '' }),
   ];
   const risk = [
+    hubTile({ page: 'market', k: 'auction', icon: 'box', c: CY, title: 'Причал', size: 'wide', act: 'pierGo', id: 'hubPier', info: 'контейнери з машинами наосліп' }),
     hubTile({ page: 'battles', k: 'battles', icon: 'flame', c: RD, title: 'Кейс-батли', size: 'wide', info: 'кейси наввипередки' }),
     hubTile({ page: 'upgrade', k: 'upgrade', icon: 'arrow-big-up-lines', c: PU, title: 'Апгрейд', size: 'wide', info: casinoOff() || !isOpen('casino') ? 'машини → дорожча' : 'і казино · 18+' }),
   ];
@@ -4324,7 +4327,7 @@ PAGES.market = async () => {
   state.marketKind ||= 'car';
   const kinds = `<div class="seg mk-kinds">${[['car', 'car', 'Машини'], ['part', 'engine', 'Деталі'], ['plate', 'license', 'Номери']].map(([k, i, t]) => `<button class="${state.marketKind === k ? 'on' : ''}" data-act="mKind" data-k="${k}">${ic(i)}${t}</button>`).join('')}</div>`;
   if (state.marketKind !== 'car') return kinds + (await itemMarket(state.marketKind));
-  const seg = kinds + `<div class="seg">${[['buy', 'Купити'], ['auction', 'Аукціони'], ['mine', 'Мої лоти']].map(([k, t]) => `<button class="${state.marketTab === k ? 'on' : ''}" data-act="mTab" data-k="${k}">${t}</button>`).join('')}</div>`;
+  const seg = kinds + `<div class="seg mk-seg4">${[['buy', 'Купити'], ['auction', 'Аукціони'], ['pier', 'Причал'], ['mine', 'Мої лоти']].map(([k, t]) => `<button class="${state.marketTab === k ? 'on' : ''}" data-act="mTab" data-k="${k}">${t}</button>`).join('')}</div>`;
   const info = (c) => `<span class="chip">${partCount(c)}/${partSlots(c)} деталей</span>`;
   if (state.marketTab === 'buy') {
     const { list, dealer, now } = await api('market/list', { cls: state.marketCls, sort: state.marketSort });
@@ -4346,6 +4349,7 @@ PAGES.market = async () => {
       <div class="h2"><span>Від гравців</span><span>${fromPlayers.length || ''}</span></div>
       ${fromPlayers.length ? `<div class="list">${fromPlayers.map(row).join('')}</div>` : emptyLine('car', 'Поки порожньо — виставити свою машину: картка машини → «Продати»')}`;
   }
+  if (state.marketTab === 'pier') return seg + (await pierTab());
   if (state.marketTab === 'auction') {
     const { list, now } = await api('auction/list');
     return seg + (list.length ? `<div class="list auctions">${list.map((a) => carRow(a.car, a.mine ? (a.bids ? `<span class="chip">${a.bids} ставок</span>` : `<button class="btn sm red" data-act="unauction" data-id="${a.id}">Скасувати</button>`) : `<button class="btn sm ${a.leading ? 'green' : ''}" data-act="bid" data-id="${a.id}" data-min="${a.minBid}">${a.leading ? 'Лідер' : 'Ставка'}</button>`,
@@ -5739,7 +5743,7 @@ PAGES.upgrade = () => {
   const U = state.up;
   // Most expensive first, both for your cars and for the targets.
   // Sorted by the value shown on the card (model + parts + plate), so the order always matches what you see.
-  const garage = me.cars.filter((c) => c.status === 'garage' && !S.isCollector(c.model)).sort((a, b) => b.value - a.value || b.id - a.id);
+  const garage = me.cars.filter((c) => c.status === 'garage' && !S.isCollector(c.model) && !S.isEdition(c.model)).sort((a, b) => b.value - a.value || b.id - a.id);
   for (const id of [...U.cars]) if (!garage.some((c) => c.id === id)) U.cars.delete(id);
   const stake = upStake();
   const list = upCandidates(stake);
@@ -7850,4 +7854,257 @@ AFTER.menu = async () => {
   live('battles', C.battles, ['батл чекає', 'батли чекають', 'батлів чекають']);
   live('trades', C.rooms, ['кімната', 'кімнати', 'кімнат']);
   live('market', C.lots, ['лот', 'лоти', 'лотів']);
+};
+
+// ---------- «Причал»: the container auction (rules public/containers.js, server src/containers.js) ----------
+// Market → «Причал»: three closed containers, one per tier, always open. A lot: honest hints, the exact «Можливий
+// вміст» list, the commitment hash, live bidding against the resellers (polled every 1.5 s on the lot screen), and for
+// the winner the seal, the doors and the usual car reveal (WOW.celebrate). A lot a bot took shows what was inside.
+PAGE_TITLES.lot = 'Причал';
+PAGE_FEATURE.lot = 'market';
+const tierOf = (id) => CN.TIER_BY[id];
+const botName = (id) => CN.CONTAINER_BOTS.find((b) => b.id === id);
+const niceBid = (x) => Math.ceil(x / CN.unitOf(x)) * CN.unitOf(x);
+const KICKER = ['ЗВИЧАЙНА', 'РІДКІСНА!', 'ЕПІЧНА!'];
+H.pierGo = () => {
+  state.marketKind = 'car';
+  state.marketTab = 'pier';
+  go('market');
+};
+H.pierLot = (d) => {
+  state.lotId = Number(d.id);
+  go('lot');
+};
+function hintChips(h, compact = false) {
+  const c = S.COUNTRIES[h.country];
+  return [
+    `<span class="chip ph-flag">${flagEmblem(h.country)}${compact ? '' : esc(c?.name || h.country)}</span>`,
+    h.body ? `<span class="chip">${esc(CN.BODY_NAMES[h.body] || h.body)}</span>` : compact ? '' : '<span class="chip ph-unk">кузов ?</span>',
+    h.cls ? `<span class="chip ph-cls" style="--c:${S.CLASSES[h.cls].color}"><i></i>${esc(S.CLASSES[h.cls].name.toLowerCase())}</span>` : compact ? '' : '<span class="chip ph-unk">клас ?</span>',
+    h.dec ? `<span class="chip">${CN.decadeText(h.dec)}</span>` : compact ? '' : '<span class="chip ph-unk">роки ?</span>',
+    h.kg != null ? `<span class="chip">${CN.weightText(h.kg)}</span>` : compact ? '' : '<span class="chip ph-unk">вага ?</span>',
+    h.junk ? `<span class="chip ph-junk">${ic('droplet')}після повені</span>` : compact ? '' : '<span class="chip">стан звичайний</span>',
+  ].join('');
+}
+// The container itself (front view): corrugated doors in the tier colour, the flag, the body stencil and the seal.
+function crate(l, big = false, closed = false) {
+  const done = !closed && (l.status === 'done' || l.status === 'cancelled');
+  return `<div class="ctr${big ? ' lg' : ''}${done ? ' done' : ''}" style="--c:${tierOf(l.tier).color}"><div class="ctr-body"><div class="ctr-inner"></div>
+    <div class="ctr-door l"><span class="ctr-flag">${flagEmblem(l.hints.country)}</span></div><div class="ctr-door r"><span class="ctr-no">№${l.id}</span></div>
+    <div class="ctr-sil">${bodySilhouette(l.hints.body, '#ffffff')}</div><span class="ctr-seal">${ic('lock')}</span></div></div>`;
+}
+const estText = (e) => (e.hi > e.lo ? `${S.short(e.lo)}–${S.short(e.hi)}` : S.short(e.lo));
+function pierCard(l) {
+  const t = tierOf(l.tier), locked = me.level < t.level;
+  const right = locked ? lockChip('auction').replace(/рів\. \d+/, `рів. ${t.level}`) : l.status === 'live' ? `<span class="chip pl-live">${ic('clock')} ${untilSpan(l.endsAt)}</span>` : '<span class="chip">чекає ставки</span>';
+  return `<button class="pier-lot${l.mine ? ' lead' : ''}${locked ? ' locked' : ''}" data-act="pierLot" data-id="${l.id}" style="--c:${t.color}">${crate(l)}
+    <div class="pl-tx"><div class="pl-top"><b class="pl-name ellipsis">${esc(t.name)}</b>${right}</div>
+      <div class="pl-hints">${hintChips(l.hints, true)}</div>
+      <div class="pl-bid"><b>${S.short(l.topBid)}</b> <span class="small ${l.mine ? 'acc' : 'muted'} ellipsis">${l.mine ? 'ти лідер' : esc(l.leader)}</span></div>
+      <div class="tiny muted">оцінка ${estText(l.est)} · ${l.est.n} ${plural(l.est.n, ['варіант', 'варіанти', 'варіантів'])}</div></div></button>`;
+}
+function recentRow(r) {
+  const m = M(r.model);
+  const verb = r.mine ? 'Ти виграв' : `${esc(r.winner)} ${r.bot === 'liza' ? 'забрала' : r.bot ? 'забрав' : 'виграв'}`;
+  return `<div class="li">${miniCar(r.model)}<div class="grow"><div class="small">${verb} за <b class="nw">${S.short(r.price)}</b> — там ${r.junk ? 'після повені ' : ''}${r.ed ? 'тиражна ' : ''}<b>${esc(m.name)}</b></div>
+    <div class="tiny muted">${esc(tierOf(r.tier).name)} · продаж ${S.short(r.sale)} · <span class="${r.sale >= r.price ? 'pier-up' : 'pier-down'}">${S.multText(r.sale / r.price)}</span></div></div></div>`;
+}
+async function pierTab() {
+  const d = await api('containers');
+  const intro = `<div class="card pier-intro"><div class="row" style="gap:10px;align-items:flex-start"><span class="ic tint" style="--c:#22c3e6">${ic('box')}</span><div class="grow"><b>Контейнери наосліп</b>
+    <div class="small muted">Усередині одна машина — її не знає ніхто, ні ти, ні перекупники. Видно підказки й точний список «Можливий вміст». Хто дав більше — відчиняє двері.</div></div></div>
+    <div class="tiny muted mt">Перша ставка запускає торги на 90 с · ставка в останні 15 с продовжує · крок від +5% · одна ставка — до 50% балансу${d.escrow ? ` · у ставках: <b class="acc">${S.short(d.escrow)}</b>` : ''}</div></div>`;
+  const wait = d.unopened.length ? `<button class="card pier-wait" data-act="pierLot" data-id="${d.unopened[0]}"><span class="ic tint" style="--c:#f5b301">${ic('gift')}</span><span class="grow"><b>Твій контейнер чекає!</b><span class="tiny muted">машина вже у гаражі — зламай пломбу</span></span><span class="btn sm yellow">Відчинити</span></button>` : '';
+  if (!d.lots.length) return wait + intro + emptyBox('box', 'Причал зачинено', 'Контейнери тимчасово вимкнено — зазирни пізніше');
+  return `${wait}${intro}<div id="pierList">${d.lots.map(pierCard).join('')}</div>${d.recent.length ? `<div class="h2"><span>Щойно відчинили</span></div><div class="list pier-recent">${d.recent.map(recentRow).join('')}</div>` : ''}`;
+}
+{
+  const afterMarketBase = AFTER.market;
+  AFTER.market = () => {
+    afterMarketBase();
+    if (state.marketTab !== 'pier' || state.marketKind !== 'car') return;
+    livePoll = setInterval(async () => {
+      if (document.hidden || state.page !== 'market' || state.marketTab !== 'pier') return;
+      try {
+        const d = await api('containers');
+        const el = $('#pierList');
+        if (el && d.lots.length) el.innerHTML = d.lots.map(pierCard).join('');
+      } catch {}
+    }, 5000);
+  };
+}
+
+// ---- one lot
+PAGES.lot = async () => {
+  const d = await api('containers/lot', { id: state.lotId, full: true });
+  state.lotData = d;
+  state.lotPost = d.lot.post;
+  return lotHtml(d);
+};
+function lotHtml(d) {
+  const l = d.lot, t = tierOf(l.tier), done = l.status === 'done' || l.status === 'cancelled';
+  return `<div class="lot-page" style="--c:${t.color}">
+    <div class="lot-head"><div class="grow"><b class="lot-name">${esc(t.name)}</b><div class="tiny muted">контейнер №${l.id} · з рівня ${t.level}</div></div>
+      <button class="chip lot-commit" data-act="lotFair">${ic('shield-check')}${l.commit.slice(0, 8)}</button></div>
+    <div id="lotStage">${crate(l, true)}</div>
+    <div class="pl-hints lot-hints">${hintChips(l.hints)}</div>
+    <div class="list lot-postl"><button class="li" data-act="lotPost"><span class="ic">${ic('layout-grid')}</span><div class="grow"><b>Можливий вміст · ${l.est.n}</b>
+      <div class="small muted">оцінка ${estText(l.est)} · середній продаж ≈ ${S.short(l.est.ev)}</div></div><span class="chev">${ic('chevron-right')}</span></button></div>
+    <div id="lotLive">${lotLive(d)}</div>
+    ${done ? '' : `<div class="lot-own" id="lotOwn"><input id="lotAmt" inputmode="numeric" placeholder="своя сума від ${grp(l.minBid)}"><button class="btn sm" data-act="lotBidOwn">Ставка</button></div>`}
+    <div id="lotFeed">${lotFeed(d)}</div></div>`;
+}
+function lotLive(d) {
+  const l = d.lot, t = tierOf(l.tier);
+  if (l.status === 'done' || l.status === 'cancelled') return lotResult(d);
+  const low = l.status === 'live' && l.endsAt - serverNow() < 15e3;
+  const timer = l.status === 'live' ? `<span class="lot-timer${low ? ' hot' : ''}">${ic('clock')} ${untilSpan(l.endsAt)}</span>` : '<span class="chip">торги стартують з першою ставкою</span>';
+  const bots = l.bots.map((b) => `<span class="chip lot-bot${b.passed ? ' out' : ''}${l.leaderBot === b.id ? ' lead' : ''}">${esc(botName(b.id)?.short || b.id)}${b.passed ? ' · пас' : ''}</span>`).join('');
+  const lockedLvl = me.level < t.level;
+  const can = !l.mine && !lockedLvl;
+  const opts = [['+5%', l.minBid], ['+10%', niceBid(l.topBid * 1.1)], ['+25%', niceBid(l.topBid * 1.25)]].map(([k, a]) => [k, Math.max(a, l.minBid)]);
+  return `<div class="card lot-status${l.mine ? ' lead' : ''}"><div class="row between"><span class="small muted">${l.status === 'live' ? 'Поточна ставка' : 'Стартова ціна перекупників'}</span>${timer}</div>
+      <div class="lot-top"><b class="disp">${S.fmt(l.topBid)}</b><span class="${l.mine ? 'acc' : 'muted'} ellipsis">${l.mine ? 'ти лідер' : esc(l.leader)}</span></div>
+      <div class="lot-bots"><span class="tiny muted">за столом:</span>${bots}</div></div>
+    ${lockedLvl ? `<div class="card center small muted">${ic('lock')} «${esc(t.name)}» відкривається з рівня ${t.level}</div>` : `<div class="lot-bids">${opts.map(([k, a], i) => `<button class="btn ${i ? 'ghost' : 'yellow'} lot-bb" data-act="lotBid" data-a="${a}" ${can && a <= d.maxBid ? '' : 'disabled'}><small>${k}</small><b>${a < 1e6 ? S.fmt(a) : S.short(a)}</b></button>`).join('')}</div>`}
+    <div class="tiny muted lot-cap">${l.mine ? 'Ти лідер — якщо тебе переб’ють, гроші повернуться одразу. ' : ''}Ставка до ${S.short(d.maxBid)} (50% балансу)${d.escrow ? ` · у ставках ${S.short(d.escrow)}` : ''}</div>`;
+}
+const lotFeed = (d) => (d.feed.length ? `<div class="h2"><span>Ставки</span><span>${d.lot.bids}</span></div><div class="list lot-feed">${d.feed.map((b) => `<div class="lf${b.me ? ' me' : ''}${b.pass ? ' pass' : ''}">
+  <b class="ellipsis">${b.me ? 'Ти' : esc(b.who)}</b>${b.pass ? `<span class="muted small ellipsis">${esc(b.pass.replace(/^[^:]+: /, ''))}</span>` : `<span class="nw">${S.fmt(b.amount)}</span>`}</div>`).join('')}</div>` : '');
+function lotNext(d) {
+  return d.next ? `<button class="btn mt" data-act="pierLot" data-id="${d.next}">${ic('box')} Наступний контейнер</button>` : `<button class="btn ghost mt" data-act="pierGo">До причалу</button>`;
+}
+function lotResult(d) {
+  const l = d.lot, r = l.result, m = M(r.model);
+  if (r.cancelled) return `<div class="card center muted">Лот закрито адміністрацією, ставки повернуто.</div>${lotNext(d)}`;
+  if (r.mine && !r.opened) return `<div class="card lot-won center"><b class="big">Контейнер твій!</b><div class="small muted mt">Сплачено ${S.fmt(r.price)}. Машина вже у гаражі — зламай пломбу й подивись, що всередині.</div>
+    <button class="btn yellow mt" data-act="lotOpen" data-id="${l.id}">${ic('lock')} Зламати пломбу</button></div>`;
+  const verb = r.mine ? 'Ти виграв' : `${esc(r.winner)} ${r.bot === 'liza' ? 'забрала' : r.bot ? 'забрав' : 'виграв'}`;
+  const rank = S.rankOf(m.cls);
+  return `<div class="card lot-res${r.mine ? ' mine' : ''}"><div class="small">${verb} за <b class="nw">${S.fmt(r.price)}</b> — там ${r.junk ? 'після повені ' : ''}була:</div>
+    <div class="hero r${rank}" style="--c:${S.CLASSES[m.cls].color}"><div class="art">${carArt(r.model, { glow: rank >= 3, dirt: r.junk ? 100 : 0 })}</div></div>
+    <div class="row between" style="gap:8px"><b class="ellipsis">${esc(m.name)}</b>${clsBadge(m.cls)}</div>
+    <div class="small muted">продаж ${S.short(r.sale)} · колекційна ${S.short(r.value)}${r.ed ? ` · тиражна${r.serial ? ' ' + S.serialText(r.serial) : ''}` : ''} · <span class="${r.sale >= r.price ? 'pier-up' : 'pier-down'}">${S.multText(r.sale / r.price)} від ціни</span></div>
+    <button class="btn ghost sm mt" data-act="lotVerify">${ic('shield-check')} Перевірити чесність</button></div>${lotNext(d)}`;
+}
+AFTER.lot = () => {
+  tickUntil();
+  livePoll = setInterval(pollLot, 1500);
+};
+async function pollLot() {
+  if (document.hidden || state.page !== 'lot' || !state.lotData) return;
+  let d;
+  try {
+    d = await api('containers/lot', { id: state.lotId });
+  } catch {
+    return;
+  }
+  if (state.page !== 'lot' || d.lot.id !== state.lotId) return;
+  const was = state.lotData.lot;
+  d.lot.post = state.lotPost;
+  state.lotData = d;
+  if (was.mine && !d.lot.mine && d.lot.status !== 'done') (toast(`Тебе перебили: ${S.short(d.lot.topBid)} — ставку повернуто`, true), haptic('warning'), refresh(false));
+  if ((d.lot.status === 'done' || d.lot.status === 'cancelled') && was.status !== d.lot.status) {
+    await refresh(false);
+    return render();
+  }
+  if (d.lot.version === was.version) return tickUntil();
+  $('#lotLive').innerHTML = lotLive(d);
+  $('#lotFeed').innerHTML = lotFeed(d);
+  const inp = $('#lotAmt');
+  if (inp) inp.placeholder = `своя сума від ${grp(d.lot.minBid)}`;
+  if (d.lot.leaderBot && was.topBid !== d.lot.topBid) FX.popEl($('#lotLive .lot-top b'), 1.06, 300);
+  tickUntil();
+}
+async function lotBid(amount) {
+  const l = state.lotData?.lot;
+  if (!l || !amount) return;
+  try {
+    const d = await api('containers/bid', { id: l.id, amount });
+    d.lot.post = state.lotPost;
+    state.lotData = d;
+    haptic('success');
+    SFX.press();
+    $('#lotLive').innerHTML = lotLive(d);
+    $('#lotFeed').innerHTML = lotFeed(d);
+    const inp = $('#lotAmt');
+    if (inp) (inp.value = ''), (inp.placeholder = `своя сума від ${grp(d.lot.minBid)}`);
+    FX.popEl($('#lotLive .lot-top b'), 1.1, 360);
+    tickUntil();
+    refresh(false);
+  } catch (e) {
+    toast(e.message, true);
+    haptic('error');
+  }
+}
+H.lotBid = (d) => lotBid(Number(d.a));
+H.lotBidOwn = () => lotBid(num($('#lotAmt')?.value));
+H.lotPost = () => {
+  const l = state.lotData?.lot, rows = state.lotPost || [];
+  if (!l) return;
+  sheet('Можливий вміст', `<div class="small muted">Точний список: усе, що підходить під підказки цього контейнера, з реальними шансами. Перекупники бачать рівно те саме — машини не знає ніхто.</div>
+    <div class="list mt post-list">${rows.map((x) => {
+      const m = M(x.model);
+      return `<div class="li">${miniCar(x.model, '', null, x.junk ? 100 : 0)}<div class="grow"><div class="clamp2"><b>${esc(m.name)}</b></div>
+        <div class="small muted">${clsBadge(m.cls)} продаж ${S.short(x.sale)}${x.ed ? ' · <span class="ed-no">тиражна</span>' : ''}${x.junk ? ' · після повені' : ''}</div></div><b class="post-p">${pct(x.p * 100)}</b></div>`;
+    }).join('')}</div>
+    <div class="tiny muted mt">Середній продаж ≈ ${S.short(l.est.ev)} · колекційна ціна ${estText(l.est)} (10–90%). Тиражна продається дилеру за ${Math.round(S.EDITION_SELL * 100)}% — вона для колекціонерів і ринку.</div>`);
+};
+H.lotFair = () => {
+  const l = state.lotData?.lot;
+  if (!l) return;
+  const r = l.result;
+  sheet('Чесний контейнер', `<div class="small">Вміст визначено й зафіксовано ще до першої ставки. Сервер показав відбиток:</div>
+    <div class="fair-hash mt">${esc(l.commit)}</div>
+    <div class="small muted mt">Це sha256 від рядка «номер|машина|тиражна|брухт|сіль». Після торгів сіль і машину буде розкрито — порахуй відбиток сам і переконайся, що вміст не підмінили.</div>
+    ${r && !r.cancelled ? `<div class="fair-hash mt">${esc(CN.commitText(l.id, r.model, r.ed, r.junk, r.salt))}</div><button class="btn ghost mt" data-act="lotVerify">${ic('shield-check')} Перевірити</button>` : ''}`);
+};
+H.lotVerify = async () => {
+  const l = state.lotData?.lot, r = l?.result;
+  if (!r) return;
+  try {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(CN.commitText(l.id, r.model, r.ed, r.junk, r.salt)));
+    const hex = [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+    toast(hex === l.commit ? 'Збігається ✓ вміст був зафіксований до торгів' : 'Не збігається — напиши в підтримку', hex !== l.commit);
+  } catch {
+    toast('Перевірка недоступна в цьому браузері', true);
+  }
+};
+// The seal snaps, the doors swing open, light pours out in the colour of the class — then the usual reveal.
+function doorShow(l, color) {
+  return new Promise((res) => {
+    const slow = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const el = document.createElement('div');
+    el.className = 'ctr-reveal';
+    el.style.setProperty('--lc', color);
+    el.innerHTML = `<div class="cr-light"></div>${crate(l, true, true)}<div class="cr-tx">${esc(tierOf(l.tier).name)} · №${l.id}</div>`;
+    document.body.append(el);
+    void el.offsetWidth;
+    el.classList.add('in');
+    haptic('light');
+    SFX.tease(slow ? 900 : 200);
+    setTimeout(() => (el.classList.add('snap'), haptic('medium'), SFX.pop(1)), slow ? 650 : 50);
+    setTimeout(() => (el.classList.add('open'), haptic('heavy'), FX.flash(color, 0.25, 500)), slow ? 1250 : 100);
+    setTimeout(() => {
+      el.classList.add('out');
+      res();
+      setTimeout(() => el.remove(), 400);
+    }, slow ? 2350 : 300);
+  });
+}
+H.lotOpen = async (d) => {
+  if (WOW.isOpen() || document.querySelector('.ctr-reveal')) return;
+  let r;
+  try {
+    r = await api('containers/open', { id: Number(d.id) });
+  } catch (e) {
+    return toast(e.message, true);
+  }
+  const res = r.result, m = M(res.model), rank = S.rankOf(m.cls);
+  await doorShow(state.lotData.lot, S.CLASSES[m.cls].color);
+  const car = r.car || { model: res.model, value: m.price, sell: res.sale, serial: res.serial };
+  const kicker = res.ed ? `ТИРАЖНА ${res.serial ? S.serialText(res.serial) : ''}!` : res.junk ? 'ПІСЛЯ ПОВЕНІ…' : rank < 3 ? KICKER[rank] : '';
+  await WOW.celebrate({ car, isNew: false }, { casePrice: res.price, priceLabel: 'від ціни лоту', kicker, onShare: (x) => (res.ed ? toast('Тиражною поки не можна поділитися') : openShare(x.car)) });
+  await refresh(false);
+  if (state.page === 'lot') render();
 };

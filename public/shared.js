@@ -468,6 +468,30 @@ for (const n of ['ГАЗ-24-95 «Волга» 4x4', 'ВАЗ-2108 Group B', 'ГА
 export const ALL_MODELS = Object.values(MODELS);
 export const SECRET_BY_COUNTRY = Object.fromEntries(ALL_MODELS.filter((m) => m.secret && !m.season).map((m) => [m.country, m.id]));
 export const countryModels = (c) => ALL_MODELS.filter((m) => m.country === c && !m.secret);
+// «Тиражні» cars (container auction, public/containers.js): a real car in a fixed factory livery (its base model's
+// photo through a paint filter, like a season car), a serial number per edition (cars.serial, «№ 007»). Added to MODELS
+// after ALL_MODELS on purpose: no case, dealer, rival pool, collection, set or country secret ever sees them. They can
+// be sold on the market, auctioned and swapped; the dealer buys them back for EDITION_SELL; no upgrade, no trade-in, no
+// repaint. Class, price and stats are the base model's.
+export const EDITION_SELL = 0.1;
+export const EDITION_CARS = [
+  { base: 'vaz-2101-kopiika', tag: 'port', label: 'Портова', filter: 'hue-rotate(185deg) saturate(1.5) brightness(.95)' },
+  { base: 'haz-24-volha', tag: 'port', label: 'Портова', filter: 'hue-rotate(160deg) saturate(1.3) brightness(.9)' },
+  { base: 'mercedes-benz-s600-w140-kaban', tag: 'black', label: 'Чорний оксамит', filter: 'grayscale(.85) brightness(.55) contrast(1.25)' },
+  { base: 'ford-mustang-1967', tag: 'stripes', label: 'Гоночна', filter: 'hue-rotate(95deg) saturate(1.6) contrast(1.1)' },
+  { base: 'toyota-supra-a80', tag: 'night', label: 'Нічна Йокогама', filter: 'hue-rotate(250deg) saturate(1.6) brightness(.8)' },
+  { base: 'nissan-skyline-gt-r-r34', tag: 'night', label: 'Нічна', filter: 'hue-rotate(205deg) saturate(1.5) brightness(.75) contrast(1.1)' },
+];
+export const EDITION_OF = {}; // base model → edition id
+for (const e of EDITION_CARS) {
+  const b = MODELS[e.base];
+  if (!b) continue;
+  e.id = `${e.base}--${e.tag}`;
+  MODELS[e.id] = { ...b, id: e.id, name: `${b.name} · ${e.label}`, edition: true, base: b.id, img: b.id, filter: e.filter };
+  EDITION_OF[b.id] = e.id;
+}
+export const isEdition = (model) => !!MODELS[model]?.edition;
+export const serialText = (n) => `№ ${String(n).padStart(3, '0')}`;
 
 // ---------- cases ----------
 // A case has a fixed price and class odds. Every class pool is cut to a price CORRIDOR around the case price: the
@@ -501,7 +525,7 @@ export const ORIGIN_SELL = {};
 export const originSellOf = (origin) => (origin && ORIGIN_SELL[origin]) || 1;
 // origin: the case id the car came out of (cars.origin), or null.
 export const sellPriceOf = (model, ageMs = Infinity, origin = null) =>
-  Math.floor(MODELS[model].price * (MODELS[model].homeOnly ? HOME_SELL_RATE : SELL_RATES[MODELS[model].cls] * originSellOf(origin)) * (ageMs < FRESH_SELL.hours * 3600e3 ? FRESH_SELL.rate : 1));
+  Math.floor(MODELS[model].price * (MODELS[model].edition ? EDITION_SELL : MODELS[model].homeOnly ? HOME_SELL_RATE : SELL_RATES[MODELS[model].cls] * originSellOf(origin)) * (ageMs < FRESH_SELL.hours * 3600e3 ? FRESH_SELL.rate : 1));
 
 // ---------- honest numbers (reports/audit.md №1, №14) ----------
 // The main money figure of a car everywhere is its SALE: what the dealer pays right now (the server sends it as

@@ -72,3 +72,9 @@ export function carArt(modelId, { glow = false, silhouette = false, look = null,
   }
   return svg(modelId).replace('<svg ', `<svg class="${cls}"${style} `);
 }
+
+// A plain body silhouette (no model behind it): the container auction shows the shape of the car inside, never which car.
+export function bodySilhouette(body, color = '#3a4352') {
+  const [b, w, rx, fx, r] = BODIES[body] || BODIES.sedan;
+  return `<svg viewBox="0 0 220 84" aria-hidden="true"><path d="${b}" fill="${color}"/><path d="${w}" fill="#0b1119" opacity=".55"/><circle cx="${rx}" cy="66" r="${r}" fill="#0b0b0b"/><circle cx="${fx}" cy="66" r="${r}" fill="#0b0b0b"/></svg>`;
+}

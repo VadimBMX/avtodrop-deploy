@@ -277,6 +277,25 @@ CREATE TABLE IF NOT EXISTS money_src (
 CREATE INDEX IF NOT EXISTS drops_time ON drops(created_at);
 CREATE INDEX IF NOT EXISTS users_created ON users(created_at);
 CREATE INDEX IF NOT EXISTS payments_time ON payments(created_at);
+-- «Причал», the container auction (public/containers.js, src/containers.js). One row per lot; model/ed/junk/salt/bots/
+-- seed/pending never leave the server before status = 'done'. top_bidder < 0 is a bot (public/containers.js botOf);
+-- the leader's bid is held in escrow (taken from users.balance, given back when outbid). status: waiting (no human bid
+-- yet) | live | done | cancelled. opened: the winner has watched the doors open.
+CREATE TABLE IF NOT EXISTS container_lots (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, tier TEXT NOT NULL, model TEXT NOT NULL, ed INTEGER NOT NULL DEFAULT 0,
+  junk INTEGER NOT NULL DEFAULT 0, hints TEXT NOT NULL, commit_hash TEXT NOT NULL, salt TEXT NOT NULL, seed INTEGER NOT NULL,
+  bots TEXT NOT NULL, pending TEXT, ev INTEGER NOT NULL DEFAULT 0,
+  top_bid INTEGER NOT NULL DEFAULT 0, top_bidder INTEGER, bids INTEGER NOT NULL DEFAULT 0, humans INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'waiting', live_at INTEGER, ends_at INTEGER NOT NULL, opened INTEGER NOT NULL DEFAULT 0,
+  car_id INTEGER, serial INTEGER, version INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, settled_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS container_lots_open ON container_lots(status, ends_at);
+CREATE INDEX IF NOT EXISTS container_lots_bidder ON container_lots(top_bidder, status);
+-- Every bid (amount > 0) and every bot's «пас» (amount 0) of a lot, for its feed.
+CREATE TABLE IF NOT EXISTS container_bids (lot_id INTEGER NOT NULL, bidder INTEGER NOT NULL, amount INTEGER NOT NULL, at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS container_bids_lot ON container_bids(lot_id, at);
+-- The next serial number of each «тиражна» edition (S.EDITION_CARS).
+CREATE TABLE IF NOT EXISTS edition_serials (model TEXT PRIMARY KEY, next INTEGER NOT NULL DEFAULT 1);
 `;
 // Columns added after the first release; ALTER fails harmlessly when they already exist.
 const MIGRATIONS = [
@@ -391,6 +410,8 @@ const MIGRATIONS = [
   'ALTER TABLE users ADD COLUMN wash_hand INTEGER NOT NULL DEFAULT 0',
   // The case a car came out of (S.ORIGIN_SELL: its instant-sale share); NULL for the cars from before, the dealer, rewards.
   'ALTER TABLE cars ADD COLUMN origin TEXT',
+  // The serial number of a «тиражна» car (S.EDITION_CARS: «№ 007»); NULL for every other car.
+  'ALTER TABLE cars ADD COLUMN serial INTEGER',
 ];
 
 export function openDb(file) {

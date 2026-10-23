@@ -123,6 +123,7 @@ const ACTIONS = {
   money: 'Гроші', 'give-car': 'Видано авто', 'remove-car': 'Вилучено авто', part: 'Деталі', keys: 'Ключі', set: 'Параметр',
   ban: 'Бан', unban: 'Розбан', reset: 'Обнулено', 'dealer-refresh': 'Нові лоти дилера', 'give-plate': 'Видано номер', 'remove-plate': 'Забрано номер', message: 'Повідомлення', 'market-remove': 'Знято лот', promo: 'Промокод', 'promo-delete': 'Видалено промокод', support: 'Відповідь підтримки', role: 'Права',
   luck: 'Підкрутка', rig: 'Гарантована машина', 'rig-cancel': 'Скасовано гарантовану машину', broadcast: 'Розсилка', 'casino-mode': 'Режим казино',
+  'containers-toggle': 'Причал: перемикач', 'containers-close': 'Причал: лот закрито',
 };
 const FIELD_NAMES = { level: 'Рівень', slots: 'Місць у гаражі', showcase_slots: 'Місць на вітрині', cap_level: 'Рівень сховища', xp: 'XP' };
 const AUDIENCE = { all: 'усім гравцям', active30: 'активним за 30 днів', active7: 'активним за 7 днів', active1: 'активним за добу' };
@@ -784,6 +785,41 @@ VIEWS.market = async () => {
 H.dealerRefresh = () => mutate('dealer/refresh', {}, { title: 'Нові лоти дилера', summary: 'Дилер замінить свої поточні лоти новими.', button: 'Оновити' }, 'Дилер виставив нові лоти');
 H.unlist = (d) => mutate('market/remove', { kind: d.kind, id: Number(d.id) }, { title: d.kind === 'listing' ? 'Зняти лот з ринку' : 'Зняти аукціон', danger: true, button: 'Зняти',
   summary: `Лот #${esc(d.id)}${d.name ? ` · <b>${esc(d.name)}</b>` : ''}. Авто повернеться в гараж продавця${d.kind === 'auction' ? ', ставка лідера — йому на рахунок' : ''}.` }, 'Лот знято');
+
+// ---------- «Причал»: the container auction (src/containers.js) ----------
+// The switch, the lots on the pier right now (hints only: the content stays hidden until a lot ends), the last lots
+// with their content and the bots' limits, and the week's numbers: how many people won, what they paid, the return.
+const TIER_NAMES = { odesa: 'Порт Одеса', customs: 'Митниця', japan: 'Контейнер з Японії' };
+const BOT_NAMES = { petrovych: 'Петрович', vasya: 'Вася', liza: 'Ліза', zhora: 'Жора' };
+const pctR = (x) => (x == null ? '—' : `${Math.round(x * 100)}%`);
+const hintsText = (h) => [h.country, h.body, h.cls ? `клас ${h.cls}` : 'клас ?', h.dec ? `${h.dec}-ті` : '', `${h.kg}–${h.kg + 600} кг`, h.junk ? 'після повені' : ''].filter(Boolean).join(' · ');
+VIEWS.containers = async () => {
+  const c = await api('containers');
+  const w = c.week;
+  return `<div class="head"><h1>Причал (контейнери)</h1><button class="btn ${c.on ? 'red' : 'green'} sm" data-act="ctToggle" data-on="${c.on ? 0 : 1}">${c.on ? 'Вимкнути' : 'Увімкнути'}</button><button class="btn ghost sm" data-act="reload">${ic('refresh')} Оновити</button></div>
+    <div class="panel"><h2>Режим <span class="sub">${c.on ? 'увімкнено' : 'вимкнено'}</span></h2>
+      <p class="small muted">Три контейнери завжди на причалі (Порт Одеса, Митниця, Японія). Вимкнення: нові лоти й ставки зупиняються, лоти без ставок гравців знімаються, живі торги доходять до кінця. Віддача «виграв і продав» має бути ≈ 80% (тест 75–85%).</p>
+      <table><tr><th></th><th class="num">Лотів</th><th class="num">Виграли гравці</th><th class="num">Сплачено</th><th class="num">Віддача</th></tr>
+        ${w.byTier.map((t) => `<tr><td>${esc(TIER_NAMES[t.tier] || t.tier)}</td><td class="num">${t.done}</td><td class="num">${t.human}</td><td class="num">${short(t.paid)}</td><td class="num">${pctR(t.ret)}</td></tr>`).join('')}
+        <tr><td><b>За 7 днів</b></td><td class="num"><b>${w.done}</b></td><td class="num"><b>${w.human}</b> <span class="muted small">(боти ${w.bots})</span></td><td class="num"><b>${short(w.paid)}</b></td><td class="num"><b>${pctR(w.ret)}</b></td></tr></table>
+      <div class="small muted">Спалено гравцями: ${money(w.paid)} · продаж виграних машин: ${money(w.sale)} · видано тиражних: ${w.editions}</div></div>
+    <div class="panel"><h2>Зараз на причалі <span class="sub">${c.open.length}</span></h2>
+      ${c.open.length ? `<div class="tbl-wrap"><table><tr><th>Лот</th><th>Підказки</th><th class="num">Ставка</th><th>Лідер</th><th>Кінець</th><th></th></tr>
+        ${c.open.map((l) => `<tr><td><b>#${l.id}</b> ${esc(TIER_NAMES[l.tier] || l.tier)}<div class="muted small">${l.status === 'live' ? 'торги' : 'чекає ставки'} · ставок ${l.bids} (людей ${l.humans})</div></td>
+          <td class="small">${esc(hintsText(l.hints))}<div class="muted">оцінка ${short(l.est.lo)}–${short(l.est.hi)} · EV продажу ${short(l.est.ev)}</div></td>
+          <td class="num">${money(l.topBid)}</td><td>${l.human ? `<a data-user="${l.human}">${esc(l.leader)}</a>` : esc(l.leader)}</td><td class="small">${date(l.endsAt)}</td>
+          <td><button class="btn red sm" data-act="ctClose" data-id="${l.id}">Закрити й замінити</button></td></tr>`).join('')}</table></div>` : '<div class="empty">Лотів немає</div>'}</div>
+    <div class="panel"><h2>Завершені <span class="sub">останні ${c.recent.length}</span></h2>
+      ${c.recent.length ? `<div class="tbl-wrap"><table><tr><th>Лот</th><th>Вміст</th><th class="num">Ціна</th><th>Переможець</th><th class="num">Продаж / ціна</th><th>Межі ботів</th></tr>
+        ${c.recent.map((l) => `<tr><td>#${l.id} ${esc(TIER_NAMES[l.tier] || l.tier)}<div class="muted small">${l.status === 'cancelled' ? 'закрито' : date(l.at)}</div></td>
+          <td>${cls(model(l.model).cls)} ${esc(model(l.model).name)}${l.ed ? ` <span class="badge">тираж${l.serial ? ' №' + l.serial : ''}</span>` : ''}${l.junk ? ' <span class="muted small">після повені</span>' : ''}</td>
+          <td class="num">${money(l.price)}</td><td>${l.human ? `<a data-user="${l.human}">${esc(l.winner)}</a>` : esc(l.winner)}</td><td class="num">${short(l.sale)} · ${pctR(l.sale / l.price)}</td>
+          <td class="small muted">${l.bots.map((b) => `${esc(BOT_NAMES[b.id] || b.id)} ${short(b.max)}`).join(', ')}</td></tr>`).join('')}</table></div>` : '<div class="empty">Ще нічого</div>'}</div>`;
+};
+H.ctToggle = (d) => mutate('containers/toggle', { on: d.on === '1' }, { title: d.on === '1' ? 'Увімкнути «Причал»' : 'Вимкнути «Причал»', danger: d.on !== '1', button: d.on === '1' ? 'Увімкнути' : 'Вимкнути',
+  summary: d.on === '1' ? 'На причалі знову з’являться три контейнери.' : 'Нові лоти й ставки зупиняться; лоти без ставок гравців знімуться, живі торги завершаться як звичайно.' }, (r) => (r.on ? 'Причал увімкнено' : `Причал вимкнено${r.removed ? `, знято лотів: ${r.removed}` : ''}`));
+H.ctClose = (d) => mutate('containers/close', { id: Number(d.id) }, { title: `Закрити лот #${d.id}`, danger: true, button: 'Закрити',
+  summary: 'Лот буде скасовано (лідеру-гравцю гроші повернуться), замість нього з’явиться новий контейнер цього рівня.' }, 'Лот закрито, новий уже на причалі');
 
 // ---------- promo codes ----------
 VIEWS.promos = async () => {

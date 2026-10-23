@@ -53,6 +53,7 @@ export const MONEY_GROUPS = [
   { key: 'rewards', name: 'Нагороди', src: ['rewards', 'newbie/', 'quests/', 'weekly', 'ach/', 'sets/', 'collection/', 'season', 'promo', 'rescue/', 'gifts/', 'comeback'] },
   { key: 'levels', name: 'Рівні й реферали', src: ['level'] },
   { key: 'start', name: 'Старт новачка', src: ['signup'] },
+  { key: 'containers', name: 'Причал (контейнери)', src: ['containers'] },
   { key: 'market', name: 'Ринок, аукціон, обміни', src: ['market/', 'auction', 'trade/', 'room/'] },
   { key: 'casino', name: 'Казино', src: ['casino/'] },
   { key: 'shop', name: 'Магазин ⭐', src: ['shop'] },
