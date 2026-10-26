@@ -3,7 +3,7 @@
 // stops its loop as soon as nothing is moving. Under prefers-reduced-motion: no shake or rays, fewer particles.
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const MAX = reduced ? 60 : 260; // hard cap on live particles (a mid phone keeps 60 fps well under this)
-const SCALE = reduced ? 0.3 : 1; // particle counts under reduced motion
+const SCALE = reduced ? 0 : 1; // particle counts under reduced motion: none (D-reveal); flying coins keep their minimum of 3
 
 let canvas, ctx, raf = 0, W = 0, H = 0;
 let particles = [];
@@ -136,7 +136,7 @@ function add(list) {
 }
 const rand = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const scaled = (n) => Math.max(1, Math.round(n * SCALE));
+const scaled = (n) => (SCALE ? Math.max(1, Math.round(n * SCALE)) : 0);
 
 // Radial burst from a point (e.g. the centre of a dropped car).
 export function burst(x, y, colors, { count = 60, power = 9, shape = 'spark', gravity = 0.12, life = 70 } = {}) {

@@ -1376,6 +1376,16 @@ TABS.cases = () => {
   const paid = Math.max(0, n - keys);
   const free = me.slots - me.used;
   const d = state.drop;
+  // The open button (or why it can't open); on a drop screen it moves into the sticky dock (D-reveal).
+  const openBlock = () => {
+    const short = price * paid - me.balance;
+    // On the drop screen a full garage is one quiet line: the drop's own «Продати» is right below.
+    if (onDrop && free < 1) return `<div class="tiny muted center mt">Гараж заповнений · ${me.used}/${me.slots} — продай машину або купи місце, щоб відкрити ще</div>`;
+    if (free < n) return noRoomHtml(n, free);
+    // Not enough money: say so on the button, with how much is missing.
+    if (paid && short > 0) return `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(short)}</button>`;
+    return `<button class="btn opencase ${onDrop ? 'second' : deal.off ? 'yellow' : ''}${onDrop && state.fx?.type === 'case' ? ` lockin" style="--lk:${dropLockMs(d)}ms` : ''}" data-act="openCase">${paid ? `<span class="oc-l">${d && state.dropCase === cs.id ? 'Відкрити ще' : 'Відкрити'}</span><span class="oc-p">${S.fmt(price * paid)}${deal.off ? ` <s>${S.short(cs.price * paid)}</s>` : ''}${keys ? ` + ${ic('key')}${Math.min(keys, n)}` : ''}</span>` : cs.starter ? 'Відкрити безкоштовно' : `Відкрити ключем ${ic('key')} ${n}`}</button>`;
+  };
   let stage;
   if (d?.length === 1) {
     const { car, isNew, forced } = d[0];
@@ -1421,16 +1431,8 @@ TABS.cases = () => {
       <span class="picker-chev">${ic('chevron-right')}</span></button>
       <button class="iconbtn" data-act="odds" aria-label="Що всередині">${ic('info-circle')}</button></div>
     <div class="stage ${d?.length ? 'lit' : ''}" id="stage" style="${d?.length > 1 ? 'height:auto;min-height:230px;' : ''}${d?.length ? `--c:${S.CLASSES[M(d.reduce((a, r) => (S.rankOf(M(r.car.model).cls) > S.rankOf(M(a.car.model).cls) ? r : a)).car.model).cls].color}` : ''}">${stage}</div>
-    ${cs.starter ? '' : `<div class="seg">${[1, 3, 6].map((k) => `<button class="${k === n ? 'on' : ''}" data-act="pickCount" data-n="${k}">×${k}</button>`).join('')}</div>`}
-    ${(() => {
-      const short = price * paid - me.balance;
-      // On the drop screen a full garage is one quiet line: the drop's own «Продати» is right below.
-      if (onDrop && free < 1) return `<div class="tiny muted center mt">Гараж заповнений · ${me.used}/${me.slots} — продай машину або купи місце, щоб відкрити ще</div>`;
-      if (free < n) return noRoomHtml(n, free);
-      // Not enough money: say so on the button, with how much is missing.
-      if (paid && short > 0) return `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(short)}</button>`;
-      return `<button class="btn opencase ${onDrop ? 'second' : deal.off ? 'yellow' : ''}${onDrop && state.fx?.type === 'case' ? ` lockin" style="--lk:${dropLockMs(d)}ms` : ''}" data-act="openCase">${paid ? `<span class="oc-l">${d && state.dropCase === cs.id ? 'Відкрити ще' : 'Відкрити'}</span><span class="oc-p">${S.fmt(price * paid)}${deal.off ? ` <s>${S.short(cs.price * paid)}</s>` : ''}${keys ? ` + ${ic('key')}${Math.min(keys, n)}` : ''}</span>` : cs.starter ? 'Відкрити безкоштовно' : `Відкрити ключем ${ic('key')} ${n}`}</button>`;
-    })()}
+    ${cs.starter || onDrop ? '' : `<div class="seg">${[1, 3, 6].map((k) => `<button class="${k === n ? 'on' : ''}" data-act="pickCount" data-n="${k}">×${k}</button>`).join('')}</div>`}
+    ${d ? '' : openBlock()}
     ${cs.starter ? '<div class="tiny muted center mt">Подарунок новачку</div>' : ''}
     ${cs.starter ? '' : brokeCard()}
     ${d ? (() => {
@@ -1440,7 +1442,9 @@ TABS.cases = () => {
       const last = alive.length && me.cars.length - alive.length < 1;
       const lock = state.fx?.type === 'case' ? ` lockin" style="--lk:${dropLockMs(d)}ms` : '';
       const sellBtn = alive.length && !last ? `<button class="btn ghost btn2${lock}" data-act="sellDrops"><span>${ic('cash')} ${alive.length > 1 ? 'Продати все' : 'Продати'}</span><small>${S.short(sum)}</small></button>` : '';
-      return `<div class="btns mt"><button class="btn ${alive.length ? '' : 'outline'}" data-act="toGarage">У гараж</button>${sellBtn}</div>${last ? '<div class="tiny muted center mt">Це твоя єдина машина: на ній ганяєш і заробляєш, тому продати її не можна</div>' : ''}${wowShareRow(d)}`;
+      // D-reveal: the drop's actions live in one sticky dock over the tab bar (on 360 a ×6 grid pushed them off screen);
+      // «Відкрити ще» rides under them as a text link (.drop-dock .opencase), the share row stays in the flow below.
+      return `<div class="drop-dock"><div class="btns"><button class="btn ${alive.length ? '' : 'outline'}" data-act="toGarage">У гараж</button>${sellBtn}</div>${last ? '<div class="tiny muted center mt">Це твоя єдина машина: на ній ганяєш і заробляєш, тому продати її не можна</div>' : ''}${openBlock()}</div>${wowShareRow(d)}`;
     })() : ''}
     <div class="fastrow"><span>${ic('bolt')} Швидке відкриття <small>без рулетки</small></span><button class="toggle ${state.fast ? 'on' : ''}" data-act="toggleFast" aria-label="Швидке відкриття"></button></div>
     ${cs.starter ? '' : (() => {
@@ -1628,9 +1632,11 @@ AFTER.cases = () => {
   state.fx = null;
   const best = state.drop.reduce((a, r) => Math.max(a, S.rankOf(M(r.car.model).cls)), 0);
   const color = S.CLASS_ORDER.map((c) => S.CLASSES[c].color)[best];
-  haptic(best >= 3 ? 'heavy' : best >= 1 ? 'medium' : 'success');
+  // D-reveal: D/C land quietly (a light tap), B gets a soft flash of its colour and a pop, A+ the full show.
+  haptic(best >= 3 ? 'heavy' : best >= 2 ? 'medium' : 'light');
   if (best >= 4) setTimeout(() => haptic('success'), 420);
   if (best >= 3) setTimeout(() => SFX.rare(best), 120);
+  else if (best === 2) setTimeout(() => (SFX.pop(2), FX.flash(color, 0.14, 420)), 160);
   if (state.drop.length === 1) {
     const car = state.drop[0].car;
     setTimeout(() => {
@@ -1651,6 +1657,7 @@ AFTER.cases = () => {
         if (rank >= 4) FX.shake(undefined, 320);
         haptic(rank >= 2 ? 'medium' : 'light');
         SFX.tick(1.2 + rank * 0.1);
+        if (rank >= 2) el.classList.add('lit'); // D-reveal: a beam of the class colour over the rare card (CSS, once)
       }, i * 180 + 300);
     });
   }
@@ -5298,7 +5305,7 @@ async function rvlStep() {
   R.cur = null;
   const left = R.list.length - R.i - 1;
   R.el.innerHTML = `<div class="rvl-box">
-    <div class="rvl-top"><span class="rvl-n">${R.list.length > 1 ? `Нагорода ${R.i + 1} з ${R.list.length}` : 'Нагорода'}</span>${left && R.list.slice(R.i + 1).some((x) => x.kind === 'key') ? '<button class="rvl-skip" data-act="rvlSkip">Пропустити</button>' : ''}</div>
+    <div class="rvl-top"><span class="rvl-n">${R.list.length > 1 ? `Нагорода ${R.i + 1} з ${R.list.length}` : ''}</span>${left && R.list.slice(R.i + 1).some((x) => x.kind === 'key') ? '<button class="rvl-skip" data-act="rvlSkip">Пропустити</button>' : ''}</div>
     <b class="rvl-t">${esc(rvlTitle(it))}</b>
     <div class="stage rvl-stage" id="rvlStage"><div class="reel-wrap" id="rvlWrap"><div class="reel" id="rvlReel"></div></div></div>
     <div class="rvl-res" id="rvlRes"></div><div class="rvl-btns" id="rvlBtns"></div></div>`;
@@ -5373,11 +5380,14 @@ async function rvlRewardCase(it) {
   $('#rvlWrap').classList.add('rc');
   if (!state.fast) await spinReel({ cardAt: (i, W) => rcCard(...(i === W ? win : (strip[i] ??= draw()))), color, rank: Math.min(rank, 1), wrap: $('#rvlWrap'), reel: $('#rvlReel'), extra: -2300 });
   if (rw.carOut) return rvlResult({ car: rw.carOut, isNew: !!rw.isNew }, null);
-  const big = win[0] === 'part' ? partArt(win[1].type, win[1].tier, 'lg') : `<span class="rc-big-ic">${ic(win[0] === 'money' ? 'coin' : 'gas-station')}</span>`;
+  // D-reveal: each kind has its own object — a stack of notes, the part itself, a jerrycan with the 15 fuel marks.
+  const big = win[0] === 'part' ? partArt(win[1].type, win[1].tier, 'lg')
+    : win[0] === 'money' ? `<span class="rc-bills" aria-hidden="true"><i></i><i></i><i>₴</i></span>`
+      : `<span class="rc-big-ic">${ic('gas-station')}</span><span class="rc-ticks">${'<i></i>'.repeat(S.FUEL_MAX)}</span>`;
   const name = win[0] === 'money' ? `+${S.fmt(win[1])}` : win[0] === 'fuel' ? 'Повний бак' : S.partLabel(win[1].type, win[1].tier);
   const sub = win[0] === 'money' ? 'на рахунок' : win[0] === 'fuel' ? 'загальний бак заправлено' : 'деталь — у Майстерні';
-  $('#rvlStage').outerHTML = `<div class="rc-big pop" id="rvlBig" style="--c:${color}">${big}</div>`;
-  $('#rvlRes').innerHTML = `<div class="result-name pop" style="--c:${color}">${esc(name)}</div><div class="small muted center pop2">${sub}</div>`;
+  $('#rvlStage').outerHTML = `<div class="rc-big pop k-${win[0]}" id="rvlBig" style="--c:${color}">${big}</div>`;
+  $('#rvlRes').innerHTML = `<div class="result-name rc-amt pop" style="--c:${color}">${esc(name)}</div><div class="small muted center pop2">${sub}</div>`;
   FX.sparkle($('#rvlBig'), [color, '#ffffff'], 12);
   FX.popEl($('#rvlBig'), 1.15, 420);
   SFX.win();
@@ -7968,9 +7978,11 @@ function hintChips(h, compact = false) {
   ].join('');
 }
 // The container itself (front view): corrugated doors in the tier colour, the flag, the body stencil and the seal.
+// D-reveal: tiers get their own container paint (--tier: steel / teal / copper) so a red crate never reads as an S car.
+const TIER_PAINT = { odesa: '#5b6b80', customs: '#1f8a8a', japan: '#b5653a' };
 function crate(l, big = false, closed = false) {
   const done = !closed && (l.status === 'done' || l.status === 'cancelled');
-  return `<div class="ctr${big ? ' lg' : ''}${done ? ' done' : ''}${tierOf(l.tier).skin ? ` skin-${tierOf(l.tier).skin}` : ''}" style="--c:${tierOf(l.tier).color}"><div class="ctr-body"><div class="ctr-inner"></div>
+  return `<div class="ctr${big ? ' lg' : ''}${done ? ' done' : ''}${closed ? ' sealed' : ''}${tierOf(l.tier).skin ? ` skin-${tierOf(l.tier).skin}` : ''}" style="--c:${tierOf(l.tier).color};--tier:${TIER_PAINT[l.tier] || tierOf(l.tier).color}"><div class="ctr-body"><div class="ctr-inner"></div>
     <div class="ctr-door l"><span class="ctr-flag">${flagEmblem(l.hints.country)}</span></div><div class="ctr-door r"><span class="ctr-no">№${l.id}</span></div>
     <div class="ctr-sil">${bodySilhouette(l.hints.body, '#ffffff')}</div><span class="ctr-seal">${ic('lock')}</span></div></div>`;
 }
@@ -7978,7 +7990,7 @@ const estText = (e) => (e.hi > e.lo ? `${S.short(e.lo)}–${S.short(e.hi)}` : S.
 function pierCard(l) {
   const t = tierOf(l.tier), locked = me.level < t.level;
   const right = locked ? lockChip('auction').replace(/рів\. \d+/, `рів. ${t.level}`) : l.status === 'live' ? `<span class="chip pl-live">${ic('clock')} ${untilSpan(l.endsAt)}</span>` : '<span class="chip">чекає ставки</span>';
-  return `<button class="pier-lot${l.mine ? ' lead' : ''}${locked ? ' locked' : ''}${t.skin ? ` skin-${t.skin}` : ''}" data-act="pierLot" data-id="${l.id}" style="--c:${t.color}">${crate(l)}
+  return `<button class="pier-lot${l.mine ? ' lead' : ''}${locked ? ' locked' : ''}${t.skin ? ` skin-${t.skin}` : ''}" data-act="pierLot" data-id="${l.id}" style="--c:${t.color};--tier:${TIER_PAINT[l.tier] || t.color}">${crate(l)}
     <div class="pl-tx"><div class="pl-top"><b class="pl-name ellipsis">${esc(t.name)}</b>${right}</div>
       <div class="pl-hints">${hintChips(l.hints, true)}</div>
       <div class="pl-bid"><b>${S.short(l.topBid)}</b> <span class="small ${l.mine ? 'acc' : 'muted'} ellipsis">${l.mine ? 'ти лідер' : esc(l.leader)}</span></div>
@@ -8027,7 +8039,7 @@ function lotHtml(d) {
   return `<div class="lot-page${t.skin ? ` skin-${t.skin}` : ''}" style="--c:${t.color}">
     <div class="lot-head"><div class="grow"><b class="lot-name">${esc(t.name)}</b><div class="tiny muted">контейнер №${l.id} · з рівня ${t.level}</div></div>
       <button class="chip lot-commit" data-act="lotFair">${ic('shield-check')}${l.commit.slice(0, 8)}</button></div>
-    <div id="lotStage">${crate(l, true)}</div>
+    <div id="lotStage">${crate(l, true, !!(l.result?.mine && !l.result.opened))}</div>
     <div class="pl-hints lot-hints">${hintChips(l.hints)}</div>
     <div class="list lot-postl"><button class="li" data-act="lotPost"><span class="ic">${ic('layout-grid')}</span><div class="grow"><b>Можливий вміст · ${l.est.n}</b>
       <div class="small muted">оцінка ${estText(l.est)} · середній продаж ≈ ${S.short(l.est.ev)}</div></div><span class="chev">${ic('chevron-right')}</span></button></div>
@@ -8153,24 +8165,27 @@ H.lotVerify = async () => {
 };
 // The seal snaps, the doors swing open, light pours out in the colour of the class — then the usual reveal.
 function doorShow(l, color) {
+  // D-reveal sequence: the seal cracks (200 ms, heavy tap, pop) → the doors part (600 ms) → light of the class pours
+  // out of the gap → the usual reveal. Reduced motion: no swing, straight to the result.
   return new Promise((res) => {
     const slow = !matchMedia('(prefers-reduced-motion: reduce)').matches;
     const el = document.createElement('div');
     el.className = 'ctr-reveal';
     el.style.setProperty('--lc', color);
     el.innerHTML = `<div class="cr-light"></div>${crate(l, true, true)}<div class="cr-tx">${esc(tierOf(l.tier).name)} · №${l.id}</div>`;
+    el.querySelector('.ctr-inner')?.insertAdjacentHTML('afterend', '<div class="cr-gap"></div>');
     document.body.append(el);
     void el.offsetWidth;
     el.classList.add('in');
     haptic('light');
-    SFX.tease(slow ? 900 : 200);
-    setTimeout(() => (el.classList.add('snap'), haptic('medium'), SFX.pop(1)), slow ? 650 : 50);
-    setTimeout(() => (el.classList.add('open'), haptic('heavy'), FX.flash(color, 0.25, 500)), slow ? 1250 : 100);
+    SFX.tease(slow ? 600 : 200);
+    setTimeout(() => (el.classList.add('snap'), haptic('heavy'), SFX.pop(2)), slow ? 520 : 50);
+    setTimeout(() => (el.classList.add('open'), haptic('medium'), FX.flash(color, 0.22, 520)), slow ? 720 : 100);
     setTimeout(() => {
       el.classList.add('out');
       res();
       setTimeout(() => el.remove(), 400);
-    }, slow ? 2350 : 300);
+    }, slow ? 1850 : 300);
   });
 }
 H.lotOpen = async (d) => {
@@ -8184,8 +8199,8 @@ H.lotOpen = async (d) => {
   const res = r.result, m = M(res.model), rank = S.rankOf(m.cls);
   await doorShow(state.lotData.lot, S.CLASSES[m.cls].color);
   const car = r.car || { model: res.model, value: m.price, sell: res.sale, serial: res.serial };
-  const kicker = res.ed ? `ТИРАЖНА ${res.serial ? S.serialText(res.serial) : ''}!` : res.junk ? 'ПІСЛЯ ПОВЕНІ…' : rank < 3 ? KICKER[rank] : '';
-  await WOW.celebrate({ car, isNew: false }, { casePrice: res.price, priceLabel: 'від ціни лоту', kicker, onShare: (x) => (res.ed ? toast('Тиражною поки не можна поділитися') : openShare(x.car)) });
+  const kicker = res.ed ? `ТИРАЖНА ${res.serial ? S.serialText(res.serial) : ''}!` : res.junk ? 'Після повені…' : rank < 3 ? KICKER[rank] : '';
+  await WOW.celebrate({ car, isNew: false }, { casePrice: res.price, priceLabel: 'від ціни лоту', kicker, kickerTone: !res.ed && res.junk ? 'warn' : '', onShare: (x) => (res.ed ? toast('Тиражною поки не можна поділитися') : openShare(x.car)) });
   await refresh(false);
   if (state.page === 'lot') render();
 };

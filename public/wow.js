@@ -48,7 +48,8 @@ function scene(color) {
 // result: one case result ({ car, isNew, dream }); casePrice: what one opening cost (for the ×multiplier).
 // Resolves when the player taps through (or after a long idle), so the caller can then play the normal result.
 // kicker / priceLabel (optional): the headline and the «×N …» label for other sources (the container auction).
-export function celebrate(result, { casePrice = 0, onShare, kicker = '', priceLabel = 'від ціни кейсу' } = {}) {
+// kickerTone: 'warn' sets the headline as a sentence-case warning chip (a flooded container) instead of the hero word.
+export function celebrate(result, { casePrice = 0, onShare, kicker = '', priceLabel = 'від ціни кейсу', kickerTone = '' } = {}) {
   return new Promise((resolve) => {
     const { esc, ic, haptic } = ctx;
     const car = result.car, m = S.MODELS[car.model];
@@ -61,12 +62,18 @@ export function celebrate(result, { casePrice = 0, onShare, kicker = '', priceLa
     const sale = S.saleOf(car), main = sale ?? car.value;
     const mult = casePrice && sale != null ? sale / casePrice : 0;
     const el = document.createElement('div');
-    el.className = `wow r${rank}${dream ? ' dream' : ''}${reduced ? ' still' : ''}`;
+    el.className = `wow r${rank}${dream ? ' dream' : ''}${reduced ? ' still' : ''}${kickerTone ? ' k-' + kickerTone : ''}`;
     el.style.setProperty('--c', color);
+    // D-reveal: the backdrop lives on its own layer under the particle canvas (z 30) and the takeover above it, so the
+    // confetti and bursts fly between the scene and the text instead of over the name and the price.
+    const under = document.createElement('div');
+    under.className = `wow-under${reduced ? ' still' : ''}`;
+    under.style.setProperty('--c', color);
+    under.innerHTML = '<div class="wow-bg"></div><div class="wow-sweep"></div>';
+    const bigShare = dream || rank >= 4; // S / secret / dream: sharing is the point, so it stays the main button
     el.setAttribute('role', 'dialog');
     el.setAttribute('aria-label', `${m.name} — ${S.CLASSES[m.cls].name}`);
-    el.innerHTML = `<div class="wow-bg"></div><div class="wow-sweep"></div>
-      <div class="wow-body">
+    el.innerHTML = `<div class="wow-body">
         <div class="wow-kicker">${dream ? `${ic('heart')} МАШИНА МРІЇ!` : kicker ? esc(kicker) : TITLES[Math.min(5, rank)]}</div>
         <div class="wow-stage"><div class="wow-rays"></div><div class="wow-scene">${scene(color)}</div>
           <div class="wow-refl" aria-hidden="true">${carArt(car.model, { look: car.look })}</div><div class="wow-car">${carArt(car.model, { look: car.look })}</div></div>
@@ -75,10 +82,11 @@ export function celebrate(result, { casePrice = 0, onShare, kicker = '', priceLa
         <div class="wow-val"><span class="wow-lbl">${sale == null ? 'Колекційна ціна' : 'Продаж'}</span><b class="wow-num">${S.fmt(main)}</b>${mult ? `<span class="wow-mult ${mult >= 1 ? 'up' : ''}">${S.multText(mult)} <small>${esc(priceLabel)}</small></span>` : ''}
           <span class="wow-coll">${sale == null ? 'трофей колекції — не продається' : `Колекційна ціна ${S.fmt(car.value)}${casePrice ? ` · ${S.multText(car.value / casePrice)} у колекції` : ''}${car.serial ? ` · тираж ${S.serialText(car.serial)}` : ''}`}</span></div>
         ${dream ? `<div class="wow-dream">${ic('trophy')} Мрію здійснено! Обери наступну в гаражі</div>` : ''}
-        <div class="wow-acts"><button class="btn yellow wow-share" type="button">${ic('share')} Поділитися</button></div>
-        <div class="wow-tap">Торкнись, щоб продовжити</div>
+        <div class="wow-acts btns">${bigShare
+          ? `<button class="btn ghost wow-next" type="button">Далі</button><button class="btn yellow wow-share" type="button">${ic('share')} Поділитися</button>`
+          : `<button class="btn ghost wow-share" type="button">${ic('share')} Поділитися</button><button class="btn yellow wow-next" type="button">Далі</button>`}</div>
       </div>`;
-    document.body.appendChild(el);
+    document.body.append(under, el);
     const timers = [];
     const later = (ms, fn) => timers.push(setTimeout(fn, reduced ? Math.min(ms, 200) : ms));
     let closed = false;
@@ -88,7 +96,8 @@ export function celebrate(result, { casePrice = 0, onShare, kicker = '', priceLa
       timers.forEach(clearTimeout);
       removeEventListener('keydown', onKey);
       el.classList.add('out');
-      setTimeout(() => el.remove(), reduced ? 0 : 260);
+      under.classList.add('out');
+      setTimeout(() => (el.remove(), under.remove()), reduced ? 0 : 260);
       resolve();
     };
     const onKey = (e) => (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), close());
@@ -100,6 +109,7 @@ export function celebrate(result, { casePrice = 0, onShare, kicker = '', priceLa
     });
     void el.offsetWidth;
     el.classList.add('in');
+    under.classList.add('in');
     // The sequence: dark-out → light sweep → the car slides in → hit (flash, burst, rays, confetti, sound) → details.
     SFX.tease(reduced ? 300 : 700);
     haptic('light');
