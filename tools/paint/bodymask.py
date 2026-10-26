@@ -257,6 +257,23 @@ def build(path, hint=None):
         # only fill holes that are not very dark (badges/handles/grilles are dark or chrome-bright)
         m |= fill
     m &= car & ~wheel
+    if hint.get('edge'):
+        # dark photos: the cut-out's dark fringe along the roofline / upper outline leaves a ragged unpainted rim on
+        # light paints. Close the body against the background (radius `edge` px) above `edge_y` (fraction of the
+        # height; default: the top of the wheels), so thin gaps between the paint and the silhouette are painted.
+        # Windows are not touched: they are bounded by the body, not by the background.
+        ey = hint.get('edge_y', min(cy - r for _, cy, r in wheels) / H)
+        k = int(hint['edge'])
+        st = disk((2 * k + 1, 2 * k + 1), k, k, k)
+        pad = np.pad(m | ~car, k + 1, constant_values=True)
+        closed = ndi.binary_erosion(ndi.binary_dilation(pad, st), st)[k + 1:-k - 1, k + 1:-k - 1]
+        closed &= car & ~wheel & (np.arange(H)[:, None] < ey * H)
+        m |= closed
+        if hint.get('rim'):
+            # a grey matting halo a few px wide along the outline: paint the outer `rim` px wherever paint is near
+            rim = hint['rim']
+            band = (ndi.distance_transform_edt(car) <= rim) & ndi.binary_dilation(m, iterations=int(rim) + 2)
+            m |= band & car & ~wheel & (np.arange(H)[:, None] < ey * H)
     if hint.get('remove'):
         m &= ~poly_mask(car.shape, hint['remove'], W, H)
     # grow 2 px into anti-aliased silhouette edges and dark panel gaps that still look like the paint
@@ -264,6 +281,11 @@ def build(path, hint=None):
     if hint.get('remove'):
         grow &= ~poly_mask(car.shape, hint['remove'], W, H)
     m = m | grow
+    if hint.get('smooth'):
+        # ragged paint/trim boundaries (noisy threshold on dark photos): majority filter of the hard mask
+        m = (ndi.gaussian_filter(m.astype(np.float64), hint['smooth']) > 0.5) & car & ~wheel
+        if hint.get('remove'):
+            m &= ~poly_mask(car.shape, hint['remove'], W, H)
     soft = np.clip(ndi.gaussian_filter(m.astype(np.float64), 0.7), 0, 1) * (alpha > 0.05)
     if chromatic:
         # colour spill: thin seals, panel gaps and the arch lip carry a tint of the old paint (a red line around a
