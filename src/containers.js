@@ -24,6 +24,9 @@ export function createContainers(ctx) {
   const lastBid = new Map(); // uid → time of the last bid (one a second)
   const pushed = new Map(); // `${uid}:${lot}` → time of the last «тебе перебили» push (one a minute per lot)
   const isOn = () => metaGet(ON_KEY) !== '0';
+  // Event lots (C.EVENT_TIERS): on the pier only while their event runs (ctx.eventOn, src/halloween.js).
+  const eventOn = (ev) => !!ctx.eventOn?.(ev);
+  const tiersNow = () => [...C.CONTAINER_TIERS, ...C.EVENT_TIERS.filter((t) => eventOn(t.event))];
 
   const parse = (L) => ({ ...L, hints: JSON.parse(L.hints), bots: JSON.parse(L.bots), pending: L.pending ? JSON.parse(L.pending) : null });
   const row = (id) => {
@@ -59,8 +62,10 @@ export function createContainers(ctx) {
   }
   // One open lot per tier, always (while the feature is on).
   function ensure() {
+    // An event that ended takes its lots nobody bid on off the pier; live ones finish as usual (money in escrow).
+    for (const t of C.EVENT_TIERS) if (!eventOn(t.event)) q("UPDATE container_lots SET status = 'cancelled', settled_at = ?, pending = NULL WHERE tier = ? AND status = 'waiting' AND humans = 0").run(now(), t.id);
     if (!isOn()) return;
-    for (const t of C.CONTAINER_TIERS) if (!q(`SELECT 1 FROM container_lots WHERE tier = ? AND ${OPEN}`).get(t.id)) spawn(t.id);
+    for (const t of tiersNow()) if (!q(`SELECT 1 FROM container_lots WHERE tier = ? AND ${OPEN}`).get(t.id)) spawn(t.id);
   }
 
   // ---------- the bots' next answer ----------
@@ -178,6 +183,7 @@ export function createContainers(ctx) {
     L = tick(L, t);
     if (L.status !== 'waiting' && L.status !== 'live') fail('Торги за цим контейнером уже завершено');
     const tier = C.TIER_BY[L.tier], u = userRow(uid);
+    if (tier.event && L.status === 'waiting' && !eventOn(tier.event)) fail('Подія завершилась — цей контейнер уже зняли з причалу');
     if (u.level < tier.level) fail(`«${tier.name}» відкривається з рівня ${tier.level}`);
     if (L.top_bidder === uid) fail('Ти вже лідер цього лоту');
     const amt = int(amount, 1, 1e13, 'Ставка');
@@ -240,7 +246,7 @@ export function createContainers(ctx) {
     const done = q("SELECT tier, top_bid, top_bidder, model, ed FROM container_lots WHERE status = 'done' AND settled_at > ?").all(since);
     const hum = done.filter((l) => l.top_bidder > 0);
     const paid = hum.reduce((s, l) => s + l.top_bid, 0), sale = hum.reduce((s, l) => s + C.saleOfModel(l.model), 0);
-    const byTier = C.CONTAINER_TIERS.map((tr) => {
+    const byTier = [...C.CONTAINER_TIERS, ...C.EVENT_TIERS].map((tr) => {
       const h = hum.filter((l) => l.tier === tr.id), p = h.reduce((s, l) => s + l.top_bid, 0);
       return { tier: tr.id, done: done.filter((l) => l.tier === tr.id).length, human: h.length, paid: p, ret: p ? h.reduce((s, l) => s + C.saleOfModel(l.model), 0) / p : null };
     });

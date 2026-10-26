@@ -15,6 +15,8 @@ import * as WOW from './wow.js';
 // Ghost challenges: the ghost's replay and the rules (shared with the server), the share card.
 import * as G from './ghost.js';
 import { challengeCard } from './challenge-card.js';
+// «Ніч Хелловіну»: banner, event sheet, night drift (public/halloween-ui.js; hides itself when me.halloween is null).
+import { installHalloween, hwNight, HW_DRIFT, hwDriftPumpkins, hwDriftOverlay } from './halloween-ui.js';
 
 const tg = window.Telegram?.WebApp;
 const $ = (s, el = document) => el.querySelector(s);
@@ -411,6 +413,7 @@ function renderHeader() {
   const initials = !/[ВАСХBACDSX]/.test(first) ? first : words.length > 1 ? first + (words[1][0] || '').toUpperCase() : first + (words[0][1] || '').toLowerCase();
   $('#avatar').innerHTML = `${ring(me.level, me.xp, me.xpNeed)}<span class="face${photo ? ' photo' : ''}">${photo ? `<img src="${esc(photo)}" alt="" referrerpolicy="no-referrer">` : esc(initials)}</span><span class="lvl">${me.level}</span>`;
   paintGiftBadge(); // how many rewards wait (rewards center); first steps: one thing at a time
+  syncRewardBanners();
   $('#menuDot').hidden = !(me.incomingTrades || me.unread || claimableCollection() || me.newbie?.ready || me.achReady || me.season?.ready || me.questReady);
   $('#title').textContent = state.page ? PAGE_TITLES[state.page] : TITLES[state.tab];
   $('#title').classList.toggle('long', $('#title').textContent.length > 8);
@@ -503,6 +506,7 @@ async function render() {
 const AFTER = {};
 const TABS = {};
 const PAGES = {};
+installHalloween({ me: () => me, state: () => state, H, ic, esc, sheet, go });
 
 // ---------- progressive unlock (S.UNLOCKS; the server says what is open in me.unlocked) ----------
 // Locked things stay in sight with a lock and the level they open at, so there's something to look forward to.
@@ -899,10 +903,10 @@ TABS.garage = () => {
     <div class="big" id="pending">${S.fmt(pending)}</div>
     <div class="progress cap mt"><i id="capBar" style="width:${fill}%"></i></div>
     <div class="cap-line" id="capLine">${cs.text}</div>
-    <button class="btn mt" data-act="collect" ${pending < 1 ? 'disabled' : ''}>Забрати</button>
+    <button class="btn mt${fill > 10 ? '' : ' ghost'}" data-act="collect" ${pending < 1 ? 'disabled' : ''}>Забрати</button>
     ${i.comebackUntil ? `<div class="tiny center mt" style="color:#30d158">${ic('gift')} Подарунок повернення: +${S.COMEBACK.capHours} год сховища ще <span data-until="${i.comebackUntil - clockOffset}"></span></div>` : ''}
     ${nextCap ? `<div class="cap-up"><span class="tiny muted">Повна каса не росте — поки не забереш, дохід стоїть.</span><button class="btn outline sm" data-act="upgradeCap">${ic('clock')} Каса на ${nextCap.hours} год${capPlus} · ${S.short(nextCap.cost)}</button></div>` : ''}
-    <div class="tiny muted center mt cap-more">Каса вміщує ${i.capH} год доходу${nextCap ? ` · <a data-act="upgradeCap" style="color:#f5b301">збільшити до ${nextCap.hours} год${capPlus} — ${S.short(nextCap.cost)}</a>` : ''}</div>
+    <div class="tiny muted center mt cap-more">Каса вміщує ${i.capH} год доходу${nextCap ? ` · <a data-act="upgradeCap" class="txtlink">збільшити до ${nextCap.hours} год${capPlus} — ${S.short(nextCap.cost)}</a>` : ''}</div>
   </div>
   ${dreamCard()}
   ${washHint(all)}
@@ -910,7 +914,7 @@ TABS.garage = () => {
   ${all.length > 1 ? `${present.length > 1 ? `<div class="chips gfilter"><button class="${state.garageCls ? '' : 'on'}" data-act="gFilter" data-k="">Усі</button>${present.map((k) => `<button class="${state.garageCls === k ? 'on' : ''}" data-act="gFilter" data-k="${k}" style="--c:${S.CLASSES[k].color}"><i></i>${k}<small>${all.filter((c) => M(c.model).cls === k).length}</small></button>`).join('')}</div>` : ''}
     <div class="row between sellbar">${sel ? `<span class="small muted">${sel.size ? `Обрано ${sel.size} · ${S.fmt(selTotal)}` : `Обери машини. Продаж: ${Math.round(Math.min(...Object.values(S.SELL_RATES)) * 100)}–${Math.round(Math.max(...Object.values(S.SELL_RATES)) * 100)}% ціни моделі, деталі й номер повертаються`}</span>` : `<button class="gsort" data-act="gSort">${ic('adjustments')}${SORT_NAMES[sort]}</button>`}
     <span class="row">${sel ? `<button class="btn sm red" data-act="sellSel" ${sel.size ? '' : 'disabled'}>Продати</button>` : ''}<button class="btn sm ghost" data-act="sellMode">${sel ? 'Скасувати' : `${ic('cash')} Продати кілька`}</button></span></div>` : ''}
-  <div class="grid">${cars.map((c) => carTile(c, { sel: sel?.has(c.id), act: sel ? 'selToggle' : 'car', collLine: true, incLine: true })).join('')}
+  <div class="grid garage-grid">${cars.map((c) => carTile(c, { sel: sel?.has(c.id), act: sel ? 'selToggle' : 'car', collLine: true, incLine: true })).join('')}
     ${free && !state.garageCls ? `<button class="slot free" data-act="toCases"><span class="slot-plus">${ic('plus')}</span><b>${free} ${plural(free, ['вільне місце', 'вільні місця', 'вільних місць'])}</b><span class="tiny">Відкрити кейс ${ic('arrow-right')}</span></button>` : ''}
     ${me.slots < S.MAX_SLOTS && !state.garageCls ? `<button class="slot buy" data-act="buySlot"><span class="slot-plus">${ic('building-warehouse')}</span><span>Місце в гаражі</span><b>${S.short(S.slotCost(me.slots))}</b></button>` : ''}</div>`;
 };
@@ -2612,10 +2616,11 @@ function driftScene(canvas, color, track, tips = false) {
   const tile = document.createElement('canvas');
   tile.width = tile.height = 48;
   const tg2 = tile.getContext('2d');
-  tg2.fillStyle = '#17241b';
+  const night = hwNight(); // «Ніч Хелловіну»: the night palette, pumpkins by the road, bats (public/halloween-ui.js)
+  tg2.fillStyle = night ? HW_DRIFT.grass : '#17241b';
   tg2.fillRect(0, 0, 48, 48);
   for (let i = 0; i < 26; i++) {
-    tg2.fillStyle = i % 2 ? '#1c2c20' : '#132017';
+    tg2.fillStyle = night ? HW_DRIFT.specks[i % 2] : i % 2 ? '#1c2c20' : '#132017';
     tg2.fillRect((i * 37) % 48, (i * 23 + (i >> 2) * 7) % 48, 2, 2);
   }
   const grass = ctx.createPattern(tile, 'repeat');
@@ -2701,12 +2706,13 @@ function driftScene(canvas, color, track, tips = false) {
       ctx.fillStyle = grass;
       ctx.fillRect(cx - 700, cy - 700, 1400, 1400);
       const from = Math.max(0, i - 80), to = Math.min(last, i + 170);
-      road(from, to, HALF * 2 + 20, '#e5e7eb', null, true); // kerbs on corners: white…
-      road(from, to, HALF * 2 + 20, '#dc2626', [10, 10], true); // …and red
-      road(from, to, HALF * 2 + 6, '#f4f4f5');
-      road(from, to, HALF * 2, '#34373e');
-      road(from, to, 2, '#ffffff66', [14, 14]);
+      road(from, to, HALF * 2 + 20, night ? HW_DRIFT.kerbB : '#e5e7eb', null, true); // kerbs on corners: white…
+      road(from, to, HALF * 2 + 20, night ? HW_DRIFT.kerbA : '#dc2626', [10, 10], true); // …and red
+      road(from, to, HALF * 2 + 6, night ? HW_DRIFT.edge : '#f4f4f5');
+      road(from, to, HALF * 2, night ? HW_DRIFT.asphalt : '#34373e');
+      road(from, to, 2, night ? HW_DRIFT.dash : '#ffffff66', [14, 14]);
       ctx.setLineDash([]);
+      if (night) hwDriftPumpkins(ctx, xs, ys, hs, from, to, HALF);
       if (from <= 2) checker(1);
       if (finishAt >= from && finishAt <= to) checker(finishAt);
       // Training: a sign on the road at every corner ahead (not the one being driven) — direction, angle, entry speed.
@@ -2753,6 +2759,7 @@ function driftScene(canvas, color, track, tips = false) {
       }
       ctx.globalAlpha = 1;
       ctx.restore();
+      if (night) hwDriftOverlay(ctx, W, H, now);
     },
     bump(v = 0.4) {
       if (!DRIFT_RM) shake = v;
@@ -4101,10 +4108,10 @@ const collectionCars = () => {
     <div class="list">${visible.map((r) => {
       const done = r.done ?? me.claims.includes(r.key);
       const ready = !done && r.have >= r.need;
-      return `<div class="li"><span class="ic">${r.ic}</span><div class="grow"><b>${esc(r.title)}</b><div class="small muted">${esc(r.sub)}</div><div class="progress mt"><i style="width:${(r.have / r.need) * 100}%"></i></div></div>
-        ${done ? '<span class="win">✓</span>' : ready ? `<button class="btn sm yellow" data-act="collClaim" data-k="${r.key}">Забрати</button>` : `<span class="small muted">${r.have}/${r.need}</span>`}</div>`;
+      return `<div class="li"><span class="ic">${r.ic}</span><div class="grow"><b>${esc(r.title)}</b><div class="small muted">${esc(r.sub)}</div><div class="progress mt${done || ready ? ' ok' : ''}"><i style="width:${(r.have / r.need) * 100}%"></i></div></div>
+        ${done ? '<span class="win">✓</span>' : ready ? `<button class="btn sm ghost" data-act="collClaim" data-k="${r.key}">Забрати</button>` : `<span class="small muted">${r.have}/${r.need}</span>`}</div>`;
     }).join('')}
-    <button class="li" data-act="collAll" style="justify-content:center;color:#f5b301;font-weight:700">${state.collAll ? 'Згорнути' : `Показати всі · ще ${rows.length - visible.length}`}</button></div>
+    <button class="li txtlink coll-all" data-act="collAll">${state.collAll ? 'Згорнути' : `Показати всі · ще ${rows.length - visible.length}`}</button></div>
     <div class="h2"><span>Машини</span><button class="gsort" data-act="collMissing">${ic(missing ? 'books' : 'lock')}${missing ? 'Усі машини' : 'Лише відсутні'}</button></div>
     <div class="chips cchips"><button class="${!filter ? 'on' : ''}" data-act="collFilter" data-k="">Усі</button>${S.MAIN_COUNTRIES.map((c) => {
       const [h, l] = countryCount(c);
@@ -5124,11 +5131,12 @@ const hashStr = (str) => {
 // Banners: one reward keeps its own «Забрати»; several fold into one «Нагороди» banner that opens the rewards center
 // (its single rewards are remembered as shown, so they don't come back one by one). Other claims stay as they were.
 function showClaimBanners(claims) {
-  const one = (c) => showBanner({ ...c, claim: c, sub: esc(countFix(c.sub)) + (c.money ? ` · <b class="win">+${S.short(c.money)}</b>` : ''), ttl: 8000, buttons: [{ label: 'Забрати', act: 'bannerClaim' }] });
+  const one = (c) => showBanner({ ...c, claim: c, sub: esc(countFix(c.sub)) + (c.money ? ` · <b class="win">+${S.short(c.money)}</b>` : ''), ttl: 8000, buttons: [{ label: 'Забрати', act: 'bannerClaim', cls: 'ghost' }] });
   for (const c of claims) if (!REWARD_KINDS.has(c.kind) && !bannerSeen.has(c.key)) one(c);
   // First steps: the pill on top of the screen has its own «Забрати» — no second one in a banner (newbie is a reward kind).
   // Nor for what the open page claims itself (Завдання, Сезон, Досягнення, Колекція): one «Забрати» per reward on screen.
   const here = PAGE_CLAIMS[state.page] || [];
+  if (!rewardBannerHere()) claims = claims.filter((c) => !REWARD_KINDS.has(c.kind)); // elsewhere: only the badge on the gift
   const rw = claims.filter((c) => REWARD_KINDS.has(c.kind) && !(c.kind === 'daily' && skipDailyBanner) && !(c.kind === 'newbie' && $('#guide')) && !here.includes(c.kind));
   // A reward taken elsewhere (the pill, Завдання, the rewards window) takes its banner with it: a stale «Забрати» failed
   // or, for the steps, claimed the next one under the old title.
@@ -5144,7 +5152,15 @@ function showClaimBanners(claims) {
   const money = rw.reduce((sum, c) => sum + (c.money || 0), 0);
   showBanner({ key, kind: 'rwall', icon: 'gift', color: '#ffc400', claim: { kind: 'rwall' }, title: `Нагороди чекають · ${rw.length}`,
     sub: esc(rw.slice(0, 2).map((c) => countFix(c.title)).join(' · ')) + (rw.length > 2 ? ` · ще ${rw.length - 2}` : '') + (money ? ` · <b class="win">+${S.short(money)}</b>` : ''),
-    ttl: 9000, open: () => openRewards(), buttons: [{ label: 'Забрати все', act: 'claimAllBanner' }] });
+    ttl: 9000, open: () => openRewards(), buttons: [] });
+}
+// D-screens: reward banners only on the home screens (Гараж, Меню) — on cases, races, market, pages the gift badge says it.
+const rewardBannerHere = () => !state.page && (state.tab === 'garage' || state.tab === 'menu');
+function syncRewardBanners() {
+  try {
+    if (rewardBannerHere()) return;
+    for (const [key, b] of banners) if (b.data.claim && (b.data.kind === 'rwall' || REWARD_KINDS.has(b.data.kind))) hideBanner(key, false);
+  } catch {}
 }
 H.claimAllBanner = (d) => {
   hideBanner(d.key);
@@ -6244,10 +6260,10 @@ function styleView(sh) {
     return `<div class="sty-item ${own ? 'own' : ''} ${on ? 'on' : ''}">${pv}<div class="sty-tx"><b>${esc(it.name)}</b><small>${own ? `${ic('check')} твоє` : esc(it.hint)}</small></div>${btn}</div>`;
   };
   // Season cosmetics the player earned sit in the same slots (frame, backdrop), so they can be put back on here.
-  const season = S.ownedCosmetics(me.claims).filter((c) => c.season && (c.kind === 'frame' || c.kind === 'showcase'));
+  const season = S.ownedCosmetics(me.claims).filter((c) => (c.season || c.event) && (c.kind === 'frame' || c.kind === 'showcase'));
   const seasonRow = (kind) => season.filter((c) => c.kind === kind).map((c) => {
     const on = worn[kind] === c.id;
-    return `<div class="sty-item own ${on ? 'on' : ''}">${kind === 'frame' ? `<span class="sty-pv">${plate(sample?.plate?.text || 'AA 7777 AA', 'sm', c.id)}</span>` : `<span class="sty-pv sty-bg sc-season" data-season="${c.season}"></span>`}<div class="sty-tx"><b>${esc(c.name)}</b><small>${ic('trophy')} нагорода сезону</small></div>
+    return `<div class="sty-item own ${on ? 'on' : ''}">${kind === 'frame' ? `<span class="sty-pv">${plate(sample?.plate?.text || 'AA 7777 AA', 'sm', c.id)}</span>` : `<span class="sty-pv sty-bg sc-season" data-season="${c.season}"></span>`}<div class="sty-tx"><b>${esc(c.name)}</b><small>${ic('trophy')} ${c.event ? esc(c.hint) : 'нагорода сезону'}</small></div>
       ${on ? `<button class="btn sm ghost on" data-act="styleEquip" data-slot="${kind}" data-id="">${ic('check')} Надіто · зняти</button>` : `<button class="btn sm" data-act="styleEquip" data-slot="${kind}" data-id="${c.id}">Надіти</button>`}</div>`;
   }).join('');
   const sections = Object.entries(S.STYLE_KINDS).map(([kind, k]) => `<div class="h2"><span>${ic(k.icon)} ${k.title}</span><span>${ic('star')} ${S.STYLE_ITEMS.find((x) => x.kind === kind).stars}</span></div>
@@ -6521,10 +6537,11 @@ function showBanner(data) {
   }
   const [icon, color] = data.icon ? [data.icon, data.color] : BANNER_IC[data.kind] || ['bell', '#8e8e93'];
   const el = document.createElement('div');
-  el.className = data.invite ? 'banner invite' : 'banner';
+  el.className = (data.invite ? 'banner invite' : 'banner') + (data.buttons.length ? '' : ' tap') + (data.kind === 'rwall' ? ' rwall' : '');
+  if (!data.buttons.length) (el.dataset.act = 'bannerOpen', el.dataset.key = data.key);
   el.innerHTML = `<span class="mi" style="--c:${color}">${ic(icon)}</span>
     <div class="grow" data-act="bannerOpen" data-key="${esc(data.key)}"><b>${esc(data.title)}</b><div class="small">${data.sub}</div></div>
-    <div class="bbtns">${data.buttons.map((b) => `<button class="btn sm ${b.cls || ''}" data-act="${b.act}" data-key="${esc(data.key)}">${b.label}</button>`).join('')}</div>`;
+    <div class="bbtns">${data.buttons.map((b) => `<button class="btn sm ${b.cls || ''}" data-act="${b.act}" data-key="${esc(data.key)}">${b.label}</button>`).join('')}${data.buttons.length ? '' : `<span class="bchev">${ic('chevron-right')}</span>`}</div>`;
   box.prepend(el);
   banners.set(data.key, { el, data });
   paintBannerStack();
@@ -6693,7 +6710,8 @@ async function pulse() {
   if (busyForBanners()) return hideClaimBanners();
   if (!claimsBlocked() && !guideOn()) for (const e of p.gameEvents || []) {
     if (bannerSeen.has('ev:' + e.key)) continue;
-    showBanner({ key: 'ev:' + e.key, kind: 'event', icon: e.icon, color: e.color, title: `Почалася подія: ${e.title}`, sub: `${esc(e.text)} · ще <span data-until="${e.end - clockOffset}"></span>`, ttl: 9000, buttons: [{ label: 'Дивитись', act: 'bannerOpen' }] });
+    if (state.page || state.tab === 'cases' || state.tab === 'race') (rememberBanner('ev:' + e.key), toast(`Почалася подія: ${e.title}`));
+    else showBanner({ key: 'ev:' + e.key, kind: 'event', icon: e.icon, color: e.color, title: `Почалася подія: ${e.title}`, sub: `${esc(e.text)} · ще <span data-until="${e.end - clockOffset}"></span>`, ttl: 4000, buttons: [{ label: 'Дивитись', act: 'bannerOpen', cls: 'ghost' }] });
   }
   // (Re)start from the server's list whenever no window is open: a gift closed by tapping outside comes back.
   if (p.gifts.length && $('#modal').hidden) {
@@ -7332,7 +7350,7 @@ function dreamCard() {
       <div class="dream-h"><span>${ic('heart')} Яка машина — твоя мрія?</span><button class="dream-x" data-act="dreamHide" aria-label="Сховати">${ic('x')}</button></div>
       <div class="dream-row"><div class="dream-art">${carArt(sm.id, { glow: true })}</div><div class="grow"><b class="dream-nm">${esc(sm.name)}</b>
         <div class="small muted">${clsBadge(sm.cls)} ${S.short(sm.price)}</div><div class="tiny muted">Обери ціль — гараж показуватиме, скільки лишилось і де її шукати</div></div></div>
-      <div class="btns"><button class="btn soft" data-act="dreamSet" data-id="${sm.id}">${ic('heart')} Хочу її</button><button class="btn ghost" data-act="dreamPick">Обрати іншу</button></div></div>`;
+      <div class="btns dream-acts"><button class="btn ghost" data-act="dreamSet" data-id="${sm.id}">${ic('heart')} Хочу її</button><button class="txtlink" data-act="dreamPick">Обрати іншу</button></div></div>`;
   }
   const m = M(d.model);
   const color = S.CLASSES[m.cls].color;
@@ -7893,7 +7911,7 @@ function hintChips(h, compact = false) {
 // The container itself (front view): corrugated doors in the tier colour, the flag, the body stencil and the seal.
 function crate(l, big = false, closed = false) {
   const done = !closed && (l.status === 'done' || l.status === 'cancelled');
-  return `<div class="ctr${big ? ' lg' : ''}${done ? ' done' : ''}" style="--c:${tierOf(l.tier).color}"><div class="ctr-body"><div class="ctr-inner"></div>
+  return `<div class="ctr${big ? ' lg' : ''}${done ? ' done' : ''}${tierOf(l.tier).skin ? ` skin-${tierOf(l.tier).skin}` : ''}" style="--c:${tierOf(l.tier).color}"><div class="ctr-body"><div class="ctr-inner"></div>
     <div class="ctr-door l"><span class="ctr-flag">${flagEmblem(l.hints.country)}</span></div><div class="ctr-door r"><span class="ctr-no">№${l.id}</span></div>
     <div class="ctr-sil">${bodySilhouette(l.hints.body, '#ffffff')}</div><span class="ctr-seal">${ic('lock')}</span></div></div>`;
 }
@@ -7901,7 +7919,7 @@ const estText = (e) => (e.hi > e.lo ? `${S.short(e.lo)}–${S.short(e.hi)}` : S.
 function pierCard(l) {
   const t = tierOf(l.tier), locked = me.level < t.level;
   const right = locked ? lockChip('auction').replace(/рів\. \d+/, `рів. ${t.level}`) : l.status === 'live' ? `<span class="chip pl-live">${ic('clock')} ${untilSpan(l.endsAt)}</span>` : '<span class="chip">чекає ставки</span>';
-  return `<button class="pier-lot${l.mine ? ' lead' : ''}${locked ? ' locked' : ''}" data-act="pierLot" data-id="${l.id}" style="--c:${t.color}">${crate(l)}
+  return `<button class="pier-lot${l.mine ? ' lead' : ''}${locked ? ' locked' : ''}${t.skin ? ` skin-${t.skin}` : ''}" data-act="pierLot" data-id="${l.id}" style="--c:${t.color}">${crate(l)}
     <div class="pl-tx"><div class="pl-top"><b class="pl-name ellipsis">${esc(t.name)}</b>${right}</div>
       <div class="pl-hints">${hintChips(l.hints, true)}</div>
       <div class="pl-bid"><b>${S.short(l.topBid)}</b> <span class="small ${l.mine ? 'acc' : 'muted'} ellipsis">${l.mine ? 'ти лідер' : esc(l.leader)}</span></div>
@@ -7947,7 +7965,7 @@ PAGES.lot = async () => {
 };
 function lotHtml(d) {
   const l = d.lot, t = tierOf(l.tier), done = l.status === 'done' || l.status === 'cancelled';
-  return `<div class="lot-page" style="--c:${t.color}">
+  return `<div class="lot-page${t.skin ? ` skin-${t.skin}` : ''}" style="--c:${t.color}">
     <div class="lot-head"><div class="grow"><b class="lot-name">${esc(t.name)}</b><div class="tiny muted">контейнер №${l.id} · з рівня ${t.level}</div></div>
       <button class="chip lot-commit" data-act="lotFair">${ic('shield-check')}${l.commit.slice(0, 8)}</button></div>
     <div id="lotStage">${crate(l, true)}</div>

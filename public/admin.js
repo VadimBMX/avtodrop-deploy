@@ -3,6 +3,7 @@ import * as S from './shared.js';
 import { carArt, setImages } from './car.js';
 import { metricsPage } from './admin-metrics.js';
 import { dayRacePage, dayRaceActions } from './admin-dayrace.js';
+import { halloweenPage, halloweenActions } from './admin-halloween.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -325,6 +326,9 @@ H.mdays = (d) => ((state.mDays = Number(d.n)), render());
 // ---------- «Заїзд дня»: the car schedule and today's board (public/admin-dayrace.js) ----------
 VIEWS.dayrace = () => dayRacePage({ api, esc, cls, userLink });
 Object.assign(H, dayRaceActions({ mutate, esc, $ }));
+// ---------- «Ніч Хелловіну»: dates, the switch, what players got (public/admin-halloween.js) ----------
+VIEWS.halloween = () => halloweenPage({ api, esc, date });
+Object.assign(H, halloweenActions({ mutate }));
 Object.assign(ACTIONS, { 'dayrace-set': 'Заїзд дня: машина', 'dayrace-dq': 'Заїзд дня: результат' });
 function userTable(list, rich) {
   if (!list.length) return '<div class="empty">Гравців поки немає</div>';
@@ -789,7 +793,7 @@ H.unlist = (d) => mutate('market/remove', { kind: d.kind, id: Number(d.id) }, { 
 // ---------- «Причал»: the container auction (src/containers.js) ----------
 // The switch, the lots on the pier right now (hints only: the content stays hidden until a lot ends), the last lots
 // with their content and the bots' limits, and the week's numbers: how many people won, what they paid, the return.
-const TIER_NAMES = { odesa: 'Порт Одеса', customs: 'Митниця', japan: 'Контейнер з Японії' };
+const TIER_NAMES = { odesa: 'Порт Одеса', customs: 'Митниця', japan: 'Контейнер з Японії', ghost: 'Контейнер з привидом (Хелловін)' };
 const BOT_NAMES = { petrovych: 'Петрович', vasya: 'Вася', liza: 'Ліза', zhora: 'Жора' };
 const pctR = (x) => (x == null ? '—' : `${Math.round(x * 100)}%`);
 const hintsText = (h) => [h.country, h.body, h.cls ? `клас ${h.cls}` : 'клас ?', h.dec ? `${h.dec}-ті` : '', `${h.kg}–${h.kg + 600} кг`, h.junk ? 'після повені' : ''].filter(Boolean).join(' · ');

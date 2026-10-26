@@ -11,6 +11,14 @@ export const CONTAINER_TIERS = [
   { id: 'japan', name: 'Контейнер з Японії', short: 'Японія', level: 10, w: { B: 78, A: 19, S: 3 }, junk: 0.06, ed: 0.05, countries: ['JP'], color: '#ef4444' },
 ];
 export const TIER_BY = Object.fromEntries(CONTAINER_TIERS.map((t) => [t.id, t]));
+// Event lots (public/halloween.js): on the pier only while their event runs. Their own pool (`bodies`: muscle cars,
+// coupés and sedans), their own edition (`edModel` with the share `edP` of the non-flooded lots; the ordinary editions
+// stay out) and the same honesty, bots and ≈ 0.8 return as the three tiers above (test/halloween.test.js).
+export const EVENT_TIERS = [
+  { id: 'ghost', event: 'halloween', skin: 'ghost', name: 'Контейнер з привидом', short: 'Привид', level: 5, w: { C: 55, B: 40, A: 5 }, junk: 0.08, ed: 0,
+    edModel: 'ford-mustang-gt-2005--hw13', edP: 0.05, bodies: ['muscle', 'coupe', 'sedan'], countries: null, color: '#ff7a1a' },
+];
+for (const t of EVENT_TIERS) TIER_BY[t.id] = t;
 
 // The resellers. k: how far over the expected sale they go (mean ± sd, clamped to RULES.k); delay: seconds to answer;
 // step: their raise over the current bid. Liza answers only in the last seconds (late) and pays a little more when an
@@ -77,19 +85,21 @@ const outCache = {};
 export function tierOutcomes(tierId) {
   if (outCache[tierId]) return outCache[tierId];
   const t = TIER_BY[tierId];
-  const ok = (m) => !m.secret && !m.homeOnly && (!t.countries || t.countries.includes(m.country));
+  const ok = (m) => !m.secret && !m.homeOnly && (!t.countries || t.countries.includes(m.country)) && (!t.bodies || t.bodies.includes(m.body));
   const tw = Object.values(t.w).reduce((a, b) => a + b, 0);
   const out = [];
+  const edP = t.edModel && S.MODELS[t.edModel] ? t.edP : 0;
   for (const cls of S.CLASS_ORDER.filter((c) => t.w[c])) {
     const list = S.ALL_MODELS.filter((m) => m.cls === cls && ok(m));
     const ws = S.modelWeights(list), sw = ws.reduce((a, b) => a + b, 0);
     list.forEach((m, i) => {
-      const p = (1 - t.junk) * (t.w[cls] / tw) * (ws[i] / sw);
-      const ed = S.EDITION_OF[m.id];
+      const p = (1 - t.junk) * (1 - edP) * (t.w[cls] / tw) * (ws[i] / sw);
+      const ed = t.event ? null : S.EDITION_OF[m.id];
       out.push({ model: m.id, ed: false, junk: false, p: ed ? p * (1 - t.ed) : p });
       if (ed) out.push({ model: ed, ed: true, junk: false, p: p * t.ed });
     });
   }
+  if (edP) out.push({ model: t.edModel, ed: true, junk: false, p: (1 - t.junk) * edP });
   const floorCls = S.CLASS_ORDER[Math.max(0, S.rankOf(S.CLASS_ORDER.find((c) => t.w[c])) - 1)];
   const junk = S.ALL_MODELS.filter((m) => m.cls === floorCls && ok(m)).sort((a, b) => a.price - b.price || (a.id < b.id ? -1 : 1)).slice(0, R.junkCount);
   junk.forEach((m) => out.push({ model: m.id, ed: false, junk: true, p: t.junk / junk.length }));

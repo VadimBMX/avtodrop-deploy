@@ -6,6 +6,7 @@ import * as G from '../public/ghost.js';
 import * as M from './metrics.js';
 import { createDayRace } from './dayrace.js';
 import { createContainers } from './containers.js';
+import { createHalloween } from './halloween.js';
 
 export class GameError extends Error {}
 const fail = (msg) => {
@@ -492,6 +493,7 @@ export function createGame(db, opts = {}) {
   }
   function track(uid, key, n = 1) {
     if (key === 'race') raceStreakHit(uid); // the race streak (wave J; PvP counts where it is settled)
+    HW?.track(uid, key, n); // «Ніч Хелловіну» tasks (only while it runs)
     const day = ensureQuests(uid);
     q('UPDATE quests SET progress = MIN(target, progress + ?) WHERE user_id = ? AND day = ? AND key = ?').run(n, uid, day, key);
     if (S.WEEKLY_QUESTS[key]) {
@@ -2261,6 +2263,7 @@ export function createGame(db, opts = {}) {
     q("UPDATE auctions SET status = 'cancelled' WHERE id = ?").run(a.id);
     return {};
   }
+  let HW = null; // «Ніч Хелловіну» (src/halloween.js), created below with the game's helpers
   let CT = null; // the container auction («Причал», src/containers.js), created below with the game's helpers
   function sweepContainers() {
     return CT ? db.tx(() => CT.sweep()) : 0;
@@ -4896,9 +4899,24 @@ export function createGame(db, opts = {}) {
   }
   for (const k of DR.mutating) ADMIN_MUTATING.add(k);
   HELPER_ACTIONS.add('dayrace'); // helpers may look at the day's board and schedule, not change them
+  // «Ніч Хелловіну» (src/halloween.js): the calendar + the admin switch, event tasks (fed by track()), `me.halloween`.
+  HW = createHalloween({ q, now, fail, metaGet, metaSet, addKeys, giveCar, garageCount, userRow, grantCosmetic, styleOf, styleWear, random: rnd,
+    alog: (...a) => alog(...a), after: () => CT?.ensure() });
+  {
+    const meBase = handlers.me;
+    handlers.me = (uid, b) => ({ ...meBase(uid, b), halloween: HW.brief(uid) });
+  }
+  for (const [k, fn] of Object.entries(HW.admin)) {
+    admin[k] = (who, body = {}) => db.tx(() => {
+      if (!canDo(actorRole(who), k)) fail('Немає прав на цю дію');
+      return fn(who, body || {});
+    });
+  }
+  for (const k of HW.mutating) ADMIN_MUTATING.add(k);
+  HELPER_ACTIONS.add('halloween'); // helpers may look at the event, not switch it
   // «Причал» (src/containers.js): its calls, its admin tab and its gate (it opens with the auctions).
   CT = createContainers({ db, q, now, fail, int, name, addMoney, pay, notify, giveCar, carRow, carOut, garageCount, userRow, metaGet, metaSet, bank,
-    alog: (...a) => alog(...a), recalc: (...a) => recalc(...a), seed: opts.containerSeed });
+    alog: (...a) => alog(...a), recalc: (...a) => recalc(...a), seed: opts.containerSeed, eventOn: (ev) => ev === 'halloween' && HW.on() });
   Object.assign(GATES, CT.gates);
   Object.assign(handlers, CT.api);
   for (const [k, fn] of Object.entries(CT.admin)) {

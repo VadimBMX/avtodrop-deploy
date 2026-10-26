@@ -490,6 +490,17 @@ for (const e of EDITION_CARS) {
   MODELS[e.id] = { ...b, id: e.id, name: `${b.name} · ${e.label}`, edition: true, base: b.id, img: b.id, filter: e.filter };
   EDITION_OF[b.id] = e.id;
 }
+// Event editions (public/halloween.js): the same kind of car, but only their event's container lot and its last task
+// give them — not in EDITION_OF, so the ordinary tiers never draw them. Same rules as above (EDITION_SELL, serials).
+export const EVENT_EDITIONS = [
+  { base: 'ford-mustang-gt-2005', tag: 'hw13', label: '№ 13 «Хелловін»', filter: 'brightness(.52) contrast(2.1) saturate(1.15)', event: 'halloween' },
+];
+for (const e of EVENT_EDITIONS) {
+  const b = MODELS[e.base];
+  if (!b) continue;
+  e.id = `${e.base}--${e.tag}`;
+  MODELS[e.id] = { ...b, id: e.id, name: `${b.name} · ${e.label}`, edition: true, event: e.event, base: b.id, img: b.id, filter: e.filter };
+}
 export const isEdition = (model) => !!MODELS[model]?.edition;
 export const serialText = (n) => `№ ${String(n).padStart(3, '0')}`;
 
@@ -2367,12 +2378,17 @@ export const STYLE_ITEMS = [
   { id: 'gl-magenta', kind: 'glow', look: 'magenta', name: 'Підсвітка «Фіолетова»', stars: 75, hint: 'неон під днищем' },
   { id: 'gl-amber', kind: 'glow', look: 'amber', name: 'Підсвітка «Бурштин»', stars: 75, hint: 'теплий неон під днищем' },
 ].map((it) => ({ ...it, cos: 'cos:x:' + it.id }));
-const STYLE_BY_COS = Object.fromEntries(STYLE_ITEMS.map((it) => [it.cos, it]));
+// Event cosmetics ("cos:e:<id>"): earned in an event (public/halloween.js), never sold — not in STYLE_ITEMS / the shop.
+export const EVENT_COSMETICS = [
+  { id: 'hw-pumpkin', kind: 'frame', look: 'pumpkin', name: 'Рамка «Гарбуз»', hint: 'нагорода «Ночі Хелловіну»', event: 'halloween' },
+].map((it) => ({ ...it, cos: 'cos:e:' + it.id }));
+const STYLE_BY_COS = Object.fromEntries([...STYLE_ITEMS, ...EVENT_COSMETICS].map((it) => [it.cos, it]));
 // A «Стиль» item as a cosmetic (same shape as a season one; season 0).
 function styleCosmetic(id) {
   const it = STYLE_BY_COS[id];
   if (!it) return null;
   const k = STYLE_KINDS[it.kind];
+  if (it.event) return { id, season: 0, kind: it.kind, look: it.look, item: it.id, short: k.short, name: it.name, icon: k.icon, hint: it.hint, event: it.event, livery: null };
   return { id, season: 0, kind: it.kind, look: it.look, item: it.id, stars: it.stars, short: k.short, name: it.name, icon: k.icon, hint: it.hint, shop: true, livery: it.kind === 'livery' ? it.look : null };
 }
 // What a player wears in each slot: the chosen cosmetic while owned; nothing chosen yet → the newest season frame /

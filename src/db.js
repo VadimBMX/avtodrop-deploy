@@ -296,6 +296,10 @@ CREATE TABLE IF NOT EXISTS container_bids (lot_id INTEGER NOT NULL, bidder INTEG
 CREATE INDEX IF NOT EXISTS container_bids_lot ON container_bids(lot_id, at);
 -- The next serial number of each «тиражна» edition (S.EDITION_CARS).
 CREATE TABLE IF NOT EXISTS edition_serials (model TEXT PRIMARY KEY, next INTEGER NOT NULL DEFAULT 1);
+-- «Ніч Хелловіну» (src/halloween.js): event task progress per event year ('hw2026'), player and task; done_at is set
+-- once (the task is paid then), prize: what it paid (JSON).
+CREATE TABLE IF NOT EXISTS hw_tasks (event TEXT NOT NULL, user_id INTEGER NOT NULL, task TEXT NOT NULL, progress INTEGER NOT NULL DEFAULT 0,
+  done_at INTEGER, prize TEXT, PRIMARY KEY (event, user_id, task)) WITHOUT ROWID;
 `;
 // Columns added after the first release; ALTER fails harmlessly when they already exist.
 const MIGRATIONS = [
