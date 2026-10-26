@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2034  # INSTANCE/BRANCH_SHA читає common.sh
+# Сторож (таймер avtodrop-watchdog.timer, щохвилини): перевіряє /healthz гри локально і через HTTPS.
+# 3 збої поспіль → повідомлення власнику + рестарт гри (або Caddy, якщо падає лише HTTPS); далі рестарт кожні 10 хв.
+# Після відновлення — повідомлення з тривалістю простою. Під час деплою мовчить.
+set -euo pipefail
+here=$(dirname "$(readlink -f "$0")")
+# shellcheck source=../lib/common.sh
+. "${OPS_LIB_SH:-$here/../lib/common.sh}"
+
+load_global
+load_instance prod
+# деплой/відкат тримає lock → не втручаємось
+exec 9>"$LOCK_FILE"; flock -n 9 || exit 0
+exec 9>&-
+INSTANCE=watchdog; W="$STATE_ROOT/watchdog"; mkdir -p "$W"
+fails=$(cat "$W/fails" 2>/dev/null || echo 0)
+since=$(cat "$W/since" 2>/dev/null || true)
+
+local_ok=1; public_ok=1
+health_ok "$PORT" || { sleep 5; health_ok "$PORT" || local_ok=0; }
+if [ -n "${PUBLIC_URL:-}" ] && [ $local_ok = 1 ]; then
+  [ "$(curl -fsS -m 10 "$PUBLIC_URL/healthz" 2>/dev/null)" = ok ] || { sleep 5; [ "$(curl -fsS -m 10 "$PUBLIC_URL/healthz" 2>/dev/null)" = ok ] || public_ok=0; }
+fi
+
+if [ $local_ok = 1 ] && [ $public_ok = 1 ]; then
+  if [ "$fails" -ge 3 ]; then
+    mins=$(( ( $(date +%s) - ${since:-$(date +%s)} ) / 60 ))
+    notify "Гра знову відповідає (простій ~$mins хв)."
+    log "відновлено після $fails збоїв"
+  fi
+  printf 0 > "$W/fails"; rm -f "$W/since"
+  printf '{"result":"ok","time":"%s"}\n' "$(ts)" > "$PUBLIC_DIR/watchdog.json"
+else
+  fails=$((fails + 1)); printf '%s' "$fails" > "$W/fails"
+  [ -n "$since" ] || { since=$(( $(date +%s) - 60 )); printf '%s' "$since" > "$W/since"; }
+  what=$([ $local_ok = 0 ] && echo "гра не відповідає на 127.0.0.1:$PORT/healthz" || echo "гра жива, але HTTPS ($PUBLIC_URL) не відповідає — Caddy?")
+  log "збій $fails: $what"
+  printf '{"result":"down","fails":%s,"time":"%s"}\n' "$fails" "$(ts)" > "$PUBLIC_DIR/watchdog.json"
+  if [ "$fails" = 3 ] || { [ "$fails" -gt 3 ] && [ $(( (fails - 3) % 10 )) = 0 ]; }; then
+    if [ $local_ok = 0 ]; then
+      [ "$fails" = 3 ] && notify "Гра не відповідає 3 хв: $what. Перезапускаю сервіс. Лог:
+$(log_tail 8)"
+      $SYSTEMCTL restart "$SERVICE" || true
+    else
+      [ "$fails" = 3 ] && notify "$what. Перезапускаю Caddy."
+      $SYSTEMCTL restart caddy || true
+    fi
+  fi
+fi
+
+# диск: попередити раз, якщо зайнято > 90%
+use=$(df -P / | awk 'NR==2{gsub("%","",$5); print $5}')
+if [ "${use:-0}" -gt 90 ]; then INSTANCE=disk notify_once full "Диск VM зайнятий на $use%. Варто прибрати старі бекапи/логи."; else rm -f "$STATE_ROOT/.notified-disk"; fi

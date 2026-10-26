@@ -1,0 +1,12 @@
+[Unit]
+Description=AVTODROP pull-deploy (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/avtodrop-ops/bin/avtodrop-deploy %i
+Nice=10
+TimeoutStartSec=20min
+# Логи — в /var/log/avtodrop-ops.log; у журнал systemd — коротко.
+SyslogIdentifier=avtodrop-deploy-%i

@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Оновити базу staging свіжою копією проду: sudo avtodrop-staging-refresh [--no-start]
+# Прод не зупиняється (знімок VACUUM INTO від імені користувача гри).
+set -euo pipefail
+here=$(dirname "$(readlink -f "$0")")
+# shellcheck source=../lib/common.sh
+. "${OPS_LIB_SH:-$here/../lib/common.sh}"
+
+load_global
+load_instance staging
+START=1; [ "${1:-}" = --no-start ] && START=0
+PROD_USER=$(. "$OPS_CONF_DIR/prod.conf"; printf '%s' "${RUN_USER:-}")
+TMPD="$BACKUP_ROOT/tmp-prod"
+user_dir "$TMPD" "$PROD_USER"
+SNAP="$TMPD/to-staging.db"
+info=$(db_snapshot "$PROD_DB" "$SNAP" "$PROD_USER") || die "знімок проду не вдався"
+$SYSTEMCTL stop "$SERVICE" 2>/dev/null || true
+mkdir -p "$DATA_DIR"
+rm -f "$DATA_DIR/avtodrop.db" "$DATA_DIR/avtodrop.db-wal" "$DATA_DIR/avtodrop.db-shm"
+mv -f "$SNAP" "$DATA_DIR/avtodrop.db"
+if [ -n "$RUN_USER" ] && [ "$(id -u)" = 0 ]; then chown -R "$RUN_USER" "$DATA_DIR"; fi
+chmod 600 "$DATA_DIR/avtodrop.db"
+log "staging: база оновлена копією проду ($info)"
+if [ $START = 1 ] && [ -e "$APP_LINK" ]; then
+  $SYSTEMCTL start "$SERVICE"
+  wait_health "$PORT" 45 && echo "staging: ok ($info)" || { echo "staging не піднявся"; log_tail 12; exit 1; }
+fi

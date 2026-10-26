@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2034  # INSTANCE/BRANCH_SHA читає common.sh
+# Ручний відкат однією командою:
+#   sudo avtodrop-rollback            — прод на попередній реліз
+#   sudo avtodrop-rollback staging    — те саме для staging
+#   sudo avtodrop-rollback prod 20261026-101500-abc1234   — на конкретний реліз (список: avtodrop-ops releases)
+# Базу НЕ чіпає (міграції лише додають колонки/таблиці — стара версія з новою базою працює).
+# Після відкату поточний коміт гілки позначається «пропустити», тож таймер не задеплоїть його знову;
+# наступний новий коміт на гілці задеплоїться як звичайно.
+set -euo pipefail
+here=$(dirname "$(readlink -f "$0")")
+# shellcheck source=../lib/common.sh
+. "${OPS_LIB_SH:-$here/../lib/common.sh}"
+
+load_global
+load_instance "${1:-prod}"
+exec 9>"$LOCK_FILE"
+flock -w 600 9 || die "інший деплой/відкат триває"
+
+CUR_DIR=$(readlink -f "$APP_LINK")
+CUR_ID=$(basename "$CUR_DIR")
+TARGET_ID=${2:-$(cat "$STATE/previous_release" 2>/dev/null || true)}
+[ -n "$TARGET_ID" ] || die "немає попереднього релізу; вкажи явно (avtodrop-ops releases)"
+TARGET="$RELEASES_DIR/$TARGET_ID"
+[ -d "$TARGET" ] || die "немає релізу $TARGET"
+[ "$TARGET" != "$CUR_DIR" ] || die "$TARGET_ID уже поточний"
+
+log "ручний відкат $CUR_ID → $TARGET_ID"
+switch_link "$TARGET"
+if restart_verify; then
+  # коміт, з якого відкотились, не деплоїти знову автоматично
+  [ -f "$STATE/current_sha" ] && cp -f "$STATE/current_sha" "$STATE/skip_sha"
+  BRANCH_SHA=$(cat "$STATE/current_sha" 2>/dev/null || true)
+  if [ -f "$TARGET/.deploy-sha" ]; then cp -f "$TARGET/.deploy-sha" "$STATE/current_sha"; sed -i 's/\s//g' "$STATE/current_sha"; else rm -f "$STATE/current_sha"; fi
+  printf '%s' "$TARGET_ID" > "$STATE/current_release"
+  printf '%s' "$CUR_ID" > "$STATE/previous_release"
+  write_status ok "ручний відкат на $TARGET_ID"
+  notify "Ручний відкат: тепер працює $TARGET_ID (було $CUR_ID). /healthz ok."
+  echo "OK: працює $TARGET_ID"
+  exit 0
+fi
+log "реліз $TARGET_ID не піднявся — повертаю $CUR_ID"
+switch_link "$CUR_DIR"
+restart_verify || { write_status broken "відкат на $TARGET_ID і повернення на $CUR_ID не піднялись"; notify "АВАРІЯ при ручному відкаті. Лог:
+$(log_tail 12)"; exit 2; }
+echo "Відкат не вдався, повернуто $CUR_ID (працює)"; exit 1

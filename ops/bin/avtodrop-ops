@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Довідка й стан: avtodrop-ops [status|releases [staging]|log|deploy-now [staging]|help]
+set -euo pipefail
+here=$(dirname "$(readlink -f "$0")")
+# shellcheck source=../lib/common.sh
+. "${OPS_LIB_SH:-$here/../lib/common.sh}"
+load_global
+cmd=${1:-status}
+case "$cmd" in
+  status)
+    for f in prod staging backup watchdog; do
+      [ -f "$PUBLIC_DIR/$f.json" ] && printf '%-9s %s\n' "$f" "$(cat "$PUBLIC_DIR/$f.json")"
+    done
+    for i in prod staging; do
+      [ -f "$OPS_CONF_DIR/$i.conf" ] || continue
+      ( load_instance "$i"; printf '%-9s %s → %s  (%s)\n' "$i" "$APP_LINK" "$(basename "$(readlink -f "$APP_LINK")")" "$($SYSTEMCTL is-active "$SERVICE" 2>/dev/null || true)" )
+    done
+    $SYSTEMCTL list-timers 'avtodrop-*' --no-pager 2>/dev/null | head -8 || true ;;
+  releases)
+    load_instance "${2:-prod}"
+    cur=$(basename "$(readlink -f "$APP_LINK")")
+    # shellcheck disable=SC2012
+    ls -1 "$RELEASES_DIR" | sort -r | while read -r d; do printf '%s %s\n' "$([ "$d" = "$cur" ] && echo '*' || echo ' ')" "$d"; done ;;
+  log) tail -n "${2:-40}" "$OPS_LOG" ;;
+  deploy-now) exec "$here/avtodrop-deploy" "${2:-prod}" --force ;;
+  *) cat <<'EOF'
+avtodrop-ops status              стан деплою/бекапу/сторожа
+avtodrop-ops releases [staging]  список релізів (* = поточний)
+avtodrop-ops log [N]             останні рядки журналу ops
+avtodrop-ops deploy-now [staging]  задеплоїти голову гілки зараз (навіть якщо її пропущено після збою)
+avtodrop-rollback [prod|staging] [реліз]   відкат (без аргументу — на попередній)
+avtodrop-staging-refresh         база staging ← свіжа копія проду
+avtodrop-backup                  бекап зараз
+EOF
+  ;;
+esac

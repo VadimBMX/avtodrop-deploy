@@ -1,0 +1,11 @@
+[Unit]
+Description=AVTODROP daily DB backup (local + GCS)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/avtodrop-ops/bin/avtodrop-backup
+Nice=15
+IOSchedulingClass=idle
+TimeoutStartSec=30min

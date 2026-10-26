@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+# Pull-деплой: avtodrop-deploy prod|staging [--force]
+# Запускається таймером avtodrop-deploy@<інстанс>.timer кожні ~2 хв. Якщо на гілці (deploy / staging) з'явився
+# новий коміт: бекап бази → перевірка коду (node --check) → пробний запуск на тимчасовому порту з копією бази →
+# атомарне перемикання релізу → рестарт → перевірка /healthz → при збої автоматичний відкат → статус + бот.
+set -euo pipefail
+here=$(dirname "$(readlink -f "$0")")
+# shellcheck source=../lib/common.sh
+. "${OPS_LIB_SH:-$here/../lib/common.sh}"
+
+INST=${1:-}; FORCE=0; [ "${2:-}" = --force ] && FORCE=1
+load_global
+load_instance "$INST"
+
+exec 9>"$LOCK_FILE"
+flock -n 9 || exit 0   # уже йде деплой/відкат
+
+[ -n "$DEPLOY_REPO" ] || { write_status not_configured "DEPLOY_REPO не задано"; exit 0; }
+
+if ! BRANCH_SHA=$(remote_sha "$BRANCH"); then
+  grep -q '"result":"no_access"' "$STATE/status.json" 2>/dev/null ||
+    write_status no_access "немає доступу до $DEPLOY_REPO (додай deploy key у GitHub)"
+  notify_once no_access "Не можу прочитати репозиторій деплою. Додай ключ VM у GitHub (див. README-ops). Повідомлю, коли запрацює."
+  exit 1
+fi
+if [ "$(cat "$STATE_ROOT/.notified-$INSTANCE" 2>/dev/null)" = no_access ]; then
+  notify_clear; notify "Доступ до репозиторію деплою є. Гілка $BRANCH: ${BRANCH_SHA:-(ще порожня)}"
+fi
+if [ -z "$BRANCH_SHA" ]; then
+  [ -f "$STATE/status.json" ] || write_status waiting "гілки $BRANCH ще немає"
+  exit 0
+fi
+CUR=$(cat "$STATE/current_sha" 2>/dev/null || true)
+SKIP=$(cat "$STATE/skip_sha" 2>/dev/null || true)
+[ "$BRANCH_SHA" = "$CUR" ] && exit 0
+[ "$BRANCH_SHA" = "$SKIP" ] && [ $FORCE = 0 ] && exit 0
+
+log "новий коміт на $BRANCH: $BRANCH_SHA (зараз: ${CUR:-невідомо})"
+touch "$STATE/deploying"
+trap 'rm -f "$STATE/deploying"' EXIT
+
+fail_early() { # збій ДО перемикання: прод не зачеплено
+  log "деплой ${BRANCH_SHA:0:7} скасовано: $*"
+  printf '%s' "$BRANCH_SHA" > "$STATE/skip_sha"
+  write_status failed "$*"
+  notify "Деплой ${BRANCH_SHA:0:7} НЕ виконано (прод не зачеплено): $*"
+  exit 1
+}
+
+# ---- 1. код ----
+REPO="$STATE/repo.git"
+[ -d "$REPO" ] || git init -q --bare "$REPO"
+git_env "$SSH_KEY"
+timeout 300 git -C "$REPO" fetch -q --depth=1 "$DEPLOY_REPO" "+refs/heads/$BRANCH:refs/heads/$BRANCH" 2>&1 | scrub | tail -3 >&2 ||
+  fail_early "git fetch не вдався"
+SHA=$(git -C "$REPO" rev-parse "refs/heads/$BRANCH")
+BRANCH_SHA=$SHA
+MSG=$(git -C "$REPO" log -1 --format=%s "$SHA" | cut -c1-120)
+REL_ID="$(date -u +%Y%m%d-%H%M%S)-${SHA:0:7}"
+REL="$RELEASES_DIR/$REL_ID"
+mkdir -p "$RELEASES_DIR"
+rm -rf "$REL.tmp"; mkdir -p "$REL.tmp"
+git -C "$REPO" archive --format=tar "$SHA" | tar -x -C "$REL.tmp" || fail_early "не вдалося розпакувати коміт"
+[ -f "$REL.tmp/server.js" ] && [ -f "$REL.tmp/package.json" ] && [ -d "$REL.tmp/public" ] || { rm -rf "$REL.tmp"; fail_early "у коміті немає server.js/package.json/public — це не код гри"; }
+printf '%s\n' "$SHA" > "$REL.tmp/.deploy-sha"
+bad=""
+while IFS= read -r -d '' f; do
+  node --check "$f" 2>/dev/null || bad="$bad ${f#"$REL.tmp/"}"
+done < <(find "$REL.tmp/server.js" "$REL.tmp/src" "$REL.tmp/public" -maxdepth 3 \( -name '*.js' -o -name '*.mjs' \) -print0)
+while IFS= read -r -d '' f; do
+  node -e 'JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))' "$f" 2>/dev/null || bad="$bad ${f#"$REL.tmp/"}"
+done < <(find "$REL.tmp/src" -maxdepth 1 -name '*.json' -print0)
+[ -z "$bad" ] || { rm -rf "$REL.tmp"; fail_early "синтаксична помилка в:$bad"; }
+chown -R root:root "$REL.tmp"; chmod -R u=rwX,go=rX "$REL.tmp"
+mv -T "$REL.tmp" "$REL"
+log "реліз $REL_ID розпаковано, node --check ок"
+
+# ---- 2. staging: оновити базу з проду на вимогу ([refresh-db] у повідомленні коміту) ----
+DB="$DATA_DIR/avtodrop.db"
+if [ "$INSTANCE" = staging ] && { [[ "$MSG" == *"[refresh-db]"* ]] || [ ! -s "$DB" ]; }; then
+  log "staging: оновлюю базу копією проду"
+  "$here/avtodrop-staging-refresh" --no-start || fail_early "не вдалося скопіювати базу проду в staging"
+fi
+
+# ---- 3. бекап бази перед деплоєм ----
+BK_DIR="$BACKUP_ROOT/predeploy-$INSTANCE"; TMPD="$BACKUP_ROOT/tmp-$INSTANCE"
+mkdir -p "$BK_DIR"; user_dir "$TMPD" "$RUN_USER"
+SNAP=""
+if [ -s "$DB" ]; then
+  SNAP="$TMPD/$INSTANCE-predeploy.db"
+  info=$(db_snapshot "$DB" "$SNAP" "$RUN_USER") || fail_early "бекап бази не вдався"
+  gzip -1 -c "$SNAP" > "$BK_DIR/avtodrop-$REL_ID.db.gz.tmp" && mv -f "$BK_DIR/avtodrop-$REL_ID.db.gz.tmp" "$BK_DIR/avtodrop-$REL_ID.db.gz"
+  keep_newest "$BK_DIR" '^avtodrop-.*\.db\.gz$' "$KEEP_PREDEPLOY"
+  log "бекап: $BK_DIR/avtodrop-$REL_ID.db.gz ($info)"
+fi
+
+# ---- 4. пробний запуск з копією бази ----
+SAN="$STATE_ROOT/sanity-$INSTANCE"   # не в $STATE (700 root): користувач сервісу має туди зайти
+rm -rf "$SAN"; mkdir -p "$SAN"
+[ -n "$SNAP" ] && cp "$SNAP" "$SAN/avtodrop.db"
+[ -n "$RUN_USER" ] && [ "$(id -u)" = 0 ] && chown -R "$RUN_USER" "$SAN"
+use_sandbox=0
+if [ "$SANDBOX" = 1 ] || { [ "$SANDBOX" = auto ] && [ -d /run/systemd/system ] && command -v systemd-run >/dev/null; }; then use_sandbox=1; fi
+if [ $use_sandbox = 1 ]; then
+  out=$(systemd-run --quiet --wait --pipe --collect --service-type=exec \
+    -p PrivateNetwork=yes -p PrivateTmp=yes -p NoNewPrivileges=yes -p ProtectSystem=full \
+    -p InaccessiblePaths=-/data -p InaccessiblePaths=-/data-staging -p InaccessiblePaths=-/etc/avtodrop.env -p InaccessiblePaths=-/etc/avtodrop-staging.env \
+    -p InaccessiblePaths=-"$OPS_CONF_DIR" -p MemoryMax=450M -p RuntimeMaxSec=180 \
+    ${RUN_USER:+-p User="$RUN_USER"} \
+    "$here/sanity-run.sh" "$REL" "$SANITY_PORT" "$SAN" 2>&1) && rc=0 || rc=$?
+else
+  out=$(as_user "$RUN_USER" "$here/sanity-run.sh" "$REL" "$SANITY_PORT" "$SAN" 2>&1) && rc=0 || rc=$?
+fi
+printf '%s\n' "$out" | scrub >> "$OPS_LOG"
+rm -rf "$SAN" "$SNAP"
+[ $rc = 0 ] || fail_early "пробний запуск не пройшов: $(printf '%s' "$out" | head -1 | scrub)"
+log "пробний запуск ок"
+
+# ---- 5. перемикання + рестарт + перевірка ----
+PREV=""; [ -L "$APP_LINK" ] && PREV=$(readlink -f "$APP_LINK")
+switch_link "$REL"
+log "перемкнув $APP_LINK → $REL_ID, рестарт $SERVICE"
+if restart_verify; then
+  printf '%s' "$SHA" > "$STATE/current_sha"
+  printf '%s' "$REL_ID" > "$STATE/current_release"
+  [ -n "$PREV" ] && [ "$PREV" != "$REL" ] && basename "$PREV" > "$STATE/previous_release"
+  rm -f "$STATE/skip_sha"
+  # прибрати старі релізи (поточний і попередній лишаються завжди)
+  keepprev=$(cat "$STATE/previous_release" 2>/dev/null || true)
+  # shellcheck disable=SC2012
+  ls -1 "$RELEASES_DIR" | grep -v '\.tmp$' | sort -r | tail -n +"$((KEEP_RELEASES + 1))" | while read -r d; do
+    [ "$d" = "$REL_ID" ] || [ "$d" = "$keepprev" ] || rm -rf -- "${RELEASES_DIR:?}/$d"
+  done
+  write_status ok "$MSG"
+  log "ДЕПЛОЙ ОК: $REL_ID"
+  notify "Деплой OK: ${SHA:0:7} «$MSG». /healthz ok. Відкат: avtodrop-rollback $INSTANCE"
+  exit 0
+fi
+
+# ---- 6. автоматичний відкат ----
+TAIL=$(log_tail 12)
+log "нова версія не піднялась — відкат на ${PREV:-?}"
+printf '%s' "$SHA" > "$STATE/skip_sha"
+if [ -n "$PREV" ] && [ -d "$PREV" ]; then
+  switch_link "$PREV"
+  if restart_verify; then
+    write_status rolled_back "нова версія ${SHA:0:7} не піднялась, повернуто $(basename "$PREV")"
+    notify "Деплой ${SHA:0:7} НЕ вдався, автоматично повернув попередню версію ($(basename "$PREV")), гра працює. Лог:
+$TAIL"
+    exit 1
+  fi
+fi
+write_status broken "нова версія не піднялась, і відкат теж не допоміг"
+notify "АВАРІЯ: деплой ${SHA:0:7} не піднявся, відкат на $(basename "${PREV:-?}") теж не відповідає /healthz. Потрібна ручна перевірка. Лог:
+$TAIL"
+exit 2

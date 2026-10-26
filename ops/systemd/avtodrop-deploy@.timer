@@ -1,0 +1,11 @@
+[Unit]
+Description=AVTODROP pull-deploy poll (%i), every ~2 min
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=2min
+AccuracySec=15s
+RandomizedDelaySec=10s
+
+[Install]
+WantedBy=timers.target

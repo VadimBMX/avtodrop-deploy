@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2034  # INSTANCE/BRANCH_SHA читає common.sh
+# Щоденний бекап бази проду (таймер avtodrop-backup.timer, ~02:40 UTC): sudo avtodrop-backup
+# Локально: $BACKUP_ROOT/daily (7 шт.) і weekly (4 шт., раз на тиждень).
+# Якщо задано GCS_BUCKET і VM має право запису в Cloud Storage — ті самі файли й та сама ротація в gs://BUCKET/{daily,weekly}/.
+# Працює через JSON API з токеном сервісного акаунта VM (metadata server) — gsutil не потрібен.
+set -euo pipefail
+here=$(dirname "$(readlink -f "$0")")
+# shellcheck source=../lib/common.sh
+. "${OPS_LIB_SH:-$here/../lib/common.sh}"
+
+load_global
+load_instance prod
+INSTANCE=backup; STATE="$STATE_ROOT/backup"; mkdir -p "$STATE"; chmod 700 "$STATE"
+
+MD=http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default
+gcs_token() { curl -fsS -m 10 -H Metadata-Flavor:Google "$MD/token" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).access_token))'; }
+gcs_can_write() { curl -fsS -m 10 -H Metadata-Flavor:Google "$MD/scopes" 2>/dev/null | grep -Eq 'devstorage\.(read_write|full_control)|cloud-platform'; }
+gcs_auth() { printf 'header = "Authorization: Bearer %s"\n' "$TOKEN"; }  # токен через stdin, не в argv
+urlenc() { node -e 'process.stdout.write(encodeURIComponent(process.argv[1]))' -- "$1"; }
+gcs_upload() { # FILE OBJECT
+  gcs_auth | curl -fsS -m 600 -o /dev/null -K - -H 'Content-Type: application/gzip' --data-binary @"$1" \
+    "https://storage.googleapis.com/upload/storage/v1/b/$GCS_BUCKET/o?uploadType=media&name=$(urlenc "$2")"
+}
+gcs_list() { # PREFIX → імена об'єктів
+  gcs_auth | curl -fsS -m 60 -K - "https://storage.googleapis.com/storage/v1/b/$GCS_BUCKET/o?prefix=$(urlenc "$1")&fields=items(name)&maxResults=1000" |
+    node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{for(const i of JSON.parse(s).items||[])console.log(i.name)})'
+}
+gcs_delete() { gcs_auth | curl -fsS -m 60 -o /dev/null -K - -X DELETE "https://storage.googleapis.com/storage/v1/b/$GCS_BUCKET/o/$(urlenc "$1")"; }
+gcs_keep() { # PREFIX N
+  gcs_list "$1" | sort -r | tail -n +"$(($2 + 1))" | while read -r o; do gcs_delete "$o" && log "GCS: видалено старий $o"; done
+}
+
+D="$BACKUP_ROOT/daily"; W="$BACKUP_ROOT/weekly"; TMPD="$BACKUP_ROOT/tmp-prod"
+mkdir -p "$D" "$W"; user_dir "$TMPD" "$RUN_USER"
+NAME="avtodrop-$(date -u +%Y%m%d-%H%M%S).db.gz"
+SNAP="$TMPD/daily.db"
+fail() { write_status failed "$*"; notify "Щоденний бекап НЕ вдався: $*"; rm -f "$SNAP"; exit 1; }
+
+info=$(db_snapshot "$PROD_DB" "$SNAP" "$RUN_USER") || fail "знімок бази не вдався"
+gzip -6 -c "$SNAP" > "$D/$NAME.tmp" && mv -f "$D/$NAME.tmp" "$D/$NAME"; rm -f "$SNAP"
+chmod 600 "$D/$NAME"
+WEEKLY=""
+# тижневий — якщо останньому тижневому вже 6+ днів (не залежить від того, чи VM працювала в неділю)
+last_w=$(find "$W" -maxdepth 1 -name 'avtodrop-*.db.gz' -mtime -6 | head -1)
+if [ -z "$last_w" ]; then cp -p "$D/$NAME" "$W/$NAME"; WEEKLY=1; fi
+keep_newest "$D" '^avtodrop-.*\.db\.gz$' "$KEEP_DAILY"
+keep_newest "$W" '^avtodrop-.*\.db\.gz$' "$KEEP_WEEKLY"
+size=$(du -h "$D/$NAME" | cut -f1)
+log "бекап: $D/$NAME ($size, $info)${WEEKLY:+ + тижневий}"
+
+where="локально"
+if [ -n "$GCS_BUCKET" ]; then
+  if ! gcs_can_write; then
+    write_status ok_local "GCS: у VM немає права запису в Cloud Storage (scope) — лише локальні копії. $info"
+    notify_once gcs_scope "Бекап зроблено лише локально: VM не має права запису в Cloud Storage. Як увімкнути — README-ops, розділ «Бекапи в GCS»."
+    exit 0
+  fi
+  TOKEN=$(gcs_token) || fail "немає токена сервісного акаунта"
+  gcs_upload "$D/$NAME" "daily/$NAME" || fail "завантаження в gs://$GCS_BUCKET не вдалося (бакет існує? права Storage Object Admin?)"
+  [ -n "$WEEKLY" ] && { gcs_upload "$D/$NAME" "weekly/$NAME" || fail "завантаження тижневого в GCS"; }
+  gcs_keep daily/ "$KEEP_DAILY"; gcs_keep weekly/ "$KEEP_WEEKLY"
+  where="локально + gs://$GCS_BUCKET"
+  notify_clear
+fi
+write_status ok "$NAME ($size, $info) — $where"

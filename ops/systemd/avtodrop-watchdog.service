@@ -1,0 +1,7 @@
+[Unit]
+Description=AVTODROP uptime watchdog
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/avtodrop-ops/bin/avtodrop-watchdog
+TimeoutStartSec=2min
