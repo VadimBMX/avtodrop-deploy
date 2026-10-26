@@ -3972,3 +3972,17 @@ body.racing #banners { display: none; } /* no toast over the HUD during a run */
   .cr-gap, .ctr-reveal .ctr-door, .btn.opencase[disabled] { transition: none; }
 }
 /* ===== /D-reveal ===== */
+/* ===== Integration fixes ===== (тиждень 26.10: D-screens + D-reveal + D-race + Хелловін + фарба разом; reports/intqa.md) */
+/* 1 «Причал» на 360: довга назва лота («Контейнер з Японії») + чип стану не влазили в рядок → сторінка їздила вбік */
+.pl-top { flex-wrap: wrap; row-gap: 4px; }
+.pl-top .pl-name { min-width: 0; max-width: 100%; }
+.pl-top > .chip { flex: none; }
+/* 2 банер «Ніч Хелловіну» за правилами банерів D-screens: тиха смуга 48 px, лінія ліворуч замість світіння */
+.hw-banner { min-height: 48px; padding: 6px 10px 6px 12px; box-shadow: inset 3px 0 0 #ff7a1a, var(--drop); }
+/* 3 нічний драг у режимі сцени: місяць сидів під табличкою «Розрив» HUD — нижче, правіше, між табличкою й неоновими щитами */
+body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13px, #ffb35a66 14px, #ff7a1a1f 30px, transparent 60px), radial-gradient(70% 55% at 50% 100%, #ff7a1a2e, transparent 70%), linear-gradient(#030206, #120a1c 55%, #2a1408); }
+/* 4 одна висота кнопок: «Забрати» дохід (50 px зі старого шару) поруч із 52-піксельними D-screens */
+.income .btn { min-height: 52px; }
+/* 5 одна жовта на екрані лота: «+5%» — головна дія, «Ставка» своєю сумою — нейтральна, як інші рядкові кнопки */
+.lot-own .btn.sm[data-act="lotBidOwn"] { background: var(--card2); color: var(--accent); box-shadow: inset 0 0 0 1px var(--line2); text-shadow: none; }
+/* ===== /Integration fixes ===== */

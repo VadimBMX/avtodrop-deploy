@@ -1,7 +1,7 @@
 // «Ніч Хелловіну» in the app (rules public/halloween.js, server src/halloween.js). Installed once by app.js with the
 // app's helpers; everything here reads me.halloween (null when the event is off, so all of it hides by itself):
 //   · body.hw-on — the CSS of the night drag scene, the ghost container skin and the small touches (style.css «hw-»);
-//   · a slim banner on top of «Гараж» and «Кейси» (in the flow, never over content) → the event sheet with the tasks;
+//   · a slim banner on top of «Гараж» and «Меню» (in the flow, never over content; like the rewards banner, never on «Кейси») → the event sheet;
 //   · the night drift palette and its pumpkins/bats (app.js driftScene asks hwNight() and draws hwDriftDeco()).
 import * as HW from './halloween.js';
 
@@ -18,7 +18,7 @@ function untilText(h) {
   const d = new Date(h.end - 1);
   return `до ${d.toLocaleDateString('uk-UA', { day: 'numeric', month: 'numeric', timeZone: 'Europe/Kyiv' })} 23:59`;
 }
-// The banner on «Гараж» and «Кейси»: in the page flow (prepended), one line, tap → the tasks.
+// The banner on «Гараж» and «Меню»: in the page flow (prepended), one line, tap → the tasks.
 function banner(h) {
   const done = h.tasks.filter((t) => t.done).length;
   const el = document.createElement('button');
@@ -35,7 +35,7 @@ function paint() {
   document.body.classList.toggle('hw-on', !!h?.on);
   const view = document.getElementById('view');
   const old = document.getElementById('hwBanner');
-  const want = !!h?.on && !st.page && !st.race && !st.drift && !st.opening && ['garage', 'cases'].includes(st.tab) && !(st.tab === 'cases' && st.drop?.length);
+  const want = !!h?.on && !st.page && !st.race && !st.drift && !st.opening && ['garage', 'menu'].includes(st.tab);
   if (!want) return old?.remove();
   const sig = `${st.tab}:${h.tasks.map((t) => t.progress).join(',')}`;
   if (old && old.dataset.sig === sig && old.parentNode === view) return;
@@ -78,7 +78,7 @@ export function hwDriftPumpkins(ctx, xs, ys, hs, from, to, half) {
   for (let i = from - (from % 45); i <= to; i += 45) {
     if (i < 0 || i >= xs.length) continue;
     const side = (i / 45) % 2 ? 1 : -1, off = half + 26;
-    const x = xs[i] - side * Math.sin(hs[i]) * off, y = ys[i] + side * Math.cos(hs[i]) * off;
+    const x = xs[i] + side * Math.cos(hs[i]) * off, y = ys[i] + side * Math.sin(hs[i]) * off; // heading 0 = up: (cos, sin) is across the road
     ctx.fillStyle = 'rgba(255,122,26,.16)';
     ctx.beginPath();
     ctx.arc(x, y, 22, 0, Math.PI * 2);
