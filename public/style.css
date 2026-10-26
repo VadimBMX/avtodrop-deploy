@@ -3720,3 +3720,142 @@ body.hw-on .dr-lamp { background: url("data:image/svg+xml,%3Csvg%20xmlns=%22http
 body.hw-on .dr-lamp::after { background: #ffcf8a; box-shadow: 0 0 8px 2px #ff8a1f99, 0 0 26px 8px #ff7a1a40; }
 body.hw-on .dr-road { background: linear-gradient(#1a1220, #0e0a14 60%, #0a0710); }
 @media (prefers-reduced-motion: reduce) { .hw-bats i, .ctr.skin-ghost .ctr-body::after, body.hw-on .dr-sky::after { animation: none; } }
+/* ===== D-race ===== */
+/* Drag, drift, boss, result, career (art-guide §D-race). Only race classes; base tokens from §2 with fallbacks, so
+   the block reads the same before and after D-screens' token block lands. */
+
+/* -- scene mode: body.racing is set by public/race-scene.js while #view shows a run (.drag / .d2) -- */
+body.racing .tabs { display: none; }
+body.racing #app { padding-bottom: calc(16px + var(--safe-b)); }
+body.racing .top { min-height: 44px; padding: 4px 16px; justify-content: flex-end; background: var(--bg); }
+body.racing .top .avatar, body.racing .top h1, body.racing .top .iconbtn { display: none; }
+body.racing .top .balance { padding-top: 5px; padding-bottom: 5px; }
+body.racing #view > .drag, body.racing #view > .d2 { padding-top: 8px; }
+body.racing #banners { display: none; } /* no toast over the HUD during a run */
+
+/* HUD captions in sentence case, 11 px muted; numbers stay large */
+.dr-hud small, .dr-tacho small, .dr-photo-t { text-transform: none; letter-spacing: 0; font: 600 11px/1.3 var(--f-body); }
+.dr-tacho small { top: 71px; }
+.dr-photo-t { font-weight: 700; }
+
+/* «Пізно / Рано» in the warning orange everywhere in the race (replaces #f2c14e) */
+.q-early, .q-late { color: var(--warn, #ff9f0a); border-color: color-mix(in srgb, var(--warn, #ff9f0a) 35%, transparent); }
+.dr-pop.q-early b, .dr-pop.q-late b { color: var(--warn, #ff9f0a); }
+.dr-slots span.q-early, .dr-slots span.q-late { background: color-mix(in srgb, var(--warn, #ff9f0a) 12%, #0e131b); color: var(--warn, #ff9f0a); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn, #ff9f0a) 30%, transparent); }
+.dr-dot.q-early, .dr-dot.q-late { background: var(--warn, #ff9f0a); }
+
+/* -- drag list: one compact strip of cars, fuel as a row, the rest under the rivals -- */
+#view .carpick.dr-strip { padding-bottom: 10px; }
+.dr-strip .car { width: 118px; padding: 7px 8px 8px; }
+.dr-strip .car .tr { display: none; }
+.dr-strip .car .art { height: 44px; margin: 14px 0 2px; }
+.dr-strip .car .nm { font-size: 13.5px; -webkit-line-clamp: 1; line-clamp: 1; }
+.dr-strip .car .meta .hn-sale, .dr-strip .car .meta.sellp, .dr-strip .car .meta.inc { display: none; }
+.dr-fuel { display: flex; align-items: center; gap: 8px; margin: -2px 0 8px; padding: 7px 12px; border-radius: var(--r, 14px); background: var(--card); border: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+.dr-fuel > .i { flex: none; width: 16px; height: 16px; }
+.dr-fuel .pips.fuel { flex: 1; min-width: 0; gap: 2px; margin: 0; }
+.dr-fuel .pips.fuel i { height: 7px; }
+.dr-fuel > b { flex: none; font: 700 14px var(--f-disp); color: var(--text); }
+.dr-fuel > b small { font-size: 11px; color: var(--muted); }
+.dr-fuel-t { flex: none; white-space: nowrap; }
+.dr-below:not(:empty) { display: grid; gap: 8px; margin-top: 16px; }
+.dr-below > * { margin: 0; }
+@media (max-width: 370px) { .dr-fuel-t { display: none; } }
+
+/* -- results: verdict in --t-3xl, the buttons in a sticky dock above the tab bar -- */
+.rhero-t { font-size: 40px; }
+.dr-res { padding-bottom: 4px; }
+.dr-res .chg-cta { margin: 10px 0 0; padding: 10px 12px; background: var(--card); box-shadow: none; border: 1px solid var(--line); border-radius: var(--r, 14px); }
+.dr-res .chg-cta .chg-ic { background: var(--card2); color: var(--muted); }
+.dr-res .chg-cta b { font-size: 15px; }
+.dr-dock { position: sticky; z-index: 4; bottom: calc(var(--tabs-h, 64px) + var(--safe-b)); margin: 0 -16px; padding: 14px 16px 26px;
+  background: linear-gradient(to bottom, transparent, var(--bg) 14px); }
+.dr-dock .dr-btns { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); margin-top: 0; }
+.dr-dock .btn { min-height: 52px; }
+.dr-dock .btn.ghost { padding-left: 6px; padding-right: 6px; font-size: 15.5px; white-space: nowrap; }
+.dr-dock .btn .ellipsis { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dr-res .dr-drift { margin-top: 4px; }
+.dr-res .boss-reward { background: var(--surf, var(--card)); border: 1px solid var(--line); box-shadow: inset 3px 0 0 var(--accent); }
+.dr-res .boss-reward .hook-t { color: var(--text); }
+.boss-unlock { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.boss-unlock .grow { min-width: 0; }
+.boss-unlock b { display: block; font: 700 16px var(--f-disp); }
+.boss-unlock .mini { width: 84px; height: 46px; flex: none; }
+
+/* -- drift: sentence-case signs, training as a quiet row once you have won -- */
+.dhud small { font-size: 11px; letter-spacing: 0; }
+.d2 .dsign { letter-spacing: .2px; font-size: 15px; }
+.dtrain-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 14px; font-size: 14px; color: var(--muted); }
+.dtrain-row b { color: var(--text); font-weight: 600; }
+.dtrain-row .i { vertical-align: -3px; }
+.dtrain-row .btn { width: auto; flex: none; }
+
+/* -- career: the current country as a vertical track, the others as one row each -- */
+.career-track { position: relative; margin-top: 20px; padding-left: 34px; scroll-margin-top: 64px; }
+.career-track::before { content: ''; position: absolute; left: 14px; top: 44px; bottom: 30px; width: 2px; border-radius: 1px; background: var(--line2); }
+.career-head { display: flex; align-items: center; gap: 8px; margin: 0 2px 10px -34px; font: 600 15px var(--f-disp); color: var(--muted); }
+.career-head b { color: var(--text); font-weight: 700; }
+.career-head span { margin-left: auto; }
+.career-node { position: relative; margin-bottom: 8px; }
+.career-node .rival.boss { border-radius: var(--r, 14px); background: var(--surf, var(--card)); }
+.career-pin { position: absolute; z-index: 1; left: -34px; top: 50%; display: grid; place-items: center; width: 30px; height: 30px; margin-top: -15px; border-radius: 50%;
+  background: var(--bg); box-shadow: inset 0 0 0 2px var(--line2); font: 700 13px var(--f-disp); color: var(--muted); }
+.career-pin .i { width: 15px; height: 15px; }
+.career-node.done .career-pin { background: color-mix(in srgb, var(--green) 18%, var(--bg)); box-shadow: inset 0 0 0 2px var(--green); color: var(--green); }
+.career-node.next .career-pin { box-shadow: inset 0 0 0 2px var(--text), 0 0 0 4px var(--bg); color: var(--text); }
+.career-node.next .rival.boss { padding-top: 14px; padding-bottom: 14px; box-shadow: inset 0 0 0 1px var(--line2); }
+.career-node.next .rival .mini.art.lit { width: 120px; height: 66px; }
+.career-node.lock .rival.boss { opacity: .72; }
+@media (max-width: 380px) { .career-node.next .rival .mini.art.lit { width: 100px; height: 58px; } }
+.career-row ~ .tiny, .career-track ~ .tiny { margin-top: 16px; }
+.career-row { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 8px; padding: 11px 14px; border-radius: var(--r, 14px); background: var(--card); border: 1px solid var(--line);
+  text-align: left; color: var(--muted); font-size: 13.5px; scroll-margin-top: 64px; }
+.career-row b { color: var(--text); font-weight: 600; }
+.career-row > .i { flex: none; width: 16px; height: 16px; }
+.career-row.done > .i { color: var(--green); }
+.career-row:first-of-type, .career-track + .career-row { margin-top: 16px; }
+
+/* -- boss intro (public/boss-intro.js): a fight poster, the boss top right facing you, you bottom left, VS on the seam -- */
+.boss-in { position: fixed; inset: 0; z-index: 90; display: flex; flex-direction: column; overflow: hidden; outline: none; cursor: pointer; color: var(--text);
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) max(20px, calc(50% - 240px)) calc(var(--safe-b) + 18px);
+  background: radial-gradient(65% 40% at 86% 30%, color-mix(in srgb, var(--bc) 32%, transparent), transparent 72%),
+    radial-gradient(65% 40% at 14% 64%, color-mix(in srgb, var(--me) 26%, transparent), transparent 72%), #06080d;
+  animation: bossInFade .2s ease-out both; }
+.boss-in.out { opacity: 0; transition: opacity .18s; }
+.boss-in-place { display: flex; align-items: center; justify-content: center; gap: 8px; font: 600 12.5px var(--f-body); color: var(--muted); }
+.boss-in-stage { position: relative; flex: 1; min-height: 240px; max-height: 520px; margin: 6px 0; }
+.boss-in-seam { position: absolute; left: -30%; right: -30%; top: 50%; height: 1px; transform: rotate(-17deg); background: linear-gradient(90deg, transparent, #ffffff3d 35%, #ffffff3d 65%, transparent); }
+.boss-in-car { position: absolute; width: 64%; }
+.boss-in-car.bs { --c: var(--bc); right: -5%; top: 4%; }
+.boss-in-car.me { --c: var(--me); left: -5%; bottom: 4%; }
+.boss-in-art { position: relative; display: block; }
+.boss-in-art img, .boss-in-art svg { position: relative; z-index: 1; display: block; width: 100%; height: auto; filter: drop-shadow(0 8px 6px #000c); }
+.boss-in-car.bs .boss-in-art { transform: scaleX(-1); }
+.boss-in-art::after { content: ''; position: absolute; left: 2%; right: 2%; bottom: -8px; height: 26px; border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--c) 80%, transparent), transparent); box-shadow: 0 0 34px -6px var(--c); }
+.boss-in-who { display: block; margin-top: 12px; padding: 0 7%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 12.5px/1.3 var(--f-body); color: var(--muted); }
+.boss-in-who b { color: var(--text); }
+.boss-in-car.bs .boss-in-who { text-align: right; }
+.boss-in-vs { position: absolute; left: 50%; top: 50%; z-index: 2; transform: translate(-50%, -50%) skewX(-8deg); font: 900 52px/1 var(--f-disp); letter-spacing: 1px; color: #fff;
+  text-shadow: -3px -2px 0 var(--me), 3px 2px 0 var(--bc), 0 6px 22px #000; }
+.boss-in-name { text-align: center; }
+.boss-in-name > b { display: block; font: 800 22px/1.1 var(--f-disp); transform: skewX(-8deg); }
+.boss-in-drv { margin-top: 5px; font: 600 12.5px var(--f-body); color: var(--muted); }
+.boss-in-drv { letter-spacing: .2px; }
+.boss-in-drv i { font-style: normal; color: var(--line2); }
+.boss-in-taunt { display: block; max-width: 30ch; margin: 12px auto 0; font: italic 500 14.5px/1.45 var(--f-body); color: #d4dae5; quotes: '«' '»'; }
+.boss-in-skip { margin-top: 16px; text-align: center; font: 600 11px var(--f-body); color: var(--muted); }
+.boss-in-time { position: absolute; left: 0; bottom: 0; width: 100%; height: 3px; background: var(--text); opacity: .45; transform-origin: left; animation: bossInTime var(--ms, 2200ms) linear both; }
+.boss-in:not(.rm) .boss-in-car.bs { animation: bossInR .5s cubic-bezier(.2, .8, .2, 1) both; }
+.boss-in:not(.rm) .boss-in-car.me { animation: bossInL .5s .12s cubic-bezier(.2, .8, .2, 1) both; }
+.boss-in:not(.rm) .boss-in-vs { animation: bossInVs .32s .44s cubic-bezier(.3, 1.4, .5, 1) both; }
+.boss-in:not(.rm) .boss-in-name > b, .boss-in:not(.rm) .boss-in-drv { animation: bossInUp .3s .62s ease-out both; }
+.boss-in:not(.rm) .boss-in-taunt { animation: bossInUp .3s .8s ease-out both; }
+@keyframes bossInFade { from { opacity: 0; } }
+@keyframes bossInR { from { opacity: 0; transform: translateX(70%); } }
+@keyframes bossInL { from { opacity: 0; transform: translateX(-70%); } }
+@keyframes bossInVs { from { opacity: 0; transform: translate(-50%, -50%) skewX(-8deg) scale(1.9); } }
+@keyframes bossInUp { from { opacity: 0; transform: translateY(8px); } }
+@keyframes bossInTime { from { transform: scaleX(0); } }
+@media (max-height: 700px) { .boss-in-stage { min-height: 200px; } .boss-in-taunt { margin-top: 8px; } }
+@media (prefers-reduced-motion: reduce) { .boss-in, .boss-in * { animation: none !important; transition: none !important; } }

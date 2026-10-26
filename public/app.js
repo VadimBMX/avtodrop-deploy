@@ -17,6 +17,9 @@ import * as G from './ghost.js';
 import { challengeCard } from './challenge-card.js';
 // «Ніч Хелловіну»: banner, event sheet, night drift (public/halloween-ui.js; hides itself when me.halloween is null).
 import { installHalloween, hwNight, HW_DRIFT, hwDriftPumpkins, hwDriftOverlay } from './halloween-ui.js';
+// D-race: the boss's fight-poster intro before the lights; «scene mode» (no tab bar) while a run is on screen.
+import { bossIntro } from './boss-intro.js';
+import { watchScene } from './race-scene.js';
 
 const tg = window.Telegram?.WebApp;
 const $ = (s, el = document) => el.querySelector(s);
@@ -1796,17 +1799,21 @@ TABS.race = async () => {
   if (state.raceView === 'career') return seg + await careerView(car, garage);
   const { list } = await api('race/rivals', { carId: car.id });
   const cls = M(car.model).cls;
+  // D-race: segments → one strip of cars → rivals (fuel as a compact row in their header), so the first rival is in
+  // view on a 740 px phone; the day's race, the streak and the rest go under the rivals (#drBelow).
   return seg + `<div class="h2"><span>Твоя машина</span><span>${garage.length}</span></div>
-    <div class="carpick">${garage.map((c) => carTile(c, { act: 'pickRaceCar', sel: c.id === car.id, showTank: true })).join('')}</div>
-    ${fuelCard(car)}
+    <div class="carpick dr-strip">${garage.map((c) => carTile(c, { act: 'pickRaceCar', sel: c.id === car.id, showTank: true })).join('')}</div>
+    ${me.fuel < 1 ? fuelOut() : ''}
     <div class="h2"><span>Суперники · клас ${cls}</span><span>драг 402 м</span></div>
+    ${me.fuel < 1 ? '' : fuelRow(car)}
     <div class="list rivals">${list.map((r) => `<button class="rival d-${r.id}" data-act="startRace" data-rival="${r.id}">
       ${miniCar(r.model)}
       <div class="grow"><b class="ellipsis">${esc(r.name)}</b><div class="small muted rv-meta"><span class="ellipsis">${esc(M(r.model).name)}</span><span class="nw">· ${r.hp} к.с.</span></div>${r.driver ? `<div class="tiny muted rv-drv">водій: ${esc(r.driver)}</div>` : ''}
         <div class="row mt" style="gap:6px"><span class="diff ${r.id}">${r.label}</span>${rivalChanceChip(r)}</div></div>
       <div class="center"><b class="win">+${S.short(r.prize)}</b><div class="tiny muted">${r.entry ? `внесок ${S.short(r.entry)}` : 'без внеску'}</div>${r.et ? `<div class="tiny muted">${dec(r.et, 2)} с</div>` : ''}</div></button>`).join('')}</div>
+    <div class="dr-below" id="drBelow"></div>
     ${challengeRaceRow()}
-    <details class="dr-how"><summary>${ic('info-circle')} Як їздити</summary><div class="tiny muted">Тисни на суперника, щоб почати. Три жовті — чекай; щойно загориться зелений, жми «ГАЗ». Натиснеш до зеленого — фальстарт (−8% потужності). Реакція 0,10–0,15 с — ідеальний старт (+4%). Під час заїзду перемикай передачі, коли стрілка тахометра в зеленій зоні; не встигнеш — передача перемкнеться сама на відсічці, але пізно. Програв — внесок згоряє.</div>
+    <details class="dr-how"><summary>${ic('info-circle')} Як їздити</summary><div class="tiny muted">Тисни на суперника, щоб почати. Три жовті — чекай; щойно загориться зелений, жми «Газ». Натиснеш до зеленого — фальстарт (−8% потужності). Реакція 0,10–0,15 с — ідеальний старт (+4%). Під час заїзду перемикай передачі, коли стрілка тахометра в зеленій зоні; не встигнеш — передача перемкнеться сама на відсічці, але пізно. Програв — внесок згоряє.</div>
       <div class="tiny muted mt">${RIVAL_HONEST_TEXT}</div></details>`;
 };
 // «Чесний шанс»: the chance chip of a solo rival — or, for an easy rival you'd lose more often than not right now,
@@ -1820,6 +1827,12 @@ function fuelCard(car, extra = '') {
     <div class="pips fuel">${Array.from({ length: S.FUEL_MAX }, (_, i) => `<i class="${i < me.fuel ? 'on' : ''}"></i>`).join('')}</div>
     <div class="row between small"><span class="muted">${me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : 'Бак повний'}</span><span class="muted">заїзд = 1 пальне</span></div>
     ${extra || `<div class="tiny muted mt">Один бак на всі машини, +1 кожні ${S.FUEL_REGEN_MIN} хв · ${car.hp} к.с. · ${dec(car.et, 2)} с на 402 м</div>`}</div>`;
+}
+// D-race: the same tank as one compact row (15 pips, n/15, when the next one comes) in the rivals' header.
+function fuelRow(car) {
+  return `<div class="dr-fuel" title="Один бак на всі машини, +1 кожні ${S.FUEL_REGEN_MIN} хв · ${car.hp} к.с. · ${dec(car.et, 2)} с на 402 м">${ic('gas-station')}
+    <span class="pips fuel">${Array.from({ length: S.FUEL_MAX }, (_, i) => `<i class="${i < me.fuel ? 'on' : ''}"></i>`).join('')}</span>
+    <b>${me.fuel}<small>/${S.FUEL_MAX}</small></b><span class="dr-fuel-t">${me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : 'бак повний'}</span></div>`;
 }
 // An empty tank: the rivals below grey out (CSS .fuel-out ~ .rivals) and this card says when the next one comes and
 // what to do meanwhile — instead of an error toast on a tap. The screen redraws itself when the fuel is back.
@@ -1878,11 +1891,12 @@ function resultFx() {
 function clearFab() {
   const row = $('.dr-btns') || $('#view [data-act="bossNext"], #view [data-act="bossAgain"], #view [data-act="driftAgain"]');
   const fab = $('#tabs button[data-tab="cases"] .i');
-  if (!row || !fab) return;
+  if (!row || !fab || row.closest('.dr-dock')) return; // D-race: the sticky dock already sits above the bar
   const r = row.getBoundingClientRect(), top = fab.getBoundingClientRect().top - 10;
   const need = r.bottom - top;
   if (need > 0 && r.top < $('#tabs').getBoundingClientRect().top && need < innerHeight / 4) window.scrollBy({ top: need, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
 }
+watchScene(); // D-race scene mode: body.racing while #view shows a run
 AFTER.race = () => {
   resultFx();
   const pick = $('.carpick'), cur = pick?.querySelector('.car.sel');
@@ -2456,7 +2470,9 @@ function raceResult() {
   const amount = r.win ? '+' + S.fmt(r.prize) : r.entry ? '−' + S.fmt(r.entry) : 'Тренування';
   const note = r.win ? (r.entry ? `приз · внесок ${S.short(r.entry)} повернувся` : 'приз') : r.entry ? 'внесок згорів' : 'без внеску — нічого не втрачено';
   const shiftsTxt = lost > 0.0005 ? `втрачено ${dec(lost, 2)} с` : lost < -0.0005 ? `виграно ${dec(-lost, 2)} с` : 'без втрат';
-  return `<div class="rhero ${r.win ? 'win' : 'lose'}"><div class="rhero-t">${r.win ? 'Перемога!' : 'Поразка'}</div>
+  // D-race: the result scrolls under a sticky dock (.dr-dock) — «Ще раз» and «Інший суперник» stay above the bar on
+  // any phone; the friend challenge is a plain list row after the breakdown.
+  return `<div class="dr-res"><div class="rhero ${r.win ? 'win' : 'lose'}"><div class="rhero-t">${r.win ? 'Перемога!' : 'Поразка'}</div>
       <div class="rhero-sub">${r.win ? 'швидше' : 'повільніше'} на <b>${dec(r.diff, 3)} с</b> · ${gapM >= 0.5 ? `≈ ${Math.round(gapM)} м` : 'ніс у ніс'}</div>
       <div class="rhero-amt">${amount}</div><div class="tiny muted">${note}</div></div>
     <div class="dr-photo" aria-hidden="true"><span class="dr-photo-t">Фотофініш · 402 м</span><i class="dr-photo-line"></i>
@@ -2466,14 +2482,14 @@ function raceResult() {
       <div class="${r.win ? 'won' : ''}"><small>Ти</small><b>${dec(r.time, 3)} с</b><span class="ellipsis">${esc(M(car.model).name)}</span></div>
       <div class="${r.win ? '' : 'won'}"><small class="ellipsis">${esc(R.rival.name)}</small><b>${dec(r.rivalTime, 3)} с</b><span class="ellipsis">${esc(M(R.rival.model).name)}</span></div></div>
     ${whyHtml(why)}
-    ${challengeCta(R)}
     <div class="card dr-sum">
       <div class="dr-row"><span class="dr-dot q-${st.q}"></span><div class="grow"><b>${st.t}</b><div class="small muted">${st.s}</div></div></div>
       <div class="dr-row"><span class="dr-dot q-${lost > 0.0005 ? 'late' : lost < -0.0005 ? 'perfect' : 'good'}"></span><div class="grow"><b>Передачі: ${shiftsTxt}</b>
         <div class="dr-chips">${r.shifts.map((q, i) => `<span class="qchip q-${q}">${i + 1}→${i + 2} ${QLABEL[q]}</span>`).join('')}</div></div></div>
       ${tip ? `<div class="dr-tip">${ic('info-circle')}<span>${tip}</span></div>` : ''}</div>
-    <div class="dr-btns"><button class="btn yellow btn2" data-act="raceRetry" data-rival="${esc(R.rival.id)}" ${me.fuel < 1 ? 'disabled' : ''}><span>${ic('refresh')} Ще раз</span><small>${R.rival.label ? `${esc(R.rival.label)} · ` : ''}${ic('gas-station')}${me.fuel}/${S.FUEL_MAX}</small></button>
-      <button class="btn outline" data-act="raceExit">Інший суперник</button></div>`; // no line under the buttons: the raised «Кейси» covered it
+    ${challengeCta(R)}</div>
+    <div class="dr-dock"><div class="dr-btns"><button class="btn yellow btn2" data-act="raceRetry" data-rival="${esc(R.rival.id)}" ${me.fuel < 1 ? 'disabled' : ''}><span>${ic('refresh')} Ще раз</span><small>${R.rival.label ? `${esc(R.rival.label)} · ` : ''}${ic('gas-station')}${me.fuel}/${S.FUEL_MAX}</small></button>
+      <button class="btn ghost" data-act="raceExit">Інший суперник</button></div></div>`;
 }
 // ---------- drift («Дрифт 2.0») ----------
 const DRIFT_RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -2534,11 +2550,12 @@ async function driftView(car, garage) {
   const track = S.driftTrack(tseed), corners = track.segs.filter((g) => g.kind !== 'straight');
   const dots = S.driftDots(model);
   return `<div class="h2"><span>Твоя машина</span><span>${garage.length}</span></div>
-    <div class="carpick">${garage.map((c) => carTile(c, { act: 'pickRaceCar', sel: c.id === car.id, showTank: true })).join('')}</div>
+    <div class="carpick dr-strip">${garage.map((c) => carTile(c, { act: 'pickRaceCar', sel: c.id === car.id, showTank: true })).join('')}</div>
     ${me.fuel < 1 ? fuelOut() : ''}<div class="card mt"><div class="row between"><b class="disp" style="font-size:16px">${ic('gas-station')} Пальне ${me.fuel}/${S.FUEL_MAX}</b><span class="small muted">${me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}"></span>` : 'бак повний'}</span></div>
       <div class="dfeel mt"><div class="row between"><span>Тримається в повороті</span>${dDots(dots.hold)}</div><div class="row between"><span>Швидкість</span>${dDots(dots.speed)}</div></div>
       <div class="tiny muted mt">Підвіска й диски — машина краще тримається в повороті. Потужність — більше швидкості, але занос різкіший.</div></div>
-    ${train ? `<div class="card mt dtrain"><div class="row between"><b class="disp" style="font-size:16px">${ic('target-arrow')} Тренування</b><span class="chip ready">безкоштовно</span></div>
+    ${train && prefGet('driftWon') ? `<div class="card mt dtrain-row"><span class="grow">${ic('target-arrow')} <b>Тренування</b> · безкоштовно</span><button class="btn sm ghost" data-act="startDrift" data-rival="train">${ic('player-play')} Тренуватися</button></div>`
+    : train ? `<div class="card mt dtrain"><div class="row between"><b class="disp" style="font-size:16px">${ic('target-arrow')} Тренування</b><span class="chip ready">безкоштовно</span></div>
       <div class="small muted mt">Без внеску, без пального й без призу. Над кожним поворотом — підказка: кут і швидкість, а знизу — що робити з газом зараз. Ціль — ${S.fmt(train.target).replace(' ₴', '')} очок, як у Легкого.</div>
       <button class="btn mt" data-act="startDrift" data-rival="train">${ic('player-play')} Тренуватися</button></div>` : ''}
     <div class="card mt dtcard"><div class="row between"><b class="disp" style="font-size:15px">Траса дня</b><span class="small muted">${track.length} м · ${corners.length} поворотів</span></div>
@@ -2551,7 +2568,7 @@ async function driftView(car, garage) {
         <div class="row mt" style="gap:6px"><span class="diff ${r.id}">${r.label}</span><span class="chip">ціль ${S.fmt(r.target).replace(' ₴', '')} очок</span></div></div>
       <div class="center"><b class="win">+${S.short(r.prize)}</b><div class="tiny muted">${r.entry ? `внесок ${S.short(r.entry)}` : 'без внеску'}</div></div></button>`).join('')}</div>
     <div class="card dhow"><b>Як їздити</b>
-      <p>Одна кнопка — «ГАЗ». <b>На прямій</b> тримай — розганяєшся, відпусти — гальмуєш. <b>У повороті</b> тримай — заносить сильніше, відпусти — вирівнюєшся.</p>
+      <p>Одна кнопка — «Газ». <b>На прямій</b> тримай — розганяєшся, відпусти — гальмуєш. <b>У повороті</b> тримай — заносить сильніше, відпусти — вирівнюєшся.</p>
       <p>Тримай стрілку в зеленій зоні повороту — у кожного свій кут: швидкий 28°, середній 36°, шпилька 44°. Очки капають за кожен метр у зоні: ×1,5 у самому центрі, більше на швидкості, менше, коли машину виносить з траєкторії.</p>
       <p>Залетиш у поворот надто швидко або з малим кутом — <b>«Знесло!»</b>. Перебереш кут — <b>«Розворот!»</b> і половина очок повороту згорає. Чисті повороти поспіль множать очки: комбо ×1,5 → ×2 → … ×3.</p></div>`;
 }
@@ -2576,15 +2593,15 @@ function driftScreen() {
   const pct = (a) => `${(a / 90) * 100}%`;
   const corners = D.trackObj.segs.filter((g) => g.kind !== 'straight');
   return `<div class="drift d2">
-    <div class="dhud"><div><small>ОЧКИ</small><b id="dScore">0</b><em id="dPend"></em></div><div class="center"><small>КОМБО</small><b id="dCombo">×1</b></div><div style="text-align:right"><small>${esc(D.rival.name)}</small><b>${dPts(D.rival.target)}</b></div></div>
+    <div class="dhud"><div><small>Очки</small><b id="dScore">0</b><em id="dPend"></em></div><div class="center"><small>Комбо</small><b id="dCombo">×1</b></div><div style="text-align:right"><small>${esc(D.rival.name)}</small><b>${dPts(D.rival.target)}</b></div></div>
     <div class="progress gold"><i id="dBar"></i></div>
     <div class="ddots" id="dDots">${corners.map((g) => `<i class="k-${g.kind}" title="${DKIND[g.kind]}">${dArrow(g.dir)}</i>`).join('')}</div>
     <div class="dtrack" id="dTrack"><canvas id="dCanvas"></canvas>
-      <div class="dsign" id="dSign">ГОТУЙСЯ</div><div class="dmsg" id="dMsg"><b></b><small></small></div><div class="dspd" id="dSpd"></div></div>
+      <div class="dsign" id="dSign">Готуйся</div><div class="dmsg" id="dMsg"><b></b><small></small></div><div class="dspd" id="dSpd"></div></div>
     <div class="dgauge"><span class="dz" id="dZone"></span><span class="di" id="dIdeal"></span><span class="dr" style="left:${pct(D.model.spin)}"></span><i id="dNeedle"></i></div>
     <div class="row between tiny muted mt"><span>0°</span><span id="dAngle">кут 0°</span><span>90°</span></div>
-    <div class="center mt ${D.training ? 'dtip' : 'small muted'}" id="dHint">Тримай «ГАЗ», щоб розігнатись</div>
-    <button class="btn racebtn gas mt" id="dGas">ГАЗ</button></div>`;
+    <div class="center mt ${D.training ? 'dtip' : 'small muted'}" id="dHint">Тримай «Газ», щоб розігнатись</div>
+    <button class="btn racebtn gas mt" id="dGas">Газ</button></div>`;
 }
 // Top-down drift scene on a canvas: the day's track (corners with red-white kerbs, start and finish lines) on a
 // grass pattern, the car sliding at the drift angle and pushed across the road by the line, black tyre marks and
@@ -2797,7 +2814,7 @@ function runDrift() {
     put('dIdeal', pct((2 * M2.half) / 3), 'width');
   };
   gauge(segs[1]);
-  put('dSign', `ДАЛІ ${dArrow(segs[1].dir)} ${DKIND[segs[1].kind].toUpperCase()} · ${segs[1].center}°`);
+  put('dSign', `Далі ${dArrow(segs[1].dir)} ${DKIND[segs[1].kind].toLowerCase()} · ${segs[1].center}°`);
   // While the lights count down the car waits on the start line.
   let idle = performance.now();
   const wait = (now) => {
@@ -2845,7 +2862,7 @@ function runDrift() {
     haptic('light');
     if (n > 0) return (el('dSign').textContent = n);
     clearInterval(count);
-    el('dSign').textContent = 'ПОЇХАЛИ!';
+    el('dSign').textContent = 'Поїхали!';
     D.phase = 'run';
     t0 = last = performance.now();
     raf = requestAnimationFrame(frame);
@@ -2855,12 +2872,12 @@ function runDrift() {
     for (const e of sim.events.splice(0)) {
       if (e.k === 'corner') {
         const g = segs[sim.seg];
-        put('dSign', `${dArrow(g.dir)} ${DKIND[g.kind].toUpperCase()} ${e.i + 1}/${N}`);
+        put('dSign', `${dArrow(g.dir)} ${DKIND[g.kind]} ${e.i + 1}/${N}`);
         gauge(g);
         dots[e.i]?.classList.add('now');
       } else if (e.k === 'straight') {
         const g = segs[sim.seg + 1];
-        put('dSign', g ? `ДАЛІ ${dArrow(g.dir)} ${DKIND[g.kind].toUpperCase()} · ${g.center}°` : 'ФІНІШ!');
+        put('dSign', g ? `Далі ${dArrow(g.dir)} ${DKIND[g.kind].toLowerCase()} · ${g.center}°` : 'Фініш!');
         gauge(g);
       } else if (e.k === 'zone') haptic('light');
       else if (e.k === 'spin') (msg('Розворот!', DGRADE.spin[1], 'комбо згоріло'), haptic('error'), scene.bump(0.5));
@@ -2916,12 +2933,12 @@ function runDrift() {
       let tip = hint, tone = 'ok';
       if (g.kind === 'straight') {
         const nx = segs[sim.seg + 1];
-        if (nx && sim.v > nx.vref * 1.15) (tip = `ВІДПУСТИ ГАЗ — гальмуй до ${Math.round(nx.vref * 3.6)} км/год`, tone = 'stop');
-        else if (nx && sim.v < nx.vref * 0.85) (tip = 'ТРИМАЙ ГАЗ — розганяйся', tone = 'go');
+        if (nx && sim.v > nx.vref * 1.15) (tip = `Відпусти газ — гальмуй до ${Math.round(nx.vref * 3.6)} км/год`, tone = 'stop');
+        else if (nx && sim.v < nx.vref * 0.85) (tip = 'Тримай газ — розганяйся', tone = 'go');
         else if (nx) tip = `Заходь у поворот: тримай газ, кут ${nx.center}°`;
       } else if (t >= sim.spinUntil) {
-        if (ang > g.center + M2.half) (tip = 'ВІДПУСТИ — забагато кута!', tone = 'stop');
-        else if (ang < g.center - M2.half) (tip = `ТИСНИ ГАЗ — більше кута (до ${g.center}°)`, tone = 'go');
+        if (ang > g.center + M2.half) (tip = 'Відпусти — забагато кута!', tone = 'stop');
+        else if (ang < g.center - M2.half) (tip = `Тисни газ — більше кута (до ${g.center}°)`, tone = 'go');
         else tip = 'Так тримай — стрілка в зеленій зоні';
       }
       put('dHint', tip);
@@ -2935,7 +2952,7 @@ function runDrift() {
     removeEventListener('keyup', ku);
     D.phase = 'wait';
     D.local = sim.corners;
-    put('dSign', 'ФІНІШ!');
+    put('dSign', 'Фініш!');
     try {
       D.result = await api('drift/finish', { runId: D.runId, score: sim.score, clean: sim.clean, spins: sim.spins, log: sim.log });
     } catch (e) {
@@ -2955,16 +2972,16 @@ function runDrift() {
 function driftResult() {
   const D = state.drift, r = D.result, cs = r.corners || D.local || [];
   const best = Math.max(1, ...cs.map((c) => c.pts));
+  if (r.win && !r.training) prefSet('driftWon', 1); // D-race: from now on training is a quiet row on the drift list
+  // D-race: the verdict the way the drag result says it (.rhero), the buttons in the sticky dock.
   const head = r.training
-    ? `<div class="center mt2"><div class="tiny muted">Дрифт · тренування</div><div class="big ${r.win ? 'win' : ''}">${r.win ? 'Ціль виконано!' : 'Ще трохи'}</div>
-    <div class="dfinal mt">${dPts(r.score)} <span class="muted small">очок</span></div>
-    <div class="muted">ціль тренування: ${dPts(r.target)} · без призу й внеску</div>
-    <div class="small muted mt">${r.win ? 'Так проходиш Легкого суперника — спробуй на гроші.' : 'Дивись, де повороти не чисті, і тримай стрілку в зеленій зоні.'}</div></div>`
-    : `<div class="center mt2"><div class="tiny muted">Дрифт</div><div class="big ${r.win ? 'win' : 'lose'}">${r.win ? 'Перемога!' : 'Поразка'}</div>
-    <div class="dfinal mt">${dPts(r.score)} <span class="muted small">очок</span></div>
-    <div class="muted">ціль ${esc(r.rival.name)}: ${dPts(r.target)}</div>
-    <div style="font-size:24px;font-weight:900" class="mt ${r.win ? 'win' : 'lose'}">${r.win ? '+' + S.fmt(r.prize) : '−' + S.fmt(r.entry)}</div></div>`;
-  return `${head}
+    ? `<div class="rhero dr-drift ${r.win ? 'win' : 'lose'}"><div class="rhero-tag">Дрифт · тренування</div><div class="rhero-t">${r.win ? 'Ціль виконано!' : 'Ще трохи'}</div>
+    <div class="rhero-sub"><b>${dPts(r.score)}</b> очок · ціль ${dPts(r.target)}</div>
+    <div class="tiny muted mt">${r.win ? 'Так проходиш Легкого суперника — спробуй на гроші.' : 'Дивись, де повороти не чисті, і тримай стрілку в зеленій зоні.'}</div></div>`
+    : `<div class="rhero dr-drift ${r.win ? 'win' : 'lose'}"><div class="rhero-tag">Дрифт</div><div class="rhero-t">${r.win ? 'Перемога!' : 'Поразка'}</div>
+    <div class="rhero-sub"><b>${dPts(r.score)}</b> очок · ціль ${esc(r.rival.name)}: ${dPts(r.target)}</div>
+    <div class="rhero-amt">${r.win ? '+' + S.fmt(r.prize) : '−' + S.fmt(r.entry)}</div><div class="tiny muted">${r.win ? 'приз' : 'внесок згорів'}</div></div>`;
+  return `<div class="dr-res">${head}
     <div class="dsum mt"><div><b>${r.clean}/${S.DRIFT.corners}</b><small>чистих</small></div><div><b>${dMult(r.maxCombo || 1)}</b><small>макс. комбо</small></div>
       <div><b>${r.spins}</b><small>розворотів</small></div><div><b>${r.wides ?? 0}</b><small>знесло</small></div></div>
     ${cs.length ? `<div class="h2"><span>Повороти</span><span>бали × комбо</span></div>
@@ -2973,9 +2990,9 @@ function driftResult() {
       <div class="grow"><b>${dArrow(c.dir)} ${DKIND[c.kind]} <em>${DGRADE[c.grade][0]}</em></b>
         <div class="tiny muted">у зоні ${c.zone}% · центр ${c.ideal}% · лінія ${c.line}% · ${c.kmh} км/год</div></div>
       <div class="dp"><b>${dPts(c.pts)}</b><small>${c.base}${c.mult > 1 ? ' ' + dMult(c.mult) : ''}</small></div></div>`).join('')}</div>` : ''}
-    ${r.training ? '<button class="btn yellow mt" data-act="driftTrainAgain">Ще тренування</button>'
-      : `<button class="btn yellow mt" data-act="driftAgain" ${me.fuel < 1 ? 'disabled' : ''}>Ще дрифт · пальне ${me.fuel}/${S.FUEL_MAX}</button>`}
-    <button class="btn outline mt" data-act="driftExit">До суперників</button>`;
+    </div><div class="dr-dock"><div class="dr-btns">${r.training ? '<button class="btn yellow" data-act="driftTrainAgain">Ще тренування</button>'
+      : `<button class="btn yellow btn2" data-act="driftAgain" ${me.fuel < 1 ? 'disabled' : ''}><span>${ic('refresh')} Ще дрифт</span><small>${ic('gas-station')}${me.fuel}/${S.FUEL_MAX}</small></button>`}
+    <button class="btn ghost" data-act="driftExit">До суперників</button></div></div>`;
 }
 H.driftTrainAgain = () => {
   state.drift = null;
@@ -3042,13 +3059,9 @@ async function careerView(car, garage) {
   return `${hero}
     ${nextCard}
     <div class="h2"><span>Твоя машина</span><span>${garage.length}</span></div>
-    <div class="carpick">${garage.map((c) => carTile(c, { act: 'pickRaceCar', sel: c.id === car.id, showTank: true })).join('')}</div>
-    ${fuelCard(car)}
-    ${S.BOSS_COUNTRIES.map((c) => {
-      const bs = bossOf(c);
-      return `<div class="h2" id="cc-${c}"><span class="row" style="gap:8px">${flagEmblem(c)} ${S.COUNTRIES[c].name}</span><span>${bs.filter((b) => st[b.id].beaten).length}/${bs.length}</span></div>
-      <div class="list rivals bosses">${bs.map((b) => bossRow(b, st[b.id])).join('')}</div>`;
-    }).join('')}
+    <div class="carpick dr-strip">${garage.map((c) => carTile(c, { act: 'pickRaceCar', sel: c.id === car.id, showTank: true })).join('')}</div>
+    ${me.fuel < 1 ? fuelOut() : fuelRow(car)}
+    ${careerCountries(here, st)}
     <div class="tiny muted">Бос їде завжди однаково — сильніша машина, деталі й чисті перемикання дають тобі шанс. Кожен бос пускає лише машини свого вікна класу (напр. «лише B» чи «C–B»), а фінальний бос країни — лише машину цієї країни, тож одна сильна машина всю кар'єру не пройде. Перша перемога над босом дає нагороду один раз і відкриває наступного; реванш — як звичайна гонка, а «Реванш · складний» (кращий кіт і сильніший водій) платить ×${S.BOSS_HARD.prizeMult} — одна перемога на день. Пальне — як у драг-заїзді.</div>`;
 }
 const bossChance = (s) => (s.chance == null ? '' : `<span class="chip">шанс ${s.chance < 1 ? '<1' : s.chance}%</span>`);
@@ -3073,7 +3086,32 @@ function bossRow(b, s) {
       <div class="row mt" style="gap:6px">${tag}${s.open && !s.beaten ? bossChance(s) : ''}${s.beaten ? (s.hard?.done ? `<span class="chip">${ic('check')} складний сьогодні</span>` : '<span class="chip bs-hard">складний ×2</span>') : ''}</div></div>
     <div class="center">${s.beaten ? `<b class="muted">${s.best != null ? dec(s.best, 2) + ' с' : ''}</b><div class="tiny muted">реванш</div>` : `<b class="win">+${S.short(b.reward.money)}</b><div class="tiny muted">${b.final ? 'і значок' : 'нагорода'}</div>`}</div></button>`;
 }
-H.careerJump = (d) => $('#cc-' + d.c)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+// D-race «мапа країни»: only the current country (or the one opened from the flags) is drawn as a vertical track of
+// its bosses — beaten with a tick, the next one large, the rest as silhouettes; every other country is one row
+// «Японія · 0/4 · фінал: Годзілла» that opens its track.
+function careerCountries(here, st) {
+  const open = state.careerOpen && state.careerOpen !== here ? state.careerOpen : null;
+  return S.BOSS_COUNTRIES.map((c) => {
+    const bs = bossOf(c), n = bs.filter((b) => st[b.id].beaten).length;
+    if (c === here || c === open) {
+      return `<div class="career-track ${c === here ? 'here' : ''}" id="cc-${c}"><div class="career-head">${flagEmblem(c)}<b>${S.COUNTRIES[c].name}</b><span>${n}/${bs.length}</span></div>
+        ${bs.map((b, i) => {
+          const s = st[b.id];
+          return `<div class="career-node ${s.beaten ? 'done' : s.open ? 'next' : 'lock'}"><span class="career-pin">${s.beaten ? ic('check') : i + 1}</span>${bossRow(b, s)}</div>`;
+        }).join('')}</div>`;
+    }
+    const fin = bs.find((b) => b.final) || bs.at(-1);
+    return `<button class="career-row ${n === bs.length ? 'done' : ''}" id="cc-${c}" data-act="careerJump" data-c="${c}">${flagEmblem(c)}<span class="grow ellipsis"><b>${S.COUNTRIES[c].name}</b> · ${n}/${bs.length} · фінал: ${esc(fin.nick)}</span>${n === bs.length ? ic('check') : ic('chevron-right')}</button>`;
+  }).join('');
+}
+H.careerJump = async (d) => {
+  const here = state.career?.next ? BOSS(state.career.next).country : S.BOSS_COUNTRIES.at(-1);
+  if (d.c !== here) {
+    state.careerOpen = state.careerOpen === d.c ? null : d.c;
+    await render();
+  }
+  $('#cc-' + d.c)?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+};
 H.bossCard = (d) => {
   const b = BOSS(d.id);
   if (!b) return;
@@ -3099,7 +3137,7 @@ H.bossCard = (d) => {
       ${s.beaten ? row('flame', 'Реванш · складний', `${h.kit ? `${S.TIER_BY_ID[h.kit].name}-кіт` : 'без тюнінгу'} · ${h.hp} к.с. · водій ${S.BOSS_AI[h.ai].name} · ~${dec(h.et, 2)} с<br>${hs.done ? 'Сьогодні вже виграно — завтра знову' : `приз ×${S.BOSS_HARD.prizeMult}${hs.prize != null ? `: +${S.short(hs.prize)}, внесок ${S.short(hs.entry)}` : ''} · перемога раз на день`}`, hs.chance != null && !hs.done ? `<b>${hs.chance < 1 ? '<1' : hs.chance}%</b>` : '') : ''}
     </div>
     <button class="btn yellow mt" data-act="startBoss" data-id="${b.id}" ${!s.open || !s.fits || me.fuel < 1 ? 'disabled' : ''}>${btn}</button>
-    ${s.beaten ? `<button class="btn outline mt bc-hard" data-act="startBoss" data-id="${b.id}" data-hard="1" ${hs.done || !s.fits || me.fuel < 1 ? 'disabled' : ''}>${ic('flame')} Реванш · складний ×${S.BOSS_HARD.prizeMult}</button>` : ''}</div>`);
+    ${s.beaten ? `<button class="btn ghost mt bc-hard" data-act="startBoss" data-id="${b.id}" data-hard="1" ${hs.done || !s.fits || me.fuel < 1 ? 'disabled' : ''}>${ic('flame')} Реванш · складний ×${S.BOSS_HARD.prizeMult}</button>` : ''}</div>`);
 };
 H.startBoss = async (d) => {
   let r;
@@ -3112,10 +3150,26 @@ H.startBoss = async (d) => {
   me.fuel--;
   renderHeader();
   hideClaimBanners();
+  // D-race: the boss walks out first (a fight-poster card, 2.2 s, a tap skips) — before the race screen and runRace(),
+  // so the server's clock for the run is not touched. «Ще спроба» (d.again) goes straight to the lights.
+  if (!d.again) await bossIntroFor(d.id, r, d.hard === '1');
   state.race = { phase: 'lights', id: r.raceId, car: r.car, rival: r.rival, greenMs: r.greenMs, reaction: null, shifts: [], gear: 1, result: null };
   await render();
   runRace();
 };
+function bossIntroFor(id, r, hard) {
+  const b = BOSS(id);
+  if (!b) return null;
+  const bs = bossOf(b.country), ai = S.BOSS_AI[(hard ? S.bossHard(b) : b).ai] || S.BOSS_AI[b.ai];
+  const mc = M(r.car.model), bm = M(b.model);
+  haptic('medium');
+  return bossIntro({
+    place: `${flagEmblem(b.country)} ${S.COUNTRIES[b.country].name} · бос ${bs.indexOf(b) + 1} з ${bs.length}${b.final ? ' · фінал' : ''}${hard ? ' · складний' : ''}`,
+    meArt: carArt(r.car.model, { look: r.car.look }), meCar: `${esc(mc.name)} · ${r.car.hp} к.с.`, meColor: S.CLASSES[mc.cls].color,
+    bossArt: carArt(b.model, { glow: true }), bossCar: `${esc(bm.name)} · ${r.rival.hp || b.hp} к.с.`, bossColor: S.CLASSES[bm.cls].color,
+    nick: esc(b.nick), driver: `${'★'.repeat(ai.stars)}<i>${'★'.repeat(Math.max(0, 4 - ai.stars))}</i> ${esc(ai.name)}`, taunt: esc(b.taunt),
+  });
+}
 // The boss race result: the usual timing sheet, then the one-time reward (first win) or the boss's taunt (a loss).
 function bossResult() {
   const R = state.race, r = R.result, b = BOSS(R.rival.boss), bo = r.boss || {}, rw = bo.reward;
@@ -3134,19 +3188,20 @@ function bossResult() {
         ${rw.badge ? `<div class="rw">${badgeChip({ title: rw.badge, tier: S.BOSS_BADGES[b.country][1] })}<span class="small muted">у профілі</span></div>` : ''}
       </div>
       ${rw.badge ? emojiOffer(rw.badge) : ''}
-      <div class="small muted mt">${nx ? `Відкрито: <b>${esc(nx.nick)}</b> · ${esc(M(nx.model).name)}${nx.country !== b.country ? ` · нова країна — ${S.COUNTRIES[nx.country].name}!` : ''}` : "Ти пройшов усю кар'єру!"}</div></div>` : !r.win ? `<div class="taunt">${esc(b.nick)}: «${esc(b.taunt)}»</div>` : '';
-  return raceSheetHtml({ tag: `Бос · ${esc(b.nick)}${hard ? ' · складний' : ''}`, win: r.win, diff: r.diff, amount, note,
+      ${nx ? `<div class="boss-unlock">${miniCar(nx.model)}<div class="grow"><div class="tiny muted">Відкрито${nx.country !== b.country ? ` · нова країна — ${S.COUNTRIES[nx.country].name}` : ''}</div><b class="ellipsis">${esc(nx.nick)}</b><div class="small muted ellipsis">${esc(M(nx.model).name)} · ${nx.hp} к.с.</div></div></div>` : `<div class="small muted mt">Ти пройшов усю кар'єру!</div>`}</div>` : !r.win ? `<div class="taunt">${esc(b.nick)}: «${esc(b.taunt)}»</div>` : '';
+  // D-race: the sheet scrolls, the next step stays in the sticky dock (.dr-dock): «Далі: <next boss>» after a first win.
+  return '<div class="dr-res">' + raceSheetHtml({ tag: `Бос · ${esc(b.nick)}${hard ? ' · складний' : ''}`, win: r.win, diff: r.diff, amount, note,
     rows: [{ who: 'Ти', model: R.car.model, look: R.car.look, time: r.time, won: r.win }, { who: b.nick, model: b.model, time: r.rivalTime, won: !r.win }], start: startTxt, shifts: r.shifts })
     + whyHtml(whyLines(R.car, { model: b.model, parts: S.bossParts(hard ? S.bossHard(b) : b) }, r))
     + reward
-    + challengeCta(R)
-    + (nx && bo.first ? `<button class="btn yellow" data-act="bossNext" data-id="${nx.id}">Наступний бос: ${esc(nx.nick)}</button>`
-      : `<button class="btn yellow" data-act="bossAgain" data-id="${b.id}" ${hard && !r.win ? 'data-hard="1"' : ''} ${me.fuel < 1 ? 'disabled' : ''}>${r.win ? 'Реванш' : hard ? 'Ще спроба · складний' : 'Ще спроба'} · пальне ${me.fuel}/${S.FUEL_MAX}</button>`)
-    + `<button class="btn outline mt" data-act="raceExit">До кар'єри</button>`;
+    + challengeCta(R) + '</div><div class="dr-dock"><div class="dr-btns">'
+    + (nx && bo.first ? `<button class="btn yellow" data-act="bossNext" data-id="${nx.id}"><span class="ellipsis">Далі: ${esc(nx.nick)}</span></button>`
+      : `<button class="btn yellow btn2" data-act="bossAgain" data-id="${b.id}" ${hard && !r.win ? 'data-hard="1"' : ''} ${me.fuel < 1 ? 'disabled' : ''}><span>${ic('refresh')} ${r.win ? 'Реванш' : 'Ще спроба'}</span><small>${hard && !r.win ? 'складний · ' : ''}${ic('gas-station')}${me.fuel}/${S.FUEL_MAX}</small></button>`)
+    + `<button class="btn ghost" data-act="raceExit">До кар'єри</button></div></div>`;
 }
 H.bossAgain = (d) => {
   state.race = null;
-  H.startBoss(d);
+  H.startBoss({ ...d, again: 1 });
 };
 H.bossNext = async (d) => {
   state.race = null;
@@ -7461,7 +7516,10 @@ function dayRaceTile() {
   TABS.race = async () => {
     if (state.race?.rival?.dayrace) state.race = null; // back from the day's screen: the tab starts fresh
     const html = await base();
-    return (state.race && state.race.phase !== 'idle') || state.drift ? html : dayRaceTile() + html;
+    if ((state.race && state.race.phase !== 'idle') || state.drift) return html;
+    // D-race: on the drag list the day's race goes under the rivals (#drBelow), elsewhere it stays on top.
+    const below = '<div class="dr-below" id="drBelow">';
+    return html.includes(below) ? html.replace(below, below + dayRaceTile()) : dayRaceTile() + html;
   };
 }
 H.drOpen = () => {
@@ -7839,9 +7897,10 @@ const afterRaceBase = AFTER.race;
 AFTER.race = () => {
   afterRaceBase();
   if (state.race || state.drift || state.raceView !== 'race' || !me?.raceStreak || $('#view .rs-tile')) return;
-  const anchor = $('#view .carpick')?.previousElementSibling;
-  if (!anchor) return;
-  anchor.insertAdjacentHTML('beforebegin', streakTile('race'));
+  const anchor = $('#view .carpick')?.previousElementSibling, below = $('#drBelow'); // D-race: under the rivals
+  if (!anchor && !below) return;
+  if (below) below.insertAdjacentHTML('beforeend', streakTile('race'));
+  else anchor.insertAdjacentHTML('beforebegin', streakTile('race'));
   const fire = me.raceStreak.fire, cur = $('#view .carpick .car.sel .art');
   if (fire && cur) cur.insertAdjacentHTML('beforeend', `<span class="fire-mark">${ic('flame')}Вогонь ${fire}</span>`);
 };
