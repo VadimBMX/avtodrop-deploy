@@ -177,7 +177,7 @@ function roundRect(c, x, y, w, h, r) {
 // model + value (+ sale, mult, who, bot) → Blob (image/jpeg). sale: what the car sells for (null: a secret car);
 // mult: the sale against the case price. The car photo comes from the same origin, so the canvas
 // stays exportable; without a photo the drawn silhouette (SVG) is used.
-export async function shareCard({ model, value, sale = null, mult = 0, who = '', bot = '' }) {
+export async function shareCard({ model, value, sale = null, mult = 0, who = '', bot = '', serial = null }) {
   const m = S.MODELS[model];
   const W = 1080, H = 1920;
   const cv = document.createElement('canvas');
@@ -306,7 +306,25 @@ export async function shareCard({ model, value, sale = null, mult = 0, who = '',
   c.restore();
   c.fillStyle = '#c3cad6';
   c.font = '700 44px "Fira Sans Condensed", "Arial Narrow", sans-serif';
-  c.fillText(m.secret ? 'Я ВІДКРИВ СЕКРЕТНУ МАШИНУ' : 'Я ВИБИВ З КЕЙСА', W / 2, 380);
+  c.fillText(m.secret ? 'Я ВІДКРИВ СЕКРЕТНУ МАШИНУ' : m.edition ? 'Я ВИГРАВ НА «ПРИЧАЛІ»' : 'Я ВИБИВ З КЕЙСА', W / 2, 380);
+  // A «тиражна»: the blue «ТИРАЖ № 007» stamp under the header (as on the reveal).
+  if (m.edition) {
+    const st = `ТИРАЖНА${serial ? '  ' + S.serialText(serial) : ''}`;
+    c.font = '800 46px "Fira Sans Condensed", "Arial Narrow", sans-serif';
+    const tw = c.measureText(st).width + 64;
+    c.save();
+    c.translate(W / 2, 452);
+    c.rotate(-0.035);
+    roundRect(c, -tw / 2, -40, tw, 72, 12);
+    c.fillStyle = '#22d3ee22';
+    c.fill();
+    c.lineWidth = 4;
+    c.strokeStyle = '#22d3ee';
+    c.stroke();
+    c.fillStyle = '#a5f3fc';
+    c.fillText(st, 0, 14);
+    c.restore();
+  }
   // class stamp
   const label = `${m.cls}  ·  ${S.CLASSES[m.cls].name.toUpperCase()}`;
   c.font = '800 48px "Fira Sans Condensed", "Arial Narrow", sans-serif';

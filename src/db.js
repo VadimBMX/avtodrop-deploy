@@ -296,6 +296,11 @@ CREATE TABLE IF NOT EXISTS container_bids (lot_id INTEGER NOT NULL, bidder INTEG
 CREATE INDEX IF NOT EXISTS container_bids_lot ON container_bids(lot_id, at);
 -- The next serial number of each «тиражна» edition (S.EDITION_CARS).
 CREATE TABLE IF NOT EXISTS edition_serials (model TEXT PRIMARY KEY, next INTEGER NOT NULL DEFAULT 1);
+-- «Контейнери 2.0»: «Огляд експерта» bought by a player on a lot (one per lot and player; value: the revealed fact, JSON)
+-- and the players who asked to be reminded of «Вечірній аукціон» (a push 30 min before 20:00).
+CREATE TABLE IF NOT EXISTS container_expert (lot_id INTEGER NOT NULL, user_id INTEGER NOT NULL, field TEXT NOT NULL, value TEXT NOT NULL,
+  price INTEGER NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (lot_id, user_id)) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS container_subs (user_id INTEGER PRIMARY KEY, at INTEGER NOT NULL);
 -- «Ніч Хелловіну» (src/halloween.js): event task progress per event year ('hw2026'), player and task; done_at is set
 -- once (the task is paid then), prize: what it paid (JSON).
 CREATE TABLE IF NOT EXISTS hw_tasks (event TEXT NOT NULL, user_id INTEGER NOT NULL, task TEXT NOT NULL, progress INTEGER NOT NULL DEFAULT 0,

@@ -7341,7 +7341,7 @@ async function openShare(car, { mult = 0 } = {}, back = null) {
     <div class="share-acts" id="shareActs"></div>
     <div class="tiny muted center mt">Друг за твоїм посиланням отримає ${S.short(S.REF_FRIEND_BONUS)} на старт, а ти — ${S.short(S.REF_REWARD)}, коли він досягне 3 рівня</div>`, back);
   const token = (shareState = { car, blob: null, link: '' });
-  const [blob, ref] = await Promise.all([WOW.shareCard({ model: car.model, value: car.value, sale: S.saleOf(car), mult, who, bot: config.bot }).catch(() => null), api('ref').catch(() => ({}))]);
+  const [blob, ref] = await Promise.all([WOW.shareCard({ model: car.model, value: car.value, sale: S.saleOf(car), mult, who, bot: config.bot, serial: car.serial || null }).catch(() => null), api('ref').catch(() => ({}))]);
   if (shareState !== token || !$('#sharePrev')) return; // the sheet was closed or another share started
   Object.assign(shareState, { blob, link: ref.link || '' });
   if (shareState.preview) URL.revokeObjectURL(shareState.preview);
@@ -7354,12 +7354,12 @@ async function openShare(car, { mult = 0 } = {}, back = null) {
 H.shareChat = async (d, el) => {
   const st = shareState;
   if (!st) return;
-  const caption = S.shareCaption(st.car.model);
+  const caption = S.shareCaption(st.car.model, st.car.serial);
   if (shareCaps().message && st.blob) {
     el.disabled = true;
     try {
       await uploadCard();
-      const r = await api('share/prepare', { id: st.id, model: st.car.model });
+      const r = await api('share/prepare', { id: st.id, model: st.car.model, carId: st.car.id });
       el.disabled = false;
       return tg.shareMessage(r.preparedId, (ok) => ok && (toast('Надіслано!'), haptic('success')));
     } catch {
@@ -7980,16 +7980,19 @@ H.pierLot = (d) => {
   state.lotId = Number(d.id);
   go('lot');
 };
-function hintChips(h, compact = false) {
+function hintChips(h0, compact = false, ex = null) {
+  const h = ex ? { ...h0, [ex.field]: ex.value } : h0; // «Огляд експерта»: the bought fact sits among the hints, marked
   const c = S.COUNTRIES[h.country];
-  return [
+  const chips = [
     `<span class="chip ph-flag">${flagEmblem(h.country)}${compact ? '' : esc(c?.name || h.country)}</span>`,
     h.body ? `<span class="chip">${esc(CN.BODY_NAMES[h.body] || h.body)}</span>` : compact ? '' : '<span class="chip ph-unk">кузов ?</span>',
     h.cls ? `<span class="chip ph-cls" style="--c:${S.CLASSES[h.cls].color}"><i></i>${esc(S.CLASSES[h.cls].name.toLowerCase())}</span>` : compact ? '' : '<span class="chip ph-unk">клас ?</span>',
     h.dec ? `<span class="chip">${CN.decadeText(h.dec)}</span>` : compact ? '' : '<span class="chip ph-unk">роки ?</span>',
     h.kg != null ? `<span class="chip">${CN.weightText(h.kg)}</span>` : compact ? '' : '<span class="chip ph-unk">вага ?</span>',
     h.junk ? `<span class="chip ph-junk">${ic('droplet')}після повені</span>` : compact ? '' : '<span class="chip">стан звичайний</span>',
-  ].join('');
+  ];
+  if (ex) chips[{ cls: 2, dec: 3, kg: 4 }[ex.field]] = `<span class="chip ph-exp" title="Огляд експерта — бачиш лише ти">${ic('target-arrow')}${esc(CN.factText(ex.field, ex.value))}</span>`;
+  return chips.join('');
 }
 // The container itself (front view): corrugated doors in the tier colour, the flag, the body stencil and the seal.
 // D-reveal: tiers get their own container paint (--tier: steel / teal / copper) so a red crate never reads as an S car.
@@ -8006,7 +8009,7 @@ function pierCard(l) {
   const right = locked ? lockChip('auction').replace(/рів\. \d+/, `рів. ${t.level}`) : l.status === 'live' ? `<span class="chip pl-live">${ic('clock')} ${untilSpan(l.endsAt)}</span>` : '<span class="chip">чекає ставки</span>';
   return `<button class="pier-lot${l.mine ? ' lead' : ''}${locked ? ' locked' : ''}${t.skin ? ` skin-${t.skin}` : ''}" data-act="pierLot" data-id="${l.id}" style="--c:${t.color};--tier:${TIER_PAINT[l.tier] || t.color}">${crate(l)}
     <div class="pl-tx"><div class="pl-top"><b class="pl-name ellipsis">${esc(t.name)}</b>${right}</div>
-      <div class="pl-hints">${hintChips(l.hints, true)}</div>
+      <div class="pl-hints">${hintChips(l.hints, true, l.expert)}</div>
       <div class="pl-bid"><b>${S.short(l.topBid)}</b> <span class="small ${l.mine ? 'acc' : 'muted'} ellipsis">${l.mine ? 'ти лідер' : esc(l.leader)}</span></div>
       <div class="tiny muted">оцінка ${estText(l.est)} · ${l.est.n} ${plural(l.est.n, ['варіант', 'варіанти', 'варіантів'])}</div></div></button>`;
 }
@@ -8023,7 +8026,7 @@ async function pierTab() {
     <div class="tiny muted mt">Перша ставка запускає торги на 90 с · ставка в останні 15 с продовжує · крок від +5% · одна ставка — до 50% балансу${d.escrow ? ` · у ставках: <b class="acc">${S.short(d.escrow)}</b>` : ''}</div></div>`;
   const wait = d.unopened.length ? `<button class="card pier-wait" data-act="pierLot" data-id="${d.unopened[0]}"><span class="ic tint" style="--c:#f5b301">${ic('gift')}</span><span class="grow"><b>Твій контейнер чекає!</b><span class="tiny muted">машина вже у гаражі — зламай пломбу</span></span><span class="btn sm yellow">Відчинити</span></button>` : '';
   if (!d.lots.length) return wait + intro + emptyBox('box', 'Причал зачинено', 'Контейнери тимчасово вимкнено — зазирни пізніше');
-  return `${wait}${intro}<div id="pierList">${d.lots.map(pierCard).join('')}</div>${d.recent.length ? `<div class="h2"><span>Щойно відчинили</span></div><div class="list pier-recent">${d.recent.map(recentRow).join('')}</div>` : ''}`;
+  return `${wait}<div id="pierEve">${eveTile(d.evening)}</div>${intro}<div id="pierList">${d.lots.map(pierCard).join('')}</div>${d.recent.length ? `<div class="h2"><span>Щойно відчинили</span></div><div class="list pier-recent">${d.recent.map(recentRow).join('')}</div>` : ''}`;
 }
 {
   const afterMarketBase = AFTER.market;
@@ -8036,6 +8039,8 @@ async function pierTab() {
         const d = await api('containers');
         const el = $('#pierList');
         if (el && d.lots.length) el.innerHTML = d.lots.map(pierCard).join('');
+        const ev = $('#pierEve');
+        if (ev) ev.innerHTML = eveTile(d.evening);
       } catch {}
     }, 5000);
   };
@@ -8054,16 +8059,17 @@ function lotHtml(d) {
     <div class="lot-head"><div class="grow"><b class="lot-name">${esc(t.name)}</b><div class="tiny muted">контейнер №${l.id} · з рівня ${t.level}</div></div>
       <button class="chip lot-commit" data-act="lotFair">${ic('shield-check')}${l.commit.slice(0, 8)}</button></div>
     <div id="lotStage">${crate(l, true, !!(l.result?.mine && !l.result.opened))}</div>
-    <div class="pl-hints lot-hints">${hintChips(l.hints)}</div>
+    <div class="pl-hints lot-hints">${hintChips(l.hints, false, l.expert)}</div>
     <div class="list lot-postl"><button class="li" data-act="lotPost"><span class="ic">${ic('layout-grid')}</span><div class="grow"><b>Можливий вміст · ${l.est.n}</b>
-      <div class="small muted">оцінка ${estText(l.est)} · середній продаж ≈ ${S.short(l.est.ev)}</div></div><span class="chev">${ic('chevron-right')}</span></button></div>
+      <div class="small muted">оцінка ${estText(l.est)} · середній продаж ≈ ${S.short(l.est.ev)}${l.expert ? ' · з урахуванням експерта' : ''}</div></div><span class="chev">${ic('chevron-right')}</span></button>${expertRow(l, done)}</div>
     <div id="lotLive">${lotLive(d)}</div>
-    ${done ? '' : `<div class="lot-own" id="lotOwn"><input id="lotAmt" inputmode="numeric" placeholder="своя сума від ${grp(l.minBid)}"><button class="btn sm" data-act="lotBidOwn">Ставка</button></div>`}
+    ${done || l.status === 'soon' ? '' : `<div class="lot-own" id="lotOwn"><input id="lotAmt" inputmode="numeric" placeholder="своя сума від ${grp(l.minBid)}"><button class="btn sm" data-act="lotBidOwn">Ставка</button></div>`}
     <div id="lotFeed">${lotFeed(d)}</div></div>`;
 }
 function lotLive(d) {
   const l = d.lot, t = tierOf(l.tier);
   if (l.status === 'done' || l.status === 'cancelled') return lotResult(d);
+  if (l.status === 'soon') return eveSoon(d);
   const low = l.status === 'live' && l.endsAt - serverNow() < 15e3;
   const timer = l.status === 'live' ? `<span class="lot-timer${low ? ' hot' : ''}">${ic('clock')} ${untilSpan(l.endsAt)}</span>` : '<span class="chip">торги стартують з першою ставкою</span>';
   const bots = l.bots.map((b) => `<span class="chip lot-bot${b.passed ? ' out' : ''}${l.leaderBot === b.id ? ' lead' : ''}">${esc(botName(b.id)?.short || b.id)}${b.passed ? ' · пас' : ''}</span>`).join('');
@@ -8111,7 +8117,7 @@ async function pollLot() {
   d.lot.post = state.lotPost;
   state.lotData = d;
   if (was.mine && !d.lot.mine && d.lot.status !== 'done') (toast(`Тебе перебили: ${S.short(d.lot.topBid)} — ставку повернуто`, true), haptic('warning'), refresh(false));
-  if ((d.lot.status === 'done' || d.lot.status === 'cancelled') && was.status !== d.lot.status) {
+  if (was.status !== d.lot.status) { // the evening lot going live at 20:00, or any lot ending
     await refresh(false);
     return render();
   }
@@ -8149,7 +8155,7 @@ H.lotBidOwn = () => lotBid(num($('#lotAmt')?.value));
 H.lotPost = () => {
   const l = state.lotData?.lot, rows = state.lotPost || [];
   if (!l) return;
-  sheet('Можливий вміст', `<div class="small muted">Точний список: усе, що підходить під підказки цього контейнера, з реальними шансами. Перекупники бачать рівно те саме — машини не знає ніхто.</div>
+  sheet('Можливий вміст', `<div class="small muted">Точний список: усе, що підходить під підказки цього контейнера, з реальними шансами. ${l.expert ? `Список уже з фактом експерта (${esc(CN.factText(l.expert.field, l.expert.value))}) — його знаєш лише ти; перекупники рахують за загальним списком.` : 'Перекупники бачать рівно те саме — машини не знає ніхто.'}</div>
     <div class="list mt post-list">${rows.map((x) => {
       const m = M(x.model);
       return `<div class="li">${miniCar(x.model, '', null, x.junk ? 100 : 0)}<div class="grow"><div class="clamp2"><b>${esc(m.name)}</b></div>
@@ -8175,6 +8181,90 @@ H.lotVerify = async () => {
     toast(hex === l.commit ? 'Збігається ✓ вміст був зафіксований до торгів' : 'Не збігається — напиши в підтримку', hex !== l.commit);
   } catch {
     toast('Перевірка недоступна в цьому браузері', true);
+  }
+};
+// ---- «Контейнери 2.0»: «Вечірній аукціон» (one dear lot at 20:00 Kyiv for everyone) and «Огляд експерта»
+const kyivHm = (t) => new Date(t).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Kyiv' });
+// The tile on top of «Причал»: the countdown to 20:00, the reminder switch; the lot itself from 19:30 (hints, list,
+// expert), live at 20:00, and after it what was inside and who took it.
+function eveTile(e) {
+  if (!e) return '';
+  const l = e.lot, t = CN.EVENING_TIER, locked = me.level < e.level;
+  const bell = `<button class="btn sm ghost eve-bell${e.sub ? ' on' : ''}" data-act="eveSub" data-on="${e.sub ? 0 : 1}" aria-pressed="${e.sub}">${ic('bell')}${e.sub ? 'Нагадаю' : 'Нагадати'}</button>`;
+  let body, act = '';
+  if (l && l.status === 'soon') {
+    body = `<div class="eve-when"><small>старт о ${e.hour}:00 · через</small><b class="disp">${untilSpan(l.liveAt)}</b></div><div class="pl-hints">${hintChips(l.hints, true, l.expert)}</div>
+      <div class="tiny muted">оцінка ${estText(l.est)} · ${l.est.n} ${plural(l.est.n, ['варіант', 'варіанти', 'варіантів'])} · перекупники вже чекають</div>`;
+    act = `<button class="btn sm ghost eve-go" data-act="pierLot" data-id="${l.id}">Роздивитись лот</button>`;
+  } else if (l && l.status === 'live') {
+    body = `<div class="eve-when live"><small>${ic('hammer')} торги йдуть · ще</small><b class="disp">${untilSpan(l.endsAt)}</b></div><div class="pl-hints">${hintChips(l.hints, true, l.expert)}</div>
+      <div class="small"><b>${S.short(l.topBid)}</b> <span class="${l.mine ? 'acc' : 'muted'}">${l.mine ? 'ти лідер' : esc(l.leader)}</span></div>`;
+    act = `<button class="btn sm eve-go" data-act="pierLot" data-id="${l.id}">${ic('hammer')} До торгів</button>`;
+  } else {
+    const r = l?.result;
+    const was = r && !r.cancelled ? `<div class="small eve-was">Сьогодні: ${r.mine ? 'ти виграв' : `${esc(r.winner)} ${r.bot === 'liza' ? 'забрала' : r.bot ? 'забрав' : 'виграв'}`} за <b class="nw">${S.short(r.price)}</b> — там ${r.ed ? 'тиражна ' : ''}<b>${esc(M(r.model).name)}</b></div>` : '';
+    body = `<div class="eve-when"><small>${S.kyivDateOf(e.at) === S.kyivDateOf(serverNow()) ? 'сьогодні' : 'завтра'} о ${kyivHm(e.at)} · через</small><b class="disp">${untilSpan(e.at)}</b></div>${was}
+      <div class="tiny muted">Один особливий лот для всіх одразу: класи B–S, частіше тиражні. Лот з’явиться о ${kyivHm(e.at - e.warnMin * 60e3)} — підказки, «Можливий вміст» і експерт до старту.</div>`;
+    if (l && (l.status === 'done' || l.status === 'cancelled')) act = `<button class="btn sm ghost eve-go" data-act="pierLot" data-id="${l.id}">Результат</button>`;
+  }
+  return `<div class="card eve-tile${l?.status === 'live' ? ' live' : ''}" style="--c:${t.color}"><div class="eve-sky" aria-hidden="true"></div>
+    <div class="eve-head"><span class="ic tint" style="--c:${t.color}">${ic('hammer')}</span><div class="grow"><b>${esc(t.name)}</b><div class="tiny muted">щодня о ${e.hour}:00 · з рівня ${e.level}</div></div>${bell}</div>
+    ${body}${locked ? `<div class="tiny muted mt">${ic('lock')} ставки з рівня ${e.level} — дивитись можна вже зараз</div>` : ''}${act ? `<div class="eve-act">${act}</div>` : ''}</div>`;
+}
+H.eveSub = async (d, el) => {
+  el.disabled = true;
+  try {
+    const r = await api('containers/evening', { on: d.on === '1' });
+    toast(r.sub ? `Нагадаю за 30 хв до ${CN.EVENING.hour}:00 — у бот` : 'Нагадування вимкнено');
+    haptic('light');
+    const x = await api('containers');
+    const ev = $('#pierEve');
+    if (ev) ev.innerHTML = eveTile(x.evening);
+  } catch (e) {
+    toast(e.message, true);
+    el.disabled = false;
+  }
+};
+// The evening lot before 20:00: the countdown instead of the bid buttons.
+function eveSoon(d) {
+  const l = d.lot;
+  return `<div class="card lot-status eve-soon"><div class="row between"><span class="small muted">Стартова ціна перекупників</span><span class="chip">${ic('clock')} старт о ${kyivHm(l.liveAt)}</span></div>
+    <div class="lot-top"><b class="disp">${S.fmt(l.topBid)}</b><span class="muted ellipsis">${esc(l.leader)}</span></div>
+    <div class="eve-when"><small>торги стартують через</small><b class="disp">${untilSpan(l.liveAt)}</b></div>
+    <div class="tiny muted">О ${kyivHm(l.liveAt)} торги стартують для всіх одразу — ${Math.round(CN.EVENING.liveMs / 60e3)} хв, ставка в останні 15 с продовжує. Поки що роздивись підказки й «Можливий вміст».</div></div>`;
+}
+// «Огляд експерта»: one more true fact (class / decade / weight) for this player only; bots never get it.
+function expertRow(l, done) {
+  if (l.expert) return `<div class="li lot-exp got"><span class="ic tint" style="--c:#22c3e6">${ic('target-arrow')}</span><div class="grow"><b>Експерт: ${esc(CN.factText(l.expert.field, l.expert.value))}</b>
+    <div class="small muted">цей факт бачиш лише ти — список і оцінку вже перераховано</div></div></div>`;
+  if (done || !l.expertFields?.length) return '';
+  return `<button class="li lot-exp" data-act="lotExpert"><span class="ic tint" style="--c:#22c3e6">${ic('target-arrow')}</span><div class="grow"><b>Огляд експерта</b>
+    <div class="small muted">ще один правдивий факт — лише для тебе · ${S.short(l.expertPrice)}</div></div><span class="chev">${ic('chevron-right')}</span></button>`;
+}
+H.lotExpert = () => {
+  const l = state.lotData?.lot;
+  if (!l || !l.expertFields?.length) return;
+  sheet('Огляд експерта', `<div class="small">Експерт зазирне в щілину й скаже <b>один правдивий факт</b> про машину — лише тобі. Перекупники його не дізнаються, а твій «Можливий вміст» і оцінка одразу перерахуються чесно.</div>
+    <div class="list mt">${l.expertFields.map((f) => `<button class="li" data-act="lotExpertBuy" data-f="${f}"><span class="ic">${ic(f === 'cls' ? 'diamond' : f === 'dec' ? 'calendar' : 'gauge')}</span><div class="grow"><b>${esc(CN.EXPERT_NAMES[f][0].toUpperCase() + CN.EXPERT_NAMES[f].slice(1))}</b>
+      <div class="small muted">${f === 'cls' ? 'колір класу машини' : f === 'dec' ? 'десятиліття випуску' : 'вага контейнера з машиною, діапазон 0,6 т'}</div></div><span class="btn sm ghost">${S.short(l.expertPrice)}</span></button>`).join('')}</div>
+    <div class="tiny muted mt">Ціна — ${Math.round(CN.EXPERT.share * 100)}% очікуваної колекційної ціни лоту. Один огляд на лот. Гроші не повертаються, навіть якщо факт тебе розчарує.</div>`);
+};
+H.lotExpertBuy = async (d, el) => {
+  const l = state.lotData?.lot;
+  if (!l) return;
+  el.disabled = true;
+  try {
+    const r = await api('containers/expert', { id: l.id, field: d.f });
+    closeModal();
+    state.lotData = r;
+    state.lotPost = r.lot.post;
+    haptic('success');
+    toast(`Експерт: ${CN.factText(d.f, r.lot.expert.value)}`);
+    await refresh(false);
+    if (state.page === 'lot') render();
+  } catch (e) {
+    toast(e.message, true);
+    el.disabled = false;
   }
 };
 // The seal snaps, the doors swing open, light pours out in the colour of the class — then the usual reveal.
@@ -8214,7 +8304,7 @@ H.lotOpen = async (d) => {
   await doorShow(state.lotData.lot, S.CLASSES[m.cls].color);
   const car = r.car || { model: res.model, value: m.price, sell: res.sale, serial: res.serial };
   const kicker = res.ed ? `ТИРАЖНА ${res.serial ? S.serialText(res.serial) : ''}!` : res.junk ? 'Після повені…' : rank < 3 ? KICKER[rank] : '';
-  await WOW.celebrate({ car, isNew: false }, { casePrice: res.price, priceLabel: 'від ціни лоту', kicker, kickerTone: !res.ed && res.junk ? 'warn' : '', onShare: (x) => (res.ed ? toast('Тиражною поки не можна поділитися') : openShare(x.car)) });
+  await WOW.celebrate({ car, isNew: false }, { casePrice: res.price, priceLabel: 'від ціни лоту', kicker, kickerTone: !res.ed && res.junk ? 'warn' : '', onShare: (x) => openShare(x.car) });
   await refresh(false);
   if (state.page === 'lot') render();
 };

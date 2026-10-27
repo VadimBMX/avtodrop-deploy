@@ -59,7 +59,7 @@ function seedFor(tier, ok) {
 
 // ---------- honest lots ----------
 test('generation: the content always fits its hints and the «Можливий вміст» list; the list sums to 1', () => {
-  for (const t of C.CONTAINER_TIERS) {
+  for (const t of [...C.CONTAINER_TIERS, C.EVENING_TIER]) {
     for (let s = 1; s <= 1500; s++) {
       const L = C.spawnLot(t.id, s);
       const o = C.tierOutcomes(t.id).find((x) => x.model === L.model && x.junk === L.junk);
@@ -78,7 +78,7 @@ test('generation: the content always fits its hints and the «Можливий �
 });
 
 test('generation: what comes out matches the list — class shares, junk and editions at the stated rates; the shown % are calibrated', () => {
-  for (const t of C.CONTAINER_TIERS) {
+  for (const t of [...C.CONTAINER_TIERS, C.EVENING_TIER]) {
     const N = 12000, cls = {}, tw = Object.values(t.w).reduce((a, b) => a + b, 0);
     let junk = 0, eds = 0, hit = 0, expect = 0;
     for (let s = 1; s <= N; s++) {
@@ -262,7 +262,7 @@ test('bots: a lot no human bid on is taken by the leading bot after 30 min and r
 });
 
 test('economy: «win and sell» returns 0.75–0.85 of the price over many lots (pure engine, the server\'s own rules)', () => {
-  for (const t of C.CONTAINER_TIERS) {
+  for (const t of [...C.CONTAINER_TIERS, C.EVENING_TIER]) {
     let paid = 0, ev = 0, got = 0, wins = 0;
     for (let i = 0; i < 2500; i++) {
       const L = C.spawnLot(t.id, C.seedOf(`ret:${t.id}:${i}`));
@@ -357,9 +357,10 @@ test('settlement: a full garage puts the car on the showcase; a flooded car come
 });
 
 // ---------- «тиражні» ----------
-test('editions: six of them, serial numbers per edition, sale 10%, no collection, no upgrade/trade-in/paint; market and swaps allowed', () => {
-  assert.equal(S.EDITION_CARS.length, 6);
+test('editions: twelve of them, serial numbers per edition, sale 10%, no collection, no upgrade/trade-in/paint; market and swaps allowed', () => {
+  assert.equal(S.EDITION_CARS.length, 12);
   for (const e of S.EDITION_CARS) {
+    assert.ok([...C.CONTAINER_TIERS, C.EVENING_TIER].some((t) => C.tierOutcomes(t.id).some((o) => o.model === e.id && o.p > 0)), `${e.id} can come out of some lot`);
     const m = S.MODELS[e.id], b = S.MODELS[e.base];
     assert.ok(m.edition && m.img === b.id && m.filter && m.cls === b.cls && m.price === b.price);
     assert.ok(!S.ALL_MODELS.includes(m), 'not in cases, collections, sets, rival pools');
@@ -452,4 +453,171 @@ test('metrics: money of «Причал» is its own source group', async () => {
   muteBots(l.id);
   call(5, 'containers/bid', { id: l.id, amount: l.minBid });
   assert.ok(db.prepare("SELECT destroyed FROM money_src WHERE src = 'containers/bid'").get().destroyed >= l.minBid);
+});
+
+// ---------- «Контейнери 2.0»: «Вечірній аукціон», «Огляд експерта», sharing an edition ----------
+const KY = (s) => Date.parse(s + '+03:00'); // 23.10.2026 is still summer time in Kyiv
+
+test('evening: 20:00 Kyiv every day, right across the summer-time switch; the next one after the window', () => {
+  assert.equal(C.kyivAt('2026-10-24', 20), Date.parse('2026-10-24T17:00:00Z'), 'summer: UTC+3');
+  assert.equal(C.kyivAt('2026-10-25', 20), Date.parse('2026-10-25T18:00:00Z'), 'the switch day: UTC+2 by the evening');
+  assert.equal(C.kyivAt('2026-03-29', 20), Date.parse('2026-03-29T17:00:00Z'), 'spring switch day: UTC+3 by the evening');
+  assert.equal(C.nextEvening(KY('2026-10-23T12:00:00')), KY('2026-10-23T20:00:00'));
+  assert.equal(C.nextEvening(KY('2026-10-23T20:14:00')), KY('2026-10-23T20:00:00'), 'still today inside the late window');
+  assert.equal(C.nextEvening(KY('2026-10-23T20:16:00')), KY('2026-10-24T20:00:00'));
+});
+
+test('evening: the lot comes up at 19:30 (no bids yet), reminds only the subscribed, goes live at 20:00 for everyone, once a day', () => {
+  const { g, mk, call, set, add, pushes, db, at } = setup();
+  mk(5);
+  mk(6);
+  mk(7, { level: 3 });
+  set(KY('2026-10-23T19:00:00'));
+  assert.equal(call(5, 'containers').evening.lot, null);
+  assert.equal(call(5, 'containers').evening.at, KY('2026-10-23T20:00:00'));
+  assert.equal(call(5, 'containers/evening', { on: true }).sub, true);
+  call(7, 'containers/evening', { on: true });
+  call(6, 'containers/evening', { on: true });
+  assert.equal(call(6, 'containers/evening', { on: false }).sub, false);
+  set(KY('2026-10-23T19:29:00'));
+  g.settleAuctions();
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM container_lots WHERE tier = 'evening'").get().n, 0, 'not before 19:30');
+  set(KY('2026-10-23T19:30:05'));
+  g.settleAuctions(); // the sweeper puts it up even when nobody looks
+  g.settleAuctions();
+  const lots = db.prepare("SELECT * FROM container_lots WHERE tier = 'evening'").all();
+  assert.equal(lots.length, 1);
+  assert.equal(lots[0].status, 'soon');
+  assert.equal(lots[0].live_at, KY('2026-10-23T20:00:00'));
+  const rem = pushes.filter(([, x]) => x.includes('Вечірній аукціон'));
+  assert.deepEqual(rem.map(([u]) => u).sort(), [5, 7], 'only the subscribed, once each');
+  assert.match(rem[0][1], /о 20:00 — через 30 хв/);
+  const list = call(5, 'containers');
+  assert.ok(!list.lots.some((l) => l.tier === 'evening'), 'its own tile, not a pier card');
+  const e = list.evening.lot;
+  assert.equal(e.status, 'soon');
+  assert.equal(e.result, null);
+  assert.ok(!JSON.stringify(list).includes(lots[0].salt));
+  assert.throws(() => call(5, 'containers/bid', { id: e.id, amount: e.minBid }), /стартують о 20:00/);
+  // 20:00: live for everyone, the bots start bidding among themselves.
+  set(KY('2026-10-23T20:00:00') + 60e3);
+  const d = call(6, 'containers/lot', { id: e.id });
+  assert.equal(d.lot.status, 'live');
+  assert.equal(d.lot.liveAt, KY('2026-10-23T20:00:00'));
+  assert.ok(d.lot.endsAt >= d.lot.liveAt + C.EVENING.liveMs);
+  assert.throws(() => call(7, 'containers/bid', { id: e.id, amount: d.lot.minBid }), /рівня 6/);
+  // Two people and the bots on one lot.
+  for (let i = 0; i < 600; i++) {
+    const x = call(5, 'containers/lot', { id: e.id });
+    if (x.lot.status === 'done') break;
+    const who = i % 2 ? 5 : 6;
+    const y = call(who, 'containers/lot', { id: e.id });
+    if (!y.lot.mine && y.lot.minBid <= y.maxBid) call(who, 'containers/bid', { id: e.id, amount: y.lot.minBid });
+    add(1100);
+  }
+  const end = call(5, 'containers/lot', { id: e.id });
+  assert.equal(end.lot.status, 'done');
+  assert.ok(at() <= KY('2026-10-23T20:00:00') + C.EVENING.liveMs + R.maxLiveMs);
+  const L = db.prepare('SELECT * FROM container_lots WHERE id = ?').get(e.id);
+  assert.ok([5, 6].includes(L.top_bidder), 'a person won it');
+  assert.ok(db.prepare('SELECT COUNT(DISTINCT bidder) n FROM container_bids WHERE lot_id = ? AND bidder > 0').get(e.id).n === 2);
+  assert.equal(call(5, 'containers').evening.lot.result.model, L.model, 'after the end everyone sees what was inside');
+  // No second one today; tomorrow's comes up at 19:30 again.
+  set(KY('2026-10-23T20:10:00'));
+  g.settleAuctions();
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM container_lots WHERE tier = 'evening'").get().n, 1);
+  assert.equal(call(5, 'containers').evening.at, KY('2026-10-24T20:00:00'));
+  set(KY('2026-10-24T19:31:00'));
+  g.settleAuctions();
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM container_lots WHERE tier = 'evening'").get().n, 2);
+});
+
+test('evening: a server that was down at 20:00 puts it up live till 20:15, not later; nobody bids → a bot takes it and shows it', () => {
+  const { g, mk, call, set, db } = setup();
+  mk(5);
+  set(KY('2026-10-23T20:16:00'));
+  g.settleAuctions();
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM container_lots WHERE tier = 'evening'").get().n, 0);
+  set(KY('2026-10-24T20:10:00'));
+  g.settleAuctions();
+  const L = db.prepare("SELECT * FROM container_lots WHERE tier = 'evening'").get();
+  assert.equal(L.status, 'live');
+  assert.equal(L.live_at, KY('2026-10-24T20:10:00'));
+  set(KY('2026-10-24T20:30:00'));
+  g.settleAuctions();
+  const r = call(5, 'containers').evening.lot.result;
+  assert.ok(r && r.bot && r.model === L.model, 'the bot took it and the content is shown');
+});
+
+test('evening: the switch off takes the evening lot down before it starts, and puts none up', () => {
+  const { g, mk, owner, set, db } = setup();
+  mk(5);
+  set(KY('2026-10-23T19:40:00'));
+  g.settleAuctions();
+  owner('containers/toggle', { on: false });
+  assert.equal(db.prepare("SELECT status FROM container_lots WHERE tier = 'evening'").get().status, 'cancelled');
+  set(KY('2026-10-24T19:40:00'));
+  g.settleAuctions();
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM container_lots WHERE tier = 'evening'").get().n, 1);
+});
+
+test('expert (pure): the bought fact is true, the narrowed list is the public one cut and renormalised, and stays calibrated', () => {
+  for (const t of [...C.CONTAINER_TIERS, C.EVENING_TIER]) {
+    let hit = 0, expect = 0, n = 0;
+    for (let s = 1; s <= 4000; s++) {
+      const L = C.spawnLot(t.id, 700000 + s);
+      const fs = C.expertFields(L.hints);
+      if (!fs.length) continue;
+      const f = fs[s % fs.length], v = C.factOf(L.model, f);
+      const pub = C.posterior(t.id, L.hints), post = C.narrow(pub, { [f]: v });
+      assert.ok(Math.abs(post.rows.reduce((a, r) => a + r.p, 0) - 1) < 1e-9);
+      assert.ok(post.rows.some((r) => r.model === L.model && r.junk === L.junk), 'the real content stays on the list');
+      assert.ok(post.rows.every((r) => C.factOf(r.model, f) === v));
+      const mass = pub.rows.filter((r) => C.factOf(r.model, f) === v).reduce((a, r) => a + r.p, 0);
+      for (const r of post.rows) assert.ok(Math.abs(r.p - pub.rows.find((x) => x.model === r.model && x.junk === r.junk).p / mass) < 1e-9);
+      const p = C.expertPrice(pub);
+      assert.ok(p >= C.EXPERT.min && p >= pub.rows.reduce((a, r) => a + r.p * r.value, 0) * C.EXPERT.share - 1);
+      n++;
+      expect += post.rows[0].p;
+      if (post.rows[0].model === L.model && post.rows[0].junk === L.junk) hit++;
+    }
+    assert.ok(n > 1000, `${t.id}: lots with something to reveal (${n})`);
+    assert.ok(Math.abs(hit - expect) / n < 0.025, `${t.id}: with the expert the top row came ${hit}, the list promised ${expect.toFixed(0)}`);
+  }
+});
+
+test('expert (server): paid once, only the buyer sees it, the bots don\'t get it, money is destroyed; only hidden facts', () => {
+  const { mk, call, bal, lotRow, db } = setup();
+  mk(5);
+  mk(6);
+  let l = null;
+  for (const x of call(5, 'containers').lots) if (!l && x.expertFields.length) l = x;
+  assert.ok(l, 'some lot keeps a fact hidden');
+  const before = lotRow(l.id), money = bal(5);
+  const f = l.expertFields[0];
+  assert.throws(() => call(5, 'containers/expert', { id: l.id, field: 'country' }), /обери інший/);
+  const d = call(5, 'containers/expert', { id: l.id, field: f });
+  assert.equal(bal(5), money - l.expertPrice);
+  assert.equal(d.lot.expert.field, f);
+  assert.equal(d.lot.expert.value, C.factOf(before.model, f), 'a true fact');
+  const want = C.narrow(C.posterior(l.tier, JSON.parse(before.hints)), { [f]: d.lot.expert.value });
+  assert.deepEqual(d.lot.post.map((r) => [r.model, r.p]), want.rows.map((r) => [r.model, r.p]));
+  assert.equal(d.lot.est.n, want.rows.length);
+  assert.equal(d.lot.expertFields.length, 0);
+  assert.throws(() => call(5, 'containers/expert', { id: l.id, field: l.expertFields[1] || f }), /уже оглянув/);
+  // The other player and the bots: the public list, the same limits.
+  const o = call(6, 'containers/lot', { id: l.id, full: true });
+  assert.equal(o.lot.expert, null);
+  assert.equal(o.lot.post.length, C.posterior(l.tier, JSON.parse(before.hints)).rows.length);
+  assert.equal(lotRow(l.id).bots, before.bots, 'bot limits untouched');
+  assert.ok(!JSON.stringify(o).includes('"field"'), 'nothing of the fact leaks to others');
+  assert.equal(call(5, 'containers').lots.find((x) => x.id === l.id).est.n, want.rows.length, 'the pier card too');
+  assert.ok(db.prepare("SELECT destroyed FROM money_src WHERE src = 'containers/expert'").get().destroyed >= l.expertPrice);
+});
+
+test('share: an edition is shared with its livery name and serial', () => {
+  const e = S.EDITION_CARS[7];
+  const cap = S.shareCaption(e.id, 7);
+  assert.ok(cap.includes(S.MODELS[e.id].name) && cap.includes('№ 007') && cap.includes('Причал'));
+  assert.ok(!S.shareCaption('vaz-2106').includes('тиражн'));
 });

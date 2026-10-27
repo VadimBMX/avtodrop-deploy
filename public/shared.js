@@ -493,6 +493,13 @@ export const EDITION_CARS = [
   { base: 'ford-mustang-1967', tag: 'stripes', label: 'Гоночна', filter: 'hue-rotate(95deg) saturate(1.6) contrast(1.1)' },
   { base: 'toyota-supra-a80', tag: 'night', label: 'Нічна Йокогама', filter: 'hue-rotate(250deg) saturate(1.6) brightness(.8)' },
   { base: 'nissan-skyline-gt-r-r34', tag: 'night', label: 'Нічна', filter: 'hue-rotate(205deg) saturate(1.5) brightness(.75) contrast(1.1)' },
+  // «Контейнери 2.0»: six more (the pier tiers and the evening lot draw them where their base can drop).
+  { base: 'moskvych-412', tag: 'rally', label: 'Ралі «Золоті піски»', filter: 'sepia(.6) hue-rotate(5deg) saturate(2.2) brightness(1.05)' },
+  { base: 'bmw-750i-e38-bumer', tag: 'bumer', label: 'Бумер 90-х', filter: 'grayscale(1) brightness(.42) contrast(1.6)' },
+  { base: 'dodge-charger-r-t-1970', tag: 'fury', label: 'Чорна фурія', filter: 'grayscale(.7) brightness(.45) contrast(1.7) saturate(1.4)' },
+  { base: 'mazda-rx-7-fd', tag: 'neon', label: 'Неон', filter: 'hue-rotate(290deg) saturate(1.9) brightness(.85) contrast(1.15)' },
+  { base: 'nissan-gt-r-r35', tag: 'silver', label: 'Срібна куля', filter: 'grayscale(1) brightness(1.25) contrast(1.2)' },
+  { base: 'lamborghini-countach-lp5000-qv', tag: 'white', label: 'Біла ніч', filter: 'grayscale(1) brightness(1.55) contrast(.95)' },
 ];
 export const EDITION_OF = {}; // base model → edition id
 for (const e of EDITION_CARS) {
@@ -3030,9 +3037,11 @@ export function suggestDream(worth = 0, seed = 0) {
   return near.length ? near[Math.abs(Math.floor(seed)) % near.length].id : null;
 }
 // The text that goes with a shared drop (the photo message caption, the share/url fallback, the story caption).
-export function shareCaption(modelId) {
+export function shareCaption(modelId, serial = null) {
   const m = MODELS[modelId];
   if (!m) return '🏁 АВТОДРОП — кейси зі справжніми авто. Перший кейс безкоштовно 👇';
+  // A «тиражна» from «Причал»: its name with the livery and its serial number.
+  if (m.edition) return `🏁 Я виграв на «Причалі» тиражну ${m.name}${serial ? ` ${serialText(serial)}` : ''} в АВТОДРОП! Колекційна ціна ${short(m.price)}.\nВідкрий свій перший кейс безкоштовно 👇`;
   const cls = CLASSES[m.cls];
   return `🏁 Я вибив ${m.cls === 'X' ? 'секретну' : cls.name.toLowerCase().replace(/ий$/, 'у')} ${m.name} в АВТОДРОП! Колекційна ціна ${short(m.price)}.\nВідкрий свій перший кейс безкоштовно 👇`;
 }

@@ -19,6 +19,26 @@ export const EVENT_TIERS = [
     edModel: 'ford-mustang-gt-2005--hw13', edP: 0.05, bodies: ['muscle', 'coupe', 'sedan'], countries: null, color: '#ff7a1a' },
 ];
 for (const t of EVENT_TIERS) TIER_BY[t.id] = t;
+// «Вечірній аукціон» (Контейнери 2.0): one dear lot a day for everyone at once. It comes up EVENING.warnMin before
+// EVENING.hour (Kyiv) in status 'soon' — hints, the list and the expert are there, bids are not — and goes live at
+// 20:00 sharp for EVENING.liveMs (+ the usual extensions, 5 min at most), people and bots together. No flooded cars,
+// dearer classes and a bigger share of editions; the same honesty, bots and ≈ 0.8 return as every other lot.
+export const EVENING_TIER = { id: 'evening', special: 'evening', skin: 'evening', name: 'Вечірній аукціон', short: 'Вечір', level: 6, w: { B: 35, A: 52, S: 13 }, junk: 0, ed: 0.5, countries: null, color: '#ff6b8b' };
+TIER_BY[EVENING_TIER.id] = EVENING_TIER;
+export const EVENING = { hour: 20, warnMin: 30, liveMs: 180e3, lateMs: 15 * 60e3 };
+// hour:00 Kyiv time on a calendar date ('YYYY-MM-DD'), right across the summer-time switch.
+const KYIV_HOUR = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Kyiv', hourCycle: 'h23', hour: 'numeric' });
+export function kyivAt(date, hour) {
+  const t = S.kyivMidnightOf(date) + hour * 3600e3;
+  return t + (hour - (Number(KYIV_HOUR.format(new Date(t))) % 24)) * 3600e3;
+}
+// Today's evening start (Kyiv) and the next one whose lot can still come up (a server that was down at 20:00 puts
+// it up until EVENING.lateMs after the start, live at once).
+export const eveningStart = (t) => kyivAt(S.kyivDateOf(t), EVENING.hour);
+export function nextEvening(t) {
+  const s = eveningStart(t);
+  return t < s + EVENING.lateMs ? s : kyivAt(S.kyivDateOf(S.kyivMidnightOf(S.kyivDateOf(t), 1)), EVENING.hour);
+}
 
 // The resellers. k: how far over the expected sale they go (mean ± sd, clamped to RULES.k); delay: seconds to answer;
 // step: their raise over the current bid. Liza answers only in the last seconds (late) and pays a little more when an
@@ -102,7 +122,7 @@ export function tierOutcomes(tierId) {
   if (edP) out.push({ model: t.edModel, ed: true, junk: false, p: (1 - t.junk) * edP });
   const floorCls = S.CLASS_ORDER[Math.max(0, S.rankOf(S.CLASS_ORDER.find((c) => t.w[c])) - 1)];
   const junk = S.ALL_MODELS.filter((m) => m.cls === floorCls && ok(m)).sort((a, b) => a.price - b.price || (a.id < b.id ? -1 : 1)).slice(0, R.junkCount);
-  junk.forEach((m) => out.push({ model: m.id, ed: false, junk: true, p: t.junk / junk.length }));
+  if (t.junk) junk.forEach((m) => out.push({ model: m.id, ed: false, junk: true, p: t.junk / junk.length }));
   return (outCache[tierId] = out);
 }
 // The hints of a content: true facts about its car. Class and decade are shown only sometimes (r decides).
@@ -157,8 +177,10 @@ export function matches(o, h) {
 export function posterior(tierId, h) {
   const all = tierOutcomes(tierId).filter((o) => matches(o, h)).map((o) => ({ o, w: o.p * likelihood(tierId, o, h) })).filter((x) => x.w > 0);
   const P = all.reduce((s, x) => s + x.w, 0) || 1;
-  const rows = all.map(({ o, w }) => ({ model: o.model, ed: o.ed, junk: o.junk, p: w / P, sale: saleOfModel(o.model), value: S.MODELS[o.model].price }))
-    .sort((a, b) => b.p - a.p || b.value - a.value);
+  return statsOf(all.map(({ o, w }) => ({ model: o.model, ed: o.ed, junk: o.junk, p: w / P, sale: saleOfModel(o.model), value: S.MODELS[o.model].price })));
+}
+function statsOf(list) {
+  const rows = list.sort((a, b) => b.p - a.p || b.value - a.value);
   const ev = rows.reduce((s, x) => s + x.p * x.sale, 0);
   const edP = rows.filter((x) => x.ed).reduce((s, x) => s + x.p, 0);
   const byVal = [...rows].sort((a, b) => a.value - b.value);
@@ -169,6 +191,26 @@ export function posterior(tierId, h) {
   };
   return { rows, ev, edP, lo: pctl(0.1), hi: pctl(0.9) };
 }
+// «Огляд експерта» (Контейнери 2.0): a paid hint for one player. The expert opens one more TRUE fact about the car —
+// its class, decade or weight band, whichever of them the lot keeps hidden — to the buyer only. The bots never get it
+// (their limits are fixed when the lot is made). The fact doesn't depend on which hints were rolled, so the buyer's
+// honest list is the public one cut to the cars with that fact, renormalised (narrow). Price: EXPERT.share of the
+// lot's expected collection price, ≥ EXPERT.min; the money is destroyed (a sink). One expert per lot and player.
+export const EXPERT = { share: 0.03, min: 1000, fields: ['cls', 'dec', 'kg'] };
+export const EXPERT_NAMES = { cls: 'клас', dec: 'десятиліття', kg: 'вага' };
+export const factOf = (model, field) => { const h = fullHints({ model, junk: false }); return h[field]; };
+export const expertFields = (h) => EXPERT.fields.filter((f) => h[f] == null);
+export function expertPrice(post) {
+  const v = post.rows.reduce((s, x) => s + x.p * x.value, 0);
+  return roundUp(Math.max(EXPERT.min, v * EXPERT.share));
+}
+export function narrow(post, facts) {
+  const keep = post.rows.filter((x) => Object.entries(facts).every(([f, v]) => factOf(x.model, f) === v));
+  const P = keep.reduce((s, x) => s + x.p, 0) || 1;
+  return statsOf(keep.map((x) => ({ ...x, p: x.p / P })));
+}
+export const factText = (field, v) => (field === 'cls' ? `клас ${v} · ${S.CLASSES[v].name.toLowerCase()}` : field === 'dec' ? decadeText(v) : weightText(v));
+
 // Bids are rounded to a unit that fits their size.
 export const unitOf = (x) => (x < 100e3 ? 500 : x < 1e6 ? 1000 : x < 10e6 ? 10e3 : 100e3);
 const roundUp = (x) => Math.ceil(x / unitOf(x)) * unitOf(x);

@@ -16,6 +16,7 @@ const R = C.CONTAINER_RULES;
 const ON_KEY = 'containers_on'; // meta: '0' = switched off by an admin; anything else (or nothing) = on
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 const OPEN = "status IN ('waiting', 'live')";
+const ACTIVE = "status IN ('soon', 'waiting', 'live')"; // + the evening lot before 20:00 (no bids yet)
 
 export function createContainers(ctx) {
   const { db, q, now, fail, int, name, addMoney, pay, notify, giveCar, carRow, carOut, garageCount, userRow, metaGet, metaSet, alog, bank, recalc } = ctx;
@@ -66,6 +67,7 @@ export function createContainers(ctx) {
     for (const t of C.EVENT_TIERS) if (!eventOn(t.event)) q("UPDATE container_lots SET status = 'cancelled', settled_at = ?, pending = NULL WHERE tier = ? AND status = 'waiting' AND humans = 0").run(now(), t.id);
     if (!isOn()) return;
     for (const t of tiersNow()) if (!q(`SELECT 1 FROM container_lots WHERE tier = ? AND ${OPEN}`).get(t.id)) spawn(t.id);
+    evening();
   }
 
   // ---------- the bots' next answer ----------
@@ -84,6 +86,10 @@ export function createContainers(ctx) {
   // Brings a lot up to time t: the bots' answers that are due (each at its own moment, with its own extension), then
   // the end. Returns the lot as it is now.
   function tick(L, t = now()) {
+    if (L.status === 'soon') {
+      if (t < L.live_at) return L;
+      goLive(L);
+    }
     if (L.status !== 'waiting' && L.status !== 'live') return L;
     let changed = false;
     while (L.status === 'live' && L.pending && L.pending.at <= t && L.pending.at < L.ends_at) {
@@ -135,6 +141,68 @@ export function createContainers(ctx) {
     ensure();
   }
 
+  // ---------- «Вечірній аукціон» (Контейнери 2.0) ----------
+  // One lot a day: made EVENING.warnMin before 20:00 Kyiv (status 'soon', live_at = the start; the reminder goes to the
+  // players who asked for it), live at 20:00 for EVENING.liveMs with the usual extensions. A server that was down
+  // makes it up to EVENING.lateMs after the start, live at once. The bots start bidding among themselves at the start.
+  const subbed = (uid) => !!q('SELECT 1 FROM container_subs WHERE user_id = ?').get(uid);
+  const eveningRow = (s) => {
+    const L = q("SELECT * FROM container_lots WHERE tier = 'evening' AND created_at >= ? ORDER BY id DESC LIMIT 1").get(s - C.EVENING.warnMin * 60e3 - C.EVENING.lateMs);
+    return L ? parse(L) : null;
+  };
+  function evening(t = now()) {
+    if (!isOn()) return;
+    const s = C.eveningStart(t);
+    if (t < s - C.EVENING.warnMin * 60e3 || t >= s + C.EVENING.lateMs || eveningRow(s)) return;
+    const id = spawn('evening');
+    const late = t >= s;
+    q("UPDATE container_lots SET status = 'soon', live_at = ?, ends_at = ? WHERE id = ?").run(late ? t : s, (late ? t : s) + C.EVENING.liveMs, id);
+    const L = row(id), post = C.posterior('evening', L.hints);
+    const what = [S.COUNTRIES[L.hints.country]?.name, C.BODY_NAMES[L.hints.body], L.hints.cls && S.CLASSES[L.hints.cls].name.toLowerCase(), L.hints.dec && C.decadeText(L.hints.dec)].filter(Boolean).join(', ');
+    const text = `🌆 ${late ? 'Вечірній аукціон уже йде' : `Вечірній аукціон о ${C.EVENING.hour}:00 — через ${Math.max(1, Math.round((s - t) / 60e3))} хв`}: ${what} · оцінка ${S.short(post.lo)}–${S.short(post.hi)}. Ринок → Причал`;
+    for (const u of q('SELECT s.user_id id FROM container_subs s JOIN users u ON u.id = s.user_id WHERE u.banned = 0').all()) tell(u.id, text, true);
+    if (late) tick(row(id), t);
+  }
+  function goLive(L) {
+    L.status = 'live';
+    L.ends_at = L.live_at + C.EVENING.liveMs;
+    decide(L, L.live_at);
+    save(L);
+  }
+  function eveningSub(uid, { on }) {
+    if (on) q('INSERT OR IGNORE INTO container_subs (user_id, at) VALUES (?, ?)').run(uid, now());
+    else q('DELETE FROM container_subs WHERE user_id = ?').run(uid);
+    return { sub: subbed(uid) };
+  }
+  function eveningOut(uid) {
+    const t = now(), s = C.eveningStart(t);
+    const L = eveningRow(s);
+    const at = t < s ? s : C.nextEvening(s + C.EVENING.lateMs); // after 20:00 the tile counts down to tomorrow
+    return { at, hour: C.EVENING.hour, warnMin: C.EVENING.warnMin, sub: subbed(uid), level: C.EVENING_TIER.level, lot: L ? lotOut(tick(L, t), uid) : null };
+  }
+
+  // ---------- «Огляд експерта» (Контейнери 2.0) ----------
+  const expertOf = (lotId, uid) => {
+    const r = uid > 0 ? q('SELECT field, value FROM container_expert WHERE lot_id = ? AND user_id = ?').get(lotId, uid) : null;
+    return r ? { field: r.field, value: JSON.parse(r.value) } : null;
+  };
+  function expert(uid, { id, field }) {
+    if (!isOn()) fail('Причал зараз зачинено — зазирни пізніше');
+    let L = row(int(id, 1, Number.MAX_SAFE_INTEGER, 'Лот'));
+    if (!L) fail('Лот не знайдено');
+    L = tick(L);
+    if (!['soon', 'waiting', 'live'].includes(L.status)) fail('Торги за цим контейнером уже завершено');
+    const tier = C.TIER_BY[L.tier];
+    if (userRow(uid).level < tier.level) fail(`«${tier.name}» відкривається з рівня ${tier.level}`);
+    if (expertOf(L.id, uid)) fail('Експерт уже оглянув цей контейнер для тебе');
+    const f = String(field || '');
+    if (!C.expertFields(L.hints).includes(f)) fail('Цей факт уже видно — обери інший');
+    const price = C.expertPrice(C.posterior(L.tier, L.hints));
+    pay(uid, price);
+    q('INSERT INTO container_expert (lot_id, user_id, field, value, price, at) VALUES (?, ?, ?, ?, ?, ?)').run(L.id, uid, f, JSON.stringify(C.factOf(L.model, f)), price, now());
+    return lot(uid, { id: L.id, full: true });
+  }
+
   // ---------- what the app sees ----------
   const feedOf = (L, uid, n = 14) => q('SELECT bidder, amount, at FROM container_bids WHERE lot_id = ? ORDER BY at DESC, rowid DESC LIMIT ?').all(L.id, n)
     .map((b) => ({ who: bidderName(b.bidder), bot: C.botOf(b.bidder)?.id || null, me: b.bidder === uid, amount: b.amount, at: b.at, pass: b.amount === 0 ? C.botOf(b.bidder)?.line || 'пас' : null }));
@@ -145,10 +213,12 @@ export function createContainers(ctx) {
       carId: L.top_bidder === uid ? L.car_id : null, serial: L.serial, cancelled: L.status === 'cancelled', at: L.settled_at };
   }
   function lotOut(L, uid, full = false) {
-    const t = now(), post = C.posterior(L.tier, L.hints);
+    const t = now(), pub = C.posterior(L.tier, L.hints), ex = expertOf(L.id, uid);
+    const post = ex ? C.narrow(pub, { [ex.field]: ex.value }) : pub; // the buyer's honest list: the public one with his fact
     const out = { id: L.id, tier: L.tier, hints: L.hints, commit: L.commit_hash, status: L.status, topBid: L.top_bid, leader: bidderName(L.top_bidder), leaderBot: C.botOf(L.top_bidder)?.id || null,
       mine: L.top_bidder === uid, bids: L.bids, endsAt: L.ends_at, liveAt: L.live_at, minBid: C.minNext(L.top_bid), version: L.version, now: t,
-      est: { lo: post.lo, hi: post.hi, ev: Math.round(post.ev), n: post.rows.length }, bots: L.bots.map((b) => ({ id: b.id, passed: !!b.passed })), result: resultOf(L, uid) };
+      est: { lo: post.lo, hi: post.hi, ev: Math.round(post.ev), n: post.rows.length }, bots: L.bots.map((b) => ({ id: b.id, passed: !!b.passed })), result: resultOf(L, uid),
+      expert: ex, expertPrice: ex ? null : C.expertPrice(pub), expertFields: ex ? [] : C.expertFields(L.hints) };
     if (full) out.post = post.rows;
     return out;
   }
@@ -156,13 +226,13 @@ export function createContainers(ctx) {
   const unopened = (uid) => q("SELECT id FROM container_lots WHERE top_bidder = ? AND status = 'done' AND opened = 0 ORDER BY id").all(uid).map((r) => r.id);
 
   function list(uid) {
-    for (const L of q(`SELECT * FROM container_lots WHERE ${OPEN}`).all()) tick(parse(L));
+    for (const L of q(`SELECT * FROM container_lots WHERE ${ACTIVE}`).all()) tick(parse(L));
     ensure();
-    const lots = q(`SELECT * FROM container_lots WHERE ${OPEN} ORDER BY id`).all().map(parse)
+    const lots = q(`SELECT * FROM container_lots WHERE ${OPEN} AND tier <> 'evening' ORDER BY id`).all().map(parse)
       .sort((a, b) => C.CONTAINER_TIERS.findIndex((t) => t.id === a.tier) - C.CONTAINER_TIERS.findIndex((t) => t.id === b.tier)).map((L) => lotOut(L, uid));
     const recent = q("SELECT * FROM container_lots WHERE status = 'done' ORDER BY settled_at DESC, id DESC LIMIT 8").all().map(parse).map((L) => ({ id: L.id, tier: L.tier, ...resultOf(L, uid) }));
     const u = userRow(uid);
-    return { on: isOn(), lots, recent, escrow: escrowOf(uid), unopened: unopened(uid), maxBid: C.maxBidOf(u.balance), level: u.level, now: now() };
+    return { on: isOn(), lots, recent, escrow: escrowOf(uid), unopened: unopened(uid), maxBid: C.maxBidOf(u.balance), level: u.level, now: now(), evening: isOn() ? eveningOut(uid) : null };
   }
   function lot(uid, { id, full }) {
     let L = row(int(id, 1, Number.MAX_SAFE_INTEGER, 'Лот'));
@@ -181,6 +251,7 @@ export function createContainers(ctx) {
     let L = row(int(id, 1, Number.MAX_SAFE_INTEGER, 'Лот'));
     if (!L) fail('Лот не знайдено');
     L = tick(L, t);
+    if (L.status === 'soon') fail(`Торги стартують о ${C.EVENING.hour}:00 — поки можна роздивитись підказки й покликати експерта`);
     if (L.status !== 'waiting' && L.status !== 'live') fail('Торги за цим контейнером уже завершено');
     const tier = C.TIER_BY[L.tier], u = userRow(uid);
     if (tier.event && L.status === 'waiting' && !eventOn(tier.event)) fail('Подія завершилась — цей контейнер уже зняли з причалу');
@@ -225,7 +296,8 @@ export function createContainers(ctx) {
   // Server sweeper: lots with live bidding are brought up to date (bots' answers, endings) even when nobody looks.
   function sweep() {
     let n = 0;
-    for (const L of q("SELECT * FROM container_lots WHERE status = 'live'").all()) {
+    evening(); // the evening lot comes up (and its reminder goes out) even when nobody looks
+    for (const L of q("SELECT * FROM container_lots WHERE status IN ('soon', 'live')").all()) {
       tick(parse(L));
       n++;
     }
@@ -235,7 +307,7 @@ export function createContainers(ctx) {
   // ---------- admin ----------
   function adminView() {
     const t = now(), since = t - 7 * 86400e3;
-    const open = q(`SELECT * FROM container_lots WHERE ${OPEN} ORDER BY id`).all().map(parse).map((L) => ({
+    const open = q(`SELECT * FROM container_lots WHERE ${ACTIVE} ORDER BY id`).all().map(parse).map((L) => ({
       id: L.id, tier: L.tier, status: L.status, hints: L.hints, commit: L.commit_hash, topBid: L.top_bid, leader: bidderName(L.top_bidder), human: L.top_bidder > 0 ? L.top_bidder : null,
       bids: L.bids, humans: L.humans, endsAt: L.ends_at, est: (({ lo, hi, ev }) => ({ lo, hi, ev: Math.round(ev) }))(C.posterior(L.tier, L.hints)),
     }));
@@ -246,11 +318,13 @@ export function createContainers(ctx) {
     const done = q("SELECT tier, top_bid, top_bidder, model, ed FROM container_lots WHERE status = 'done' AND settled_at > ?").all(since);
     const hum = done.filter((l) => l.top_bidder > 0);
     const paid = hum.reduce((s, l) => s + l.top_bid, 0), sale = hum.reduce((s, l) => s + C.saleOfModel(l.model), 0);
-    const byTier = [...C.CONTAINER_TIERS, ...C.EVENT_TIERS].map((tr) => {
+    const byTier = [...C.CONTAINER_TIERS, ...C.EVENT_TIERS, C.EVENING_TIER].map((tr) => {
       const h = hum.filter((l) => l.tier === tr.id), p = h.reduce((s, l) => s + l.top_bid, 0);
       return { tier: tr.id, done: done.filter((l) => l.tier === tr.id).length, human: h.length, paid: p, ret: p ? h.reduce((s, l) => s + C.saleOfModel(l.model), 0) / p : null };
     });
-    return { on: isOn(), open, recent, week: { done: done.length, human: hum.length, bots: done.length - hum.length, paid, sale, ret: paid ? sale / paid : null, editions: hum.filter((l) => l.ed).length, byTier },
+    const ex = q('SELECT COUNT(*) n, COALESCE(SUM(price), 0) spent FROM container_expert WHERE at > ?').get(since);
+    return { on: isOn(), open, recent, week: { done: done.length, human: hum.length, bots: done.length - hum.length, paid, sale, ret: paid ? sale / paid : null, editions: hum.filter((l) => l.ed).length, byTier, expert: { n: ex.n, spent: ex.spent } },
+      evening: { at: C.nextEvening(t), subs: q('SELECT COUNT(*) n FROM container_subs').get().n },
       history: q("SELECT admin, action, details, created_at at FROM admin_log WHERE action LIKE 'containers%' ORDER BY id DESC LIMIT 10").all().map((r) => ({ ...r, details: JSON.parse(r.details || 'null') })) };
   }
   // Off: no new lots and no new bids; lots nobody bid on yet are taken off; live ones finish as usual (money in escrow).
@@ -258,7 +332,7 @@ export function createContainers(ctx) {
     const to = !!on;
     metaSet(ON_KEY, to ? '1' : '0');
     let removed = 0;
-    if (!to) removed = q("UPDATE container_lots SET status = 'cancelled', settled_at = ?, pending = NULL WHERE status = 'waiting' AND humans = 0").run(now()).changes;
+    if (!to) removed = q("UPDATE container_lots SET status = 'cancelled', settled_at = ?, pending = NULL WHERE status IN ('soon', 'waiting') AND humans = 0").run(now()).changes;
     else ensure();
     alog(who, 'containers-toggle', null, { on: to, removed });
     return { on: to, removed };
@@ -267,7 +341,7 @@ export function createContainers(ctx) {
   // but the admin sees it in «Завершені») and a fresh lot of the tier takes its place.
   function adminClose(who, { id }) {
     const L = row(int(id, 1, Number.MAX_SAFE_INTEGER, 'Лот'));
-    if (!L || (L.status !== 'waiting' && L.status !== 'live')) fail('Лот уже завершено');
+    if (!L || !['soon', 'waiting', 'live'].includes(L.status)) fail('Лот уже завершено');
     q("UPDATE container_lots SET status = 'cancelled', settled_at = ?, pending = NULL, version = version + 1 WHERE id = ?").run(now(), L.id);
     if (L.top_bidder > 0) {
       addMoney(L.top_bidder, L.top_bid);
@@ -280,9 +354,9 @@ export function createContainers(ctx) {
 
   return {
     isOn, ensure, tick: (id, t) => tick(row(id), t), sweep, spawn,
-    api: { containers: list, 'containers/lot': lot, 'containers/bid': bid, 'containers/open': open },
+    api: { containers: list, 'containers/lot': lot, 'containers/bid': bid, 'containers/open': open, 'containers/expert': expert, 'containers/evening': eveningSub },
     admin: { containers: () => adminView(), 'containers/toggle': adminToggle, 'containers/close': adminClose },
     mutating: ['containers/toggle', 'containers/close'],
-    gates: { 'containers/bid': 'auction' },
+    gates: { 'containers/bid': 'auction', 'containers/expert': 'auction' },
   };
 }

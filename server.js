@@ -226,12 +226,14 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     // A «Заїзд дня» result (body.dayrace = its day): the player's own time on that day's car, whatever his collection.
     const dr = body.dayrace ? game.api['dayrace/caption'](uid, { day: String(body.dayrace) }) : null;
     const m = MODELS[dr ? dr.model : String(body.model || '')];
-    if (!m || (!dr && !db.q('SELECT 1 FROM collection WHERE user_id = ? AND model = ?').get(uid, m.id))) throw new GameError('Цієї машини немає у твоїй колекції');
+    // A «тиражна» never enters the collection: it is shared while the player owns it (its serial goes in the caption).
+    const ed = !dr && m?.edition ? db.q('SELECT serial FROM cars WHERE owner_id = ? AND model = ? ORDER BY id = ? DESC, id LIMIT 1').get(uid, m.id, Number(body.carId) || 0) : null;
+    if (!m || (!dr && !ed && !db.q('SELECT 1 FROM collection WHERE user_id = ? AND model = ?').get(uid, m.id))) throw new GameError('Цієї машини немає у твоїй колекції');
     if (!bot?.username) throw new GameError('Поширення стане доступним після підключення бота');
     if (!/^https:\/\//.test(webappUrl)) throw new GameError('Потрібна https-адреса гри (WEBAPP_URL)');
     if (!shares.get(body.id)) throw new GameError('Картка застаріла, спробуй ще раз');
     const link = `https://t.me/${bot.username}?start=ref_${uid}`;
-    const preparedId = await bot.prepareShare(uid, { photoUrl: `${new URL(webappUrl).origin}/share/${body.id}.jpg`, caption: `${dr ? dr.caption : shareCaption(m.id)}\n${link}`, link });
+    const preparedId = await bot.prepareShare(uid, { photoUrl: `${new URL(webappUrl).origin}/share/${body.id}.jpg`, caption: `${dr ? dr.caption : shareCaption(m.id, ed?.serial)}\n${link}`, link });
     if (!dr) channel.noteCard(uid, m.id, body.id); // the channel post about this car may use the same card
     return send(res, 200, { preparedId, link });
   }

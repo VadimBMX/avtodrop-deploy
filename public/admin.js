@@ -806,10 +806,10 @@ H.unlist = (d) => mutate('market/remove', { kind: d.kind, id: Number(d.id) }, { 
 // ---------- «Причал»: the container auction (src/containers.js) ----------
 // The switch, the lots on the pier right now (hints only: the content stays hidden until a lot ends), the last lots
 // with their content and the bots' limits, and the week's numbers: how many people won, what they paid, the return.
-const TIER_NAMES = { odesa: 'Порт Одеса', customs: 'Митниця', japan: 'Контейнер з Японії', ghost: 'Контейнер з привидом (Хелловін)' };
+const TIER_NAMES = { odesa: 'Порт Одеса', customs: 'Митниця', japan: 'Контейнер з Японії', ghost: 'Контейнер з привидом (Хелловін)', evening: 'Вечірній аукціон (20:00)' };
 const BOT_NAMES = { petrovych: 'Петрович', vasya: 'Вася', liza: 'Ліза', zhora: 'Жора' };
 const pctR = (x) => (x == null ? '—' : `${Math.round(x * 100)}%`);
-const hintsText = (h) => [h.country, h.body, h.cls ? `клас ${h.cls}` : 'клас ?', h.dec ? `${h.dec}-ті` : '', `${h.kg}–${h.kg + 600} кг`, h.junk ? 'після повені' : ''].filter(Boolean).join(' · ');
+const hintsText = (h) => [h.country, h.body, h.cls ? `клас ${h.cls}` : 'клас ?', h.dec ? `${h.dec}-ті` : '', h.kg != null ? `${h.kg}–${h.kg + 600} кг` : 'вага ?', h.junk ? 'після повені' : ''].filter(Boolean).join(' · ');
 VIEWS.containers = async () => {
   const c = await api('containers');
   const w = c.week;
@@ -819,10 +819,11 @@ VIEWS.containers = async () => {
       <table><tr><th></th><th class="num">Лотів</th><th class="num">Виграли гравці</th><th class="num">Сплачено</th><th class="num">Віддача</th></tr>
         ${w.byTier.map((t) => `<tr><td>${esc(TIER_NAMES[t.tier] || t.tier)}</td><td class="num">${t.done}</td><td class="num">${t.human}</td><td class="num">${short(t.paid)}</td><td class="num">${pctR(t.ret)}</td></tr>`).join('')}
         <tr><td><b>За 7 днів</b></td><td class="num"><b>${w.done}</b></td><td class="num"><b>${w.human}</b> <span class="muted small">(боти ${w.bots})</span></td><td class="num"><b>${short(w.paid)}</b></td><td class="num"><b>${pctR(w.ret)}</b></td></tr></table>
-      <div class="small muted">Спалено гравцями: ${money(w.paid)} · продаж виграних машин: ${money(w.sale)} · видано тиражних: ${w.editions}</div></div>
+      <div class="small muted">Спалено гравцями: ${money(w.paid)} · продаж виграних машин: ${money(w.sale)} · видано тиражних: ${w.editions}</div>
+      ${w.expert ? `<div class="small muted">Огляд експерта: ${w.expert.n} за 7 днів, спалено ${money(w.expert.spent)}${c.evening ? ` · вечірній аукціон о 20:00 — нагадування увімкнули ${c.evening.subs}` : ''}</div>` : ''}</div>
     <div class="panel"><h2>Зараз на причалі <span class="sub">${c.open.length}</span></h2>
       ${c.open.length ? `<div class="tbl-wrap"><table><tr><th>Лот</th><th>Підказки</th><th class="num">Ставка</th><th>Лідер</th><th>Кінець</th><th></th></tr>
-        ${c.open.map((l) => `<tr><td><b>#${l.id}</b> ${esc(TIER_NAMES[l.tier] || l.tier)}<div class="muted small">${l.status === 'live' ? 'торги' : 'чекає ставки'} · ставок ${l.bids} (людей ${l.humans})</div></td>
+        ${c.open.map((l) => `<tr><td><b>#${l.id}</b> ${esc(TIER_NAMES[l.tier] || l.tier)}<div class="muted small">${l.status === 'live' ? 'торги' : l.status === 'soon' ? 'старт о 20:00' : 'чекає ставки'} · ставок ${l.bids} (людей ${l.humans})</div></td>
           <td class="small">${esc(hintsText(l.hints))}<div class="muted">оцінка ${short(l.est.lo)}–${short(l.est.hi)} · EV продажу ${short(l.est.ev)}</div></td>
           <td class="num">${money(l.topBid)}</td><td>${l.human ? `<a data-user="${l.human}">${esc(l.leader)}</a>` : esc(l.leader)}</td><td class="small">${date(l.endsAt)}</td>
           <td><button class="btn red sm" data-act="ctClose" data-id="${l.id}">Закрити й замінити</button></td></tr>`).join('')}</table></div>` : '<div class="empty">Лотів немає</div>'}</div>
