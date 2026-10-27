@@ -319,3 +319,29 @@ table.money td { vertical-align: middle; }
 .dr-adm-art img, .dr-adm-art svg { max-width: 100%; max-height: 56px; filter: drop-shadow(0 6px 5px #000b); }
 .dr-adm td.right { text-align: right; }
 .dr-adm tr.muted td { opacity: .55; }
+/* «Події й розклад» (public/admin-events.js) */
+.evp-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px 2px 6px; border-radius: 999px; font: 700 12.5px var(--f-disp); color: var(--c);
+  background: color-mix(in srgb, var(--c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--c) 40%, transparent); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.evp-chip .i { width: 14px; height: 14px; flex: none; }
+.evp-weeks { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.evp-week { border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--card2); display: grid; gap: 5px; align-content: start; }
+.evp-week.plan { border-color: #1d5236; }
+.evp-wh { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.evp-wrow { display: grid; gap: 1px; }
+.evp-tbl td { vertical-align: top; }
+.evp-tbl tr.past td { opacity: .6; }
+.evp-pl { margin: 4px 0 0; padding-left: 16px; font-size: 12px; color: var(--muted); }
+.evp-hw { margin: 0 0 8px; padding: 6px 8px; border-radius: 6px; border: 1px dashed #5a3a1a; color: #ffb35a; display: flex; gap: 6px; align-items: flex-start; }
+.evp-hw .i { width: 16px; height: 16px; flex: none; }
+.evp-hw.muted { color: var(--muted); border-color: var(--line); }
+.evp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.evp-grid select, .evp-grid input { width: 100%; min-width: 0; }
+.evp-form { border-color: #1d5236; }
+.evp-prev { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: var(--card2); border: 1px solid var(--line); font-size: 13px; }
+.evp-prev ul { margin: 4px 0 0; padding-left: 18px; }
+@media (max-width: 640px) {
+  .evp-tbl, .evp-tbl tbody, .evp-tbl tr, .evp-tbl td { display: block; width: 100%; }
+  .evp-tbl tr { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .evp-tbl td { border: 0; padding: 2px 0; white-space: normal; text-align: left; }
+  .evp-tbl td.num { text-align: left; margin-top: 4px; }
+}

@@ -12,6 +12,7 @@ import { createSender, createReminders } from './src/reminders.js';
 import { createStatic, compressSmall } from './src/static.js';
 import { PACKS, PACKS_ON_SALE, REF_REWARD, MODELS, shareCaption, short } from './public/shared.js';
 import { createShareStore, SHARE } from './src/share.js';
+import { createChannel, START_PARAM as CHANNEL_START } from './src/channel.js';
 import * as G from './public/ghost.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -20,7 +21,7 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; cha
 const CSP = "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://t.me https://*.t.me https://telegram.org https://*.telegram.org; connect-src 'self'; frame-ancestors 'self' https://web.telegram.org https://*.telegram.org";
 const SECURITY = { 'x-content-type-options': 'nosniff', 'content-security-policy': CSP, 'referrer-policy': 'no-referrer' };
 
-export function createApp({ dbFile, token = '', dev = false, webappUrl = '', admins = [], adminKey = '', log = console.error } = {}) {
+export function createApp({ dbFile, token = '', dev = false, webappUrl = '', admins = [], adminKey = '', channelId = '', channelApi = null, log = console.error } = {}) {
   const db = openDb(dbFile);
   let bot = null, sender = null, reminders = null;
   // Instant events (trades, PvP, auctions, support) go first in the same rate-limited queue as the reminders;
@@ -29,7 +30,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     if (!sender) return;
     for (const id of ids) sender.enqueue(id, text, { urgent: false });
   };
-  const game = createGame(db, { notify: (uid, text) => sender?.enqueue(uid, text, { urgent: true }), admins, broadcast });
+  const game = createGame(db, { notify: (uid, text) => sender?.enqueue(uid, text, { urgent: true }), admins, broadcast, seedSchedule: true });
   if (token) {
     bot = createBot({ token, webappUrl, admins, game, log, inline: (query, from) => inlineAnswer(query, from) });
     sender = createSender({ send: bot.sendMessage, onBlocked: game.push.block, isBlocked: game.push.isBlocked, log });
@@ -65,6 +66,11 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
   const carImages = () => folderImages('cars');
 
   const shares = createShareStore(); // drop cards uploaded for Telegram stories / shared messages (src/share.js)
+  // Auto-posts to the Telegram channel (TG_CHANNEL_ID; src/channel.js). channelApi: a test's stand-in for the Bot API.
+  const channel = createChannel({ db, channelId, api: channelApi || (bot ? bot.call : null), log,
+    imageUrl: (model) => (httpsOrigin() && carImages()[model] ? httpsOrigin() + '/' + carImages()[model] : ''),
+    cardUrl: (id) => (httpsOrigin() && shares.get(id) ? `${httpsOrigin()}/share/${id}.jpg` : ''),
+    playUrl: () => (bot?.username ? (tgApp() ? `https://t.me/${bot.username}/${tgApp()}?startapp=${CHANNEL_START}` : `https://t.me/${bot.username}?start=${CHANNEL_START}`) : '') });
   const authCache = new Map(); // initData → { uid, until }
   const hits = new Map(); // uid → [windowStart, count]
 
@@ -133,6 +139,11 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     if (id.error) return send(res, id.code, { error: id.error });
     if (limited('admin:' + id.who)) return send(res, 429, { error: 'Забагато запитів, зачекай секунду' });
     const body = await readBody(req);
+    if (name === 'channel' || name.startsWith('channel/')) {
+      const r = await channel.admin(name, body, { who: id.who, role: id.who.startsWith('tg:') ? game.roleOf(Number(id.who.slice(3))) : 'owner' });
+      if (r === undefined) return send(res, 404, { error: 'Невідомий метод' });
+      return r.error ? send(res, r.code || 400, { error: r.error }) : send(res, 200, r);
+    }
     if (name === 'whoami') return send(res, 200, { who: id.who, role: id.who.startsWith('tg:') ? game.roleOf(Number(id.who.slice(3))) : 'owner', dev, bot: bot?.username || null, outbox: sender ? sender.size() : 0 });
     // adminCall checks the role, and for actions that change something the confirm flag and the reason.
     const out = game.adminCall(id.who, name, body);
@@ -221,6 +232,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     if (!shares.get(body.id)) throw new GameError('Картка застаріла, спробуй ще раз');
     const link = `https://t.me/${bot.username}?start=ref_${uid}`;
     const preparedId = await bot.prepareShare(uid, { photoUrl: `${new URL(webappUrl).origin}/share/${body.id}.jpg`, caption: `${dr ? dr.caption : shareCaption(m.id)}\n${link}`, link });
+    if (!dr) channel.noteCard(uid, m.id, body.id); // the channel post about this car may use the same card
     return send(res, 200, { preparedId, link });
   }
 
@@ -316,6 +328,8 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     if (name === 'share/card' || name === 'share/prepare') return await handleShare(req, res, name, uid);
     if (name === 'challenge/prepare') return await handleChallengeShare(req, res, uid);
     const body = await readBody(req);
+    // «Показувати мене в каналі» (src/channel.js): opt-in, off by default.
+    if (name === 'settings/channel') return send(res, 200, channel.setShow(uid, !!body.on));
     if (name === 'shop/invoice') {
       if (!bot) throw new GameError('Оплата зірками стане доступною після підключення бота');
       if (body.item) return send(res, 200, { link: await bot.itemInvoiceLink(uid, String(body.item), game.itemPrice(uid, String(body.item))) });
@@ -347,6 +361,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     if (!fn) return send(res, 404, { error: 'Невідомий метод' });
     const out = fn(uid, body) ?? {};
     if (name === 'me') out.admin = canAdmin(req, uid);
+    if (name === 'me' && channel.configured()) out.channelShow = channel.shows(uid);
     return send(res, 200, out);
   }
 
@@ -435,7 +450,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
   sweeper.unref();
 
   return {
-    server, game, db, bot, sender, reminders, statics, shares,
+    server, game, db, bot, sender, reminders, statics, shares, channel,
     async start(port) {
       if (bot) {
         try {
@@ -445,11 +460,13 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
           log('Bot failed to start:', e.message);
         }
       }
+      channel.start();
       await new Promise((r) => server.listen(port, r));
       return server.address().port;
     },
     close() {
       clearInterval(sweeper);
+      channel.stop();
       reminders?.stop();
       bot?.stop();
       server.close();
@@ -476,6 +493,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     webappUrl: process.env.WEBAPP_URL || '',
     admins: (process.env.ADMIN_IDS || '').split(',').map((s) => Number(s.trim())).filter(Boolean),
     adminKey: process.env.ADMIN_KEY || '',
+    channelId: process.env.TG_CHANNEL_ID || '', // @channel_name or -100…; the bot must be its admin (post messages)
   });
   const port = await app.start(Number(process.env.PORT) || 3100);
   // Hash and compress the static files right away so the first player after a deploy doesn't wait for brotli.

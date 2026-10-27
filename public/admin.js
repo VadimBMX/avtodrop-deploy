@@ -4,6 +4,8 @@ import { carArt, setImages } from './car.js';
 import { metricsPage } from './admin-metrics.js';
 import { dayRacePage, dayRaceActions } from './admin-dayrace.js';
 import { halloweenPage, halloweenActions } from './admin-halloween.js';
+import { channelPage, channelActions } from './admin-channel.js';
+import { eventsPage, eventsActions, eventsAfter } from './admin-events.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -125,6 +127,7 @@ const ACTIONS = {
   ban: 'Бан', unban: 'Розбан', reset: 'Обнулено', 'dealer-refresh': 'Нові лоти дилера', 'give-plate': 'Видано номер', 'remove-plate': 'Забрано номер', message: 'Повідомлення', 'market-remove': 'Знято лот', promo: 'Промокод', 'promo-delete': 'Видалено промокод', support: 'Відповідь підтримки', role: 'Права',
   luck: 'Підкрутка', rig: 'Гарантована машина', 'rig-cancel': 'Скасовано гарантовану машину', broadcast: 'Розсилка', 'casino-mode': 'Режим казино',
   'containers-toggle': 'Причал: перемикач', 'containers-close': 'Причал: лот закрито',
+  'event-start': 'Подія: запуск', 'event-stop': 'Подія: зупинка', 'plan-add': 'Розклад: додано', 'plan-edit': 'Розклад: змінено', 'plan-delete': 'Розклад: видалено', 'plan-seed': 'Розклад: типовий календар',
 };
 const FIELD_NAMES = { level: 'Рівень', slots: 'Місць у гаражі', showcase_slots: 'Місць на вітрині', cap_level: 'Рівень сховища', xp: 'XP' };
 const AUDIENCE = { all: 'усім гравцям', active30: 'активним за 30 днів', active7: 'активним за 7 днів', active1: 'активним за добу' };
@@ -161,6 +164,8 @@ function detailsMain(a, d) {
     case 'luck': return d.chance ? `${d.chance}% на ${d.opens} відкр.` : 'вимкнено';
     case 'rig': case 'rig-cancel': return esc(model(d.model).name);
     case 'market-remove': return d.kind === 'listing' ? 'ринок' : 'аукціон';
+    case 'plan-add': case 'plan-edit': case 'plan-delete': return `${esc(d.title || S.EVENTS[d.kind]?.name || d.kind)} · ${esc(S.kyivLocal(d.start).replace('T', ' '))} – ${esc(S.kyivLocal(d.end).replace('T', ' '))}`;
+    case 'plan-seed': return `додано ${d.added}, пропущено ${d.skipped}`;
     default: return esc(JSON.stringify(d));
   }
 }
@@ -329,6 +334,14 @@ Object.assign(H, dayRaceActions({ mutate, esc, $ }));
 // ---------- «Ніч Хелловіну»: dates, the switch, what players got (public/admin-halloween.js) ----------
 VIEWS.halloween = () => halloweenPage({ api, esc, date });
 Object.assign(H, halloweenActions({ mutate }));
+// ---------- «Канал»: auto-posts to the Telegram channel (public/admin-channel.js, src/channel.js) ----------
+VIEWS.channel = () => channelPage({ api, esc, date });
+Object.assign(H, channelActions({ mutate, $ }));
+Object.assign(ACTIONS, { 'channel-set': 'Канал: налаштування', 'channel-test': 'Канал: тестовий пост' });
+// ---------- «Події»: what runs now, the next 8 weeks and the events scheduler (public/admin-events.js) ----------
+VIEWS.events = () => eventsPage({ api, esc, ic });
+AFTER.events = () => eventsAfter({ $ });
+Object.assign(H, eventsActions({ mutate, render, esc }));
 Object.assign(ACTIONS, { 'dayrace-set': 'Заїзд дня: машина', 'dayrace-dq': 'Заїзд дня: результат' });
 function userTable(list, rich) {
   if (!list.length) return '<div class="empty">Гравців поки немає</div>';

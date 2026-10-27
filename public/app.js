@@ -1325,7 +1325,7 @@ function eventsCard(compact, skip = []) {
   return `<div class="card ev-card mt" ${compact ? 'data-act="eventsOpen"' : ''}>${compact ? `<div class="row between"><b class="ev-h">${ic('calendar')} Події</b><span class="tiny muted">усі ${ic('chevron-right')}</span></div>` : ''}
     ${act.map((e) => row(e, true)).join('')}${next.length ? `<div class="ev-sub tiny muted">Далі</div>${next.map((e) => row(e, false)).join('')}` : ''}</div>`;
 }
-H.eventsOpen = () => sheet('Події', `${eventsCard(false)}<div class="tiny muted mt">Події йдуть самі за розкладом (київський час): «Країна тижня» — щотижня, з понеділка; у вівторок і четвер — «Щасливі номери» та «Подвійне паливо»; на вихідних — «Вихідні удачі» або «Гоночний уїкенд», через тиждень.</div>`);
+H.eventsOpen = () => sheet('Події', `${eventsCard(false)}<div class="tiny muted mt">Події йдуть самі за розкладом (київський час): «Країна тижня» — щотижня, з понеділка; у вівторок і четвер — «Щасливі номери» та «Подвійне паливо»; на вихідних — «Вихідні удачі» або «Гоночний уїкенд», через тиждень. Деякі тижні йдуть за календарем сезону — з «Подвійним досвідом», «Ніччю дрифту» й темою кейса дня.</div>`);
 // No money for even the cheapest case and no keys: instead of a dead end, every way to get going again.
 function brokeCard() {
   const cheapest = S.CASE_BY_ID.rust.price;
@@ -2640,7 +2640,8 @@ function driftScene(canvas, color, track, tips = false) {
   const tile = document.createElement('canvas');
   tile.width = tile.height = 48;
   const tg2 = tile.getContext('2d');
-  const night = hwNight(); // «Ніч Хелловіну»: the night palette, pumpkins by the road, bats (public/halloween-ui.js)
+  const hwOn = hwNight(); // «Ніч Хелловіну»: the night palette, pumpkins by the road, bats (public/halloween-ui.js)
+  const night = hwOn || evActive().some((e) => e.id === 'drift'); // «Ніч дрифту» (scheduler): the night palette only
   tg2.fillStyle = night ? HW_DRIFT.grass : '#17241b';
   tg2.fillRect(0, 0, 48, 48);
   for (let i = 0; i < 26; i++) {
@@ -2736,7 +2737,7 @@ function driftScene(canvas, color, track, tips = false) {
       road(from, to, HALF * 2, night ? HW_DRIFT.asphalt : '#34373e');
       road(from, to, 2, night ? HW_DRIFT.dash : '#ffffff66', [14, 14]);
       ctx.setLineDash([]);
-      if (night) hwDriftPumpkins(ctx, xs, ys, hs, from, to, HALF);
+      if (hwOn) hwDriftPumpkins(ctx, xs, ys, hs, from, to, HALF);
       if (from <= 2) checker(1);
       if (finishAt >= from && finishAt <= to) checker(finishAt);
       // Training: a sign on the road at every corner ahead (not the one being driven) — direction, angle, entry speed.
@@ -2783,7 +2784,7 @@ function driftScene(canvas, color, track, tips = false) {
       }
       ctx.globalAlpha = 1;
       ctx.restore();
-      if (night) hwDriftOverlay(ctx, W, H, now);
+      if (hwOn) hwDriftOverlay(ctx, W, H, now);
     },
     bump(v = 0.4) {
       if (!DRIFT_RM) shake = v;
@@ -4092,6 +4093,7 @@ function settingsSheet() {
       <div class="li"><span class="mi" style="--c:${ST}">${ic('bell')}</span><div class="grow"><b>Не турбувати</b><div class="tiny muted">Без запрошень на обмін і гонку</div></div><button class="toggle ${me.noInvites ? 'on' : ''}" data-act="toggleDnd" aria-label="Не турбувати"></button></div>
       <div class="li"><span class="mi" style="--c:${BL}">${ic('clock')}</span><div class="grow"><b>Нагадування від бота</b><div class="tiny muted">${me.pushOn && me.pushBlocked ? 'Бот не може написати — відкрий чат з ботом і натисни /start' : 'Бак, дохід, бонус — до 2 разів на день, не вночі'}</div></div><button class="toggle ${me.pushOn ? 'on' : ''}" data-act="togglePush" aria-label="Нагадування від бота"></button></div>
       ${pushGroupsRows()}
+      ${me.channelShow === undefined ? '' : `<div class="li"><span class="mi" style="--c:${ST}">${ic('share')}</span><div class="grow"><b>Показувати мене в каналі</b><div class="tiny muted">${me.channelShow ? 'Твоє ім’я з’являтиметься в постах каналу про рідкісні дропи й перемоги' : 'Вимкнено: у постах каналу ти — «Хтось із гравців»'}</div></div><button class="toggle ${me.channelShow ? 'on' : ''}" data-act="toggleChannel" aria-label="Показувати мене в каналі"></button></div>`}
       <div class="li"><span class="mi" style="--c:${Y}">${ic('copy')}</span><div class="grow"><div class="tiny muted">Твій ID для обмінів</div><b class="disp">${me.id}</b></div><button class="btn sm ghost" data-act="copyId">Копіювати</button></div></div>`);
 }
 H.settingsOpen = () => settingsSheet();
@@ -5507,12 +5509,13 @@ const passCell = (rw, state) => {
 };
 // Every 5 levels of the free track: the season's cosmetics (S.PASS_COSMETICS), owned ones ticked.
 function seasonCosStrip(s) {
-  const tiles = Object.keys(S.PASS_COSMETICS).map(Number).map((l) => {
+  const kinds = S.passCosmetics(s.id);
+  const tiles = Object.keys(kinds).map(Number).map((l) => {
     const c = S.passCosmetic(s.id, l), own = me.claims.includes(c.id);
     return `<div class="scos ${own ? 'own' : s.level >= l ? 'ready' : ''}"><span class="scos-pv scos-${c.kind}" data-season="${s.id}">${ic(c.icon)}</span><b>${esc(c.short)}</b><small>${own ? `${ic('check')} твоє` : `рівень ${l}`}</small></div>`;
   }).join('');
   return `<div class="card scos-card"><div class="row between"><b>${ic('sparkles')} Косметика сезону ${s.id}</b><span class="tiny muted">кожні 5 рівнів · безкоштовно</span></div>
-    <div class="scos-row">${tiles}</div><div class="tiny muted">Лівреї — у «Фарбуванні» на будь-яку свою машину, рамка — на твоїх номерах, фон — за вітриною (зняти чи надягти — у магазині, «Стиль»), значок — у профілі. Лише в цьому сезоні.</div></div>`;
+    <div class="scos-row${Object.keys(kinds).length > 5 ? ' s2-n6' : ''}">${tiles}</div><div class="tiny muted">Лівреї — у «Фарбуванні» на будь-яку свою машину, рамка — на твоїх номерах, фон — за вітриною${kinds[30] ? ', підсвітка — під машинами' : ''} (зняти чи надягти — у магазині, «Стиль»), значок — у профілі. Лише в цьому сезоні.</div></div>`;
 }
 // Season car showroom: one 360x200 scene, scaled with the card. The left lamp + beam are drawn once and
 // mirrored with <use>, so both sides are identical; glows are stacked strokes (no SVG filters — cheap on phones).
@@ -5564,7 +5567,8 @@ PAGES.season = async () => {
     const st = (tr) => (s.claimed.includes(`pass:${s.id}:${l.level}:${tr}`) ? 'done' : reached ? (tr === 'p' && !s.premium ? 'lock' : 'ready') : tr === 'p' && !s.premium ? 'lock' : 'future');
     return `<div class="prow ${reached ? 'reached' : ''} ${l.level === s.level ? 'cur' : ''}"><span class="plvl">${l.level}</span>${passCell(l.free, st('f'))}${passCell(l.premium, st('p'))}</div>`;
   };
-  return `<div class="card"><div class="row between"><b class="disp" style="font-size:18px">Сезон ${s.id}</b><span class="small muted">до кінця <span data-until="${s.endsAt - clockOffset}"></span></span></div>
+  const th = S.seasonTheme(s.id);
+  return `<div class="card${th ? ` s2-theme" data-season="${s.id}` : ''}"><div class="row between"><b class="disp" style="font-size:18px">Сезон ${s.id}${th ? ` <span class="s2-name">· ${esc(th.name)}</span>` : ''}</b><span class="small muted">до кінця <span data-until="${s.endsAt - clockOffset}"></span></span></div>${th ? `<div class="tiny muted s2-tag">${esc(th.tagline)}</div>` : ''}
       <div class="row between mt"><span>Рівень <b>${s.level}</b> з ${S.SEASON.levels}</span><span class="small muted">${s.need ? `${s.levelXp} / ${s.need} досвіду` : 'максимум'}</span></div>
       <div class="progress gold mt"><i style="width:${s.need ? (s.levelXp / s.need) * 100 : 100}%"></i></div>
       <div class="tiny muted mt">Досвід сезону — той самий, що й завжди: гонки (перемоги більше), кейси, завдання, бонуси. Нічого не скидається, крім пропуску.</div>
@@ -6326,10 +6330,10 @@ function styleView(sh) {
     return `<div class="sty-item ${own ? 'own' : ''} ${on ? 'on' : ''}">${pv}<div class="sty-tx"><b>${esc(it.name)}</b><small>${own ? `${ic('check')} твоє` : esc(it.hint)}</small></div>${btn}</div>`;
   };
   // Season cosmetics the player earned sit in the same slots (frame, backdrop), so they can be put back on here.
-  const season = S.ownedCosmetics(me.claims).filter((c) => (c.season || c.event) && (c.kind === 'frame' || c.kind === 'showcase'));
+  const season = S.ownedCosmetics(me.claims).filter((c) => (c.season || c.event) && (c.kind === 'frame' || c.kind === 'showcase' || c.kind === 'glow'));
   const seasonRow = (kind) => season.filter((c) => c.kind === kind).map((c) => {
     const on = worn[kind] === c.id;
-    return `<div class="sty-item own ${on ? 'on' : ''}">${kind === 'frame' ? `<span class="sty-pv">${plate(sample?.plate?.text || 'AA 7777 AA', 'sm', c.id)}</span>` : `<span class="sty-pv sty-bg sc-season" data-season="${c.season}"></span>`}<div class="sty-tx"><b>${esc(c.name)}</b><small>${ic('trophy')} ${c.event ? esc(c.hint) : 'нагорода сезону'}</small></div>
+    return `<div class="sty-item own ${on ? 'on' : ''}">${kind === 'frame' ? `<span class="sty-pv">${plate(sample?.plate?.text || 'AA 7777 AA', 'sm', c.id)}</span>` : kind === 'glow' ? `<span class="sty-pv sty-glow gl-${S.styleLook(c.id)}"><span class="art">${sample ? carArt(sample.model) : ''}</span></span>` : `<span class="sty-pv sty-bg sc-season" data-season="${c.season}"></span>`}<div class="sty-tx"><b>${esc(c.name)}</b><small>${ic('trophy')} ${c.event ? esc(c.hint) : 'нагорода сезону'}</small></div>
       ${on ? `<button class="btn sm ghost on" data-act="styleEquip" data-slot="${kind}" data-id="">${ic('check')} Надіто · зняти</button>` : `<button class="btn sm" data-act="styleEquip" data-slot="${kind}" data-id="${c.id}">Надіти</button>`}</div>`;
   }).join('');
   const sections = Object.entries(S.STYLE_KINDS).map(([kind, k]) => `<div class="h2"><span>${ic(k.icon)} ${k.title}</span><span>${ic('star')} ${S.STYLE_ITEMS.find((x) => x.kind === kind).stars}</span></div>
@@ -6865,6 +6869,14 @@ H.togglePush = async () => {
   const r = await act('settings/push', { on: !me.pushOn }, null);
   if (r) toast(r.pushOn ? 'Нагадування від бота увімкнено' : 'Нагадування вимкнено — повідомлення про обміни й PvP приходитимуть і далі');
 };
+// «Показувати мене в каналі»: the player's name in the channel's auto-posts (server.js → src/channel.js). Off by default.
+H.toggleChannel = async () => {
+  const r = await act('settings/channel', { on: !me.channelShow }, null);
+  if (r) {
+    me.channelShow = r.channelShow;
+    toast(r.channelShow ? 'Тепер твоє ім’я може з’явитися в каналі гри' : 'Готово: у каналі ти анонімний');
+  }
+};
 H.toggleSound = (d, el) => {
   SFX.setOn(!SFX.isOn());
   el.classList.toggle('on', SFX.isOn());
@@ -6877,7 +6889,7 @@ H.toggleDnd = async () => {
   if (r) toast(r.noInvites ? 'Не турбувати: ніхто не зможе тебе запросити' : 'Запрошення знову увімкнено');
 };
 // The switches live in the «Налаштування» sheet: after the server answers, redraw the sheet if it's still open.
-for (const k of ['toggleDnd', 'togglePush', 'toggleGuide']) {
+for (const k of ['toggleDnd', 'togglePush', 'toggleGuide', 'toggleChannel']) {
   const f = H[k];
   H[k] = async (...a) => {
     await f(...a);

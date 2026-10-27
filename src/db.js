@@ -300,6 +300,11 @@ CREATE TABLE IF NOT EXISTS edition_serials (model TEXT PRIMARY KEY, next INTEGER
 -- once (the task is paid then), prize: what it paid (JSON).
 CREATE TABLE IF NOT EXISTS hw_tasks (event TEXT NOT NULL, user_id INTEGER NOT NULL, task TEXT NOT NULL, progress INTEGER NOT NULL DEFAULT 0,
   done_at INTEGER, prize TEXT, PRIMARY KEY (event, user_id, task)) WITHOUT ROWID;
+-- Admin events scheduler (src/schedule.js): planned game events (kind = an S.EVENTS id) with Kyiv-time windows [start, end)
+-- in ms; params: JSON { country?, caseId? }; seed: the default calendar's slot id (so it is seeded once).
+CREATE TABLE IF NOT EXISTS event_plan (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, title TEXT, start INTEGER NOT NULL,
+  end INTEGER NOT NULL, params TEXT, note TEXT, seed TEXT UNIQUE, created_by TEXT, created_at INTEGER NOT NULL, updated_at INTEGER);
+CREATE INDEX IF NOT EXISTS event_plan_end ON event_plan (end);
 `;
 // Columns added after the first release; ALTER fails harmlessly when they already exist.
 const MIGRATIONS = [

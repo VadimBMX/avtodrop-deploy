@@ -3998,3 +3998,35 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .tg-home-ask .tg-home-ic { font-size: 36px; color: var(--accent); }
 .tg-home-ask .btns { justify-content: center; }
 /* ===== /T-telegram ===== */
+
+/* ===== C-season2: Сезон 2 «Нічний Токіо» (S.SEASON_THEMES[2]) — шапка пропуску, 6 косметик, рамка, фон, підсвітка ===== */
+.card.s2-theme { position: relative; overflow: hidden; border-color: #4a1d55;
+  background: radial-gradient(90% 120% at 100% 0%, #ff2bd61f, transparent 60%), radial-gradient(70% 90% at 0% 100%, #00e5ff14, transparent 60%), var(--card); }
+.s2-theme .s2-name { color: #ff7ae6; font-size: .82em; letter-spacing: .3px; }
+.s2-theme .s2-tag { margin-top: 2px; color: #9fd8e6; }
+.scos-row.s2-n6 { grid-template-columns: repeat(3, 1fr); }
+.scos-pv[data-season="2"] { color: #fff; background: linear-gradient(#16123d 0 55%, #ff2bd6 55% 61%, #00e5ff 61% 65%, #16123d 65%); }
+.scos-pv.scos-gold[data-season="2"] { color: #fff1b8; background: linear-gradient(#1a1320 0 55%, #ff8fc7 55% 61%, #c9a227 61%); }
+.scos-pv.scos-frame[data-season="2"] { background: #f2f2f2; color: #111; box-shadow: 0 0 0 2px #ff2bd6, 0 0 0 4px #0d0b24, 0 0 8px 3px #00e5ff55; }
+.scos-pv.scos-showcase[data-season="2"] { background: linear-gradient(180deg, #0d0b24 40%, #2a0f3f), #0d0b24; box-shadow: inset 0 -6px 8px -4px #ff2bd6aa, inset 0 0 0 1px #00e5ff44; }
+.scos-pv.scos-badge[data-season="2"] { background: radial-gradient(circle, #ff2bd6 0 30%, #3a0f4f 32%, #0d0b24 75%); }
+.scos-pv.scos-glow { color: #00e5ff; background: radial-gradient(ellipse 80% 40% at 50% 90%, #00e5ff, #ff2bd655 55%, #0d0b24 80%); }
+/* лівреї сезону 2 у «Фарбуванні» */
+.lv[data-id="szn2"] i { background: linear-gradient(#0d0b24 0 52%, #ff2bd6 52% 57%, #16123d 57% 60%, #00e5ff 60% 63%, #16123d 63%); }
+.lv[data-id="szn2g"] i { background: linear-gradient(#1a1320 0 52%, #ff8fc7 52% 57%, #c9a227 57%); }
+/* рамка «Ханко»: маджента + нічний синій + неонове світіння */
+.plate.pf-season2 { box-shadow: 0 0 0 max(1.5px, calc(var(--h) * .07)) #ff2bd6, 0 0 0 max(3px, calc(var(--h) * .13)) #0d0b24, 0 0 max(6px, calc(var(--h) * .45)) #00e5ff77; }
+/* фон вітрини «Шуто-експрес»: силует естакади й веж Токіо, неон знизу */
+.sc-season[data-season="2"] { position: relative; isolation: isolate; border-radius: 14px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 60' preserveAspectRatio='none'%3E%3Cpath fill='%23070516' d='M0 60V30H8V18H14V30H22V8H30V26H38V14H46V34H58V20H62V6H66V20H70V36H84V24H96V12H104V30H116V18H130V32H142V10H150V28H160V22H172V34H184V16H192V30H200V60Z'/%3E%3Cpath fill='%2314103a' d='M0 46H200V50H0Z'/%3E%3Cg fill='%23ff2bd6' opacity='.75'%3E%3Crect x='25' y='12' width='2' height='2'/%3E%3Crect x='64' y='10' width='1.5' height='2'/%3E%3Crect x='99' y='16' width='2' height='2'/%3E%3Crect x='145' y='14' width='2' height='2'/%3E%3C/g%3E%3Cg fill='%2300e5ff' opacity='.7'%3E%3Crect x='41' y='18' width='2' height='2'/%3E%3Crect x='120' y='22' width='2' height='2'/%3E%3Crect x='187' y='20' width='2' height='2'/%3E%3Crect x='10' y='22' width='2' height='2'/%3E%3C/g%3E%3C/svg%3E") bottom / 100% 62% no-repeat,
+  radial-gradient(ellipse 80% 45% at 50% 100%, #ff2bd640, transparent 70%), linear-gradient(180deg, #05040f, #140b33 60%, #2a0f3f); box-shadow: inset 0 0 0 1px #ff2bd655, 0 0 14px #00e5ff1f; }
+.grid.sc-season[data-season="2"] { padding: 10px; }
+.grid.sc-season[data-season="2"]::before { color: #ff2bd61f; }
+.grid.sc-season[data-season="2"] .car { background: color-mix(in srgb, var(--card) 78%, transparent); }
+/* підсвітка «Токійський неон» (рівень 30 безкоштовної доріжки) */
+.gl-season2 { --gl: #c43dff; }
+.grid.gl-season2 .car .art, .licence.gl-season2 .lbay .art { position: relative; isolation: isolate; }
+.grid.gl-season2 .car .art::before, .licence.gl-season2 .lbay .art::before, .sty-glow.gl-season2 .art::before {
+  content: ''; position: absolute; z-index: -1; left: 8%; right: 8%; bottom: -3px; height: 26%; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, #00e5ff, #ff2bd699 55%, transparent); opacity: .9; }
+/* ===== /C-season2 ===== */

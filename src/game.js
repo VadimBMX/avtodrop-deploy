@@ -8,6 +8,7 @@ import { createDayRace } from './dayrace.js';
 import { createContainers } from './containers.js';
 import { createHalloween } from './halloween.js';
 import { createTg } from './tg.js';
+import { createSchedule } from './schedule.js';
 
 export class GameError extends Error {}
 const fail = (msg) => {
@@ -95,7 +96,7 @@ export function createGame(db, opts = {}) {
     const old = now() - 8 * 86400e3;
     const clean = { forced: ov.forced.filter((f) => f.end > old), stopped: Object.fromEntries(Object.entries(ov.stopped).filter(([, at]) => at > old)) };
     q('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT DO UPDATE SET value = excluded.value').run(EV_META, JSON.stringify(clean));
-    evOv = clean;
+    evOv = { ...clean, planned: evOv.planned }; // the scheduler's events (src/schedule.js) live in their own table
   }
   const evFx = () => S.effectsAt(now(), evOv);
   // For the client: what runs now and the next few, with their times (countdowns are drawn from these).
@@ -303,7 +304,9 @@ export function createGame(db, opts = {}) {
       if (!amount) return;
     }
     const season = S.seasonOf(now());
-    if (toSeason) q('UPDATE users SET season_xp = CASE WHEN season_id = ? THEN season_xp + ? ELSE ? END, season_id = ? WHERE id = ?').run(season, amount, amount, season, uid);
+    // «Подвійний досвід» (scheduler): only the pass XP is multiplied; the level XP and its daily caps stay as they are.
+    const sAmount = Math.round(amount * evFx().xpMult);
+    if (toSeason) q('UPDATE users SET season_xp = CASE WHEN season_id = ? THEN season_xp + ? ELSE ? END, season_id = ? WHERE id = ?').run(season, sAmount, sAmount, season, uid);
     let { level, xp: cur } = u;
     cur += amount;
     while (cur >= S.xpForLevel(level)) {
@@ -684,7 +687,7 @@ export function createGame(db, opts = {}) {
       xpToday: u.xp_day === day ? u.xp_day_capped : 0, xpCaseToday: u.xp_case_day === day ? u.xp_case_used : 0, newbie: newbieState(u),
       dailyReady: u.streak_day !== day, streak: u.streak, rewardCaseAt: u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3,
       claims,
-      caseOfDay: evFx().noCaseOfDay ? null : S.caseOfDay(day), gameEvents: gameEvents(),
+      caseOfDay: S.caseOfDayNow(day, evFx()), gameEvents: gameEvents(),
       fair: { seedHash: sha256(u.server_seed), clientSeed: u.client_seed, nonce: u.nonce },
       stats: { cases: u.cases_opened, races: u.races, wins: u.wins, merges: u.merges, value: u.total_value, playMs: u.play_ms },
       unread: q('SELECT COUNT(*) n FROM events WHERE user_id = ? AND seen = 0').get(uid).n,
@@ -1385,7 +1388,7 @@ export function createGame(db, opts = {}) {
     const list = S.DRIFT_RIVALS.map((r, i) => {
       const x = parseInt(h.slice(i * 6, i * 6 + 6), 16) / 0xffffff;
       const base = S.raceMoney(S.OPPONENTS.find((op) => op.id === r.id), S.MODELS[c.model].price);
-      const full = S.eventPrize(base.prize, evFx());
+      const full = S.driftPrize(base.prize, evFx()); // race weekend or «Ніч дрифту», whichever is higher
       const money = { ...base, prize: repeat ? Math.round(full * S.DRIFT_REPEAT_PRIZE) : full, ...(repeat ? { repeat: true } : {}) };
       return { id: r.id, label: r.name, name: nameAt(parseInt(h.slice(20 + i * 2, 22 + i * 2), 16)),
         model: pool[Math.floor(x * pool.length)]?.id || c.model, target: Math.max(10, Math.round((par * r.share * (0.96 + 0.08 * x)) / 10) * 10), ...money };
@@ -4915,6 +4918,19 @@ export function createGame(db, opts = {}) {
   }
   for (const k of HW.mutating) ADMIN_MUTATING.add(k);
   HELPER_ACTIONS.add('halloween'); // helpers may look at the event, not switch it
+  // Events scheduler (src/schedule.js): planned events go into the events override and run through S.eventEffects.
+  const SCH = createSchedule({ q, now, fail, metaGet, metaSet, alog: (...a) => alog(...a), ov: () => evOv,
+    onChange: (list) => (evOv = { ...evOv, planned: list }) });
+  evOv = { ...evOv, planned: SCH.planned() };
+  if (opts.seedSchedule) SCH.seedOnce();
+  for (const [k, fn] of Object.entries(SCH.admin)) {
+    admin[k] = (who, body = {}) => db.tx(() => {
+      if (!canDo(actorRole(who), k)) fail('Немає прав на цю дію');
+      return fn(who, body || {});
+    });
+  }
+  for (const k of SCH.mutating) ADMIN_MUTATING.add(k);
+  HELPER_ACTIONS.add('schedule'); // helpers may look at the plan, not change it
   // «Причал» (src/containers.js): its calls, its admin tab and its gate (it opens with the auctions).
   CT = createContainers({ db, q, now, fail, int, name, addMoney, pay, notify, giveCar, carRow, carOut, garageCount, userRow, metaGet, metaSet, bank,
     alog: (...a) => alog(...a), recalc: (...a) => recalc(...a), seed: opts.containerSeed, eventOn: (ev) => ev === 'halloween' && HW.on() });

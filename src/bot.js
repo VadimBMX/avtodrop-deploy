@@ -261,6 +261,7 @@ export function createBot({ token, webappUrl, admins = [], game, inline = null, 
     itemInvoiceLink,
     editStarSubscription,
     prepareShare,
+    call, // the raw Bot API call (src/channel.js posts to the channel with it)
     get username() {
       return username;
     },

@@ -447,8 +447,20 @@ for (const [name, hp, kg, body, country, year, price, ev] of SECRETS) {
 // filter, `img` + `filter`) or its own photo, never in a case. Like a secret car it can't be sold, traded or burned in an upgrade,
 // and it doesn't count in collections; it stays in the garage for good — the proof you were there that season.
 // Season 1: the BMW X5 M «Monte Carlo Blue» (owner's choice; the R34 livery from wave E was rolled back 22.10).
+// Season 2 «Нічний Токіо» (3.11–16.11.2026): three options for the owner; the first one is the default. To swap, move
+// another option to the top BEFORE the season starts (the model id follows the name, so a car already given stays valid
+// only if its old option is kept in OLD_SEASON_CARS).
+export const SEASON2_CAR_OPTIONS = [
+  { season: 2, name: 'Nissan GT-R R35 «Midnight Purple»', hp: 600, kg: 1720, body: 'coupe', country: 'JP', year: 2017, price: 150000000,
+    img: 'nissan-gt-r-r35', filter: 'hue-rotate(248deg) saturate(.78) brightness(.6) contrast(1.12)' },
+  { season: 2, name: 'Toyota Supra A80 «Neon Tokyo»', hp: 520, kg: 1510, body: 'coupe', country: 'JP', year: 1997, price: 150000000,
+    img: 'toyota-supra-a80', filter: 'sepia(1) saturate(5) hue-rotate(255deg) brightness(.62)' },
+  { season: 2, name: 'Porsche 911 Turbo S «Aurora»', hp: 650, kg: 1640, body: 'super', country: 'DE', year: 2021, price: 150000000,
+    img: 'porsche-911-turbo-s', filter: 'sepia(.9) saturate(3.2) hue-rotate(115deg) brightness(.72)' },
+];
 export const SEASON_CARS = [
   { season: 1, name: 'BMW X5 M E70 «Monte Carlo Blue»', hp: 555, kg: 2380, body: 'suv', country: 'DE', year: 2010, price: 150000000 },
+  SEASON2_CAR_OPTIONS[0],
 ];
 // Former season prizes: no longer given, kept as models so a car already in a garage stays valid.
 const OLD_SEASON_CARS = [
@@ -2295,22 +2307,35 @@ export function passReward(season, lvl, premium, rate = 0) {
 // paint shop (free on any own car once earned), the frame goes round the owner's plates, the backdrop behind the
 // showcase, the badge into the profile. Exclusive: nothing else gives them.
 export const PASS_COSMETICS = { 5: 'livery', 10: 'frame', 15: 'showcase', 20: 'gold', 25: 'badge' };
+// Themed seasons (from season 2): a name for the pass screen, their own names and looks for the cosmetics, and a sixth
+// cosmetic at level 30 of the free track (an underglow). Season 1 keeps its five «Сезон 1» items exactly as they were.
+export const SEASON_THEMES = {
+  2: { name: 'Нічний Токіо', tagline: 'неон, естакади й дрифт до ранку', color: '#ff2bd6', accent: '#00e5ff', look: 'season2',
+    cos: { livery: 'Ліврея «Неон Сібуя»', frame: 'Рамка номера «Ханко»', showcase: 'Фон вітрини «Шуто-експрес»', gold: 'Ліврея «Сакура · Золото»', badge: 'Значок «Нічний Токіо»', glow: 'Підсвітка «Токійський неон»' },
+    liveries: { szn: 'Неон Сібуя', gold: 'Сакура · Золото' } },
+};
+export const seasonTheme = (n) => SEASON_THEMES[n] || null;
+export const PASS_COSMETICS_THEMED = { ...PASS_COSMETICS, 30: 'glow' };
+export const passCosmetics = (season) => (SEASON_THEMES[season] ? PASS_COSMETICS_THEMED : PASS_COSMETICS);
 const COSMETIC_INFO = {
   livery: { short: 'Ліврея', name: 'Ліврея «Сезон {n}»', icon: 'brush', hint: 'на будь-яку свою машину, безкоштовно' },
   frame: { short: 'Рамка номера', name: 'Рамка номера «Сезон {n}»', icon: 'license', hint: 'на всіх твоїх номерах' },
   showcase: { short: 'Фон вітрини', name: 'Фон вітрини «Сезон {n}»', icon: 'building-arch', hint: 'нічний шоурум за твоєю вітриною' },
   gold: { short: 'Золота ліврея', name: 'Ліврея «Сезон {n} · Золото»', icon: 'brush', hint: 'на будь-яку свою машину, безкоштовно' },
   badge: { short: 'Значок', name: 'Значок «Сезон {n}»', icon: 'trophy', hint: 'у профілі назавжди' },
+  glow: { short: 'Підсвітка', name: 'Підсвітка «Сезон {n}»', icon: 'bolt', hint: 'неон під машинами на вітрині й у картці' },
 };
 export function cosmeticOf(id) {
   const m = /^cos:s(\d{1,3}):([a-z]+)$/.exec(String(id || ''));
   const info = m && COSMETIC_INFO[m[2]];
   if (!info) return styleCosmetic(id); // «Стиль» items for stars: "cos:x:<item>" (STYLE_ITEMS)
   const season = Number(m[1]);
-  return { id, season, kind: m[2], ...info, name: info.name.replace('{n}', season), livery: m[2] === 'livery' ? `szn${season}` : m[2] === 'gold' ? `szn${season}g` : null };
+  const themed = SEASON_THEMES[season]?.cos?.[m[2]];
+  return { id, season, kind: m[2], ...info, name: themed || info.name.replace('{n}', season), livery: m[2] === 'livery' ? `szn${season}` : m[2] === 'gold' ? `szn${season}g` : null };
 }
 export function passCosmetic(season, lvl) {
-  return PASS_COSMETICS[lvl] ? cosmeticOf(`cos:s${season}:${PASS_COSMETICS[lvl]}`) : null;
+  const kinds = passCosmetics(season);
+  return kinds[lvl] ? cosmeticOf(`cos:s${season}:${kinds[lvl]}`) : null;
 }
 // The cosmetics a player owns (from me.claims) and whether a kind is on for the season shown (the newest one wins).
 export const ownedCosmetics = (claims) => (claims || []).map(cosmeticOf).filter(Boolean);
@@ -2404,7 +2429,7 @@ export function styleWorn(claims, style) {
   return out;
 }
 // The look of a worn cosmetic for CSS classes: 'season' for a season one, else the item's look (neon, carbon…).
-export const styleLook = (id) => { const c = cosmeticOf(id); return c ? (c.season ? 'season' : c.look) : null; };
+export const styleLook = (id) => { const c = cosmeticOf(id); return c ? (c.season ? SEASON_THEMES[c.season]?.look || 'season' : c.look) : null; };
 export const SHOP_BY_ID = Object.fromEntries([...SHOP_ITEMS, ...STYLE_ITEMS].map((i) => [i.id, i]));
 export const shopPrice = (item, starSlots = 0) => (item.id === 'slot' ? item.stars * Math.pow(2, starSlots) : item.stars);
 // Home-screen shortcut (WebApp.addToHomeScreen): offered from the 3rd day in the game, one key once it's added.
@@ -2508,6 +2533,14 @@ export const EVENTS = {
     text: 'Кейс країни −15%. Знижений кейс не дає фрагментів ключа.' },
   plates: { name: 'Щасливі номери', icon: 'license', color: '#bf5af2', days: 1, off: 0.2, gens: ['pretty', 'region'],
     text: '«Красивий» номер і номери областей −20%.' },
+  // Season 2 scheduler kinds (admin «Події» → розклад; never in the weekly rotation). They reuse the existing levers:
+  // pass XP (the pass total stays 30 levels), the race-weekend prize multiplier for drift only, the case of the day.
+  xp: { name: 'Подвійний досвід', icon: 'sparkles', color: '#64d2ff', days: 2, xpMult: 2,
+    text: 'Досвід сезонного пропуску ×2. Рівень гравця, денні ліміти досвіду й ціни — як завжди.' },
+  drift: { name: 'Ніч дрифту', icon: 'tornado', color: '#ff2bd6', days: 1, driftMult: 1.25,
+    text: 'Нічна дрифт-траса, призи за перемоги в дрифті +25%. Внесок той самий, після 5 перемог за добу — ½ призу, як завжди.' },
+  caseday: { name: 'Тема кейса дня', icon: 'gift', color: '#5ac8a8', days: 1,
+    text: 'Кейс дня обрано заздалегідь: −10%, як звичайний кейс дня (прихований бонус — як у кейса дня).' },
 };
 export const EVENT_IDS = Object.keys(EVENTS);
 // Hard limits, whatever the definitions or the admin overrides say.
@@ -2516,6 +2549,8 @@ export const EVENT_IDS = Object.keys(EVENTS);
 //   1–72 h; sellMax — a plate generation during its event sells back less than this share of the price paid (cases:
 //   under ~1 during any event via ORIGIN_SELL, test/caseev.test.js).
 export const EVENT_CAPS = { topMult: 1.3, fuelMult: 2, fuelTotal: 3, prizeMult: 1.25, caseOff: 0.15, plateOff: 0.2, forcedMax: 3, forcedHours: [1, 72], sellMax: 0.85 };
+// Scheduler limits: pass XP at most ×2; a planned event lasts 1 h – 7 days; at most this many planned events at once.
+export const PLAN_CAPS = { xpMult: 2, hours: [1, 168], parallel: 4 };
 // Never at the same time: double fuel means more races, and the race weekend pays more for each.
 export const EVENT_EXCLUSIVE = [['fuel', 'race']];
 // Weekly rotation; day 0 = Monday, every slot starts at 00:00 Kyiv and lasts EVENTS[id].days days.
@@ -2539,6 +2574,14 @@ export function kyivMidnightOf(date, days = 0) {
   return g - kyivAhead(g - kyivAhead(g));
 }
 export const kyivDateOf = (t) => new Date(t + kyivAhead(t)).toISOString().slice(0, 10);
+// Kyiv wall time as 'YYYY-MM-DDTHH:MM' (an <input type="datetime-local"> value) and back (admin scheduler).
+export const kyivLocal = (t) => new Date(t + kyivAhead(t)).toISOString().slice(0, 16);
+export function kyivParse(v) {
+  const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})$/.exec(String(v ?? '').trim());
+  if (!m || +m[2] > 23 || +m[3] > 59 || Number.isNaN(Date.parse(m[1] + 'T00:00:00Z'))) return null;
+  const g = Date.parse(`${m[1]}T${m[2]}:${m[3]}:00Z`);
+  return g - kyivAhead(g - kyivAhead(g));
+}
 export function kyivMondayOf(t) {
   const d = kyivDateOf(t);
   return addDate(d, -((new Date(d + 'T00:00:00Z').getUTCDay() + 6) % 7));
@@ -2560,9 +2603,20 @@ function weekEvents(monday) {
   return list;
 }
 // Every event (scheduled or started by an admin) that overlaps [from, to), with admin stops applied, by start time.
+// ov.planned (admin scheduler, src/schedule.js): planned events; a Kyiv week (Mon–Sun) with at least one planned event
+// runs by the plan only — its weekly rotation is off; a week with nothing planned keeps the rotation.
+const planWeekCache = new WeakMap();
+export function planWeeks(planned) {
+  if (!planned?.length) return null;
+  let w = planWeekCache.get(planned);
+  if (!w) planWeekCache.set(planned, (w = new Set(planned.map((e) => kyivMondayOf(e.start)))));
+  return w;
+}
 export function eventsBetween(from, to, ov = null) {
   const out = [];
-  for (let m = kyivMondayOf(from - 86400e3); kyivMidnightOf(m) < to; m = addDate(m, 7)) out.push(...weekEvents(m));
+  const pw = planWeeks(ov?.planned);
+  for (let m = kyivMondayOf(from - 86400e3); kyivMidnightOf(m) < to; m = addDate(m, 7)) if (!pw?.has(m)) out.push(...weekEvents(m));
+  for (const p of ov?.planned || []) if (EVENTS[p.id]) out.push({ ...p, planned: true });
   for (const f of ov?.forced || []) if (EVENTS[f.id]) out.push({ ...f, forced: true });
   return out
     .map((e) => {
@@ -2575,7 +2629,7 @@ export function eventsBetween(from, to, ov = null) {
 export const activeEvents = (t, ov = null) => eventsBetween(t, t + 1, ov);
 // What the running events do together, clamped.
 export function eventEffects(list) {
-  const fx = { ids: [], topMult: 1, fuelMult: 1, prizeMult: 1, countries: [], caseOff: 0, plateOff: 0, plateGens: [], noCaseOfDay: false };
+  const fx = { ids: [], topMult: 1, fuelMult: 1, prizeMult: 1, countries: [], caseOff: 0, plateOff: 0, plateGens: [], noCaseOfDay: false, xpMult: 1, driftMult: 1, caseOfDay: null };
   for (const e of list) {
     const d = EVENTS[e.id];
     if (!d) continue;
@@ -2591,7 +2645,9 @@ export function eventEffects(list) {
     } else if (e.id === 'plates') {
       fx.plateOff = Math.min(EVENT_CAPS.plateOff, d.off);
       fx.plateGens = d.gens;
-    }
+    } else if (e.id === 'xp') fx.xpMult = Math.max(fx.xpMult, Math.min(PLAN_CAPS.xpMult, d.xpMult));
+    else if (e.id === 'drift') fx.driftMult = Math.max(fx.driftMult, Math.min(EVENT_CAPS.prizeMult, d.driftMult));
+    else if (e.id === 'caseday' && CASE_BY_ID[e.caseId]?.group === 'rarity' && !CASE_BY_ID[e.caseId].starter) fx.caseOfDay = e.caseId;
   }
   return fx;
 }
@@ -2615,7 +2671,7 @@ export function caseDeal(cs, day, fx = NO_EVENTS) {
   if (cs.starter) return { ...deal, price: 0, boost: 0, fragments: false };
   if (cs.group === 'rarity') {
     // The case of the day pays for its discount out of the hidden boost (the shown odds stay as they are).
-    if (!fx.noCaseOfDay && cs.id === caseOfDay(day)) Object.assign(deal, { price: casePrice(cs, day), off: CASE_OF_DAY.off, boost: CASE_OF_DAY.boost, why: 'day' });
+    if (!fx.noCaseOfDay && cs.id === (fx.caseOfDay || caseOfDay(day))) Object.assign(deal, { price: Math.round((cs.price * (1 - CASE_OF_DAY.off)) / 1000) * 1000, off: CASE_OF_DAY.off, boost: CASE_OF_DAY.boost, why: 'day' });
     if (fx.topMult > 1) Object.assign(deal, { weights: luckWeights(cs.weights, fx.topMult), boost: EVENTS.luck.boost, why: deal.why || 'luck' });
   } else if (cs.group === 'country' && fx.countries.includes(cs.country)) {
     Object.assign(deal, { price: Math.round((cs.price * (1 - fx.caseOff)) / 1000) * 1000, off: fx.caseOff, boost: EVENTS.country.boost, fragments: EVENTS.country.fragments, save: EVENTS.country.save, why: 'country' });
@@ -2626,6 +2682,10 @@ export function caseDeal(cs, day, fx = NO_EVENTS) {
 export const platePriceOf = (price, gen, fx = NO_EVENTS) => (fx.plateGens.includes(gen) ? Math.round((price * (1 - fx.plateOff)) / 100) * 100 : price);
 // Race prize during the race weekend (entries stay as they are).
 export const eventPrize = (prize, fx = NO_EVENTS, step = 1000) => (fx.prizeMult > 1 ? Math.round((prize * Math.min(fx.prizeMult, EVENT_CAPS.prizeMult)) / step) * step : prize);
+// Drift prizes: the race weekend or «Ніч дрифту», whichever is higher (they never add up), at most EVENT_CAPS.prizeMult.
+export const driftPrize = (prize, fx = NO_EVENTS, step = 1000) => eventPrize(prize, { prizeMult: Math.max(fx.prizeMult || 1, fx.driftMult || 1) }, step);
+// The case of the day right now: a planned theme wins over the daily rotation; none during «Вихідні удачі».
+export const caseOfDayNow = (day, fx = NO_EVENTS) => (fx.noCaseOfDay ? null : fx.caseOfDay || caseOfDay(day));
 // Fuel refill speed over [a, b): VIP × the fuel event, at most EVENT_CAPS.fuelTotal.
 export function fuelSegments(a, b, ov = null, vip = 1) {
   const evs = b > a ? eventsBetween(a, b, ov).filter((e) => EVENTS[e.id].fuelMult) : [];
@@ -2666,8 +2726,41 @@ export function regenAt(from, t, periodMs, need, ov = null, vip = 1) {
 export function eventInfo(e) {
   const d = EVENTS[e.id];
   const country = e.country ? COUNTRIES[e.country]?.name : null;
-  return { key: e.key, id: e.id, name: d.name, icon: d.icon, color: d.color, text: d.text, start: e.start, end: e.end, country: e.country || null,
-    title: country ? `${d.name}: ${country}` : d.name, forced: !!e.forced };
+  const cs = e.caseId ? CASE_BY_ID[e.caseId] : null;
+  return { key: e.key, id: e.id, name: d.name, icon: d.icon, color: d.color, text: cs ? `Кейс дня — «${cs.name}»: −${Math.round(CASE_OF_DAY.off * 100)}%, як звичайний кейс дня.` : d.text,
+    start: e.start, end: e.end, country: e.country || null, caseId: e.caseId || null,
+    title: e.title || (country ? `${d.name}: ${country}` : cs ? `Кейс дня: ${cs.name}` : d.name), forced: !!e.forced, planned: !!e.planned };
+}
+// What an event does, in plain lines with the real numbers (admin scheduler preview; the same rules as eventEffects).
+export function eventPreview(e) {
+  const d = EVENTS[e?.id];
+  if (!d) return [];
+  const pct = (x) => `${Math.round((x - 1) * 100)}%`;
+  const money = (n) => short(n);
+  switch (e.id) {
+    case 'country': {
+      const cs = CASES.find((c) => c.group === 'country' && c.country === e.country);
+      if (!cs) return ['Обери країну'];
+      const p = Math.round((cs.price * (1 - Math.min(EVENT_CAPS.caseOff, d.off))) / 1000) * 1000;
+      return [`Кейс «${cs.name}»: ${money(cs.price)} → ${money(p)} (−${Math.round(d.off * 100)}%)`, 'Знижений кейс не дає фрагментів ключа; захист від серії невдач лишається'];
+    }
+    case 'luck': {
+      const el = CASE_BY_ID.elite, cl = CLASS_ORDER.filter((c) => el.weights[c]), top = cl[cl.length - 1];
+      const tw = cl.reduce((s, c) => s + el.weights[c], 0), w = luckWeights(el.weights, d.topMult);
+      return [`Кейси за рідкістю: шанс найвищого класу ×${String(d.topMult).replace('.', ',')}`, `Напр. «${el.name}»: ${top} ${(el.weights[top] / tw * 100).toFixed(1).replace('.', ',')}% → ${(w[top] / tw * 100).toFixed(1).replace('.', ',')}%`, 'Кейс дня на цей час вимикається'];
+    }
+    case 'fuel': return [`Пальне наповнюється ×${d.fuelMult} (з VIP — ×${EVENT_CAPS.fuelTotal})`, 'Не можна одночасно з «Гоночним уїкендом»'];
+    case 'race': return [`Призи драгу й дрифту +${pct(d.prizeMult)}: приз 100 тис → ${money(eventPrize(100000, { prizeMult: d.prizeMult }))}`, 'Внесок той самий; не можна одночасно з «Подвійним паливом»'];
+    case 'plates': return [`«Красивий» номер і номери областей −${Math.round(d.off * 100)}%`];
+    case 'xp': return [`Досвід сезонного пропуску ×${d.xpMult}`, 'Рівень гравця, ліміт досвіду з кейсів (1500/добу) і ціни не змінюються', 'Нагород пропуску не більшає — 30 рівнів просто проходяться швидше'];
+    case 'drift': return [`Призи дрифту +${pct(d.driftMult)} (з «Гоночним уїкендом» не складається)`, 'Нічна траса в дрифті', 'Після 5 перемог за добу — ½ призу, як завжди'];
+    case 'caseday': {
+      const cs = CASE_BY_ID[e.caseId];
+      if (!cs || cs.group !== 'rarity' || cs.starter) return ['Обери кейс за рідкістю'];
+      return [`Кейс дня — «${cs.name}»: ${money(cs.price)} → ${money(Math.round((cs.price * (1 - CASE_OF_DAY.off)) / 1000) * 1000)} (−${Math.round(CASE_OF_DAY.off * 100)}%)`, 'Замість кейса дня за ротацією; під час «Вихідних удачі» не діє'];
+    }
+  }
+  return [d.text];
 }
 
 // ---------- paint shop (Фарба 2.0) ----------
@@ -2755,6 +2848,8 @@ export const liveryPrice = (model, livery = null) => (LIVERY_BY_ID[livery]?.cos 
 for (let n = 1; n <= 26; n++) {
   LIVERY_BY_ID['szn' + n] = { id: 'szn' + n, name: `Сезон ${n}`, hint: 'нагорода пропуску', season: n, cos: `cos:s${n}:livery` };
   LIVERY_BY_ID['szn' + n + 'g'] = { id: 'szn' + n + 'g', name: `Сезон ${n} · Золото`, hint: 'нагорода пропуску', season: n, gold: true, cos: `cos:s${n}:gold` };
+  const th = SEASON_THEMES[n]?.liveries;
+  if (th) Object.assign(LIVERY_BY_ID['szn' + n], { name: th.szn }), Object.assign(LIVERY_BY_ID['szn' + n + 'g'], { name: th.gold });
 }
 // «Стиль» liveries (STYLE_ITEMS, kind livery): bought for stars once, then free on any own car (the claim in `cos`).
 for (const it of STYLE_ITEMS.filter((x) => x.kind === 'livery')) LIVERY_BY_ID[it.look] = { id: it.look, name: it.name.replace(/^Ліврея «(.+)»$/, '$1'), hint: it.hint, star: true, cos: it.cos };

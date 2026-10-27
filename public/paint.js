@@ -250,6 +250,25 @@ function liveryLayer(car, kind, num, lightPaint) {
       x.fillStyle = cols[best];
       x.fillRect(gx * cell, gy * cell, cell, cell);
     }
+  } else if (kind === 'szn2' || kind === 'szn2g') {
+    // Season 2 «Нічний Токіо»: «Неон Сібуя» — a midnight body, magenta and cyan neon lines along the sill, «S2» plate on
+    // the door; «Сакура · Золото» — a gold lower body under a sakura-pink line, the same plate in black.
+    const gold = kind === 'szn2g', t = Math.max(2, H * 0.03);
+    x.fillStyle = gold ? '#1a1320' : '#0d0b24'; x.fillRect(0, 0, w, h);
+    const y = top + H * 0.58;
+    x.fillStyle = gold ? '#c9a227' : '#16123d'; x.fillRect(0, y, w, h - y);
+    x.fillStyle = gold ? '#ff8fc7' : '#ff2bd6'; x.fillRect(0, y - t * 1.4, w, t);
+    x.fillStyle = gold ? '#fff1b8' : '#00e5ff'; x.fillRect(0, y + t * 0.6, w, t * 0.6);
+    x.fillStyle = gold ? '#ff8fc7' : '#00e5ff'; x.fillRect(0, top + H * 0.34, w, Math.max(1, t * 0.45));
+    const cx = (rx + fx) / 2, cy = top + H * 0.44, bw = H * 0.5, bh = H * 0.28;
+    x.fillStyle = gold ? '#151515' : '#ff2bd6';
+    x.beginPath();
+    x.roundRect ? x.roundRect(cx - bw / 2, cy - bh / 2, bw, bh, bh * 0.22) : x.rect(cx - bw / 2, cy - bh / 2, bw, bh);
+    x.fill();
+    x.fillStyle = gold ? '#e8c34a' : '#0d0b24';
+    x.font = `800 ${Math.round(bh * 0.78)}px "Fira Sans Condensed", Arial, sans-serif`;
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText('S2', cx, cy + bh * 0.04);
   } else if (/^szn\d+g?$/.test(kind)) {
     // Season livery (pass reward): the lower body in the season colour under a neon line, «S<n>» on the door.
     const gold = kind.endsWith('g'), n = kind.replace(/\D/g, '');
