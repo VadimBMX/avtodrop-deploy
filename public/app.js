@@ -1743,8 +1743,12 @@ function spinReel({ cardAt, color, rank, lean = 0, wrap = $('#reelWrap'), reel =
     //  2. B+ only — tease: the spin ends one card short, the reel hangs there for a beat and then creeps over;
     //  3. settle: it overshoots the stop by a fraction of a card and springs back.
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const teaseOn = rank >= 2 && !reduce;
-    const over = reduce ? 0 : cardW * (0.1 + Math.random() * 0.06);
+    // Owner 27.10: the reel never rests on another card — the tease (stop one card short, then creep over) read as
+    // «it stopped on the Dodge and rolled on to the Subaru», so it's off; the settle overshoot stays inside the
+    // winner card (the gate never crosses into a neighbour and back).
+    const teaseOn = false;
+    const offC = target - (W * card + cardW / 2 - wrap.clientWidth / 2); // gate offset from the winner's centre
+    const over = reduce ? 0 : Math.max(0, Math.min(cardW * (0.1 + Math.random() * 0.06), cardW * 0.42 - offC));
     const teaseD = teaseOn ? card * 0.92 : 0;
     const spinMs = (reduce ? 1200 : 4300) + extra, teaseMs = teaseOn ? 1050 : 0, settleMs = reduce ? 0 : 380;
     const spinTo = target + (teaseOn ? -teaseD : over);
