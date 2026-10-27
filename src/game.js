@@ -560,7 +560,7 @@ export function createGame(db, opts = {}) {
                     FROM users WHERE week_id = ? OR last_week_id = ? ORDER BY g DESC, id LIMIT 10`).all(prev, prev, prev, prev);
     rows.filter((r) => r.g > 0).forEach((r, i) => {
       addMoney(r.id, S.WEEKLY_PRIZES[i]);
-      event(r.id, `🏆 Гонка тижня: ${i + 1} місце! +${S.fmt(S.WEEKLY_PRIZES[i])}`);
+      event(r.id, `🏆 Гонка тижня: ${i + 1}-е місце! +${S.fmt(S.WEEKLY_PRIZES[i])}`);
     });
   }
   function rollWeek(uid) {
@@ -3621,7 +3621,7 @@ export function createGame(db, opts = {}) {
       const place = i + 1, stars = S.SEASON_PRIZES[i] || 0, b = S.seasonBadge(place);
       if (stars) q('UPDATE users SET stars = stars + ? WHERE id = ?').run(stars, r.id);
       q('INSERT OR IGNORE INTO badges (user_id, key, title, tier, season, place, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(r.id, `s${prev}`, `${b.title} · Сезон ${prev}`, b.tier, prev, place, now());
-      event(r.id, `🏆 Сезон ${prev}: ${place} місце!${stars ? ` +${stars} ⭐ на рахунок` : ''} Значок «${b.title}» тепер у твоєму профілі.`);
+      event(r.id, `🏆 Сезон ${prev}: ${place}-е місце!${stars ? ` +${stars} ⭐ на рахунок` : ''} Значок «${b.title}» тепер у твоєму профілі.`);
     });
   }
   const badgesOf = (uid) => q('SELECT key, title, tier, season, place FROM badges WHERE user_id = ? ORDER BY tier DESC, season DESC').all(uid);

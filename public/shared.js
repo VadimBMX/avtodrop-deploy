@@ -2166,14 +2166,14 @@ export function setRewardValue(set) {
   const r = setReward(set);
   return Math.round(CASE_BY_ID[r.caseId].sellEv * ((r.count || 0) + (r.frag || 0) / FRAGMENTS_PER_KEY) + TIER_BY_ID[r.tier].price * PART_SELL_RATE * r.parts);
 }
-// "ключ «Тюнінг-ательє» + 2 × деталь Sport + +1% доходу"
+// "ключ «Тюнінг-ательє» · 2 × деталь Sport · +1% доходу машинам сету" (« · », not « + »: no "+ +1%")
 export function setRewardText(set) {
   const r = setReward(set), out = [];
   if (r.count) out.push(`${r.count > 1 ? r.count + ' × ' : ''}ключ «${CASE_BY_ID[r.caseId].name}»`);
   if (r.frag) out.push(`${r.frag} фрагменти ключа «${CASE_BY_ID[r.caseId].name}»`);
   if (r.parts) out.push(`${r.parts > 1 ? r.parts + ' × ' : ''}деталь ${TIER_BY_ID[r.tier].name}`);
   out.push(`+${Math.round(setIncome(set) * 100)}% доходу машинам сету`);
-  return out.join(' + ');
+  return out.join(' · ');
 }
 // Found models of a set; `have` is a Set (or array) of model ids from the collection.
 export function setProgress(set, have) {

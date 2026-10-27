@@ -786,7 +786,8 @@ function openProfile() {
 H.newbieClaim = async () => {
   if (await act('newbie/claim', {}, (r) => `+${S.fmt(r.got)}`, { rerender: false })) openProfile();
 };
-async function openRewards(result) {
+// auto: opened by itself at start — it never covers another window (the level-up shown meanwhile); returns false then.
+async function openRewards(result, auto = false) {
   let r, p;
   try {
     // the claims of a fresh pulse: «Забрати все» lists exactly what is ready now
@@ -794,6 +795,7 @@ async function openRewards(result) {
   } catch (e) {
     return toast(e.message, true);
   }
+  if (auto && !$('#modal').hidden) return false;
   if (p) setRewardClaims(p.claims);
   const caseReady = serverNow() >= r.rewardCaseAt;
   const doneUpTo = r.ready ? r.nextDay - 1 : r.todayIndex + 1;
@@ -6961,8 +6963,8 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide', 'toggleChannel']) {
     render();
     // A new player gets neither the rewards window nor banners over the first steps: the guide brings them to the gift.
     if (me.dailyReady && !guideOn() && !me.intro && !fromLink) {
-      openRewards();
       skipDailyBanner = true;
+      openRewards(null, true).then((shown) => shown === false && (skipDailyBanner = false)); // not shown: the daily banner stays
     }
     if (story === 'intro') {
       const seen = api('intro/seen').catch(() => {}); // once, even if the app is closed in the middle

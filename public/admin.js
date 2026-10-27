@@ -982,6 +982,7 @@ async function start() {
     $('#who').innerHTML = `${esc(who)} · ${ROLE_NAMES[w.role] || ''}${w.who === 'key' ? ' · <a data-act="logout">вийти</a>' : ''}`;
     // A helper doesn't see sections they have no rights for (the server refuses them anyway).
     for (const b of document.querySelectorAll('#nav [data-admin-only]')) b.hidden = w.role === 'helper';
+    document.body.classList.toggle('helper', w.role === 'helper'); // admin.css hides the buttons a helper may not use
     $('#qsearch').hidden = false;
     api('support', { open: true }).then((s) => {
       const n = $('#supN');

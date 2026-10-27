@@ -86,7 +86,7 @@ test('season: XP earned goes to the season counter; a new season starts it from 
   assert.equal(call(2, 'me').stars, S.SEASON_PRIZES[0]);
   assert.equal(call(1, 'me').stars, S.SEASON_PRIZES[1]);
   assert.equal(call(2, 'me').badges[0].title, 'Чемпіон · Сезон 1');
-  assert.ok(sent.some(([uid, text]) => uid === 2 && /Сезон 1: 1 місце/.test(text)));
+  assert.ok(sent.some(([uid, text]) => uid === 2 && /Сезон 1: 1-е місце/.test(text)));
   // Settled once.
   call(1, 'me');
   assert.equal(call(2, 'me').stars, S.SEASON_PRIZES[0]);

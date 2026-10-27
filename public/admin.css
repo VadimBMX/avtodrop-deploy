@@ -345,3 +345,8 @@ table.money td { vertical-align: middle; }
   .evp-tbl td { border: 0; padding: 2px 0; white-space: normal; text-align: left; }
   .evp-tbl td.num { text-align: left; margin-top: 4px; }
 }
+
+/* QA3: a helper only looks at these sections (src/game.js HELPER_ACTIONS) — no buttons the server would refuse. */
+body.helper :is([data-act="removeCar"], [data-act="removePlate"], [data-act="dealerRefresh"], [data-act="unlist"], [data-act="ctToggle"], [data-act="ctClose"],
+  [data-act="hwMode"], [data-act="evpNew"], [data-act="evpEdit"], [data-act="evpDel"], [data-act="evpStop"], [data-act="evpSeed"], [data-act="evpSave"],
+  [data-act="drDq"], [data-act="drClear"], [data-act="drSet"], [data-act="clubReset"], [data-act="clubDisband"], [data-act="chSave"], [data-act="chTest"]) { display: none !important; }
