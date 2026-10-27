@@ -450,7 +450,7 @@ test('admin http: changes need confirm + reason, proxied requests are not "local
     devApp.game.ensureUser({ id: 5, first_name: 'П' });
     let r = await post('/api/admin/money', { id: 5, amount: 100 });
     assert.equal(r.status, 400);
-    assert.match((await r.json()).error, /причину/);
+    assert.match((await r.json()).error, /не підтверджено/); // the owner (local DEV) needs no reason, only the confirm
     r = await post('/api/admin/money', { id: 5, amount: 100, reason: 'тест http', confirm: true });
     assert.equal(r.status, 200);
     assert.equal(devApp.db.prepare("SELECT admin FROM admin_log WHERE action = 'money'").get().admin, 'local');
@@ -478,11 +478,21 @@ test('admin panel: only the owner grants the premium pass and VIP', () => {
   const { db, g, ok } = panel();
   assert.throws(() => g.adminCall('tg:2', 'grant-premium', { id: 10, what: 'pass', ...ok }), /лише власник/);
   assert.throws(() => g.adminCall('tg:3', 'grant-premium', { id: 10, what: 'pass', ...ok }), /Немає прав/);
-  assert.throws(() => g.adminCall('tg:1', 'grant-premium', { id: 10, what: 'pass' }), /причину/);
+  assert.throws(() => g.adminCall('tg:1', 'grant-premium', { id: 10, what: 'pass' }), /не підтверджено/);
   const r = g.adminCall('tg:1', 'grant-premium', { id: 10, what: 'pass', ...ok });
   assert.equal(db.prepare('SELECT premium_season s FROM users WHERE id = 10').get().s, r.season);
   assert.throws(() => g.adminCall('tg:1', 'grant-premium', { id: 10, what: 'pass', ...ok }), /вже є/);
   const v = g.adminCall('tg:1', 'grant-premium', { id: 10, what: 'vip', days: 3, ...ok });
   assert.ok(v.until > Date.parse('2026-10-22T10:00:00Z'));
   assert.equal(db.prepare("SELECT COUNT(*) n FROM admin_log WHERE action = 'grant-premium'").get().n, 2);
+});
+
+test('admin reason (owner 28.10): the owner confirms without a reason, an admin still has to give one', () => {
+  const db = openDb(':memory:');
+  const g = createGame(db, { notify: () => {}, admins: [1] });
+  for (const id of [1, 2, 10]) g.ensureUser({ id, first_name: 'U' + id });
+  db.prepare("UPDATE users SET role = 'admin' WHERE id = 2").run();
+  g.adminCall('tg:1', 'money', { id: 10, amount: 100, confirm: true });
+  assert.throws(() => g.adminCall('tg:2', 'money', { id: 10, amount: 100, confirm: true }), /причину/);
+  g.adminCall('tg:2', 'money', { id: 10, amount: 100, confirm: true, reason: 'тест' });
 });

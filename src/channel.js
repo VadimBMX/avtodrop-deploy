@@ -289,7 +289,7 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
     if (role !== 'owner' && role !== 'admin') return { error: 'Немає прав на цю дію', code: 403 };
     const reason = String(body.reason ?? '').trim().slice(0, 300);
     if (body.confirm !== true) return { error: 'Дію не підтверджено', code: 400 };
-    if (reason.length < 3) return { error: 'Вкажи причину (від 3 символів) — вона піде в журнал дій', code: 400 };
+    if (reason.length < 3 && role !== 'owner') return { error: 'Вкажи причину (від 3 символів) — вона піде в журнал дій', code: 400 };
     if (name === 'channel/set') {
       const old = cfg();
       const next = normalizeCfg({ ...old, ...body, kinds: { ...old.kinds, ...(body.kinds || {}) } });

@@ -178,7 +178,7 @@ test('scheduler admin: create, edit, delete, preview; refuses clashes, Halloween
   assert.equal(v0.upcoming.length, 0);
   assert.equal(v0.weeks.length, 8);
   assert.ok(v0.weeks.every((w) => w.mode === 'auto'));
-  assert.throws(() => adm('schedule/save', { kind: 'luck', start: '2027-01-09T00:00', end: '2027-01-11T00:00' }), /підтвердження|confirm|причин/i);
+  assert.throws(() => adm('schedule/save', { kind: 'luck', start: '2027-01-09T00:00', end: '2027-01-11T00:00' }), /підтвердж|confirm|причин/i);
   const { id } = adm('schedule/save', { kind: 'luck', title: 'Зимові вихідні удачі', start: '2027-01-09T00:00', end: '2027-01-11T00:00', ...ok });
   let v = adm('schedule');
   assert.equal(v.upcoming.length, 1);

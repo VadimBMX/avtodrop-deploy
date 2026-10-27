@@ -76,7 +76,7 @@ test('admin: on outside the dates, off inside them, back to the calendar; reason
   db.prepare("UPDATE users SET role = 'helper' WHERE id = 7").run();
   assert.equal(owner('halloween').mode, 'auto');
   assert.equal(owner('halloween').on, false);
-  assert.throws(() => g.adminCall('tg:1', 'halloween/mode', { mode: 'on' }), /причину/);
+  assert.throws(() => g.adminCall('tg:1', 'halloween/mode', { mode: 'on' }), /не підтверджено/);
   assert.throws(() => g.adminCall('tg:7', 'halloween/mode', { mode: 'on', reason: 'тест', confirm: true }), /прав/);
   assert.equal(g.adminCall('tg:7', 'halloween', {}).mode, 'auto', 'a helper may look');
   assert.throws(() => owner('halloween/mode', { mode: 'maybe' }), /Режим/);

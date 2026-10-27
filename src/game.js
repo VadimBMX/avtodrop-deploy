@@ -4890,7 +4890,8 @@ export function createGame(db, opts = {}) {
     let reason = null;
     if (ADMIN_MUTATING.has(name)) {
       reason = String(b.reason ?? '').trim().slice(0, 300);
-      if (reason.length < 3) fail('Вкажи причину (від 3 символів) — вона піде в журнал дій');
+      // Owner 28.10: the owner isn't asked for a reason (admins and helpers still are — it goes to the action log).
+      if (reason.length < 3 && role !== 'owner') fail('Вкажи причину (від 3 символів) — вона піде в журнал дій');
       if (b.confirm !== true) fail('Дію не підтверджено');
     }
     actx.reason = reason;

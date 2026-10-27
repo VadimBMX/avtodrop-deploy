@@ -56,7 +56,12 @@ async function act(name, body, ok) {
 // Every action that changes a player or the economy goes through this dialog: what will happen, a required reason
 // (it goes into the action log with the admin's name) and an explicit confirm. The server refuses the action without both.
 // `summary` is HTML built by the caller with esc() around anything that came from players.
-function confirmDialog({ title, summary = '', danger = false, button = 'Підтвердити', reasonLabel = 'Причина — піде в журнал дій', reasonValue = '' }) {
+// The owner isn't asked for a reason (owner 28.10): the field is gone, or optional where the reason reaches the player.
+function confirmDialog({ title, summary = '', danger = false, button = 'Підтвердити', reasonLabel = null, reasonValue = '' }) {
+  const owner = state.role === 'owner';
+  const custom = reasonLabel != null;
+  reasonLabel ??= 'Причина — піде в журнал дій';
+  if (owner) reasonLabel += ' (необов’язково)';
   return new Promise((resolve) => {
     const m = $('#modal'), d = $('#dialog');
     d.innerHTML = `<h3></h3><div class="summary">${summary}</div>
@@ -68,7 +73,8 @@ function confirmDialog({ title, summary = '', danger = false, button = 'Підт
     ok.textContent = button;
     const r = $('#cfReason', d);
     r.value = reasonValue;
-    const check = () => (ok.disabled = r.value.trim().length < 3);
+    if (owner && !custom) $('label.field', d).hidden = true;
+    const check = () => (ok.disabled = !owner && r.value.trim().length < 3);
     check();
     r.addEventListener('input', check);
     const done = (v) => {
@@ -86,7 +92,7 @@ function confirmDialog({ title, summary = '', danger = false, button = 'Підт
     m.onclick = (e) => e.target === m && done(null);
     $('#toast').hidden = true;
     m.hidden = false;
-    r.focus();
+    if (owner && !custom) ok.focus(); else r.focus();
   });
 }
 // A changing action: ask (dialog above), then call with confirm + reason and re-render on success.

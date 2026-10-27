@@ -424,7 +424,7 @@ test('admin: the switch (default on), live lots, close-and-replace with a refund
   assert.ok(!JSON.stringify(v.open).includes(db.prepare('SELECT salt FROM container_lots WHERE id = ?').get(l.id).salt), 'the admin sees no content of a running lot');
   assert.ok(g.adminCall('tg:7', 'containers', {}).open.length === 3, 'a helper may look');
   assert.throws(() => g.adminCall('tg:7', 'containers/toggle', { on: false, reason: 'тест', confirm: true }), /прав/);
-  assert.throws(() => g.adminCall('tg:1', 'containers/toggle', { on: false }), /причину/);
+  assert.throws(() => g.adminCall('tg:1', 'containers/toggle', { on: false }), /не підтверджено/);
   // Switched off: waiting lots go, the live one stays, new bids are refused.
   const off = owner('containers/toggle', { on: false });
   assert.equal(off.on, false);

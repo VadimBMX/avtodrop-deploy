@@ -181,7 +181,7 @@ test('channel: hourly limit turns a burst into a digest; admin rights and confir
 
   assert.equal((await s.ch.admin('channel/set', { on: false, confirm: true, reason: 'тест' }, { who: 'tg:5', role: 'helper' })).code, 403);
   assert.match((await s.ch.admin('channel/set', { on: false, reason: 'тест' }, { who: 'key', role: 'owner' })).error, /не підтверджено/);
-  assert.match((await s.ch.admin('channel/set', { on: false, confirm: true }, { who: 'key', role: 'owner' })).error, /причину/);
+  assert.match((await s.ch.admin('channel/set', { on: false, confirm: true }, { who: 'tg:2', role: 'admin' })).error, /причину/); // an admin needs a reason, the owner doesn't
   assert.equal(s.ch.status().cfg.on, true);
   const st = await s.owner('channel/test', { text: 'Привіт, канал' });
   assert.equal(st.log[0].test, 1);
