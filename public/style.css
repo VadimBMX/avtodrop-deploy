@@ -4551,19 +4551,29 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .tgg-ic { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 11px; background: #229ed91f; color: #38bdf8; flex: none; }
 .tgg-new { color: var(--accent); font-weight: 700; }
 
-/* Spinning wheels in the drag race (public/race-wheels.js, owner 27.10): a disc of the same photo over each wheel,
-   turned by a Web Animation; data-s = speed level (0 stopped, 1 rolling, 2–3 fast: trailing copies + rim haze). */
+/* Spinning wheels in the drag race (public/race-wheels.js, owner 27–28.10): over each wheel a frame mapped onto the
+   wheel's ellipse (.ww-e), a circle turning inside it (.ww-s, a Web Animation) and the photo un-mapped in it (.ww-p);
+   data-s = speed level (0 stopped, 1 rolling, 2–3 fast: trailing copies + rim haze). .blur = blur-only wheel: the
+   photo stays and a streak turns over it. */
 .ww { position: absolute; left: 0; top: 0; width: 100%; pointer-events: none; }
-.ww-w, .ww-g { position: absolute; aspect-ratio: 1; border-radius: 50%; }
-.ww-w { background-repeat: no-repeat; will-change: transform; }
-.ww-w::before, .ww-w::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: inherit; opacity: 0; transition: opacity .25s; }
-.ww[data-s="2"] .ww-w::before { opacity: .5; transform: rotate(-10deg); }
-.ww[data-s="2"] .ww-w::after { opacity: .3; transform: rotate(-20deg); }
-.ww[data-s="3"] .ww-w::before { opacity: .6; transform: rotate(-15deg); }
-.ww[data-s="3"] .ww-w::after { opacity: .45; transform: rotate(-30deg); }
+.ww-e { position: absolute; aspect-ratio: 1; transform-origin: 50% 50%; }
+.ww-s, .ww-k, .ww-g, .ww-z { position: absolute; inset: 0; border-radius: 50%; }
+.ww-s { overflow: hidden; will-change: transform; }
+.ww-p { position: absolute; display: block; background-size: 100% 100%; background-repeat: no-repeat; }
+.ww-k { opacity: 0; transition: opacity .25s; }
+.ww[data-s="2"] .ww-k.k1 { opacity: .5; transform: rotate(-10deg); }
+.ww[data-s="2"] .ww-k.k2 { opacity: .3; transform: rotate(-20deg); }
+.ww[data-s="3"] .ww-k.k1 { opacity: .6; transform: rotate(-15deg); }
+.ww[data-s="3"] .ww-k.k2 { opacity: .45; transform: rotate(-30deg); }
 .ww-g { opacity: 0; transition: opacity .3s; background: radial-gradient(circle, #c8ced600 0 18%, #c8ced633 36%, #a0a8b422 52%, #0000 66%); }
 .ww[data-s="2"] .ww-g { opacity: .55; }
 .ww[data-s="3"] .ww-g { opacity: 1; }
+.ww-z { opacity: 0; transition: opacity .3s;
+  background: repeating-conic-gradient(#fff0 0 14deg, #e6ebf05c 20deg, #fff0 27deg 40deg);
+  -webkit-mask: radial-gradient(circle, #0000 22%, #000 40%, #000 82%, #0000 96%); mask: radial-gradient(circle, #0000 22%, #000 40%, #000 82%, #0000 96%); }
+.ww[data-s="1"] .ww-z { opacity: .55; }
+.ww[data-s="2"] .ww-z, .ww[data-s="3"] .ww-z { opacity: 1; }
+.ww[data-s="3"] .blur .ww-g { opacity: 1; }
 .dr-car.rv .ww { filter: brightness(.9); }
 .drag.ghost .dr-car.rv .ww { filter: none; }
 @media (prefers-reduced-motion: reduce) { .ww { display: none; } }
