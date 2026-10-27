@@ -4361,3 +4361,13 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .pr-hub.locked .hub-ic { color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .pr-stars.pop { animation: none; } }
 /* ===== /Prestige ===== */
+
+/* ===== Integration fixes 2 (week 2: barn, clubs, tourney, prestige, containers 2.0) ===== */
+/* §1 Car tile: ★ and R / edition № on one line above the name (the № used to vanish in the name's 2-line clamp). */
+.car .car-marks { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; min-height: 16px; margin-bottom: 2px; min-width: 0; }
+.car .car-marks .pr-stars.pr-t { margin-bottom: 0; }
+.car .car-marks .br-no, .car .car-marks .ed-no { line-height: 16px; }
+/* §2 «Гонки»: the tournament tile's one-line status (nowrap) widened the «Заїзд дня / Серія» grid → page scrolled sideways
+   (403 px at 390). One shrinkable column; the tile's text column may shrink to its ellipsis. */
+.dr-below:not(:empty) { grid-template-columns: minmax(0, 1fr); }
+.tnm-tile .grow { min-width: 0; }

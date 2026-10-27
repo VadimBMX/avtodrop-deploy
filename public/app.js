@@ -356,13 +356,19 @@ function oddsBar(weights) {
 }
 const partCount = (c) =>S.partKeysOf(c.model).filter((k) => c.parts?.[k]).length;
 const partSlots = (c) => S.partKeysOf(c.model).length;
+// ★ and the R / edition № above the name (integration fix 2: inside the 2-line name clamp a long edition name hid its №).
+function tileMarks(c, m) {
+  const no = m.restored ? `<span class="br-no">R${c.serial ? ' ' + S.serialText(c.serial) : ''}</span>` : c.serial ? `<span class="ed-no">${S.serialText(c.serial)}</span>` : '';
+  const st = starsHtml(c, { cls: 'pr-t' });
+  return st || no ? `<div class="car-marks">${st}${no}</div>` : '';
+}
 function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false, sellLine = false, incLine = false, collLine = false } = {}) {
   const m = M(c.model);
   const sale = S.saleOf(c); // honest numbers: the sale is the main figure, the collection price the grey line
   return `<button class="car r${S.rankOf(m.cls)}${starTileCls(c)} ${sel ? 'sel' : ''} ${c.status === 'market' || c.status === 'auction' ? 'listed' : ''}" data-act="${act}" data-id="${c.id}" style="--c:${S.CLASSES[m.cls].color}">
     ${clsBadge(m.cls, 'tl')}<span class="tr">${isNew ? `<span class="new">${ic('sparkles')}нова</span>` : ''}<span class="chip">${ic('tool')}${partCount(c)}/${partSlots(c)}</span></span>
     <div class="art">${carArt(c.model, { look: c.look, dirt: c.dirt })}${dirtPip(c)}</div>
-    <div class="nm clamp2" title="${esc(m.name)}">${starsHtml(c, { cls: 'pr-t' })}${m.restored ? `${esc(m.name.replace(/ · R$/, ''))} <span class="br-no">R${c.serial ? ' ' + S.serialText(c.serial) : ''}</span>` : `${esc(m.name)}${c.serial ? ` <span class="ed-no">${S.serialText(c.serial)}</span>` : ''}`}</div>
+    ${tileMarks(c, m)}<div class="nm clamp2" title="${esc(m.name)}">${esc(m.restored ? m.name.replace(/ · R$/, '') : m.name)}</div>
     ${c.plate ? `<div class="meta">${plate(c.plate.text, 'sm', c.pf)}</div>` : ''}
     <div class="meta row between" style="gap:4px"><span>${c.hp} к.с.</span><b class="disp hn-sale" style="color:var(--text);font-size:14px;font-weight:600" title="${sale == null ? 'Колекційна ціна' : 'Продаж'}">${sale == null ? S.short(c.value) : `${ic('cash')}${S.short(sale)}`}</b></div>${collLine ? `<div class="meta sellp">${sale == null ? 'не продається' : `${collLine === 'short' ? 'колекц.' : 'колекційна'} ${S.short(c.value)}`}</div>` : ''}
     ${incLine && c.status === 'garage' ? tileInc(c) : ''}

@@ -5044,7 +5044,7 @@ export function createGame(db, opts = {}) {
   {
     const meBase = handlers.me, lbBase = handlers.leaderboard, playerBase = handlers.player, upBase = handlers.upgrade, tiBase = handlers['dealer/tradein'];
     handlers.me = (uid, b) => ({ ...meBase(uid, b), prestige: PR.brief(uid) });
-    handlers.leaderboard = (uid, b) => (b?.type === 'wealth' ? PR.board(uid) : lbBase(uid, b));
+    handlers.leaderboard = (uid, b) => (b?.type === 'wealth' ? ((r) => (CL.tagRows(r?.list), r))(PR.board(uid)) : lbBase(uid, b)); // «Статок» keeps the club tags
     handlers.player = (uid, b) => { const p = playerBase(uid, b); return { ...p, prestige: PR.card(p.id) }; };
     handlers.upgrade = (uid, b) => (PR.noStars(b?.carIds), upBase(uid, b));
     handlers['dealer/tradein'] = (uid, b) => (PR.noStars(b?.carIds), tiBase(uid, b));

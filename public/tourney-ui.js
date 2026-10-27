@@ -19,7 +19,7 @@ export function installTourney(x) {
     raceScreen, runRace, raceSheetHtml, resultFx, hideClaimBanners, drSeen, dragCoach, carTile, prefGet, prefSet } = x;
   const me = () => x.me(), state = () => x.state();
   let data = null;
-  PAGE_TITLES.tourney = 'Турнір вихідних';
+  PAGE_TITLES.tourney = 'Турнір'; // the header: «Турнір вихідних» didn't fit next to a long balance (the page's hero has the full name)
 
   // ---------- the «Гонки» tile ----------
   function tile() {
@@ -50,7 +50,8 @@ export function installTourney(x) {
       const s = state();
       if ((s.race && s.race.phase !== 'idle') || s.drift) return html;
       const below = '<div class="dr-below" id="drBelow">';
-      return html.includes(below) ? html.replace(below, below + tile()) : tile() + html;
+      // no «Гонки» block yet (no car): a player below the tournament's level isn't shown its tile above the empty screen
+      return html.includes(below) ? html.replace(below, below + tile()) : (me()?.level || 1) < TRS.TOURNEY.minLevel ? html : tile() + html;
     };
   }
   H.tnmOpen = () => {
