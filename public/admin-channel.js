@@ -38,11 +38,11 @@ export async function channelPage({ api, esc, date }) {
         <label>Чат гравців (@нік або -100…)<input id="tgChat" value="${esc(g.chat)}" placeholder="@avtodrop_chat" style="width:100%"></label>
         <label>Посилання на чат (для приватного)<input id="tgChatLink" value="${esc(g.chat.startsWith('-') ? g.chatLink : '')}" placeholder="https://t.me/+…" style="width:100%"></label>
       </div>
-      <div class="row" style="gap:8px;margin-top:10px"><button class="btn green sm" data-act="tgGroupsSave">Зберегти групи</button></div></div>
+      <div class="row" style="gap:8px;margin-top:10px"><button class="btn green sm" data-act="tgGroupsSave">Зберегти групи</button><button class="btn ghost sm" data-act="tgGroupsCheck">Перевірити групи</button></div><pre id="tgCheck" class="small" style="white-space:pre-wrap;margin-top:8px"></pre></div>
     <div class="panel"><h2>Останні пости</h2>${log}</div>`;
 }
 
-export function channelActions({ mutate, $ }) {
+export function channelActions({ mutate, $, api }) {
   return {
     chSave: () => {
       const kinds = Object.fromEntries([...document.querySelectorAll('[data-kind]')].map((el) => [el.dataset.kind, el.checked]));
@@ -54,6 +54,20 @@ export function channelActions({ mutate, $ }) {
       const body = { channel: $('#tgChannel').value, channelLink: $('#tgChannelLink').value, chat: $('#tgChat').value, chatLink: $('#tgChatLink').value };
       return mutate('tggroups/set', body, { title: 'Наші групи в Telegram', button: 'Зберегти',
         summary: `Канал: ${body.channel || '—'} · чат: ${body.chat || '—'}. Гравці побачать групи в «Меню» й зможуть забрати бонус.` }, 'Групи збережено');
+    },
+    tgGroupsCheck: async () => {
+      const el = document.getElementById('tgCheck');
+      el.textContent = 'Питаю Telegram…';
+      try {
+        const r = await api('tggroups/check');
+        const ST = { administrator: 'адмін ✅', creator: 'власник ✅', member: 'учасник — зроби адміном ⚠️', left: 'не в групі ❌', kicked: 'вигнаний ❌' };
+        const lines = Object.entries(r.groups).map(([w, g]) => g.ok
+          ? `${w === 'channel' ? 'Канал' : 'Чат'} ${g.id}: «${g.title}» (${g.type}${g.forum ? ', з темами' : ''}${g.members != null ? `, учасників: ${g.members}` : ''}) — бот: ${ST[g.botStatus] || g.botStatus || 'невідомо'}`
+          : `${w === 'channel' ? 'Канал' : 'Чат'} ${g.id}: Telegram не знайшов — ${g.error}`);
+        el.textContent = lines.length ? lines.join('\n') : 'Спершу впиши й збережи групи';
+      } catch (e) {
+        el.textContent = 'Помилка: ' + e.message;
+      }
     },
     chTest: () => mutate('channel/test', { text: $('#chTest').value }, { title: 'Тестовий пост у канал', button: 'Надіслати', summary: 'Пост одразу з’явиться в каналі — його бачитимуть підписники.' }, 'Тест надіслано'),
   };

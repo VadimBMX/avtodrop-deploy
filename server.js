@@ -173,6 +173,27 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
       if (r === undefined) return send(res, 404, { error: 'Невідомий метод' });
       return r.error ? send(res, r.code || 400, { error: r.error }) : send(res, 200, r);
     }
+    // «Перевірити групи» (admin «Канал»): what Telegram says about each group set in «Наші групи» — found or not, its
+    // title and type, whether topics are on, and the bot's own status there (it must be an admin to check members).
+    if (name === 'tggroups/check') {
+      if (!bot) return send(res, 400, { error: 'Бот не підключено' });
+      const g = game.tgGroups.cfg(), out = {};
+      const me = await bot.call('getMe').catch(() => null);
+      for (const w of ['channel', 'chat']) {
+        if (!g[w]) continue;
+        const r = { id: g[w] };
+        try {
+          const c = await bot.call('getChat', { chat_id: g[w] });
+          Object.assign(r, { ok: true, title: c.title, type: c.type, forum: !!c.is_forum, members: await bot.call('getChatMemberCount', { chat_id: g[w] }).catch(() => null) });
+          const m = me ? await bot.call('getChatMember', { chat_id: g[w], user_id: me.id }).catch(() => null) : null;
+          r.botStatus = m?.status || null;
+        } catch (e) {
+          Object.assign(r, { ok: false, error: e.message });
+        }
+        out[w] = r;
+      }
+      return send(res, 200, { groups: out });
+    }
     if (name === 'whoami') return send(res, 200, { who: id.who, role: id.who.startsWith('tg:') ? game.roleOf(Number(id.who.slice(3))) : 'owner', dev, bot: bot?.username || null, outbox: sender ? sender.size() : 0 });
     // adminCall checks the role, and for actions that change something the confirm flag and the reason.
     const out = game.adminCall(id.who, name, body);
