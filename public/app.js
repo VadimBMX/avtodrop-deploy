@@ -24,6 +24,7 @@ import { installClubs, clubTag, clubHub, clubFromLink } from './clubs-ui.js';
 // D-race: the boss's fight-poster intro before the lights; «scene mode» (no tab bar) while a run is on screen.
 import { bossIntro } from './boss-intro.js';
 import { watchScene } from './race-scene.js';
+import { installTourney } from './tourney-ui.js';
 
 const tg = window.Telegram?.WebApp;
 const $ = (s, el = document) => el.querySelector(s);
@@ -8367,3 +8368,6 @@ H.homeAddAsk = () => {
   H.homeAdd();
 };
 
+// ---------- «Турнір вихідних» (public/tourney-ui.js; rules public/tourney.js, server src/tourney.js) ----------
+installTourney({ api, me: () => me, state: () => state, H, PAGES, AFTER, TABS, PAGE_TITLES, render, go, refresh, ic, esc, carArt, miniCar, clsBadge, M, plural, toast,
+  untilSpan, emptyBox, raceScreen, runRace, raceSheetHtml, resultFx, hideClaimBanners, drSeen, dragCoach, carTile, prefGet, prefSet });

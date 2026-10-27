@@ -11,6 +11,7 @@ import { createTg } from './tg.js';
 import { createSchedule } from './schedule.js';
 import { createBarn } from './barn.js';
 import { createClubs } from './clubs.js';
+import { createTourney } from './tourney.js';
 
 export class GameError extends Error {}
 const fail = (msg) => {
@@ -4907,6 +4908,17 @@ export function createGame(db, opts = {}) {
   }
   for (const k of DR.mutating) ADMIN_MUTATING.add(k);
   HELPER_ACTIONS.add('dayrace'); // helpers may look at the day's board and schedule, not change them
+  // «Турнір вихідних» (src/tourney.js): its calls, its runs finish through race/finish (the same replay); `me` carries the
+  // «Гонки» tile; the reminders' scheduler moves its rounds on every few minutes even when nobody opens the game.
+  const TRN = createTourney({ q, now, rnd, fail, int, name, ownCar, carOut, carRow, dragRun, startLimit, addMoney, addKeys, userRow,
+    grantCosmetic: (...a) => grantCosmetic(...a), event: (...a) => event(...a), xp: (...a) => xp(...a), track: (...a) => track(...a) });
+  Object.assign(handlers, TRN.api);
+  {
+    const meBase = handlers.me, finishBase = handlers['race/finish'];
+    handlers.me = (uid, b) => ({ ...meBase(uid, b), tourney: TRN.brief(uid) });
+    handlers['race/finish'] = (uid, b) => (TRN.isRun(uid, b?.raceId) ? TRN.finish(uid, b) : finishBase(uid, b));
+  }
+  push.candidates = ((base) => (rules) => (trnTick(), base(rules)))(push.candidates);
   // «Ніч Хелловіну» (src/halloween.js): the calendar + the admin switch, event tasks (fed by track()), `me.halloween`.
   HW = createHalloween({ q, now, fail, metaGet, metaSet, addKeys, giveCar, garageCount, userRow, grantCosmetic, styleOf, styleWear, random: rnd,
     alog: (...a) => alog(...a), after: () => CT?.ensure() });
@@ -5044,6 +5056,17 @@ export function createGame(db, opts = {}) {
     if (!light) recalc(uid);
     return r;
   })]));
+  // «Турнір вихідних»: what is due (the draw, rounds opening and closing, a final's prizes) moves on in its own
+  // transaction before the call, so a call that fails can't roll it back and send its bot messages twice; a fault in it
+  // never blocks the game.
+  const trnTick = () => {
+    try {
+      db.tx(() => TRN.tick());
+    } catch (e) {
+      console.error('tourney:', e?.message);
+    }
+  };
+  for (const [k, fn] of Object.entries(api)) if (!LIGHT.has(k)) api[k] = (uid, body) => (trnTick(), fn(uid, body));
 
   // ---------- ghost challenges («Виклик-привид», rules and the ghost in public/ghost.js) ----------
   // Any finished drag run (solo, career, a ghost race itself) can be thrown as a challenge: a link a friend opens to

@@ -252,6 +252,30 @@ CREATE TABLE IF NOT EXISTS dayrace_best (
 CREATE INDEX IF NOT EXISTS dayrace_best_board ON dayrace_best(day, time, at);
 CREATE INDEX IF NOT EXISTS dayrace_best_user ON dayrace_best(user_id, day);
 CREATE TABLE IF NOT EXISTS dayrace_days (day TEXT PRIMARY KEY, model TEXT NOT NULL, total INTEGER NOT NULL, settled_at INTEGER NOT NULL);
+-- «Турнір вихідних» (public/tourney.js, src/tourney.js); tid = the Friday of the week. Entries (one car per player);
+-- the week's draw (its row is the guard that draws once); brackets (done_at: prizes paid once); matches (a/b: the
+-- side as JSON — a player {uid, seed} or a bot; *_uid for look-ups; best time, its moment, runs used, the best run for
+-- the ghost, the run in progress); prizes (one row per player and week: the guard that pays once).
+CREATE TABLE IF NOT EXISTS tourney_entries (tid TEXT NOT NULL, user_id INTEGER NOT NULL, car_id INTEGER NOT NULL, model TEXT NOT NULL, cls TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (tid, user_id));
+CREATE TABLE IF NOT EXISTS tourney_weeks (tid TEXT PRIMARY KEY, built_at INTEGER NOT NULL, field INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS tourney_brackets (
+  tid TEXT NOT NULL, bracket TEXT NOT NULL, cls TEXT NOT NULL, size INTEGER NOT NULL, humans INTEGER NOT NULL,
+  champion TEXT, done_at INTEGER, PRIMARY KEY (tid, bracket)
+);
+CREATE TABLE IF NOT EXISTS tourney_matches (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, tid TEXT NOT NULL, bracket TEXT NOT NULL, round INTEGER NOT NULL, slot INTEGER NOT NULL,
+  opens_at INTEGER NOT NULL, deadline INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'wait',
+  a TEXT, a_uid INTEGER, a_best REAL, a_at INTEGER, a_tries INTEGER NOT NULL DEFAULT 0, a_run TEXT, a_live INTEGER,
+  b TEXT, b_uid INTEGER, b_best REAL, b_at INTEGER, b_tries INTEGER NOT NULL DEFAULT 0, b_run TEXT, b_live INTEGER,
+  winner INTEGER, how TEXT, decided_at INTEGER, sent TEXT, UNIQUE (tid, bracket, round, slot)
+);
+CREATE INDEX IF NOT EXISTS tourney_matches_due ON tourney_matches(status, opens_at);
+CREATE INDEX IF NOT EXISTS tourney_matches_a ON tourney_matches(a_uid, tid);
+CREATE INDEX IF NOT EXISTS tourney_matches_b ON tourney_matches(b_uid, tid);
+CREATE TABLE IF NOT EXISTS tourney_prizes (
+  tid TEXT NOT NULL, user_id INTEGER NOT NULL, bracket TEXT NOT NULL, cls TEXT NOT NULL, place INTEGER NOT NULL, prize TEXT NOT NULL,
+  at INTEGER NOT NULL, PRIMARY KEY (tid, user_id)
+);
 -- Weekly route (S.WEEKLY_QUESTS): four tasks per player and Kyiv week (Monday date). Chest claims live in claims
 -- under "wk:<week>:<days>".
 CREATE TABLE IF NOT EXISTS weekly_quests (

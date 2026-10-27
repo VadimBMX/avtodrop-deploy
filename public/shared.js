@@ -2432,6 +2432,7 @@ export const STYLE_ITEMS = [
 // Event cosmetics ("cos:e:<id>"): earned in an event (public/halloween.js), never sold — not in STYLE_ITEMS / the shop.
 export const EVENT_COSMETICS = [
   { id: 'hw-pumpkin', kind: 'frame', look: 'pumpkin', name: 'Рамка «Гарбуз»', hint: 'нагорода «Ночі Хелловіну»', event: 'halloween' },
+  { id: 'tr-champ', kind: 'frame', look: 'champ', name: 'Рамка «Чемпіон»', hint: 'лише для переможців «Турніру вихідних»', event: 'tourney' },
 ].map((it) => ({ ...it, cos: 'cos:e:' + it.id }));
 const STYLE_BY_COS = Object.fromEntries([...STYLE_ITEMS, ...EVENT_COSMETICS].map((it) => [it.cos, it]));
 // A «Стиль» item as a cosmetic (same shape as a season one; season 0).
