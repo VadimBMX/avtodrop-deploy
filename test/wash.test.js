@@ -30,9 +30,10 @@ const D_MODEL = S.ALL_MODELS.find((m) => m.cls === 'D' && !m.secret).id;
 const B_MODEL = S.ALL_MODELS.find((m) => m.cls === 'B' && !m.secret).id;
 const A_MODEL = S.ALL_MODELS.find((m) => m.cls === 'A' && !m.secret).id;
 
-test('dirt maths: +1%/h capped at 100, no income cut at any dirt (visual only), shine +5%, exact average', () => {
-  assert.equal(S.dirtNow(10, T0, T0 + 5 * H), 15);
-  assert.equal(S.dirtNow(90, T0, T0 + 50 * H), 100);
+test('dirt maths: no dirt from standing (owner 27.10), capped at 100, no income cut (visual only), shine +5%, exact average', () => {
+  assert.equal(S.WASH.perHour, 0);
+  assert.equal(S.dirtNow(10, T0, T0 + 5 * H), 10);
+  assert.equal(S.dirtNow(90, T0, T0 + 50 * H), 90);
   assert.equal(S.dirtNow(30, 0, T0 + 50 * H), 30, 'no clock: stays as stored');
   assert.equal(S.WASH.maxCut, 0);
   for (const d of [0, 50, 75, 100]) assert.equal(S.dirtCut(d), 0, `${d}%`);
@@ -54,21 +55,23 @@ test('dirt maths: +1%/h capped at 100, no income cut at any dirt (visual only), 
   for (let i = 1; i < 5; i++) assert.ok(S.WASH.price[S.CLASS_ORDER[i]] > S.WASH.price[S.CLASS_ORDER[i - 1]]);
 });
 
-test('a race adds 8–12% dirt, time adds 1%/h; new cars start clean; the car card shows it', () => {
+test('a race adds 8–12% dirt, standing adds nothing (owner 27.10); new cars start clean; the car card shows it', () => {
   const { mk, call, car, meCar, advance, g } = setup();
   const u = mk(1);
   const id = g.giveCar(u, D_MODEL).id;
   assert.equal(meCar(u, id).dirt, 0);
   assert.equal(meCar(u, id).shineUntil, 0);
   advance(10 * H);
-  assert.equal(meCar(u, id).dirt, 10);
+  assert.equal(meCar(u, id).dirt, 0, 'a car in the garage stays clean');
   const before = S.dirtNow(car(id).dirt, car(id).dirt_at, T0 + 10 * H);
   const { list } = call(u, 'race/rivals', { carId: id });
   call(u, 'race/start', { carId: id, rival: list[0].id });
   const added = car(id).dirt - before;
   assert.ok(added >= S.WASH.race[0] && added <= S.WASH.race[1], `race added ${added}`);
   advance(500 * H);
-  assert.equal(meCar(u, id).dirt, 100, 'capped');
+  assert.equal(meCar(u, id).dirt, car(id).dirt, 'no more dirt while it stands');
+  for (let i = 0; i < 15; i++) { advance(61e3); call(u, 'race/start', { carId: id, rival: list[0].id }); }
+  assert.ok(meCar(u, id).dirt <= 100, 'capped');
 });
 
 test('income: dirt costs nothing at any level (owner: visual only) — the server rate and «Забрати» stay full', () => {

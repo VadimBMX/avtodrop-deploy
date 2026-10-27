@@ -3669,7 +3669,7 @@ function washView() {
       ${autoBtn}
       ${dirtyAll.length > 1 ? `<button class="btn outline btn2" data-act="washAll" ${!vip && allSum > me.balance ? 'disabled' : ''}><span>${ic('spray')} Помити всі · ${dirtyAll.length}</span><small>${vip ? 'VIP — безкоштовно' : S.fmt(allSum)}</small></button>` : ''}
     </div>
-    <div class="tiny muted center mt">Кожен заїзд бруднить машину на ${S.WASH.race[0]}–${S.WASH.drift[1]}%, у гаражі — +${S.WASH.perHour}% за годину. Бруд — лише вигляд: на дохід і швидкість не впливає. Після мийки машина блищить ${S.WASH.shineHours} год: +${Math.round(S.WASH.shine * 100)}% доходу.</div>`;
+    <div class="tiny muted center mt">Машина бруднеться лише в гонках: кожен заїзд — на ${S.WASH.race[0]}–${S.WASH.drift[1]}%. У гаражі не бруднеться. Бруд — лише вигляд: на дохід і швидкість не впливає. Після мийки машина блищить ${S.WASH.shineHours} год: +${Math.round(S.WASH.shine * 100)}% доходу.</div>`;
 }
 function washAfter() {
   const on = $('.wash-cars .pcar.on'), strip = $('#washCars');

@@ -935,13 +935,14 @@ export const COUNTRY_BONUS = { cars: 3, income: 0.1 };
 
 // ---------- car wash (мийка) ----------
 // Dirt per car, 0–100%: every race the car drives adds race (drag, career, PvP) or drift % (random in the range), and
-// standing anywhere it gathers perHour % an hour (cars.dirt + cars.dirt_at, counted lazily like the tanks). Owner
+// standing it gathered perHour % an hour — owner 27.10: 0 (with 30+ cars nobody can keep them clean; dirt comes only
+// from races now). Owner
 // decision (night wave, audit §3): dirt is visual only — no income penalty (maxCut 0), race power and times never
 // change. Any wash sets dirt to 0 and the car «Блищить» for shineHours: +shine to its income — a bonus, never a tax.
 // Hand wash (the rub-off mini-game): free, `hand` a day. Car wash: price by class (secret cars like S), free with VIP.
 // `dirty`+% shows «брудна» on the car.
 export const WASH = {
-  race: [8, 12], drift: [11, 15], perHour: 1, from: 50, maxCut: 0, dirty: 50,
+  race: [8, 12], drift: [11, 15], perHour: 0, from: 50, maxCut: 0, dirty: 50,
   shine: 0.05, shineHours: 6, hand: 3, handClean: 0.85,
   price: { D: 2000, C: 6000, B: 25000, A: 120000, S: 500000, X: 500000 },
 };
@@ -958,7 +959,7 @@ export const washFactor = (dirt, at, shineUntil, t, cut = true) => 1 - (cut ? di
 export function washFactorAvg(dirt, at, shineUntil, a, b, cut = true) {
   if (!(b > a)) return washFactor(dirt, at, shineUntil, b, cut);
   const pts = [a, b];
-  if (at > 0) for (const d of [WASH.from, 100]) pts.push(at + ((d - (dirt || 0)) / WASH.perHour) * 3600e3);
+  if (at > 0 && WASH.perHour > 0) for (const d of [WASH.from, 100]) pts.push(at + ((d - (dirt || 0)) / WASH.perHour) * 3600e3);
   if (shineUntil) pts.push(shineUntil);
   const cuts = [...new Set(pts.filter((p) => p >= a && p <= b))].sort((x, y) => x - y);
   let s = 0;
