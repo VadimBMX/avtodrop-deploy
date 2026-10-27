@@ -26,9 +26,9 @@ function setup(db = openDb(':memory:'), extra = {}) {
 test('ladder: one constant, levels ascending, every gated key in it; casino and upgrade late', () => {
   const levels = S.UNLOCKS.map((u) => u.level);
   assert.deepEqual(levels, [...levels].sort((a, b) => a - b));
-  assert.ok(S.unlockLevel('casino') >= 10 && S.unlockLevel('upgrade') >= 8);
+  assert.ok(S.unlockLevel('casino') >= 10 && S.unlockLevel('upgrade') >= 4);
   assert.equal(S.unlockLevel('nothing'), 1);
-  assert.deepEqual(S.unlocksBetween(1, 3).map((u) => u.key), ['parts', 'wash', 'dayrace', 'drift', 'plates', 'market', 'trades', 'auction']);
+  assert.deepEqual(S.unlocksBetween(1, 3).map((u) => u.key), ['parts', 'wash', 'dayrace', 'drift', 'plates', 'market', 'trades', 'auction', 'paint', 'tradein', 'pvp', 'battles']);
   for (const t of S.NEWBIE_TASKS) if (t.feature) assert.ok(S.UNLOCK_BY_KEY[t.feature]);
   // Newbie tasks follow the ladder: no task needs a feature that opens later than the step before it allows.
   const at = S.NEWBIE_TASKS.map((t) => (t.feature ? S.unlockLevel(t.feature) : t.key === 'level3' ? 3 : 1));
@@ -48,10 +48,10 @@ test('a level-1 player: core loop open, everything else refused by the API with 
   call(5, 'race/rivals', { carId: car.id });
   call(5, 'rewards/daily');
   const refused = [
-    ['parts/open', { caseId: 'scrap', count: 1 }, 2], ['wash/hand', { carId: car.id }, 2], ['wash/auto', { carIds: [car.id] }, 2], ['drift/rivals', { carId: car.id }, 3], ['plate/generate', { gen: 'basic' }, 3],
-    ['car/paint', { carId: car.id, color: 'red' }, 4], ['dealer/tradein', { carIds: [car.id] }, 4], ['market/sell', { carId: car.id, price: 1e6 }, 3],
-    ['pvp/create', { carId: car.id, bet: 1e5 }, 5], ['trade/create', { to: 1 }, 3], ['room/create', {}, 3], ['auction/create', { carId: car.id, startPrice: 1e5, hours: 1 }, 3],
-    ['battle/create', { caseId: 'rust', count: 1 }, 6], ['upgrade', { carIds: [car.id], target: 'x' }, 8],
+    ['parts/open', { caseId: 'scrap', count: 1 }, 2], ['wash/hand', { carId: car.id }, 2], ['wash/auto', { carIds: [car.id] }, 2], ['drift/rivals', { carId: car.id }, 2], ['plate/generate', { gen: 'basic' }, 2],
+    ['car/paint', { carId: car.id, color: 'red' }, 2], ['dealer/tradein', { carIds: [car.id] }, 2], ['market/sell', { carId: car.id, price: 1e6 }, 2],
+    ['pvp/create', { carId: car.id, bet: 1e5 }, 3], ['trade/create', { to: 1 }, 2], ['room/create', {}, 2], ['auction/create', { carId: car.id, startPrice: 1e5, hours: 1 }, 2],
+    ['battle/create', { caseId: 'rust', count: 1 }, 3], ['upgrade', { carIds: [car.id], target: 'x' }, 4],
     ['casino/slots', { amount: 10000 }, 10], ['casino/roulette', { bets: [{ on: 'red', amount: 10000 }] }, 10],
     ['casino/crash/start', { amount: 10000 }, 10], ['casino/mines/start', { amount: 10000, mines: 3 }, 10],
   ];
@@ -61,7 +61,7 @@ test('a level-1 player: core loop open, everything else refused by the API with 
   call(5, 'casino/mines/state');
   // The level opens them.
   setLevel(5, 2);
-  assert.deepEqual(call(5, 'me').unlocked, ['parts', 'wash', 'dayrace']);
+  assert.deepEqual(call(5, 'me').unlocked, ['parts', 'wash', 'dayrace', 'drift', 'plates', 'market', 'trades', 'auction', 'paint', 'tradein']);
   call(5, 'parts/open', { caseId: 'scrap', count: 1 });
   call(5, 'wash/hand', { carId: car.id });
   setLevel(5, 10);
@@ -189,7 +189,7 @@ test('grandfathering: the feats backfill keeps what an existing player used; lev
     assert.deepEqual(s2.call(21, 'me').unlocked, ['plates', 'pvp', 'casino']);
     s2.call(21, 'plate/generate', { gen: 'basic' });
     s2.call(21, 'casino/slots', { amount: 10000 });
-    assert.throws(() => s2.call(21, 'market/sell', { carId: car.id, price: 1e6 }), /рівні 3/);
+    assert.throws(() => s2.call(21, 'market/sell', { carId: car.id, price: 1e6 }), /рівні 2/);
     // The casino switch still wins over grandfathering.
     s2.owner('casino-mode', { mode: 'off' });
     assert.throws(() => s2.call(21, 'casino/slots', { amount: 10000 }), /Казино вимкнено/);
@@ -234,8 +234,8 @@ test('newbie order migration (V1 → V2 → «Перші кроки»): a player
 });
 
 test('level-up: the unlocks between two levels are what the popup lists', () => {
-  assert.deepEqual(S.unlocksBetween(3, 4).map((u) => u.key), ['paint', 'tradein']);
-  assert.deepEqual(S.unlocksBetween(2, 3).map((u) => u.key), ['drift', 'plates', 'market', 'trades', 'auction']);
+  assert.deepEqual(S.unlocksBetween(3, 4).map((u) => u.key), ['upgrade']);
+  assert.deepEqual(S.unlocksBetween(2, 3).map((u) => u.key), ['pvp', 'battles']);
   assert.deepEqual(S.unlocksBetween(9, 10).map((u) => u.key), ['casino']);
   assert.deepEqual(S.unlocksBetween(10, 11), []);
   assert.equal(S.unlocksBetween(1, 10).length, S.UNLOCKS.length, 'nothing in the ladder sits at level 1 or above 10');

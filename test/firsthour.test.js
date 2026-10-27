@@ -85,8 +85,8 @@ test('firsthour: free drift training from level 1 with an empty tank (no fuel, n
   assert.equal(r.rival.entry, 0);
   assert.equal(call('me').fuel, 0);
   assert.deepEqual(call('me').unlocked, []);
-  assert.throws(() => call('drift/start', { carId: car.id, rival: 'easy' }), /відкриється на рівні 3/);
-  assert.throws(() => call('drift/rivals', { carId: car.id }), /відкриється на рівні 3/);
+  assert.throws(() => call('drift/start', { carId: car.id, rival: 'easy' }), /відкриється на рівні 2/);
+  assert.throws(() => call('drift/rivals', { carId: car.id }), /відкриється на рівні 2/);
   // The client lets the training through with 0 fuel and offers it on the empty-tank card.
   const app = src('app.js');
   assert.match(app, /if \(d\.rival !== 'train' && fuelNow\(\) < 1\) return fuelNudge\(\)/);

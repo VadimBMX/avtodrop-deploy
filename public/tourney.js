@@ -10,7 +10,7 @@
 import { MODELS, CLASSES, raceEv, kyivMidnightOf, kyivMondayOf } from './shared.js';
 
 export const TOURNEY = {
-  minLevel: 3, // the level a player needs to register
+  minLevel: 2, // the level a player needs to register
   tries: 2, // drag runs per side per match (counted at the start; an abandoned run is used up)
   sizes: [16, 32], // a bracket of 16 up to 16 players, else 32; more than 32 players of a class → several brackets
   regOpen: [0, 18], // [days after Friday, Kyiv hour]

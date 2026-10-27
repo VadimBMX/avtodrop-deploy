@@ -30,27 +30,27 @@ const notLocked = (fn) => {
 };
 
 // ---------- unlocks ----------
-const OLD_LEVEL = { market: 4, trades: 5, auction: 5 }; // the ladder before wave J
+const OLD_LEVEL = { market: 4, trades: 5, auction: 5, drift: 3, plates: 3, paint: 4, tradein: 4, pvp: 5, battles: 6, upgrade: 8 }; // the ladder before wave J / 27.10
 
-test('unlocks: market, trades and auction open at level 3; PvP (5) and battles (6) stay where they were', () => {
-  assert.equal(S.unlockLevel('market'), 3);
-  assert.equal(S.unlockLevel('trades'), 3);
-  assert.equal(S.unlockLevel('auction'), 3);
-  assert.equal(S.unlockLevel('pvp'), 5);
-  assert.equal(S.unlockLevel('battles'), 6);
+test('unlocks (owner 27.10): market, trades and auction open at level 2; PvP and battles at 3', () => {
+  assert.equal(S.unlockLevel('market'), 2);
+  assert.equal(S.unlockLevel('trades'), 2);
+  assert.equal(S.unlockLevel('auction'), 2);
+  assert.equal(S.unlockLevel('pvp'), 3);
+  assert.equal(S.unlockLevel('battles'), 3);
   const { mk, call, db } = setup({ allUnlocked: false });
-  mk(5, { level: 2 });
-  mk(6, { level: 3 });
+  mk(5, { level: 1 });
+  mk(6, { level: 2 });
   call(5, 'case/open', { caseId: 'starter' });
   const car = call(5, 'me').cars[0];
   const deals = [['market/sell', { carId: car.id, price: 1e6 }], ['trade/create', { to: 6 }], ['room/create', {}], ['auction/create', { carId: car.id, startPrice: 1e5, hours: 1 }], ['hall/chat', { text: 'привіт' }]];
-  for (const [name, body] of deals) assert.throws(() => call(5, name, body), /відкриється на рівні 3/, name);
-  db.prepare('UPDATE users SET level = 3 WHERE id = 5').run();
-  assert.deepEqual(call(5, 'me').unlocked, ['parts', 'wash', 'dayrace', 'drift', 'plates', 'market', 'trades', 'auction']);
+  for (const [name, body] of deals) assert.throws(() => call(5, name, body), /відкриється на рівні 2/, name);
+  db.prepare('UPDATE users SET level = 2 WHERE id = 5').run();
+  assert.deepEqual(call(5, 'me').unlocked, ['parts', 'wash', 'dayrace', 'drift', 'plates', 'market', 'trades', 'auction', 'paint', 'tradein']);
   for (const [name, body] of deals) notLocked(() => call(5, name, body));
-  assert.ok(db.prepare('SELECT COUNT(*) n FROM trade_chat WHERE user_id = 5').get().n, 'the trade hall chat is open at level 3');
-  assert.throws(() => call(5, 'pvp/create', { carId: car.id, bet: S.PVP_MIN_BET }), /відкриється на рівні 5/);
-  assert.throws(() => call(5, 'battle/create', { caseId: 'rust', count: 1 }), /відкриється на рівні 6/);
+  assert.ok(db.prepare('SELECT COUNT(*) n FROM trade_chat WHERE user_id = 5').get().n, 'the trade hall chat is open at level 2');
+  assert.throws(() => call(5, 'pvp/create', { carId: car.id, bet: S.PVP_MIN_BET }), /відкриється на рівні 3/);
+  assert.throws(() => call(5, 'battle/create', { caseId: 'rust', count: 1 }), /відкриється на рівні 3/);
 });
 
 test('grandfathering: the lower ladder only ever opens — at every level the open set contains the old one; feats still count', () => {
@@ -68,7 +68,7 @@ test('grandfathering: the lower ladder only ever opens — at every level the op
   db.prepare(`UPDATE users SET feats = '["battles"]' WHERE id = 7`).run();
   notLocked(() => call(7, 'battle/create', { caseId: 'rust', count: 1 }));
   // The level-up popup from 2 to 3 lists them.
-  assert.deepEqual(S.unlocksBetween(2, 3).map((u) => u.key), ['drift', 'plates', 'market', 'trades', 'auction']);
+  assert.deepEqual(S.unlocksBetween(2, 3).map((u) => u.key), ['pvp', 'battles']);
 });
 
 // ---------- case battles with the bot ----------
