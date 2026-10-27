@@ -17,12 +17,13 @@ export const PUSH = {
 // (2 a day, quiet hours, idle players only); each event is told once and only in its first hours (game.js EVENT_PUSH_H).
 // 'dayrace': «Заїзд дня» from 19:00 Kyiv for players who haven't raced it today (src/dayrace.js remind), same limits.
 // 'club' / 'tourney': reserved for clubs and tournaments (they add items through game.push.source, see src/game.js).
-export const KINDS = ['event', 'dayrace', 'club', 'tourney', 'daily', 'income', 'rcase', 'fuel', 'season'];
+// 'barn': a restoration stage of «Сарайна знахідка» is ready (src/barn.js remind), same limits.
+export const KINDS = ['event', 'dayrace', 'barn', 'club', 'tourney', 'daily', 'income', 'rcase', 'fuel', 'season'];
 // Groups the player can switch off one by one in «Налаштування» (users.push_mute: comma-separated group ids).
 // /stop (push_off) still switches off all of them at once.
 export const PUSH_GROUPS = [
   { id: 'bonus', title: 'Бонуси', hint: 'Щоденний бонус, кейс нагород', kinds: ['daily', 'rcase'] },
-  { id: 'garage', title: 'Гараж', hint: 'Каса гаража повна, бак повний', kinds: ['income', 'fuel'] },
+  { id: 'garage', title: 'Гараж', hint: 'Каса гаража повна, бак повний', kinds: ['income', 'fuel', 'barn'] },
   { id: 'events', title: 'Події й гонки', hint: 'Нові події, Заїзд дня, кінець сезону', kinds: ['event', 'dayrace', 'season'] },
   { id: 'social', title: 'Клуб і турніри', hint: 'Новини твого клубу й турнірів', kinds: ['club', 'tourney'] },
 ];

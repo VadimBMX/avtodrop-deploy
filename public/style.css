@@ -4062,3 +4062,81 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .lot-exp .ic.tint .i { color: #22d3ee; }
 .lot-exp.got b { color: #a5f3fc; }
 /* ===== /Контейнери 2.0 ===== */
+
+/* ===== barn ===== */
+/* «Сарайна знахідка» (public/barn-ui.js). Мідь (--br) — колір сараю й R-бейджа, не клас і не дія; жовта лише одна
+   головна кнопка сторінки. Іржа — статичний filter на фото (рухається лише transform/opacity). */
+.br { --br: #c97a45; --br-soft: #c97a4522; }
+.br-intro { margin: 2px 2px 12px; line-height: 1.45; }
+.br-v { color: var(--br, #c97a45); }
+.br-art { position: relative; display: flex; align-items: flex-end; justify-content: center; aspect-ratio: 2.3 / 1; }
+.br-art img, .br-art svg { width: 100%; height: 100%; object-fit: contain; }
+.br-art:not(.br-shine) img, .br-art:not(.br-shine) svg {
+  filter: sepia(calc(var(--rust, 0) * .75)) saturate(calc(1 - var(--rust, 0) * .5)) hue-rotate(calc(var(--rust, 0) * -12deg)) brightness(calc(1 - var(--rust, 0) * .28)) contrast(calc(1 + var(--rust, 0) * .12));
+}
+.br-art.lg { margin: 4px -4px 6px; }
+.br-art::after { content: ''; position: absolute; left: 8%; right: 8%; bottom: 0; height: 12%; z-index: -1; border-radius: 50%; background: radial-gradient(50% 50% at 50% 50%, #0009, transparent 75%); }
+.br-badge { position: absolute; top: 4%; right: 4%; min-width: 26px; height: 26px; padding: 0 6px; display: grid; place-items: center; border-radius: var(--r-xs, 4px); transform: skewX(-10deg);
+  background: linear-gradient(180deg, #e0955e, #a35a2c); color: #1d0e04; font: 800 15px/1 var(--f-disp); box-shadow: 0 4px 10px -4px #000; }
+.br-work { border-left: 3px solid var(--br, #c97a45); }
+.br-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.br-head .stamp { height: 24px; padding-right: 0; }
+.br-head b.grow { font: 700 var(--t-lg, 17px)/1.2 var(--f-disp); min-width: 0; }
+.br-ttl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-content: center; margin: 2px 0 12px; text-align: center; }
+.br-ttl b { font: 800 var(--t-xl, 22px)/1.15 var(--f-disp); width: 100%; }
+.br-chip { background: var(--br-soft, #c97a4522); color: #f0b48a; border-color: #c97a4555; }
+.br-chip .i { color: #f0b48a; }
+.br-track { display: flex; align-items: flex-start; margin: 6px 0 12px; }
+.br-st { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 56px; flex: none; color: var(--muted); }
+.br-st small { font-size: var(--t-xs, 11px); font-weight: 600; }
+.br-dot { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: var(--card2); border: 1px solid var(--line2); }
+.br-dot .i { width: 17px; height: 17px; }
+.br-st.ok { color: var(--text); }
+.br-st.ok .br-dot { background: #2fd27a22; border-color: #2fd27a77; color: var(--green); }
+.br-st.run .br-dot, .br-st.next .br-dot { border-color: var(--br, #c97a45); color: #f0b48a; background: var(--br-soft, #c97a4522); }
+.br-st.run, .br-st.next { color: var(--text); }
+.br-ln { flex: 1; height: 2px; margin-top: 16px; background: var(--line2); border-radius: 1px; }
+.br-run { margin: 0 0 12px; font-size: var(--t-sm, 12.5px); }
+.br-run .i { width: 14px; height: 14px; vertical-align: -2px; color: var(--muted); }
+.br-prog { margin-top: 8px; height: 6px; border-radius: 3px; }
+.br-prog > i { background: linear-gradient(90deg, #a35a2c, #e0955e); }
+.br-need { margin: 0 0 12px; display: grid; gap: 4px; line-height: 1.4; }
+.br-miss { color: var(--warn, #ff9f0a); }
+.br-miss .i { width: 14px; height: 14px; vertical-align: -2px; }
+.br-vals { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 12px; }
+.br-vals .i { width: 13px; height: 13px; }
+.br-week { display: grid; gap: 12px; }
+.br-week-h { display: flex; gap: 12px; align-items: flex-start; }
+.br-week-h > .i { width: 34px; height: 34px; padding: 7px; flex: none; border-radius: var(--r-sm, 10px); background: var(--br-soft, #c97a4522); color: #f0b48a; }
+.br-week-off { display: flex; align-items: center; gap: 8px; margin: 4px 2px 12px; }
+.br-week-off .i { width: 15px; height: 15px; flex: none; }
+.br-row { gap: 10px; }
+.br-row .grow { min-width: 0; }
+.br-row b.ellipsis { display: block; }
+.br-mini { width: 76px; flex: none; }
+.br-mini .br-badge { min-width: 18px; height: 18px; font-size: 11px; padding: 0 4px; }
+.br-x { width: 34px; height: 34px; display: grid; place-items: center; flex: none; border-radius: var(--r-sm, 10px); color: var(--muted); }
+.br-x:active { background: var(--card2); }
+.br-x .i { width: 17px; height: 17px; }
+.br-empty { display: grid; gap: 8px; text-align: center; }
+.br-empty .br-art { width: 70%; margin: 0 auto; opacity: .85; }
+.br-rules { margin: 16px 2px 8px; line-height: 1.45; }
+.br-found { display: grid; gap: 4px; text-align: center; padding-bottom: 8px; }
+/* garage row + menu row */
+.br-row-g { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; margin: 0 0 12px; padding: 8px 12px; border-radius: var(--r, 14px); text-align: left;
+  background: var(--surf, var(--card)); border: 1px solid var(--line); border-left: 3px solid #c97a45; color: var(--text); font-size: var(--t-sm, 12.5px); }
+.br-row-g .grow { min-width: 0; }
+.br-row-g > .i { width: 16px; height: 16px; color: var(--muted); flex: none; }
+.br-row-g .br-ic .i { width: 20px; height: 20px; color: #f0b48a; }
+.br-row-g:active { transform: scale(.985); }
+.hub-store.br-hub { --c: #c97a45; }
+.hub-store.br-hub.locked { opacity: .7; }
+/* R on garage tiles and in the car sheet */
+.br-no { display: inline-block; padding: 0 5px; border-radius: 4px; background: #c97a4530; color: #f0b48a; font: 800 11px/1.5 var(--f-disp); letter-spacing: .3px; white-space: nowrap; }
+.br-note .i { color: #f0b48a; }
+@media (max-width: 370px) {
+  .br-st { width: 50px; }
+  .br-dot { width: 30px; height: 30px; }
+  .br-mini { width: 64px; }
+}
+/* ===== /barn ===== */

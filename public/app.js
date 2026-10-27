@@ -17,6 +17,8 @@ import * as G from './ghost.js';
 import { challengeCard } from './challenge-card.js';
 // «Ніч Хелловіну»: banner, event sheet, night drift (public/halloween-ui.js; hides itself when me.halloween is null).
 import { installHalloween, hwNight, HW_DRIFT, hwDriftPumpkins, hwDriftOverlay } from './halloween-ui.js';
+// «Сарайна знахідка»: the «Сарай» page, a garage row and a menu row (public/barn-ui.js).
+import { installBarn } from './barn-ui.js';
 // D-race: the boss's fight-poster intro before the lights; «scene mode» (no tab bar) while a run is on screen.
 import { bossIntro } from './boss-intro.js';
 import { watchScene } from './race-scene.js';
@@ -355,7 +357,7 @@ function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false,
   return `<button class="car r${S.rankOf(m.cls)} ${sel ? 'sel' : ''} ${c.status === 'market' || c.status === 'auction' ? 'listed' : ''}" data-act="${act}" data-id="${c.id}" style="--c:${S.CLASSES[m.cls].color}">
     ${clsBadge(m.cls, 'tl')}<span class="tr">${isNew ? `<span class="new">${ic('sparkles')}нова</span>` : ''}<span class="chip">${ic('tool')}${partCount(c)}/${partSlots(c)}</span></span>
     <div class="art">${carArt(c.model, { look: c.look, dirt: c.dirt })}${dirtPip(c)}</div>
-    <div class="nm clamp2" title="${esc(m.name)}">${esc(m.name)}${c.serial ? ` <span class="ed-no">${S.serialText(c.serial)}</span>` : ''}</div>
+    <div class="nm clamp2" title="${esc(m.name)}">${m.restored ? `${esc(m.name.replace(/ · R$/, ''))} <span class="br-no">R${c.serial ? ' ' + S.serialText(c.serial) : ''}</span>` : `${esc(m.name)}${c.serial ? ` <span class="ed-no">${S.serialText(c.serial)}</span>` : ''}`}</div>
     ${c.plate ? `<div class="meta">${plate(c.plate.text, 'sm', c.pf)}</div>` : ''}
     <div class="meta row between" style="gap:4px"><span>${c.hp} к.с.</span><b class="disp hn-sale" style="color:var(--text);font-size:14px;font-weight:600" title="${sale == null ? 'Колекційна ціна' : 'Продаж'}">${sale == null ? S.short(c.value) : `${ic('cash')}${S.short(sale)}`}</b></div>${collLine ? `<div class="meta sellp">${sale == null ? 'не продається' : `${collLine === 'short' ? 'колекц.' : 'колекційна'} ${S.short(c.value)}`}</div>` : ''}
     ${incLine && c.status === 'garage' ? tileInc(c) : ''}
@@ -519,6 +521,8 @@ const lockChip = (key) => `<span class="lockchip">${ic('lock')} рів. ${S.unlo
 // Pages and the tab behind a feature: opening them while locked shows the lock card instead.
 const PAGE_FEATURE = { plates: 'plates', market: 'market', tradein: 'tradein', trades: 'trades', tradeNew: 'trades', room: 'trades', battles: 'battles', battle: 'battles', upgrade: 'upgrade', casino: 'casino' };
 const TAB_FEATURE = { shop: 'parts' };
+installBarn({ me: () => me, state: () => state, api, act, H, ic, esc, sheet, go, carArt, FX, PAGES, PAGE_TITLES, PAGE_FEATURE, isOpen, lockChip,
+  untilSpan: (t) => untilSpan(t), serverNow: () => serverNow(), confirmBox: (t) => confirmBox(t), toast: (...a) => toast(...a), render: () => render(), closeModal: () => closeModal() });
 function lockBody(key) {
   const u = S.UNLOCK_BY_KEY[key];
   if (key === 'casino' && casinoOff()) return `<div class="center lockcard"><span class="lockic">${ic('lock')}</span><b class="big">${u.name}</b><div class="muted mt">Казино зараз вимкнено.</div></div>`;
@@ -984,10 +988,10 @@ function carSheet(id, best = null) {
   const locked = c.status === 'market' || c.status === 'auction';
   const rank = S.rankOf(m.cls), color = S.CLASSES[m.cls].color;
   sheet(esc(m.name), `
-    <div class="rarity-row sheet-tags"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span>${originChip(c.model)}<span class="chip">${m.year}</span>${c.serial ? `<span class="chip ed-chip">${ic('box')}тираж ${S.serialText(c.serial)}</span>` : ''}${dirtTag(c)}</div>
+    <div class="rarity-row sheet-tags"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span>${originChip(c.model)}<span class="chip">${m.year}</span>${c.serial ? (m.restored ? `<span class="chip br-chip">${ic('sparkles')}R ${S.serialText(c.serial)}</span>` : `<span class="chip ed-chip">${ic('box')}тираж ${S.serialText(c.serial)}</span>`) : ''}${dirtTag(c)}</div>
     <div class="hero r${rank} ${shining(c) ? 'shining' : ''}" style="--c:${color}"><div class="art">${carArt(c.model, { glow: rank >= 3, look: c.look, dirt: c.dirt })}</div>${c.plate ? `<div class="plate-on">${plate(c.plate.text)}</div>` : ''}</div>
     <div class="stat four"><div><b>${c.hp}${c.hp > m.hp ? `<em class="win">+${c.hp - m.hp}</em>` : ''}</b><span>к.с.</span></div><div><b>${dec(c.et, 2)}</b><span>с на 402 м</span></div><div class="val">${m.secret ? `<b>${S.short(c.value)}</b><span>колекційна ціна</span><span class="sellp">не продається</span>` : `<b>${S.short(sellPrice(c))}</b><span>продаж</span><span class="sellp">колекційна ${S.short(c.value)}</span>`}</div>${incStat(c)}</div>
-    ${incNote(c)}${honestNote(c)}${m.edition ? `<div class="card mt small ed-note">${ic('box')} <b>Тиражна машина з «Причалу».</b> Заводська ліврея (не перефарбувати), номер ${c.serial ? S.serialText(c.serial) : 'тиражу'}. Продаж на ринку й обмін — так; дилер викуповує за ${Math.round(S.EDITION_SELL * 100)}%; не йде в колекцію, сети, апгрейд і трейд-ін.</div>` : ''}
+    ${incNote(c)}${honestNote(c)}${m.restored ? `<div class="card mt small ed-note br-note">${ic('sparkles')} <b>R-версія із «Сарайної знахідки».</b> Реставраційна ліврея (не перефарбувати), номер ${c.serial ? S.serialText(c.serial) : 'реставрації'}, ×${String(S.R_MULT).replace('.', ',')} вартості й доходу. Продаж на ринку й обмін — так; дилер платить як за звичайну; не йде в колекцію, сети, апгрейд і трейд-ін.</div>` : ''}${m.edition && !m.restored ? `<div class="card mt small ed-note">${ic('box')} <b>Тиражна машина з «Причалу».</b> Заводська ліврея (не перефарбувати), номер ${c.serial ? S.serialText(c.serial) : 'тиражу'}. Продаж на ринку й обмін — так; дилер викуповує за ${Math.round(S.EDITION_SELL * 100)}%; не йде в колекцію, сети, апгрейд і трейд-ін.</div>` : ''}
     ${locked ? `<div class="card mt center muted">Авто виставлено на ${c.status === 'market' ? 'ринок' : 'аукціон'} — керуй ним у «Меню → Ринок → Мої лоти».</div>` : `
     <div class="list mt">
       <button class="li" data-act="carShowcase" data-id="${c.id}"><span class="ic">${ic('building-arch')}</span><div class="grow"><b>${c.status === 'showcase' ? 'Повернути в гараж' : 'Виставити на вітрину'}</b><div class="small muted">${c.status === 'showcase' ? 'знову приноситиме дохід' : `вільно місць: ${me.showcaseSlots - me.cars.filter((x) => x.status === 'showcase').length}`}</div></div><span class="chev">›</span></button>

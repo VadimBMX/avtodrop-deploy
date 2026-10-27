@@ -522,6 +522,25 @@ for (const e of EVENT_EDITIONS) {
 }
 export const isEdition = (model) => !!MODELS[model]?.edition;
 export const serialText = (n) => `№ ${String(n).padStart(3, '0')}`;
+// «Сарайна знахідка» (public/barn.js, src/barn.js): a rotten classic restored in four stages becomes its «R» version —
+// the same car in a fixed restored livery (its photo through a gloss filter), worth R_MULT of the base (value and
+// income), with a serial number. Like a «тиражна» (edition: true, after ALL_MODELS): never in a case, the dealer, a
+// collection or a set; market and swaps yes; no upgrade, trade-in or repaint. The dealer pays what a plain base car
+// sells for (sellRate), so restoring to sell at once is a loss — the gain is the income and the garage value.
+export const R_MULT = 1.6;
+const R_TINTS = [0, 145, 205, 320];
+export const BARN_MODELS = ALL_MODELS.filter((m) => !m.secret && !m.homeOnly && !m.ev && m.year <= 1992 && (m.cls !== 'D' || m.price >= 50000)).map((m) => m.id);
+export const R_OF = {}; // base model → its «R» id
+for (const id of BARN_MODELS) {
+  const b = MODELS[id], rid = `${id}--r`;
+  let h = 0;
+  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const tint = R_TINTS[h % R_TINTS.length];
+  MODELS[rid] = { ...b, id: rid, name: `${b.name} · R`, edition: true, restored: true, base: id, img: id, price: Math.round((b.price * R_MULT) / 1000) * 1000,
+    filter: `${tint ? `hue-rotate(${tint}deg) ` : ''}saturate(1.4) contrast(1.1) brightness(1.05)` };
+  R_OF[id] = rid;
+}
+export const isRestored = (model) => !!MODELS[model]?.restored;
 
 // ---------- cases ----------
 // A case has a fixed price and class odds. Every class pool is cut to a price CORRIDOR around the case price: the
@@ -555,7 +574,7 @@ export const ORIGIN_SELL = {};
 export const originSellOf = (origin) => (origin && ORIGIN_SELL[origin]) || 1;
 // origin: the case id the car came out of (cars.origin), or null.
 export const sellPriceOf = (model, ageMs = Infinity, origin = null) =>
-  Math.floor(MODELS[model].price * (MODELS[model].edition ? EDITION_SELL : MODELS[model].homeOnly ? HOME_SELL_RATE : SELL_RATES[MODELS[model].cls] * originSellOf(origin)) * (ageMs < FRESH_SELL.hours * 3600e3 ? FRESH_SELL.rate : 1));
+  Math.floor(MODELS[model].price * (MODELS[model].restored ? SELL_RATES[MODELS[model].cls] / R_MULT : MODELS[model].edition ? EDITION_SELL : MODELS[model].homeOnly ? HOME_SELL_RATE : SELL_RATES[MODELS[model].cls] * originSellOf(origin)) * (ageMs < FRESH_SELL.hours * 3600e3 ? FRESH_SELL.rate : 1));
 
 // ---------- honest numbers (reports/audit.md №1, №14) ----------
 // The main money figure of a car everywhere is its SALE: what the dealer pays right now (the server sends it as

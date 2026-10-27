@@ -301,6 +301,16 @@ CREATE TABLE IF NOT EXISTS edition_serials (model TEXT PRIMARY KEY, next INTEGER
 CREATE TABLE IF NOT EXISTS container_expert (lot_id INTEGER NOT NULL, user_id INTEGER NOT NULL, field TEXT NOT NULL, value TEXT NOT NULL,
   price INTEGER NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (lot_id, user_id)) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS container_subs (user_id INTEGER PRIMARY KEY, at INTEGER NOT NULL);
+-- «Сарайна знахідка» (src/barn.js): a find per row — status 'found' | 'work' | 'done' | 'dropped'; done = stages finished,
+-- run_until = end of the running stage (NULL between stages); spent/parts/rushed = what the restoration ate. source:
+-- 'week:<monday>' or 'lot:<id>', UNIQUE per player (a weekly find can't be taken twice). barn_lots: each won container
+-- rolled once for a find inside (model NULL = none).
+CREATE TABLE IF NOT EXISTS barn_finds (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, model TEXT NOT NULL, source TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'found', done INTEGER NOT NULL DEFAULT 0, run_until INTEGER, spent INTEGER NOT NULL DEFAULT 0,
+  parts INTEGER NOT NULL DEFAULT 0, rushed INTEGER NOT NULL DEFAULT 0, car_id INTEGER, created_at INTEGER NOT NULL, started_at INTEGER, done_at INTEGER);
+CREATE UNIQUE INDEX IF NOT EXISTS barn_finds_src ON barn_finds(user_id, source);
+CREATE INDEX IF NOT EXISTS barn_finds_work ON barn_finds(status, run_until);
+CREATE TABLE IF NOT EXISTS barn_lots (lot_id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, model TEXT, at INTEGER NOT NULL);
 -- «Ніч Хелловіну» (src/halloween.js): event task progress per event year ('hw2026'), player and task; done_at is set
 -- once (the task is paid then), prize: what it paid (JSON).
 CREATE TABLE IF NOT EXISTS hw_tasks (event TEXT NOT NULL, user_id INTEGER NOT NULL, task TEXT NOT NULL, progress INTEGER NOT NULL DEFAULT 0,

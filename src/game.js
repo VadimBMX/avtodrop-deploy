@@ -9,6 +9,7 @@ import { createContainers } from './containers.js';
 import { createHalloween } from './halloween.js';
 import { createTg } from './tg.js';
 import { createSchedule } from './schedule.js';
+import { createBarn } from './barn.js';
 
 export class GameError extends Error {}
 const fail = (msg) => {
@@ -199,7 +200,7 @@ export function createGame(db, opts = {}) {
   // rate through an upgrade or a trade-in either.
   function noCollector(c) {
     if (S.isCollector(c.model)) fail('Колекційну машину не можна поставити в апгрейд чи трейд-ін');
-    if (S.isEdition(c.model)) fail('Тиражну машину не можна поставити в апгрейд чи трейд-ін');
+    if (S.isEdition(c.model)) fail(S.isRestored(c.model) ? 'R-версію з реставрації не можна поставити в апгрейд чи трейд-ін' : 'Тиражну машину не можна поставити в апгрейд чи трейд-ін');
     return c;
   }
   const garageCount = (uid) => q("SELECT COUNT(*) n FROM cars WHERE owner_id = ? AND status <> 'showcase'").get(uid).n;
@@ -1100,7 +1101,7 @@ export function createGame(db, opts = {}) {
   const paintable = opts.paintable || paintableModels();
   function paintTarget(uid, carId) {
     const c = ownCar(uid, carId, ['garage', 'showcase']);
-    if (S.isEdition(c.model)) fail('Тиражна машина має заводську ліврею — її не перефарбувати');
+    if (S.isEdition(c.model)) fail(S.isRestored(c.model) ? 'R-версія має реставраційну ліврею — її не перефарбувати' : 'Тиражна машина має заводську ліврею — її не перефарбувати');
     if (!paintable.has(c.model)) fail('Для цієї машини фарбування поки недоступне');
     return c;
   }
@@ -4946,6 +4947,20 @@ export function createGame(db, opts = {}) {
   HELPER_ACTIONS.add('containers'); // helpers may watch the lots, not switch or close them
   // Telegram (src/tg.js): reminder groups in the settings, game.push.source/send for clubs and tournaments, bot data.
   createTg({ q, now, dayOf, fail, handlers, push, incomeState, garageCount, notify });
+  // «Сарайна знахідка» (src/barn.js): its calls and gates (with the parts), `me.barn`, the «етап готовий» bot reminder.
+  const BR = createBarn({ q, now, fail, int, weekOf, userRow, pay, takePart, inventory, giveCar, garageCount, bank, metaGet, metaSet, random: rnd });
+  Object.assign(GATES, BR.gates);
+  Object.assign(handlers, BR.api);
+  {
+    const meBase = handlers.me;
+    handlers.me = (uid, b) => ({ ...meBase(uid, b), barn: isOpen(uid, 'parts') ? BR.brief(uid) : null });
+  }
+  push.candidates = ((base) => (rules) => BR.remind(base(rules), rules))(push.candidates);
+  for (const [k, fn] of Object.entries(BR.admin)) admin[k] = (who, body = {}) => db.tx(() => {
+    if (!canDo(actorRole(who), k)) fail('Немає прав на цю дію');
+    return fn(who, body || {});
+  });
+  HELPER_ACTIONS.add('barn');
   // Every call runs in one transaction, settles the weekly race and refreshes the caller's garage value — except the
   // frequent polls below (every few seconds, or several times a second in a live race), which change no cars.
   const LIGHT = new Set(['pulse', 'pvp/progress', 'pvp/state', 'containers/lot']);
