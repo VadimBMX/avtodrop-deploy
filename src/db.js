@@ -419,6 +419,8 @@ const MIGRATIONS = [
   // Car-case xp has its own daily cap (S.CASE_XP_CAP): the Kyiv day and how much of it is used.
   'ALTER TABLE users ADD COLUMN xp_case_day TEXT',
   'ALTER TABLE users ADD COLUMN xp_case_used INTEGER NOT NULL DEFAULT 0',
+  // Reminder groups the player switched off (src/reminders.js PUSH_GROUPS ids, comma-separated).
+  "ALTER TABLE users ADD COLUMN push_mute TEXT NOT NULL DEFAULT ''",
 ];
 
 export function openDb(file) {

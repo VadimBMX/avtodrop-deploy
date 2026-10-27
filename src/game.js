@@ -7,6 +7,7 @@ import * as M from './metrics.js';
 import { createDayRace } from './dayrace.js';
 import { createContainers } from './containers.js';
 import { createHalloween } from './halloween.js';
+import { createTg } from './tg.js';
 
 export class GameError extends Error {}
 const fail = (msg) => {
@@ -4927,6 +4928,8 @@ export function createGame(db, opts = {}) {
   }
   for (const k of CT.mutating) ADMIN_MUTATING.add(k);
   HELPER_ACTIONS.add('containers'); // helpers may watch the lots, not switch or close them
+  // Telegram (src/tg.js): reminder groups in the settings, game.push.source/send for clubs and tournaments, bot data.
+  createTg({ q, now, dayOf, fail, handlers, push, incomeState, garageCount, notify });
   // Every call runs in one transaction, settles the weekly race and refreshes the caller's garage value — except the
   // frequent polls below (every few seconds, or several times a second in a live race), which change no cars.
   const LIGHT = new Set(['pulse', 'pvp/progress', 'pvp/state', 'containers/lot']);

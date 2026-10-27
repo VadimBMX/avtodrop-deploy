@@ -1,6 +1,7 @@
 import { PACKS, PACKS_ON_SALE, SHOP_BY_ID, VIP_SUB, ALL_MODELS, MAIN_COUNTRIES, REF_FRIEND_BONUS, fmt, short } from '../public/shared.js';
 import { CH_PARAM, challengeLine } from '../public/ghost.js';
 
+export const ME_EVERY = 3600e3; // getMe again every hour
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const CARS = ALL_MODELS.filter((m) => !m.secret).length;
@@ -36,11 +37,54 @@ export function startText({ name, created = false, ref = false, pushBack = false
   return lines.join('\n');
 }
 
+// The command menu (setMyCommands), Ukrainian. Admins get theirs on top, in their own chats only.
+export const COMMANDS = [
+  { command: 'start', description: '🏎 Відкрити гру' },
+  { command: 'garage', description: '🚗 Мій гараж: баланс, каса, найкраще авто' },
+  { command: 'settings', description: '🔔 Нагадування: що приходить і як вимкнути' },
+  { command: 'help', description: '❓ Як грати і допомога' },
+  { command: 'paysupport', description: '⭐ Питання по оплаті зірками' },
+  { command: 'stop', description: '🔕 Вимкнути всі нагадування' },
+];
+export const ADMIN_COMMANDS = [
+  { command: 'admin', description: '🛠 Адмін-панель' },
+  { command: 'stats', description: '📊 Гравці й активність' },
+  { command: 'promo', description: 'Промокод: код сума використань [днів]' },
+  { command: 'give', description: 'Нарахувати: id сума' },
+];
+export const HELP_TEXT = `🏁 АВТОДРОП — кейси зі справжніми авто, гараж, що заробляє, і гонки.
+
+Як грати: відкривай кейси → став авто в гараж (він заробляє щогодини) → ганяй дрег і дрифт → збирай колекції країн.
+
+Команди:
+/garage — коротко про твій гараж
+/settings — які нагадування приходять
+/stop — вимкнути всі нагадування (/start — увімкнути)
+/paysupport — питання по оплаті зірками
+
+Кинути виклик другу в будь-якому чаті: напиши @{bot} і вибери картку.
+Промокоди шукай у нашому каналі.`;
+// The /garage reply (s: game.push.summary(uid)).
+export function garageText(s) {
+  if (!s) return 'Гараж ще порожній — тисни «Грати» і відкрий перший кейс безкоштовно 🎁';
+  const lines = [`🚗 Твій гараж · рівень ${s.level}`, `💰 Баланс: ${fmt(s.balance)}`, `🏎 Авто: ${s.cars}${s.best ? ` · найкраще — ${s.best.name} (${s.best.cls})` : ''}`];
+  if (s.rate > 0) lines.push(s.full ? `📦 Каса гаража повна: ${short(s.pending)} — забери, далі дохід не росте` : `📦 У касі: ${short(s.pending)} · +${short(s.rate)}/год`);
+  return lines.join('\n');
+}
+// The /settings reply: which reminders this player gets.
+export function settingsText({ off = false, mute = [], groups = [] } = {}) {
+  if (off) return '🔕 Нагадування вимкнено (/stop).\n\nУвімкнути: /start або «Меню → Налаштування» в грі.\nПро обміни, PvP і аукціони бот пише завжди.';
+  const lines = ['🔔 Нагадування: до 2 на день, не вночі (22:00–09:00 за Києвом), лише коли тебе немає в грі.', ''];
+  for (const g of groups) lines.push(`${mute.includes(g.id) ? '▫️' : '✅'} ${g.title} — ${g.hint}`);
+  lines.push('', 'Перемкнути кожен тип: «Меню → Налаштування» в грі. Вимкнути все: /stop');
+  return lines.join('\n');
+}
+
 // inline(query, from) → results for the bot's inline mode (server.js: a ghost challenge card or an invite), or null.
 export function createBot({ token, webappUrl, admins = [], game, inline = null, log = console.error }) {
   const base = `https://api.telegram.org/bot${token}/`;
   const canButton = /^https:\/\//.test(webappUrl || '');
-  let username = null, inlineOn = false;
+  let username = null, inlineOn = false, meTimer = null;
   let offset = 0;
   let stopped = false;
 
@@ -130,7 +174,12 @@ export function createBot({ token, webappUrl, admins = [], game, inline = null, 
       await send(m.chat.id, startText({ name: m.from.first_name, created: !!u.created, ref: !!u.ref, pushBack: wasOff, canButton, challenge }),
         chUrl && !challenge.expired ? { reply_markup: { inline_keyboard: [[{ text: '🏁 Прийняти виклик', web_app: { url: chUrl } }]] } } : {});
     } else if (cmd === '/help') {
-      await send(m.chat.id, 'Питання по оплаті — /paysupport\nПромокоди шукай у нашому каналі.');
+      await send(m.chat.id, HELP_TEXT.replace('{bot}', username || 'bot'));
+    } else if (cmd === '/garage') {
+      await send(m.chat.id, garageText(game.push?.summary?.(m.from.id)), { reply_markup: playButton('🚗 Відкрити гараж') });
+    } else if (cmd === '/settings') {
+      const off = !!game.push?.isOff?.(m.from.id);
+      await send(m.chat.id, settingsText({ off, mute: game.push?.muteOf?.(m.from.id) || [], groups: game.push?.groups || [] }));
     } else if (cmd === '/paysupport') {
       await send(m.chat.id, 'Опиши проблему з оплатою одним повідомленням і додай час покупки — адміністратор відповість найближчим часом.');
     } else if (isAdmin && cmd === '/promo') {
@@ -147,6 +196,13 @@ export function createBot({ token, webappUrl, admins = [], game, inline = null, 
       const s = game.stats();
       await send(m.chat.id, `Гравців: ${s.users}\nАктивні за 24 год: ${s.active24h}\nАвто: ${s.cars}\nЗірок отримано: ${s.stars}`);
     }
+  }
+
+  async function refreshMe() {
+    const me = await call('getMe');
+    if (me?.username) username = me.username;
+    inlineOn = !!me?.supports_inline_queries;
+    return me;
   }
 
   async function loop() {
@@ -213,13 +269,18 @@ export function createBot({ token, webappUrl, admins = [], game, inline = null, 
     get inline() {
       return inlineOn;
     },
+    // getMe again: the owner changes the bot in @BotFather (/setinline, name) while the server runs — picked up hourly.
+    refreshMe,
     async start() {
-      const me = await call('getMe');
-      username = me.username;
-      inlineOn = !!me.supports_inline_queries;
+      await refreshMe();
+      if (!meTimer) {
+        meTimer = setInterval(() => refreshMe().catch((e) => log('getMe:', e.message)), ME_EVERY);
+        meTimer.unref?.();
+      }
       await call('deleteWebhook').catch(() => {});
       if (canButton) await call('setChatMenuButton', { menu_button: { type: 'web_app', text: 'Грати', web_app: { url: webappUrl } } }).catch((e) => log(e.message));
-      await call('setMyCommands', { commands: [{ command: 'start', description: 'Відкрити гру' }, { command: 'help', description: 'Допомога' }, { command: 'paysupport', description: 'Питання по оплаті' }, { command: 'stop', description: 'Вимкнути нагадування' }] }).catch(() => {});
+      await call('setMyCommands', { commands: COMMANDS }).catch((e) => log(e.message));
+      for (const id of admins) await call('setMyCommands', { commands: [...ADMIN_COMMANDS, ...COMMANDS], scope: { type: 'chat', chat_id: id } }).catch(() => {});
       // The selling text in the empty chat and the profile: set only when it differs (they rarely change).
       await call('getMyDescription').then((d) => d.description !== BOT_DESCRIPTION && call('setMyDescription', { description: BOT_DESCRIPTION })).catch((e) => log(e.message));
       await call('getMyShortDescription').then((d) => d.short_description !== BOT_SHORT_DESCRIPTION && call('setMyShortDescription', { short_description: BOT_SHORT_DESCRIPTION })).catch((e) => log(e.message));
@@ -228,6 +289,8 @@ export function createBot({ token, webappUrl, admins = [], game, inline = null, 
     },
     stop() {
       stopped = true;
+      clearInterval(meTimer);
+      meTimer = null;
     },
     playButton,
     // Used by the send queue (src/reminders.js); rejects with e.code 403 / 429 so the queue can react.

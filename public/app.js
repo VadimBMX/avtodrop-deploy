@@ -4091,6 +4091,7 @@ function settingsSheet() {
       <div class="li"><span class="mi" style="--c:${Y}">${ic('target-arrow')}</span><div class="grow"><b>Підказки перших кроків</b><div class="tiny muted">Смужка «Перші кроки» для новачка</div></div><button class="toggle ${me.claims.includes('guide-off') ? '' : 'on'}" data-act="toggleGuide" aria-label="Підказки перших кроків"></button></div>
       <div class="li"><span class="mi" style="--c:${ST}">${ic('bell')}</span><div class="grow"><b>Не турбувати</b><div class="tiny muted">Без запрошень на обмін і гонку</div></div><button class="toggle ${me.noInvites ? 'on' : ''}" data-act="toggleDnd" aria-label="Не турбувати"></button></div>
       <div class="li"><span class="mi" style="--c:${BL}">${ic('clock')}</span><div class="grow"><b>Нагадування від бота</b><div class="tiny muted">${me.pushOn && me.pushBlocked ? 'Бот не може написати — відкрий чат з ботом і натисни /start' : 'Бак, дохід, бонус — до 2 разів на день, не вночі'}</div></div><button class="toggle ${me.pushOn ? 'on' : ''}" data-act="togglePush" aria-label="Нагадування від бота"></button></div>
+      ${pushGroupsRows()}
       <div class="li"><span class="mi" style="--c:${Y}">${ic('copy')}</span><div class="grow"><div class="tiny muted">Твій ID для обмінів</div><b class="disp">${me.id}</b></div><button class="btn sm ghost" data-act="copyId">Копіювати</button></div></div>`);
 }
 H.settingsOpen = () => settingsSheet();
@@ -6411,6 +6412,7 @@ function homeCheck() {
       homeState.status = status;
       if (status === 'added') return homeClaim();
       if (state.tab === 'menu' && !state.page && (status === 'missed' || status === 'unknown')) render();
+      if (status === 'missed' || status === 'unknown') homeAskOnce();
     });
   } catch {}
 }
@@ -8204,3 +8206,54 @@ H.lotOpen = async (d) => {
   await refresh(false);
   if (state.page === 'lot') render();
 };
+
+// ---- Telegram polish (2026-10-28-telegram): reminder groups in «Налаштування», a one-time home-screen prompt ----
+// Each group (me.pushGroups: bonuses, garage, events, club/tournaments) is switched separately; only while reminders are on.
+function pushGroupsRows() {
+  if (!me?.pushOn || !Array.isArray(me.pushGroups) || !me.pushGroups.length) return '';
+  const mute = me.pushMute || [];
+  return `<div class="tg-push-groups">${me.pushGroups.map((g) => `<div class="li tg-pg"><div class="grow"><b>${esc(g.title)}</b><div class="tiny muted">${esc(g.hint)}</div></div><button class="toggle sm ${mute.includes(g.id) ? '' : 'on'}" data-act="togglePushGroup" data-g="${esc(g.id)}" aria-label="${esc(g.title)}" aria-pressed="${!mute.includes(g.id)}"></button></div>`).join('')}</div>`;
+}
+H.togglePushGroup = async (d) => {
+  const on = (me.pushMute || []).includes(d.g);
+  const r = await act('settings/push-group', { group: d.g, on }, null);
+  if (r) {
+    me.pushMute = r.pushMute;
+    const g = me.pushGroups.find((x) => x.id === d.g);
+    toast(`${g ? g.title : 'Нагадування'}: ${on ? 'увімкнено' : 'вимкнено'}`);
+    if (!$('#modal').hidden && $('#sheet .settings')) settingsSheet();
+  }
+};
+// The shortcut is offered once on this device as a sheet (from the 3rd day, when Telegram says it's not there yet and
+// nothing else is on screen); the menu card stays for later.
+const HOME_ASK_KEY = 'avt-home-ask';
+let homeAskTimer = 0;
+function homeAskOnce(tries = 0) {
+  try {
+    if (localStorage.getItem(HOME_ASK_KEY)) return;
+  } catch {
+    return;
+  }
+  clearTimeout(homeAskTimer);
+  // A calm moment: nothing else on screen (the day's rewards come first). Tried every 4 s for about 3 minutes.
+  homeAskTimer = setTimeout(() => {
+    if (!me?.homeOffer || !homeCan() || !(homeState.status === 'missed' || homeState.status === 'unknown')) return;
+    if (guideOn() || !$('#modal').hidden || state.opening || state.race || state.page || document.querySelector('.story') || WOW.isOpen()) {
+      if (tries < 45) homeAskOnce(tries + 1);
+      return;
+    }
+    try {
+      localStorage.setItem(HOME_ASK_KEY, '1');
+    } catch {}
+    sheet('Ярлик на екрані', `<div class="card center tg-home-ask"><div class="tg-home-ic">${ic('layout-grid')}</div>
+      <b class="disp">АВТОДРОП ОДНИМ ТАПОМ</b>
+      <div class="muted mt">Додай гру на головний екран телефона — гараж і кейси відкриватимуться без пошуку бота.</div>
+      <div class="small mt">Подарунок: <b class="win">+${S.HOME_SCREEN.count} ключ «${esc(S.CASE_BY_ID[S.HOME_SCREEN.caseId].name)}»</b></div>
+      <div class="btns mt"><button class="btn" data-act="homeAddAsk">Додати ярлик</button><button class="btn ghost" data-act="closeModal">Пізніше</button></div></div>`);
+  }, tries ? 4000 : 2500);
+}
+H.homeAddAsk = () => {
+  H.closeModal?.();
+  H.homeAdd();
+};
+

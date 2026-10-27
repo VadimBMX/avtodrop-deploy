@@ -10,7 +10,7 @@ import { verifyInitData } from './src/auth.js';
 import { createBot } from './src/bot.js';
 import { createSender, createReminders } from './src/reminders.js';
 import { createStatic, compressSmall } from './src/static.js';
-import { PACKS, PACKS_ON_SALE, REF_REWARD, MODELS, shareCaption } from './public/shared.js';
+import { PACKS, PACKS_ON_SALE, REF_REWARD, MODELS, shareCaption, short } from './public/shared.js';
 import { createShareStore, SHARE } from './src/share.js';
 import * as G from './public/ghost.js';
 
@@ -243,24 +243,61 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     return send(res, 200, { preparedId, link });
   }
   // The bot's inline mode (@bot ch_<id> in any chat, or WebApp.switchInlineQuery from the challenge sheet): a live
-  // challenge as its card (an article when the card is gone) with «Прийняти виклик»; anything else — an invitation
-  // with the player's own referral link.
+  // challenge as its card (an article when the card is gone) with «Прийняти виклик». An empty query (or anything else):
+  // the invitation with the player's own referral link, then up to 3 of their live challenges and their latest
+  // «Заїзд дня» time; «дроп» — their rarest car as a card.
+  function challengeResult(info) {
+    const link = G.challengeLink(bot.username, tgApp(), info.id);
+    const caption = G.challengeCaption(info);
+    const reply_markup = { inline_keyboard: [[{ text: '🏁 Прийняти виклик', url: link }]] };
+    const card = info.card && shares.get(info.card) && httpsOrigin() ? `${httpsOrigin()}/share/${info.card}.jpg` : '';
+    if (card) return { type: 'photo', id: 'ch_' + info.id, photo_url: card, thumbnail_url: card, title: `Виклик: ${G.challengeLine(info.model, info.time)}`, caption, reply_markup };
+    return { type: 'article', id: 'ch_' + info.id, title: `Виклик: ${G.challengeLine(info.model, info.time)}`, description: `${info.who} · драг 402 м · їдь проти привида`,
+      input_message_content: { message_text: `${caption}\n${link}` }, reply_markup };
+  }
+  // A car photo as the article's thumbnail (Telegram takes JPEG/PNG there).
+  const carThumb = (model) => {
+    const p = carImages()[model];
+    return p && httpsOrigin() && /\.(jpe?g|png)(\?|$)/i.test(p) ? `${httpsOrigin()}/${String(p).replace(/^\//, '')}` : '';
+  };
   function inlineAnswer(query, from) {
     if (!bot?.username) return [];
-    const m = G.CH_PARAM.exec(String(query || '').trim());
+    const qs = String(query || '').trim();
+    const m = G.CH_PARAM.exec(qs);
     const info = m ? game.challengeInfo(m[1]) : null;
-    if (info && !info.expired) {
-      const link = G.challengeLink(bot.username, tgApp(), info.id);
-      const caption = G.challengeCaption(info);
-      const reply_markup = { inline_keyboard: [[{ text: '🏁 Прийняти виклик', url: link }]] };
-      const card = info.card && shares.get(info.card) && httpsOrigin() ? `${httpsOrigin()}/share/${info.card}.jpg` : '';
-      if (card) return [{ type: 'photo', id: 'ch_' + info.id, photo_url: card, thumbnail_url: card, caption, reply_markup }];
-      return [{ type: 'article', id: 'ch_' + info.id, title: `Виклик: ${G.challengeLine(info.model, info.time)}`, description: `${info.who} · драг 402 м · їдь проти привида`,
-        input_message_content: { message_text: `${caption}\n${link}` }, reply_markup }];
+    if (info && !info.expired) return [challengeResult(info)];
+    const uid = Number(from?.id) || 0;
+    const link = `https://t.me/${bot.username}?start=ref_${uid}`;
+    const play = (text = '🏎 Грати в АВТОДРОП') => ({ inline_keyboard: [[{ text, url: link }]] });
+    const invite = { type: 'article', id: 'invite', title: 'Запросити в АВТОДРОП', description: 'Кейси зі справжніми авто, гонки й гараж. Перший кейс безкоштовно',
+      input_message_content: { message_text: `${shareCaption()}\n${link}` }, reply_markup: play() };
+    let mine = { challenges: [], dayrace: null, drop: null };
+    try {
+      if (uid) mine = game.push.inline(uid);
+    } catch (e) {
+      log('inline:', e.message);
     }
-    const link = `https://t.me/${bot.username}?start=ref_${Number(from?.id) || 0}`;
-    return [{ type: 'article', id: 'invite', title: 'Запросити в АВТОДРОП', description: 'Кейси зі справжніми авто, гонки й гараж. Перший кейс безкоштовно',
-      input_message_content: { message_text: `${shareCaption()}\n${link}` }, reply_markup: { inline_keyboard: [[{ text: '🏎 Грати в АВТОДРОП', url: link }]] } }];
+    const dropCard = () => {
+      const d = mine.drop;
+      if (!d) return null;
+      const thumb = carThumb(d.id);
+      return { type: 'article', id: 'drop_' + d.id.slice(0, 50), title: `Мій дроп: ${d.name}`, description: `Клас ${d.cls} · колекційна ціна ${short(d.price)}`,
+        ...(thumb ? { thumbnail_url: thumb } : {}), input_message_content: { message_text: `${shareCaption(d.id)}\n${link}` }, reply_markup: play() };
+    };
+    if (/^(дроп|drop)/i.test(qs)) return [dropCard() || invite].concat(dropCard() ? [invite] : []);
+    const recent = [];
+    for (const id of mine.challenges) {
+      const ch = game.challengeInfo(id);
+      if (ch && !ch.expired) recent.push(challengeResult(ch));
+    }
+    if (mine.dayrace?.caption) {
+      recent.splice(2, 0, { type: 'article', id: 'dr_' + mine.dayrace.day, title: 'Мій час у «Заїзді дня»', description: mine.dayrace.caption.split('\n')[0].replace(/^🏁 /, ''),
+        input_message_content: { message_text: `${mine.dayrace.caption}\n${link}` }, reply_markup: play('🏁 Поїхати Заїзд дня') });
+    }
+    const out = [invite, ...recent.slice(0, 3)];
+    const dc = dropCard();
+    if (dc) out.push(dc);
+    return out;
   }
 
   async function handleApi(req, res, name) {

@@ -3986,3 +3986,15 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 /* 5 одна жовта на екрані лота: «+5%» — головна дія, «Ставка» своєю сумою — нейтральна, як інші рядкові кнопки */
 .lot-own .btn.sm[data-act="lotBidOwn"] { background: var(--card2); color: var(--accent); box-shadow: inset 0 0 0 1px var(--line2); text-shadow: none; }
 /* ===== /Integration fixes ===== */
+
+/* ===== T-telegram (2026-10-28): reminder groups, home-screen prompt ===== */
+.settings .tg-push-groups { margin: -2px 0 4px 44px; border-left: 2px solid rgba(255,255,255,.08); }
+.settings .tg-pg { padding-top: 6px; padding-bottom: 6px; }
+.settings .tg-pg b { font-size: 14px; font-weight: 600; }
+.toggle.sm { width: 36px; height: 20px; border-radius: 10px; }
+.toggle.sm::after { top: 3px; left: 3px; width: 14px; height: 14px; }
+.toggle.sm.on { background: color-mix(in srgb, var(--accent) 30%, #2a2f37); }
+.toggle.sm.on::after { transform: translateX(16px); background: var(--accent); }
+.tg-home-ask .tg-home-ic { font-size: 36px; color: var(--accent); }
+.tg-home-ask .btns { justify-content: center; }
+/* ===== /T-telegram ===== */

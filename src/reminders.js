@@ -16,7 +16,22 @@ export const PUSH = {
 // The order of lines in a bundled message. 'event': a game event began (S.EVENTS) — same limits as the rest
 // (2 a day, quiet hours, idle players only); each event is told once and only in its first hours (game.js EVENT_PUSH_H).
 // 'dayrace': «Заїзд дня» from 19:00 Kyiv for players who haven't raced it today (src/dayrace.js remind), same limits.
-export const KINDS = ['event', 'dayrace', 'daily', 'income', 'rcase', 'fuel', 'season'];
+// 'club' / 'tourney': reserved for clubs and tournaments (they add items through game.push.source, see src/game.js).
+export const KINDS = ['event', 'dayrace', 'club', 'tourney', 'daily', 'income', 'rcase', 'fuel', 'season'];
+// Groups the player can switch off one by one in «Налаштування» (users.push_mute: comma-separated group ids).
+// /stop (push_off) still switches off all of them at once.
+export const PUSH_GROUPS = [
+  { id: 'bonus', title: 'Бонуси', hint: 'Щоденний бонус, кейс нагород', kinds: ['daily', 'rcase'] },
+  { id: 'garage', title: 'Гараж', hint: 'Каса гаража повна, бак повний', kinds: ['income', 'fuel'] },
+  { id: 'events', title: 'Події й гонки', hint: 'Нові події, Заїзд дня, кінець сезону', kinds: ['event', 'dayrace', 'season'] },
+  { id: 'social', title: 'Клуб і турніри', hint: 'Новини твого клубу й турнірів', kinds: ['club', 'tourney'] },
+];
+export const groupOf = (kind) => PUSH_GROUPS.find((g) => g.kinds.includes(kind))?.id || null;
+// 'bonus,garage' → Set of kinds switched off.
+export function mutedKinds(mute) {
+  const ids = new Set(String(mute || '').split(',').filter(Boolean));
+  return new Set(PUSH_GROUPS.filter((g) => ids.has(g.id)).flatMap((g) => g.kinds));
+}
 
 const HOUR = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Kyiv', hour: '2-digit', hourCycle: 'h23' });
 export const kyivHour = (t) => Number(HOUR.format(new Date(t)));
@@ -34,8 +49,10 @@ export function pickReminder(c, t, rules = PUSH) {
   const day = dayOf(t);
   if ((c.pushDay === day ? c.pushCount : 0) >= rules.maxPerDay) return null;
   if (c.pushLast && t - c.pushLast < rules.minGapH * 3600e3) return null;
+  const muted = c.mute ? mutedKinds(c.mute) : null;
   const kinds = c.ready
     .filter((r) => {
+      if (muted?.has(r.kind) || !KINDS.includes(r.kind)) return false;
       const last = c.sent[r.kind];
       // One of a kind per day, and the same "ready" moment (this full tank, this reward case) is told only once.
       return !last || (dayOf(last) !== day && r.at > last);
@@ -46,7 +63,7 @@ export function pickReminder(c, t, rules = PUSH) {
 }
 
 export function reminderText(items) {
-  return items.map((r) => r.text).join('\n') + '\n\nВимкнути нагадування: /stop';
+  return items.map((r) => r.text).join('\n') + '\n\nНалаштувати: Меню → Налаштування в грі · вимкнути все: /stop';
 }
 
 const realSleep = (ms) => new Promise((r) => setTimeout(r, Math.max(0, ms)));
