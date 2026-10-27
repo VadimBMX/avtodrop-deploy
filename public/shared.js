@@ -1961,7 +1961,7 @@ export const NEWBIE_TASKS = [
   { key: 'win', text: 'Виграй заїзд', money: 40000 },
   { key: 'open_case', text: 'Відкрий кейс з машиною', money: 50000 },
   { key: 'install', text: 'Встанови деталь на машину', money: 50000, feature: 'parts' },
-  { key: 'level3', text: 'Досягни 3 рівня', money: 150000 },
+  { key: 'level3', text: 'Досягни 3-го рівня', money: 150000 },
 ];
 export const NEWBIE_ORDER_V1 = ['open_starter', 'collect', 'part_case', 'install', 'race', 'win', 'plate', 'open_case', 'merge', 'level3'];
 export const NEWBIE_ORDER_V2 = ['open_starter', 'collect', 'race', 'win', 'open_case', 'part_case', 'install', 'merge', 'level3', 'plate'];
@@ -2065,7 +2065,7 @@ export const ACHIEVEMENTS = [
     labels: ['Отримай епічну (B) машину', 'Отримай легендарну (A) машину', 'Отримай міфічну (S) машину', 'Отримай секретну машину'] },
   { key: 'secrets', title: 'Секретні справи', icon: 'lock', text: 'Збери {n} секретних машин', goals: [1, 3, 6], rewards: [1000000, 4000000, 12000000] },
   { key: 'garage', title: 'Магнат', icon: 'building-warehouse', text: 'Колекційна ціна гаража {n}', money: true, goals: [1e6, 250e6, 2.5e9, 25e9], rewards: [5000, 100000, 1000000, 5000000] },
-  { key: 'level', title: 'Ветеран', icon: 'star', text: 'Досягни {n} рівня', goals: [5, 10, 20, 30], rewards: [10000, 60000, 500000, 2500000] },
+  { key: 'level', title: 'Ветеран', icon: 'star', text: 'Досягни {n}-го рівня', goals: [5, 10, 20, 30], rewards: [10000, 60000, 500000, 2500000] },
   { key: 'play', title: 'Свій у гаражі', icon: 'clock', text: 'Проведи в грі {n} год', hours: true, goals: [1, 10, 50, 200],
     rewards: [5000, { money: 25000, fuel: 1 }, { money: 100000, fuel: 1 }, { money: 300000, fuel: 1 }] },
   { key: 'streak', title: 'Постійний', icon: 'calendar', text: 'Забери щоденний бонус {n} днів', goals: [3, 7, 14, 30], rewards: [5000, 20000, 75000, 300000] },
@@ -2075,7 +2075,7 @@ export const ACHIEVEMENTS = [
     labels: ['Постав на машину всі 8 деталей', 'Машина з 8 деталями Sport або краще', 'Машина з 8 деталями Pro або краще', 'Машина з 8 деталями Race'] },
   { key: 'plates', title: 'Номерний знак', icon: 'license', goals: [1, 2, 3, 4], rewards: [3000, 10000, 50000, 500000],
     labels: ['Згенеруй рідкісний (C) номер', 'Згенеруй епічний (B) номер', 'Згенеруй легендарний (A) номер', 'Згенеруй міфічний (S) номер'] },
-  { key: 'friends', title: 'Душа компанії', icon: 'users', text: 'Приведи {n} друзів до 3 рівня', goals: [1, 3, 10, 30], rewards: [10000, 40000, 150000, 500000] },
+  { key: 'friends', title: 'Душа компанії', icon: 'users', text: 'Приведи {n} друзів до 3-го рівня', goals: [1, 3, 10, 30], rewards: [10000, 40000, 150000, 500000] },
   // A dream car (class B or better, chosen at least 12 h before) that really dropped; each model counts once.
   { key: 'dream', title: 'Мрійник', icon: 'heart', goals: [1, 3, 7], rewards: [10000, 300000, 1500000],
     labels: ['Отримай свою машину мрії', 'Здійсни 3 різні мрії', 'Здійсни 7 різних мрій'] },
@@ -2128,7 +2128,7 @@ const ALL_SETS = [
     models: ['zaz-lanos', 'daewoo-matiz', 'renault-logan', 'chevrolet-aveo', 'hyundai-accent', 'volkswagen-golf-ii', 'toyota-corolla-e120'] },
   { id: 'soviet', name: 'Радянська класика', icon: 'star', tier: 0, text: 'Копійка, Волга, Нива і компанія',
     models: ['vaz-2101-kopiika', 'vaz-2106', 'moskvych-412', 'haz-24-volha', 'vaz-2121-nyva', 'zaz-968m-zaporozhets', 'zaz-965-horbatyi'] },
-  { id: 'nineties', name: '90-ті', icon: 'clock', tier: 1, text: 'Дев\'яності на парковці біля під\'їзду',
+  { id: 'nineties', name: '90-ті', icon: 'clock', tier: 1, text: 'Дев’яності на парковці біля під’їзду',
     models: ['vaz-2109', 'zaz-1102-tavriia', 'opel-vectra-a', 'volkswagen-passat-b3', 'mazda-mx-5-na', 'nissan-200sx-s13', 'toyota-mark-ii-jzx100', 'bmw-m3-e30'] },
   { id: 'wagons', name: 'Універсали', icon: 'building-warehouse', tier: 1, text: 'Багажник більший за амбіції — або ні',
     models: ['volkswagen-passat-b3', 'skoda-octavia-tour', 'volvo-240-turbo', 'audi-rs4-b7', 'zeekr-001'] },
@@ -2468,16 +2468,20 @@ export const shopPrice = (item, starSlots = 0) => (item.id === 'slot' ? item.sta
 // Home-screen shortcut (WebApp.addToHomeScreen): offered from the 3rd day in the game, one key once it's added.
 export const HOME_SCREEN = { day: 3, caseId: 'city', count: 1 };
 
-// "What's new" story shown once after an update (bump `id` to show it again).
+// "What's new" story shown once after an update (bump `id` to show it again). Once per player: this browser
+// remembers it, and the server keeps the claim 'story:<id>' (app.js whatsNew → 'story/seen'; the intro sets it too).
+// A slide may carry `c` (its icon's colour) and `tag` (a short chip under the title: dates, level, time).
+// The numbers in the texts are pinned against the rules in test/texts.test.js.
 export const WHATS_NEW = {
-  id: 'economy-2',
+  id: 'autumn-2026',
   slides: [
-    { icon: 'gift', title: 'Кейси стали чеснішими', text: 'Найдешевша машина в кейсі коштує не менше половини його ціни. Ціни машин переглянуто: прірви між класами більше немає.' },
-    { icon: 'key', title: 'Фрагменти ключа', text: 'Машина дешевша за кейс залишає фрагмент. Вісім фрагментів — безкоштовне відкриття цього ж кейсу. Прогрес видно під кнопкою.' },
-    { icon: 'shield-check', title: 'Гарантія на видноті', text: 'Під кейсом видно, через скільки відкриттів гарантовано випаде рідкісний клас.' },
-    { icon: 'world', title: 'Китай і електро', text: '33 нові машини: BYD, Zeekr, Xiaomi, NIO, Yangwang, Tesla, Lucid, Rivian, Lotus Evija. Китай — нова країна з кейсом, колекцією та секретною машиною.' },
-    { icon: 'bolt', title: 'Електродеталі', text: 'Електромобілі тюнінгуються мотором, батареєю й редуктором замість двигуна, турбіни, вихлопу та КПП.' },
-    { icon: 'trophy', title: 'Сезон 1 стартував', text: 'Пропуск на 30 рівнів, рейтинг за досвідом із призами в зірках, щоденний бонус на 14 днів, VIP і магазин.' },
+    { icon: 'ghost', c: '#ff7a1a', tag: '29.10 – 2.11', title: 'Ніч Хелловіну', text: 'Нічна траса драгу й дрифту, «Контейнер з привидом» на «Причалі», рамка «Гарбуз» і п’ять завдань події з шансом на тиражний «№ 13». Ціни й шанси кейсів — як завжди.' },
+    { icon: 'hammer', c: '#ff6b8b', tag: 'вечірній аукціон о 20:00', title: 'Причал', text: 'Ринок → Причал: контейнери з машиною наосліп — чесні підказки й точний «Можливий вміст». Щодня о 20:00 — вечірній аукціон: один дорогий лот для всіх одразу.' },
+    { icon: 'users', c: '#a855f7', tag: 'з 3-го рівня', title: 'Автоклуби', text: 'До 20 гравців, тег на зразок [ЖИГА] біля імені, ліга тижня з призами щопонеділка й клубна каса на бонуси для всіх. Свій клуб — з 5-го рівня.' },
+    { icon: 'trophy', c: '#38bdf8', tag: 'пт 18:00 → нд 20:00', title: 'Турнір вихідних', text: 'Драг 402 м на вибування, сітки за класом машини. Реєстрація безкоштовна до суботи 12:00, заїзди без пального, чемпіонам — рамка «Чемпіон».' },
+    { icon: 'building-warehouse', c: '#d08a4e', tag: 'знахідка щотижня', title: 'Сарайна знахідка', text: `Безкоштовна гнила класика щотижня. Чотири етапи реставрації деталями й гривнями — і R-версія: ×${String(R_MULT).replace('.', ',')} вартості й доходу. Меню → Сарайна знахідка.` },
+    { icon: 'crown', c: '#e9c46a', tag: 'з 10-го рівня', title: 'Престиж', text: `Для пізньої гри: рестайлінг ★1–★5 машин A, S і секретних (+${Math.round(STAR_INCOME * 100)}% доходу за кожну ★) і Трофейна зала. Відкривається, коли гараж коштує від 500 млн.` },
+    { icon: 'sparkles', c: SEASON_THEMES[2].color, tag: 'з 2.11, 23:00', title: `Сезон 2 · ${SEASON_THEMES[2].name}`, text: `Новий пропуск на ${SEASON.levels} рівнів: неонові лівреї, рамка «Ханко», фон «Шуто-експрес», а за останній рівень преміуму — ${SEASON_CARS[1].name}.` },
   ],
 };
 
@@ -2491,7 +2495,7 @@ export const INTRO_STORY = {
   // slide (`classes`). Every car counts, the secret ones too.
   slides: [
     { icon: 'car-turbine', title: 'Вітаємо в АВТОДРОПі', text: `Збирай гараж мрії: ${ALL_MODELS.length} ${realCars(ALL_MODELS.length)} — від «Запорожця» до Bugatti. Відкривай кейси, ганяй і збирай колекції.` },
-    { icon: 'gift', classes: true, title: 'Перший кейс — безкоштовно', text: 'Усередині — радянська й українська класика. Класи машин: D → C → B → A → S — що рідший, то дорожча. Скільки лишилось до гарантії — видно під кейсом.' },
+    { icon: 'gift', classes: true, title: 'Перший кейс — безкоштовно', text: 'Усередині — радянська й українська класика. Класи машин: D → C → B → A → S — що рідший клас, то дорожча машина. Скільки лишилось до гарантії — видно під кейсом.' },
     { icon: 'coin', title: 'Гараж заробляє', text: `Машини приносять дохід щогодини, навіть коли гра закрита, — заходь і тисни «Забрати». Щоденний бонус на ${DAILY_BONUS.length} днів: на 7-й — авто зі «Спорткара».` },
     { icon: 'flag-3', title: 'Гонки й колекції', text: `Драг на 402 м: «Газ» — на зелений, передачі — у зеленій зоні. Збери всі машини країни — і отримаєш секретну, якої немає в жодному кейсі.` },
   ],
@@ -2527,8 +2531,8 @@ export const GUIDE_STEPS = [
   { key: 'open_case', tab: 'cases', target: '[data-act="openCase"]', title: 'Відкрий кейс з машиною', text: 'Нова машина — ще й досвід. «Іржавий гараж» — найдешевший.' },
   { key: 'part_case', tab: 'shop', target: '[data-act="openParts"]', title: 'Відкрий кейс з деталями', text: 'Деталь випаде з тих, що підходять твоїм машинам. Далі — встанови її.' },
   { key: 'install', tab: 'garage', target: '#view .car[data-act="car"]', title: 'Встанови деталь на машину', text: 'Тисни на машину → слот деталі → «Встановити». Більше к.с. — швидше в гонках.' },
-  { key: 'level2', tab: 'race', target: '.rival', title: 'Досягни 2 рівня', text: 'Рівень 2 відкриє Майстерню з деталями. Досвід дають заїзди, нові машини й завдання.' },
-  { key: 'level3', tab: 'race', target: '.rival', title: 'Досягни 3 рівня', text: 'Досвід дають заїзди (перемога — більше), нові машини в колекції й завдання.' },
+  { key: 'level2', tab: 'race', target: '.rival', title: 'Досягни 2-го рівня', text: 'Рівень 2 відкриє Майстерню з деталями. Досвід дають заїзди, нові машини й завдання.' },
+  { key: 'level3', tab: 'race', target: '.rival', title: 'Досягни 3-го рівня', text: 'Досвід дають заїзди (перемога — більше), нові машини в колекції й завдання.' },
 ];
 // p: { introSeen (the player came through the intro stories), off (hints turned off), keys, garage (cars in the garage),
 //   level, step (users.newbie_step), locked (the step's feature isn't open yet), parts (parts on the stock) }.
@@ -2556,7 +2560,7 @@ export function guideStep(p) {
 export const EVENTS = {
   luck: { name: 'Вихідні удачі', icon: 'clover', color: '#30d158', days: 2, topMult: 1.3, boost: 0,
     text: 'Кейси за рідкістю: шанс найвищого класу ×1,3. Кейс дня на вихідних відпочиває.' },
-  fuel: { name: 'Подвійне паливо', icon: 'gas-station', color: '#ff9f0a', days: 1, fuelMult: 2,
+  fuel: { name: 'Подвійне пальне', icon: 'gas-station', color: '#ff9f0a', days: 1, fuelMult: 2,
     text: 'Пальне наповнюється вдвічі швидше (з VIP — утричі).' },
   race: { name: 'Гоночний уїкенд', icon: 'flag-3', color: '#ff3b30', days: 2, prizeMult: 1.25,
     text: 'Призи за перемоги в драгу й дрифті +25%. Внесок той самий.' },
@@ -2573,7 +2577,7 @@ export const EVENTS = {
   drift: { name: 'Ніч дрифту', icon: 'tornado', color: '#ff2bd6', days: 1, driftMult: 1.25,
     text: 'Нічна дрифт-траса, призи за перемоги в дрифті +25%. Внесок той самий, після 5 перемог за добу — ½ призу, як завжди.' },
   caseday: { name: 'Тема кейса дня', icon: 'gift', color: '#5ac8a8', days: 1,
-    text: 'Кейс дня обрано заздалегідь: −10%, як звичайний кейс дня (прихований бонус — як у кейса дня).' },
+    text: 'Кейс дня обрано заздалегідь: як завжди, −10% і прихований бонус кейса дня.' },
 };
 export const EVENT_IDS = Object.keys(EVENTS);
 // Hard limits, whatever the definitions or the admin overrides say.
@@ -2587,8 +2591,8 @@ export const PLAN_CAPS = { xpMult: 2, hours: [1, 168], parallel: 4 };
 // Never at the same time: double fuel means more races, and the race weekend pays more for each.
 export const EVENT_EXCLUSIVE = [['fuel', 'race']];
 // Weekly rotation; day 0 = Monday, every slot starts at 00:00 Kyiv and lasts EVENTS[id].days days.
-//   Week A (even): Tue «Щасливі номери», Thu «Подвійне паливо», Sat–Sun «Вихідні удачі».
-//   Week B (odd):  Tue «Подвійне паливо», Thu «Щасливі номери», Sat–Sun «Гоночний уїкенд».
+//   Week A (even): Tue «Щасливі номери», Thu «Подвійне пальне», Sat–Sun «Вихідні удачі».
+//   Week B (odd):  Tue «Подвійне пальне», Thu «Щасливі номери», Sat–Sun «Гоночний уїкенд».
 //   «Країна тижня» runs Monday to Sunday every week, the countries in turn (MAIN_COUNTRIES order).
 export const EVENT_WEEKS = [
   [{ id: 'country', day: 0 }, { id: 'plates', day: 1 }, { id: 'fuel', day: 3 }, { id: 'luck', day: 5 }],
@@ -2792,7 +2796,7 @@ export function eventPreview(e) {
       return [`Кейси за рідкістю: шанс найвищого класу ×${String(d.topMult).replace('.', ',')}`, `Напр. «${el.name}»: ${top} ${(el.weights[top] / tw * 100).toFixed(1).replace('.', ',')}% → ${(w[top] / tw * 100).toFixed(1).replace('.', ',')}%`, 'Кейс дня на цей час вимикається'];
     }
     case 'fuel': return [`Пальне наповнюється ×${d.fuelMult} (з VIP — ×${EVENT_CAPS.fuelTotal})`, 'Не можна одночасно з «Гоночним уїкендом»'];
-    case 'race': return [`Призи драгу й дрифту +${pct(d.prizeMult)}: приз 100 тис → ${money(eventPrize(100000, { prizeMult: d.prizeMult }))}`, 'Внесок той самий; не можна одночасно з «Подвійним паливом»'];
+    case 'race': return [`Призи драгу й дрифту +${pct(d.prizeMult)}: приз 100 тис → ${money(eventPrize(100000, { prizeMult: d.prizeMult }))}`, 'Внесок той самий; не можна одночасно з «Подвійним пальним»'];
     case 'plates': return [`«Красивий» номер і номери областей −${Math.round(d.off * 100)}%`];
     case 'xp': return [`Досвід сезонного пропуску ×${d.xpMult}`, 'Рівень гравця, ліміт досвіду з кейсів (1500/добу) і ціни не змінюються', 'Нагород пропуску не більшає — 30 рівнів просто проходяться швидше'];
     case 'drift': return [`Призи дрифту +${pct(d.driftMult)} (з «Гоночним уїкендом» не складається)`, 'Нічна траса в дрифті', 'Після 5 перемог за добу — ½ призу, як завжди'];
@@ -2896,7 +2900,7 @@ for (let n = 1; n <= 26; n++) {
 // «Стиль» liveries (STYLE_ITEMS, kind livery): bought for stars once, then free on any own car (the claim in `cos`).
 for (const it of STYLE_ITEMS.filter((x) => x.kind === 'livery')) LIVERY_BY_ID[it.look] = { id: it.look, name: it.name.replace(/^Ліврея «(.+)»$/, '$1'), hint: it.hint, star: true, cos: it.cos };
 
-// ---------- career: country bosses («Кар'єра») ----------
+// ---------- career: country bosses («Кар’єра») ----------
 // A ladder of named bosses, country by country (Україна → Японія → Німеччина → Китай → США → Британія → Італія). Each
 // boss drives a real car of that country with a full kit of one parts tier (exactly what a player can build: its shown
 // power and pace are carStats of that car), driven by an AI of a fixed level — the pace never depends on the player.
@@ -2932,7 +2936,7 @@ const BOSS_RAW = {
     ['de-hans', 'Ганс з Мукачева', 'Volkswagen Golf GTI Mk7', 'sport', 'street', 'C', 'Орднунг простий: спершу я, потім ти.', 300000, [1, 'sport']],
     ['de-bumer', 'Бумер', 'BMW M3 E46', 'stock', 'street', 'B', 'Бумер у дзеркалі ближче, ніж здається. Потім — уже ні.', 500000, [1, 'pro']],
     ['de-emka', 'Вітя М-ка', 'BMW M2 Competition', 'street', 'street', 'B', 'Задній привід, механіка і ніякої жалості.', 800000, [2, 'pro']],
-    ['de-kaiser', 'Кайзер', 'Porsche 911 Turbo S', null, 'street', 'B', 'Дев\'ятсот одинадцятий не старіє. Старіють ті, хто з ним змагається.', 1500000, null],
+    ['de-kaiser', 'Кайзер', 'Porsche 911 Turbo S', null, 'street', 'B', 'Дев’ятсот одинадцятий не старіє. Старіють ті, хто з ним змагається.', 1500000, null],
   ],
   CN: [
     ['cn-li', 'Пан Лі з Харкова', 'Xiaomi SU7 Max', 'sport', 'street', 'B', 'Мій телефон і моя машина — одна фірма. Обидва швидші за тебе.', 1000000, [1, 'pro']],
@@ -2940,14 +2944,14 @@ const BOSS_RAW = {
     ['cn-emperor', 'Імператор', 'Xiaomi SU7 Ultra', null, 'pro', 'A', 'Півтори тисячі сил від розетки. Заряджайся морально.', 3000000, null],
   ],
   US: [
-    ['us-cowboy', 'Ковбой Мирон', 'Dodge Viper ACR', 'sport', 'street', 'A', 'У Техасі кажуть: більше об\'єм — менше розмов.', 2000000, [1, 'pro']],
+    ['us-cowboy', 'Ковбой Мирон', 'Dodge Viper ACR', 'sport', 'street', 'A', 'У Техасі кажуть: більше об’єм — менше розмов.', 2000000, [1, 'pro']],
     ['us-tesliar', 'Тесляр', 'Tesla Model S Plaid', 'street', 'pro', 'A', 'Автопілот вимкнув — щоб у тебе був хоч якийсь шанс.', 2500000, [1, 'race']],
     ['us-sapphire', 'Сапфір', 'Lucid Air Sapphire', 'street', 'ace', 'A', 'Тиха, розкішна і зла. Як я.', 3000000, [2, 'pro']],
     ['us-sheriff', 'Шериф', 'Ford GT', 'pro', 'pro', 'A', 'Ford GT розбив Ferrari в Ле-Мані. А ти — навіть не Ferrari.', 6000000, null],
   ],
   GB: [
-    ['gb-lord', 'Лорд Чипс', 'McLaren 570S', 'race', 'street', 'A', 'Чай — о п\'ятій. Перемога — на восьмій секунді.', 4000000, [1, 'race']],
-    ['gb-agent', 'Агент 007-й', 'Aston Martin DBS Superleggera', 'race', 'pro', 'S', 'Ім\'я — Бонд. Час — швидший за твій.', 5000000, [1, 'race']],
+    ['gb-lord', 'Лорд Чипс', 'McLaren 570S', 'race', 'street', 'A', 'Чай — о п’ятій. Перемога — на восьмій секунді.', 4000000, [1, 'race']],
+    ['gb-agent', 'Агент 007-й', 'Aston Martin DBS Superleggera', 'race', 'pro', 'S', 'Ім’я — Бонд. Час — швидший за твій.', 5000000, [1, 'race']],
     ['gb-volt', 'Леді Вольт', 'Lotus Evija', 'stock', 'pro', 'S', 'Дві тисячі сил і жодного звуку. Почуєш тільки, як програв.', 6000000, [2, 'race']],
     ['gb-king', 'Король Лондона', 'McLaren P1', 'race', 'street', 'S', 'Корона на мені. Хочеш зняти — дожени.', 12000000, null],
   ],

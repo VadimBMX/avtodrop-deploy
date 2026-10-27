@@ -40,7 +40,7 @@ function lockCard() {
   const m = X.me(), v = m.stats?.value || 0;
   const row = (ok, text, pct) => `<div class="pr-need${ok ? ' ok' : ''}"><span>${X.ic(ok ? 'check' : 'lock')}</span><b>${text}</b><span class="pr-bar"><i style="width:${Math.min(100, pct * 100)}%"></i></span></div>`;
   return `<div class="card pr-lock"><b>«Престиж» — для пізньої гри</b>
-    <div class="small muted mt">Рестайлінг ★1–★5 і Трофейна зала відкриваються з ${P.PRESTIGE.level} рівня, коли гараж коштує від ${S.short(P.PRESTIGE.garage)}. До того гроші краще вкладати в кейси, місця й тюнінг.</div>
+    <div class="small muted mt">Рестайлінг ★1–★5 і Трофейна зала відкриваються з ${P.PRESTIGE.level}-го рівня, коли гараж коштує від ${S.short(P.PRESTIGE.garage)}. До того гроші краще вкладати в кейси, місця й тюнінг.</div>
     ${row(m.level >= P.PRESTIGE.level, `Рівень ${m.level} / ${P.PRESTIGE.level}`, m.level / P.PRESTIGE.level)}
     ${row(v >= P.PRESTIGE.garage, `Гараж ${S.short(v)} / ${S.short(P.PRESTIGE.garage)}`, v / P.PRESTIGE.garage)}</div>`;
 }
@@ -70,7 +70,7 @@ function restyleSheet(id) {
   }).join('');
   let action = '', note = '';
   const offer = offerCard();
-  if (n >= P.PRESTIGE.max) note = `<div class="card pr-done center"><b>${P.STAR}5 — машина-легенда</b><div class="small muted">Усі п'ять зірок: +${Math.round(S.STAR_INCOME * 500)}% доходу, золота рамка, рядок у профілі.</div></div>`;
+  if (n >= P.PRESTIGE.max) note = `<div class="card pr-done center"><b>${P.STAR}5 — машина-легенда</b><div class="small muted">Усі п’ять зірок: +${Math.round(S.STAR_INCOME * 500)}% доходу, золота рамка, рядок у профілі.</div></div>`;
   else {
     const cost = P.restyleCost(c.model, n), g = P.starGain(c.model, n, clean);
     const ready = P.starReady(c.starAt || 0, t), listed = c.status === 'market' || c.status === 'auction';
@@ -129,7 +129,7 @@ async function hallSheet() {
     ${offer.html}
     <div class="h2"><span>Трофейна зала</span><span>${st.n}/${P.TROPHIES.length}</span></div>
     <div class="pr-hall">${tiles}</div>${buy}
-    <div class="tiny muted mt">Трофеї не приносять грошей і нічого не коштують далі — без утримання. Вони рахуються в «Статку» й видні в картці гравця.${titleNext ? ` Титул «${titleNext.title}» — на ${titleNext.n} трофеях.` : ''}</div>
+    <div class="tiny muted mt">Трофеї не приносять грошей і нічого не коштують далі — без утримання. Вони рахуються в «Статку», і їх видно в картці гравця.${titleNext ? ` Титул «${titleNext.title}» — на ${titleNext.n} трофеях.` : ''}</div>
     <div class="h2"><span>Рестайлінг</span><span>+${Math.round(S.STAR_INCOME * 100)}% за ${P.STAR}</span></div>
     ${cars ? `<div class="list">${cars}</div>` : `<div class="card small muted">Ще жодної ${P.STAR}. Відкрий машину класу A, S чи секретну в гаражі → «Рестайлінг».</div>`}
     <button class="btn outline mt" data-act="prPick">${X.ic('car')} Обрати машину для рестайлінгу</button>`);
@@ -147,7 +147,7 @@ function pickForRestyle() {
 export function carRestyleLi(c) {
   if (!X || !P.canRestyle(c.model)) return '';
   const open = pr().open, n = c.stars || 0;
-  const sub = !open ? `з ${P.PRESTIGE.level} рівня й гаража від ${S.short(P.PRESTIGE.garage)}` : n >= P.PRESTIGE.max ? 'легенда: +15% доходу' : !P.starReady(c.starAt || 0, X.serverNow()) ? `наступна ${P.STAR} через ${left(P.nextStarAt(c.starAt) - X.serverNow()).replace(/:\d\d$/, '')}` : `${P.STAR}${n + 1} за ${S.short(P.restyleCost(c.model, n))} · +3% доходу`;
+  const sub = !open ? `з ${P.PRESTIGE.level}-го рівня й гаража від ${S.short(P.PRESTIGE.garage)}` : n >= P.PRESTIGE.max ? 'легенда: +15% доходу' : !P.starReady(c.starAt || 0, X.serverNow()) ? `наступна ${P.STAR} через ${left(P.nextStarAt(c.starAt) - X.serverNow()).replace(/:\d\d$/, '')}` : `${P.STAR}${n + 1} за ${S.short(P.restyleCost(c.model, n))} · +3% доходу`;
   return `<button class="li" data-act="prRestyle" data-id="${c.id}"><span class="ic">${X.ic(open ? 'sparkles' : 'lock')}</span><div class="grow"><b>Рестайлінг</b><div class="small muted">${sub}</div></div>${n ? starsHtml(c, { full: true }) : '<span class="chev">›</span>'}</button>`;
 }
 // Menu: one wide row under the challenges.

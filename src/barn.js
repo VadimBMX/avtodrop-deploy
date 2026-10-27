@@ -39,7 +39,7 @@ export function createBarn(ctx) {
       let model = null;
       if (odds && waiting(uid) < B.BARN.maxFinds && hashU(key, 0) < p) model = B.pickFind(odds, hashU(key, 1), hashU(key, 2));
       q('INSERT OR IGNORE INTO barn_lots (lot_id, user_id, model, at) VALUES (?, ?, ?, ?)').run(L.id, uid, model, t);
-      if (model && addFind(uid, model, `lot:${L.id}`)) tell(uid, `🏚 У контейнері №${L.id} знайшлись документи на сарайну знахідку: ${S.MODELS[model].name}. Меню → Сарай`);
+      if (model && addFind(uid, model, `lot:${L.id}`)) tell(uid, `🏚 У контейнері №${L.id} знайшлись документи на сарайну знахідку: ${S.MODELS[model].name}. Меню → Сарайна знахідка`);
     }
   }
 

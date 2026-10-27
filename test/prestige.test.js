@@ -53,7 +53,7 @@ test('rules: ★ costs 0,2/0,4/0,8/1,6/3,2 × price = 6,2×; +3%/★; trophies 2
 test('opens at level 10 with a garage ≥ 500 млн and stays open; a notice the first time', () => {
   const T = setup();
   const low = T.mk(10, { level: 9 });
-  assert.throws(() => T.call(low.id, 'prestige/restyle', { carId: low.cars[0] }), /10 рівня/);
+  assert.throws(() => T.call(low.id, 'prestige/restyle', { carId: low.cars[0] }), /10-го рівня/);
   assert.equal(T.call(low.id, 'me').prestige.open, false);
   const poor = T.mk(11, { level: 12, cars: 0 });
   T.g.giveCar(poor.id, A_CAR.id);

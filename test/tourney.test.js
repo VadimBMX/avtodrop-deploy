@@ -83,7 +83,7 @@ test('registration: free, level gate, only in the window, one car (its class is 
   const c = mk(5);
   const lada = mk(5, 'vaz-2106');
   const low = mk(6, 'vaz-2106', 1);
-  assert.throws(() => call(5, 'tourney/join', { carId: c }), /п'ятниці 18:00/);
+  assert.throws(() => call(5, 'tourney/join', { carId: c }), /п’ятниці 18:00/);
   const before = call(5, 'tourney'); // before registration: last week's (empty) tournament and the countdown to this one
   assert.deepEqual([before.tid, before.phase, before.nextTid, before.nextRegOpen], ['2026-10-23', 'done', TID, FRI18]);
   set(FRI18 + 60e3);

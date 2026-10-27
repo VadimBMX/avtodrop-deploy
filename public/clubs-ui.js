@@ -27,7 +27,7 @@ const tagBox = (tag, cls = '') => `<span class="clb-tagbox ${cls}">${X.esc(tag)}
 // ---------- entry points ----------
 export function clubHub() {
   const { ic, esc } = X, me = X.me(), c = me.club;
-  const info = c ? `${pts(c.pts)} за тиждень · твої ${n0(c.myPts)}` : me.level < R.joinLevel ? `${ic('lock')} з ${R.joinLevel} рівня` : 'ліга тижня з призами, клубна каса';
+  const info = c ? `${pts(c.pts)} за тиждень · твої ${n0(c.myPts)}` : me.level < R.joinLevel ? `${ic('lock')} з ${R.joinLevel}-го рівня` : 'ліга тижня з призами, клубна каса';
   return `<button class="hub-store clb-hub" data-act="go" data-page="club"><span class="hub-ic">${ic('users')}</span><span class="grow"><b class="ellipsis">${c ? `${tagBox(c.tag, 'sm')} ${esc(c.name)}` : 'Автоклуби'}</b>
     <span class="hub-i">${info}</span></span>${c?.ready ? `<span class="hub-cnt">${c.ready}</span>` : ''}<span class="chev">${ic('chevron-right')}</span></button>`;
 }
@@ -76,11 +76,11 @@ function lobby(v, inv) {
       <div class="row mt">${tagBox(inv.club.tag, 'lg')}<div class="grow"><b class="disp clb-name">${esc(inv.club.name)}</b><div class="tiny muted">${inv.club.members}/${R.max} учасників · власник ${esc(inv.club.owner.name)}${inv.club.place ? ` · #${inv.club.place} у лізі` : ''}</div></div></div>
       ${inv.club.about ? `<div class="small muted mt">${esc(inv.club.about)}</div>` : ''}
       ${v.canJoin ? `<button class="btn mt" data-act="clubJoin" data-code="${esc(st.clubInvite)}" ${inv.club.members >= R.max ? 'disabled' : ''}>${inv.club.members >= R.max ? 'У клубі немає місць' : 'Вступити в клуб'}</button>`
-        : `<div class="chip mt">${ic('lock')} Вступ відкривається на ${R.joinLevel} рівні</div>`}</div>` : '';
+        : `<div class="chip mt">${ic('lock')} Вступ — з ${R.joinLevel}-го рівня</div>`}</div>` : '';
   const list = v.list.length ? `<div class="list" id="clbList">${v.list.map((r) => clubRow(r, { canJoin: v.canJoin })).join('')}</div>`
     : X.emptyLine('users', 'Відкритих клубів поки немає — створи перший');
   const createBtn = v.canCreate ? `<button class="btn ${inv ? 'ghost' : ''}" data-act="clubCreateOpen">Створити клуб · ${S.fmt(R.createCost)}</button>`
-    : `<button class="btn ghost" disabled>${ic('lock')} Створити клуб — з ${R.createLevel} рівня</button>`;
+    : `<button class="btn ghost" disabled>${ic('lock')} Створити клуб — з ${R.createLevel}-го рівня</button>`;
   return `${invite}<div class="card clb-hero"><span class="clb-emb">${ic('users')}</span><div class="grow"><b class="disp">Автоклуби</b>
       <div class="small muted">До ${R.max} гравців. Тег клубу видно в рейтингу, батлах і Заїзді дня. Перемоги учасників — очки в лізі тижня; топ-10 клубів отримують призи в понеділок о 00:00.</div></div></div>
     ${createBtn}
@@ -192,7 +192,7 @@ function editSheet() {
 function inviteSheet() {
   const { ic, esc } = X, c = V.club, link = linkOf(c.invite);
   X.sheet('Запросити в клуб', `<div class="clb-form">
-      <div class="small muted">Друг відкриє посилання — і побачить запрошення до ${esc(C.tagText(c.tag))} ${esc(c.name)}. Новачок спершу пройде перші кроки (вступ — з ${R.joinLevel} рівня).</div>
+      <div class="small muted">Друг відкриє посилання — і побачить запрошення до ${esc(C.tagText(c.tag))} ${esc(c.name)}. Новачок спершу пройде перші кроки (вступ — з ${R.joinLevel}-го рівня).</div>
       ${link ? `<div class="mono clb-link">${esc(link)}</div><button class="btn" data-act="clubShare">${ic('share')} Надіслати в Telegram</button><button class="btn ghost" data-act="clubCopy">${ic('copy')} Скопіювати</button>`
         : '<div class="small muted">Посилання з’явиться після підключення бота</div>'}
       ${c.staff ? `<button class="btn outline sm" data-act="clubNewInvite">${ic('refresh')} Нове посилання (старе перестане діяти)</button>` : ''}</div>`);

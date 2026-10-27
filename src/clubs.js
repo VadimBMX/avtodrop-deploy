@@ -235,7 +235,7 @@ export function createClubs(ctx) {
 
   // ---------- player calls ----------
   const need = (uid, lvl, what) => {
-    if (userRow(uid).level < lvl) fail(`${what} відкривається на ${lvl} рівні`);
+    if (userRow(uid).level < lvl) fail(`${what} відкривається з ${lvl}-го рівня`);
   };
   const myClub = (uid, roles = null) => {
     const m = memberRow(uid);

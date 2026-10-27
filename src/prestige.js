@@ -23,7 +23,7 @@ export function createPrestige(ctx) {
     return true;
   }
   function needOpen(uid) {
-    if (!isOpen(uid)) fail(`«Престиж» відкривається з ${P.PRESTIGE.level} рівня, коли гараж коштує від ${S.short(P.PRESTIGE.garage)}`);
+    if (!isOpen(uid)) fail(`«Престиж» відкривається з ${P.PRESTIGE.level}-го рівня, коли гараж коштує від ${S.short(P.PRESTIGE.garage)}`);
   }
 
   // ---------- «Рестайлінг» ----------

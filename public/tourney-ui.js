@@ -85,7 +85,7 @@ export function installTourney(x) {
     const parts = [hero(v)];
     if (v.phase === 'reg') parts.push(regCard(v));
     if (v.my) parts.push(myCard(v));
-    else if (v.phase === 'run' && !v.my) parts.push(`<div class="card tnm-note">${ic('info-circle')}<span>Цього тижня ти не в сітці. Наступна реєстрація — у п'ятницю о 18:00.</span></div>`);
+    else if (v.phase === 'run' && !v.my) parts.push(`<div class="card tnm-note">${ic('info-circle')}<span>Цього тижня ти не в сітці. Наступна реєстрація — у п’ятницю о 18:00.</span></div>`);
     if (v.brackets.length) parts.push(bracketHtml(v));
     else if (v.phase !== 'reg') parts.push(emptyBox('trophy', 'Сіток ще немає', v.phase === 'done' ? 'Минулого тижня ніхто не зареєструвався — стань першим у п’ятницю' : 'Сітки складаються в суботу о 12:00'));
     parts.push(prizesHtml(v), hallHtml(v), rulesHtml());
@@ -260,7 +260,7 @@ export function installTourney(x) {
       <div class="tiny muted ellipsis">${dayLabel(h.tid)} · ${esc(M(h.model)?.name || '')} · ${tm(h.time)}</div></div></div>`).join('')}</div>`;
   }
   const rulesHtml = () => `<details class="dr-how tnm-rules"><summary>${ic('info-circle')} Правила</summary><div class="tiny muted">
-    Реєстрація — з п'ятниці 18:00 до суботи 12:00, безкоштовно, з однією машиною (її клас — твоя сітка; секретні машини їдуть з класом S).
+    Реєстрація — з п’ятниці 18:00 до суботи 12:00, безкоштовно, з однією машиною (її клас — твоя сітка; секретні машини їдуть з класом S).
     О 12:00 — жеребкування: сітка на 16 (понад 16 гравців — на 32), вільні місця займають боти — справжні машини класу й водії від «Новачка» до «Профі».
     Кожен раунд — вікно на 3 години (сб 12:00, 15:00, 18:00; нд 16:00; фінал — нд 20:00). У матчі в кожного ${T.tries} заїзди, рахується кращий;
     їдеш проти привида найкращого заїзду суперника (у бота — його зафіксований час). При однаковому часі перемагає той, хто проїхав раніше. Хто не має часу до дедлайну — програє; якщо обидва — проходить вищий посів.

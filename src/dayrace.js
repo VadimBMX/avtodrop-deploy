@@ -304,8 +304,8 @@ export function createDayRace(ctx) {
     const head = `🏁 Заїзд дня: ${car.name}.`;
     const ids = friendIds(uid);
     const f = ids.length ? ofIds(day, ids)[0] : null;
-    if (f) return `${head} Твій друг ${firstName(f.user_id)} — ${D.fmtTime(f.time)} с. Поб'єш?`;
-    if (leader) return `${head} Лідер — ${D.fmtTime(leader.time)} с. ${MAX} безкоштовні спроби — поб'єш?`;
+    if (f) return `${head} Твій друг ${firstName(f.user_id)} — ${D.fmtTime(f.time)} с. Поб’єш?`;
+    if (leader) return `${head} Лідер — ${D.fmtTime(leader.time)} с. ${MAX} безкоштовні спроби — поб’єш?`;
     return `${head} Ще ніхто не проїхав — ${MAX} безкоштовні спроби, стань першим!`;
   }
   function remind(list, rules) {
@@ -344,7 +344,7 @@ export function createDayRace(ctx) {
     const place = r.place ?? placeOf(r), total = r.field ?? totalOf(d);
     const m = S.MODELS[r.model];
     return { day: d, model: r.model, time: r.time, place, total,
-      caption: `🏁 Заїзд дня ${D.dayLabel(d)}: ${m?.name || r.model} — ${D.fmtTime(r.time)} с${place ? `, ${place}-й з ${total}` : ''}. Поб'єш мій час?\nОднакова машина для всіх, ${MAX} безкоштовні спроби 👇` };
+      caption: `🏁 Заїзд дня ${D.dayLabel(d)}: ${m?.name || r.model} — ${D.fmtTime(r.time)} с${place ? `, ${place}-й з ${total}` : ''}. Поб’єш мій час?\nОднакова машина для всіх, ${MAX} безкоштовні спроби 👇` };
   }
 
   // ---------- admin ----------

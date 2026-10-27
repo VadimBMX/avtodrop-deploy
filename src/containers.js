@@ -262,7 +262,7 @@ export function createContainers(ctx) {
     if (amt < min) fail(`Мінімальна ставка ${S.fmt(min)}`);
     const cap = C.maxBidOf(u.balance);
     if (amt > cap) fail(cap < min ? `Замало грошей: ставка — не більше половини балансу (до ${S.fmt(cap)})` : `Ставка — не більше половини балансу: до ${S.fmt(cap)}`);
-    if (q(`SELECT COUNT(*) n FROM container_lots WHERE top_bidder = ? AND ${OPEN} AND id <> ?`).get(uid, L.id).n >= R.maxLeading) fail(`Лідерувати можна щонайбільше в ${R.maxLeading} лотах одночасно`);
+    if (q(`SELECT COUNT(*) n FROM container_lots WHERE top_bidder = ? AND ${OPEN} AND id <> ?`).get(uid, L.id).n >= R.maxLeading) fail(`Бути лідером можна щонайбільше в ${R.maxLeading} лотах одночасно`);
     if (q("SELECT COUNT(*) n FROM container_lots WHERE top_bidder = ? AND status = 'done' AND settled_at > ?").get(uid, t - 86400e3).n >= R.winsPerDay) fail(`Ліміт: ${R.winsPerDay} виграних контейнерів на добу`);
     pay(uid, amt);
     const prev = L.top_bidder, prevBid = L.top_bid;

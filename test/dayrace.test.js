@@ -386,8 +386,8 @@ test('reminder: from 19:00 Kyiv to players with it open who haven\'t raced, with
   assert.equal(item(5), undefined);
   set(Date.parse(TODAY + 'T16:05:00Z')); // 19:05 Kyiv
   const car = S.MODELS[D.scheduledCar(TODAY)].name;
-  assert.equal(item(5).text, `🏁 Заїзд дня: ${car}. Твій друг Іван — 11,842 с. Поб'єш?`);
-  assert.equal(item(8).text, `🏁 Заїзд дня: ${car}. Лідер — 11,842 с. 3 безкоштовні спроби — поб'єш?`);
+  assert.equal(item(5).text, `🏁 Заїзд дня: ${car}. Твій друг Іван — 11,842 с. Поб’єш?`);
+  assert.equal(item(8).text, `🏁 Заїзд дня: ${car}. Лідер — 11,842 с. 3 безкоштовні спроби — поб’єш?`);
   assert.equal(item(7), undefined, 'locked (level 1)');
   assert.equal(item(9), undefined, 'opted out');
   assert.equal(item(6), undefined, 'already raced today');

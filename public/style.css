@@ -4371,3 +4371,16 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
    (403 px at 390). One shrinkable column; the tile's text column may shrink to its ellipsis. */
 .dr-below:not(:empty) { grid-template-columns: minmax(0, 1fr); }
 .tnm-tile .grow { min-width: 0; }
+
+/* ---------- «Що нового» (S.WHATS_NEW): coloured icon disc and a chip under the title (wText 2026-10-29) ---------- */
+.story .story-ic.wn-ic { width: 112px; height: 112px; border-radius: 50%; align-items: center; justify-content: center; font-size: 58px; color: var(--c);
+  background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--c) 26%, transparent), color-mix(in srgb, var(--c) 6%, transparent) 62%, transparent 72%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 35%, transparent); filter: drop-shadow(0 0 22px color-mix(in srgb, var(--c) 45%, transparent)); }
+.story .wn-tag { margin-top: -6px; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; letter-spacing: .2px;
+  color: var(--c, var(--muted)); background: color-mix(in srgb, var(--c, #fff) 14%, transparent); border: 1px solid color-mix(in srgb, var(--c, #fff) 40%, transparent); }
+/* first /me answered 429: the retry state (app.js firstRefresh) */
+.empty.retry-state { display: flex; flex-direction: column; align-items: center; gap: 8px; padding-top: 22vh; }
+.empty.retry-state > .i { font-size: 40px; color: var(--muted); }
+.empty.retry-state b { color: var(--text, #fff); font-size: 17px; }
+/* wash: the hint under a disabled car-wash button for a clean car */
+.wash-clean { margin-top: -4px; }

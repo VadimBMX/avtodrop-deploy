@@ -178,7 +178,7 @@ export function createGame(db, opts = {}) {
   // «Престиж» (src/prestige.js): the car's restyle ★, when the last one was done, what was paid; null = none.
   const restyleOf = (carId) => q('SELECT stars, at, spent FROM car_restyle WHERE car_id = ?').get(carId) || null;
   const vipOf = (uid) => (q('SELECT vip_until FROM users WHERE id = ?').get(uid)?.vip_until || 0) > now();
-  // VIP refills the shared tank twice as fast; the «Подвійне паливо» event doubles that while it runs (S.regenAt
+  // VIP refills the shared tank twice as fast; the «Подвійне пальне» event doubles that while it runs (S.regenAt
   // switches the speed exactly at the event's start and end, at most ×EVENT_CAPS.fuelTotal).
   const REGEN_MS = S.FUEL_REGEN_MIN * 60e3;
   const vipMult = (vip) => (vip ? S.VIP.fuelMult : 1);
@@ -361,8 +361,8 @@ export function createGame(db, opts = {}) {
         q('UPDATE users SET ref_paid = 1 WHERE id = ?').run(uid);
         addMoney(u.referrer_id, S.REF_REWARD);
         addMoney(uid, S.REF_FRIEND_L3);
-        event(uid, `👥 3 рівень! Бонус за запрошення: +${S.fmt(S.REF_FRIEND_L3)}`);
-        event(u.referrer_id, `👥 Твій друг ${name(uid)} досяг 3 рівня! +${S.fmt(S.REF_REWARD)}`);
+        event(uid, `👥 3-й рівень! Бонус за запрошення: +${S.fmt(S.REF_FRIEND_L3)}`);
+        event(u.referrer_id, `👥 Твій друг ${name(uid)} досяг 3-го рівня! +${S.fmt(S.REF_REWARD)}`);
       }
     }
     q('UPDATE users SET level = ?, xp = ? WHERE id = ?').run(level, cur, uid);
@@ -626,7 +626,7 @@ export function createGame(db, opts = {}) {
         addMoney(uid, S.REF_FRIEND_BONUS);
         addKeys(uid, S.REF_FRIEND_KEY, 1);
         gift(uid, 'ref', { from: name(ref), money: S.REF_FRIEND_BONUS, caseId: S.REF_FRIEND_KEY, l3: S.REF_FRIEND_L3 });
-        event(ref, `👥 ${name(uid)} приєднався за твоїм ${ch ? 'викликом' : 'посиланням'}. Коли він досягне 3 рівня — отримаєш ${S.fmt(S.REF_REWARD)}`);
+        event(ref, `👥 ${name(uid)} приєднався за твоїм ${ch ? 'викликом' : 'посиланням'}. Коли він досягне 3-го рівня — отримаєш ${S.fmt(S.REF_REWARD)}`);
         if (ch) q('UPDATE challenges SET recruits = recruits + 1 WHERE id = ?').run(ch.id);
         return { created: true, ref: true };
       }
@@ -1103,7 +1103,7 @@ export function createGame(db, opts = {}) {
   // «Продати непотрібні»: the pieces no car of the player needs (T.junkParts over every car they own) at the usual
   // dealer rate. items: what the app showed in its confirm; only those still unneeded are sold, at most that many.
   function sellJunk(uid, { items }) {
-    if (!Array.isArray(items) || !items.length || items.length > 200) fail('Немає що продати');
+    if (!Array.isArray(items) || !items.length || items.length > 200) fail('Немає чого продати');
     const ex = carExtras(uid);
     const cars = q('SELECT id, model FROM cars WHERE owner_id = ?').all(uid).map((c) => ({ model: c.model, parts: ex.parts(c.id) }));
     const junk = T.junkParts(cars, inventory(uid));
@@ -1859,7 +1859,7 @@ export function createGame(db, opts = {}) {
     const running = q("SELECT * FROM crash_games WHERE user_id = ? AND status = 'running'").get(uid);
     if (running && crashResolve(running).status === 'running') fail('Спочатку заверши поточну гру');
     const a = auto == null || auto === '' ? null : Number(auto);
-    if (a != null && !(a >= 1.01 && a <= S.CRASH.max)) fail('Автовивід: від 1.01 до 1000');
+    if (a != null && !(a >= 1.01 && a <= S.CRASH.max)) fail('Автовивід: від 1,01 до 1000');
     const b = bet(uid, amount);
     const r = nextNonce(uid).roll(0);
     const point = Math.min(S.CRASH.max, Math.max(1, Math.floor((S.CRASH.edge / (1 - r)) * 100) / 100));
@@ -1995,7 +1995,7 @@ export function createGame(db, opts = {}) {
   function pvpAccept(uid, { id, carId }) {
     const p = q("SELECT * FROM pvp WHERE id = ? AND status = 'open'").get(int(id, 1, 1e15));
     if (!p) fail('Виклик уже зайнятий або скасований');
-    if (p.creator_id === uid) fail('Не можна гонитися з собою');
+    if (p.creator_id === uid) fail('Не можна змагатися із собою');
     const cc = carRow(p.car_id);
     if (!cc || cc.owner_id !== p.creator_id || cc.status !== 'garage') {
       q("UPDATE pvp SET status = 'cancelled' WHERE id = ?").run(p.id);
@@ -2049,7 +2049,7 @@ export function createGame(db, opts = {}) {
     sweepPvp();
     const p = q("SELECT * FROM pvp WHERE id = ? AND status = 'open'").get(int(id, 1, 1e15));
     if (!p) fail('Виклик уже зайнятий або скасований');
-    if (p.creator_id === uid) fail('Не можна гонитися з собою');
+    if (p.creator_id === uid) fail('Не можна змагатися із собою');
     const c = ownCar(uid, carId);
     if (!carOk(p.car_id, p.creator_id)) {
       q("UPDATE pvp SET status = 'cancelled' WHERE id = ?").run(p.id);
@@ -2291,7 +2291,7 @@ export function createGame(db, opts = {}) {
   function auctionCancel(uid, { id }) {
     const a = q("SELECT * FROM auctions WHERE id = ? AND status = 'open'").get(int(id, 1, 1e15));
     if (!a || a.seller_id !== uid) fail('Аукціон не знайдено');
-    if (a.top_bidder) fail('Вже є ставки — скасувати не можна');
+    if (a.top_bidder) fail('Уже є ставки — скасувати не можна');
     bank(uid);
     q("UPDATE cars SET status = 'garage' WHERE id = ?").run(a.car_id);
     q("UPDATE auctions SET status = 'cancelled' WHERE id = ?").run(a.id);
@@ -2703,7 +2703,7 @@ export function createGame(db, opts = {}) {
       const cap = inc.rate * inc.capH;
       if (inc.rate > 0 && inc.pending >= Math.floor(cap) - 1) {
         const at = u.income_at + Math.max(0, (cap - u.banked) / inc.rate) * 3600e3;
-        ready.push({ kind: 'income', at, text: `💰 Гараж заповнений: ${S.short(inc.pending)} чекає, далі дохід не росте` });
+        ready.push({ kind: 'income', at, text: `💰 Каса гаража повна: ${S.short(inc.pending)} чекає, далі дохід не росте` });
       }
       const rcAt = u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3;
       if (rcAt <= t) ready.push({ kind: 'rcase', at: rcAt, text: '📦 Кейс нагород готовий' });
@@ -3211,7 +3211,7 @@ export function createGame(db, opts = {}) {
   function emojiSet(uid, { kind }) {
     const k = String(kind || '');
     if (k !== 'career') fail('Невідомий статус');
-    if (!q("SELECT 1 FROM badges WHERE user_id = ? AND key = 'boss'").get(uid)) fail("Статус дається за фінального боса кар'єри");
+    if (!q("SELECT 1 FROM badges WHERE user_id = ? AND key = 'boss'").get(uid)) fail("Статус дається за фінального боса кар’єри");
     q('INSERT OR IGNORE INTO claims (user_id, key) VALUES (?, ?)').run(uid, 'emoji:' + k);
     return {};
   }
@@ -3431,7 +3431,7 @@ export function createGame(db, opts = {}) {
     if (si.ready) claims.push({ key: `pass:${si.id}:${si.level}:${si.premium ? 1 : 0}:${si.ready}`, kind: 'pass', title: `Сезонний пропуск: рівень ${si.level}`, sub: `Можна забрати: ${si.ready}` });
     if (rescueReady(u)) claims.push({ key: 'rescue:' + u.rescue_at, kind: 'rescue', title: 'Не здавайся!', sub: 'Тримай безкоштовний «Іржавий гараж»' });
     const inc = incomeState(u);
-    if (inc.rate > 0 && inc.pending >= inc.rate * inc.capH * 0.999) claims.push({ key: 'income:' + u.income_at, kind: 'income', title: 'Гараж набрав максимум', sub: 'Дохід зупинився — забери, щоб він знову йшов', money: inc.pending });
+    if (inc.rate > 0 && inc.pending >= inc.rate * inc.capH * 0.999) claims.push({ key: 'income:' + u.income_at, kind: 'income', title: 'Каса гаража повна', sub: 'Дохід зупинився — забери, щоб він знову йшов', money: inc.pending });
     const live = q("SELECT id FROM pvp WHERE status IN ('pending', 'live') AND opponent_id = ? OR status = 'live' AND creator_id = ? ORDER BY id DESC LIMIT 1").get(uid, uid);
     const gifts = q('SELECT id, kind, data, note FROM gifts WHERE user_id = ? AND shown = 0 ORDER BY id LIMIT 10').all(uid).map((g) => ({ ...g, data: JSON.parse(g.data) }));
     return {
@@ -3447,6 +3447,11 @@ export function createGame(db, opts = {}) {
   // The intro stories were shown: never again, and the current "what's new" counts as seen too.
   function introSeen(uid) {
     q('INSERT OR IGNORE INTO claims (user_id, key) VALUES (?, ?)').run(uid, 'intro');
+    q('INSERT OR IGNORE INTO claims (user_id, key) VALUES (?, ?)').run(uid, 'story:' + S.WHATS_NEW.id);
+    return {};
+  }
+  // The current "what's new" was shown (on any device): not again for this player.
+  function storySeen(uid) {
     q('INSERT OR IGNORE INTO claims (user_id, key) VALUES (?, ?)').run(uid, 'story:' + S.WHATS_NEW.id);
     return {};
   }
@@ -4889,7 +4894,7 @@ export function createGame(db, opts = {}) {
     'room/chat': (u, b) => postChat(u, roomLive(u, b.id).id, b.text),
     'battle/list': battleList, 'battle/create': battleCreate, 'battle/join': battleJoin, 'battle/cancel': battleCancel, 'battle/get': battleGet,
     'streak/claim': raceStreakClaim, 'social/live': socialLive, // wave J: race streak rewards, live counts for the menu
-    rewards, 'rewards/daily': dailyClaim, 'rewards/case': rewardCase, 'newbie/claim': newbieClaim, 'level/seen': levelSeen, 'intro/seen': introSeen, 'guide/off': guideOff, 'guide/on': guideOn,
+    rewards, 'rewards/daily': dailyClaim, 'rewards/case': rewardCase, 'newbie/claim': newbieClaim, 'level/seen': levelSeen, 'intro/seen': introSeen, 'story/seen': storySeen, 'guide/off': guideOff, 'guide/on': guideOn,
     quests, 'quests/claim': questClaim, 'collection/claim': collectionClaim, sets, 'sets/claim': setClaim,
     weekly, 'weekly/claim': weeklyClaim, 'weekly/chest': weeklyChest,
     leaderboard, promo: redeemPromo, events,

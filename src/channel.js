@@ -83,7 +83,7 @@ export function eventLine(e) {
   if (e.kind === 'secret') return `🗝 ${who(e)} — секретна ${carName(e.model)}`;
   if (e.kind === 'edition') return `🏷 ${who(e)} — тиражна ${carName(e.model)}${serialText(e.serial)}`;
   if (e.kind === 'jackpot') return `📦 ${who(e)} — ${carName(e.model)} з контейнера за ${S.short(e.price)} (×${ratio(e.value / e.price)})`;
-  if (e.kind === 'boss') return `👑 ${who(e)} переміг Боса усіх босів`;
+  if (e.kind === 'boss') return `👑 ${who(e)} переміг Боса всіх босів`;
   if (e.kind === 'weekly') return `🏆 Гонка тижня: перше місце — ${e.top[0] ? who(e.top[0]) : '—'}`;
   return `✨ ${escHtml(e.text || '')}`;
 }
@@ -94,17 +94,17 @@ export function eventText(e) {
     return `🔥 <b>Міфічний дроп!</b>\n\n${who(e)} вибиває <b>${carName(e.model)}</b> з кейса «${escHtml(S.CASE_BY_ID[e.caseId]?.name || e.caseId)}».\n💰 Вартість авто: ${S.short(m?.price || 0)}\n\nКлас S — найрідкісніший у кейсах. Наступний може бути твоїм 👇\n\n${TAGS.drop}`;
   }
   if (e.kind === 'secret') {
-    return `🗝 <b>Секретне авто!</b>\n\n${who(e)} відкриває секретну <b>${carName(e.model)}</b>. Секретні машини не падають із кейсів — їх дають за зібрані колекції.\n\n${TAGS.secret}`;
+    return `🗝 <b>Секретне авто!</b>\n\n${who(e)} відкриває секретну <b>${carName(e.model)}</b>. Секретні машини не випадають із кейсів — їх дають за зібрані колекції.\n\n${TAGS.secret}`;
   }
   if (e.kind === 'edition') {
-    return `🏷 <b>Тиражна машина${serialText(e.serial)}</b>\n\n${who(e)} забирає <b>${carName(e.model)}</b> — фабричне забарвлення й власний номер у тиражі.\n\n${TAGS.edition}`;
+    return `🏷 <b>Тиражна машина${serialText(e.serial)}</b>\n\n${who(e)} забирає <b>${carName(e.model)}</b> — заводська ліврея й власний номер у тиражі.\n\n${TAGS.edition}`;
   }
   if (e.kind === 'jackpot') {
     return `📦 <b>Джекпот на Причалі!</b>\n\n${who(e)} бере контейнер за ${S.short(e.price)}, а всередині — <b>${carName(e.model)}${e.ed ? ` (тиражна${serialText(e.serial)})` : ''}</b> вартістю ${S.short(e.value)}.\nЦе ×${ratio(e.value / e.price)} до ставки 🤯\n\n${TAGS.jackpot}`;
   }
   if (e.kind === 'boss') {
     const b = S.BOSS_BY_ID[FINAL_BOSS];
-    return `👑 <b>Бос усіх босів переможений!</b>\n\n${who(e)} пройшов усю кар'єру — сім країн, ${S.BOSSES.length} суперників — і обійшов ${escHtml(b.nick)} на ${carName(b.model)}${e.best ? ` за ${String(e.best.toFixed(3)).replace('.', ',')} с` : ''}.\n\nПовага. Хто наступний? 🏁\n\n${TAGS.boss}`;
+    return `👑 <b>Бос усіх босів переможений!</b>\n\n${who(e)} пройшов усю кар’єру — сім країн, ${S.BOSSES.length} суперників — і обійшов ${escHtml(b.nick)} на ${carName(b.model)}${e.best ? ` за ${String(e.best.toFixed(3)).replace('.', ',')} с` : ''}.\n\nПовага. Хто наступний? 🏁\n\n${TAGS.boss}`;
   }
   if (e.kind === 'weekly') {
     const lines = e.top.map((r, i) => `${MEDALS[i]} ${who(r)} — +${S.short(r.growth)} до гаража · приз ${S.short(S.WEEKLY_PRIZES[i])}`);

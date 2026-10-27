@@ -85,7 +85,7 @@ test('create: from level 5, costs 500 000 ₴, unique tag, one club per player; 
   s.mk(4, 2);
   s.mk(5);
   s.mk(6);
-  assert.throws(() => s.call(1, 'club/create', { tag: 'ЖИГА', name: 'Жигулі' }), /5 рівні/);
+  assert.throws(() => s.call(1, 'club/create', { tag: 'ЖИГА', name: 'Жигулі' }), /5-го рівня/);
   assert.throws(() => s.call(2, 'club/create', { tag: 'ЖИГА', name: 'Жигулі' }), /Недостатньо/);
   assert.throws(() => s.call(3, 'club/create', { tag: 'ЖИ', name: 'Жигулі' }), /Тег/);
   assert.throws(() => s.call(3, 'club/create', { tag: 'ЖИГА', name: 'Ж' }), /Назва/);
@@ -98,7 +98,7 @@ test('create: from level 5, costs 500 000 ₴, unique tag, one club per player; 
   assert.match(c.invite, C.INVITE_RE);
   assert.throws(() => s.call(5, 'club/create', { tag: 'ЖИГА', name: 'Інший' }), /зайнятий/);
   assert.throws(() => s.call(3, 'club/create', { tag: 'ІНШИ', name: 'Другий клуб' }), /вже в клубі/);
-  assert.throws(() => s.call(4, 'club/join', { id: c.id }), /3 рівні/);
+  assert.throws(() => s.call(4, 'club/join', { id: c.id }), /3-го рівня/);
   // Search finds it by tag and by name; the open list shows it.
   assert.equal(s.call(5, 'club/list', { q: '[жиг' }).list[0].id, c.id);
   assert.equal(s.call(5, 'club/list', { q: 'назав' }).list[0].id, c.id);

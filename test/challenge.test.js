@@ -327,9 +327,9 @@ test('bot: /start ch_<id> names the challenge; inline-ready info; ghost texts', 
   assert.equal(info.who, 'Тарас');
   assert.equal(info.model, supra);
   const txt = startText({ name: 'Оля', created: true, ref: true, challenge: info });
-  assert.match(txt, new RegExp(`Тарас кидає тобі виклик: ${G.chTime(ch.time)} с на ${S.MODELS[supra].name}\\. Поб'єш\\?`));
+  assert.match(txt, new RegExp(`Тарас кидає тобі виклик: ${G.chTime(ch.time)} с на ${S.MODELS[supra].name}\\. Поб’єш\\?`));
   assert.match(txt, /Прийняти виклик/);
-  assert.match(G.challengeCaption(info), /Поб'єш\?/);
+  assert.match(G.challengeCaption(info), /Поб’єш\?/);
   assert.equal(G.challengeLink('avtodrop_bot', '', ch.id), `https://t.me/avtodrop_bot?start=ch_${ch.id}`);
   assert.equal(G.challengeLink('avtodrop_bot', 'play', ch.id), `https://t.me/avtodrop_bot/play?startapp=ch_${ch.id}`);
   assert.equal(G.challengeLink('', 'play', ch.id), '');
@@ -408,7 +408,7 @@ test('server + bot: /start ch_<id> (referral, «Прийняти виклик» 
     // A new player opens the bot by the challenge's link.
     updates.push({ update_id: 1, message: { message_id: 1, from: { id: 9, first_name: 'Оля' }, chat: { id: 9, type: 'private' }, text: '/start ch_abcdef0123' } });
     const sent = await until(() => calls.find((c) => c.method === 'sendMessage' && c.params.chat_id === 9));
-    assert.match(sent.params.text, /Тарас кидає тобі виклик: \d+,\d{3} с на Toyota Supra A80\. Поб'єш\?/);
+    assert.match(sent.params.text, /Тарас кидає тобі виклик: \d+,\d{3} с на Toyota Supra A80\. Поб’єш\?/);
     assert.match(sent.params.text, /запросив друг/);
     assert.equal(sent.params.reply_markup.inline_keyboard[0][0].web_app.url, 'https://game.example/?ch=abcdef0123');
     const u9 = app.db.prepare('SELECT referrer_id, start_param FROM users WHERE id = 9').get();
@@ -430,7 +430,7 @@ test('server + bot: /start ch_<id> (referral, «Прийняти виклик» 
     const saved = calls.find((c) => c.method === 'savePreparedInlineMessage').params;
     assert.equal(saved.result.photo_url, `https://game.example/share/${card.id}.jpg`);
     assert.equal(saved.result.reply_markup.inline_keyboard[0][0].text, '🏁 Прийняти виклик');
-    assert.match(saved.result.caption, /Поб'єш\?/);
+    assert.match(saved.result.caption, /Поб’єш\?/);
     // Inline again: now the card picture.
     updates.push({ update_id: 3, inline_query: { id: 'iq2', from: { id: 9 }, query: 'ch_abcdef0123', offset: '' } });
     const ans2 = await until(() => calls.find((c) => c.method === 'answerInlineQuery' && c.params.inline_query_id === 'iq2'));

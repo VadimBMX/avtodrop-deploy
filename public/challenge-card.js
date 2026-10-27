@@ -1,5 +1,5 @@
 // The share card of a ghost challenge: a 1080×1350 JPEG (a portrait photo in a chat) drawn on a canvas — the night
-// drag strip, the creator's car with its cyan ghost trail, the time to beat and «ПОБ'ЄШ?». No dependencies; the car
+// drag strip, the creator's car with its cyan ghost trail, the time to beat and «ПОБ’ЄШ?». No dependencies; the car
 // photo comes from the same origin (carArt), so the canvas stays exportable; without a photo the drawn silhouette.
 import * as S from './shared.js';
 import { carArt } from './car.js';
@@ -187,7 +187,7 @@ export async function challengeCard({ model, time, hp = 0, who = '', bot = '' })
   c.fill();
   c.fillStyle = '#1c1500';
   c.font = `800 84px ${DISP}`;
-  c.fillText("ПОБ'ЄШ?", W / 2, 1168);
+  c.fillText("ПОБ’ЄШ?", W / 2, 1168);
   c.font = '700 34px Manrope, sans-serif';
   c.fillText('Їдь проти мого привида', W / 2, 1210);
   c.fillStyle = '#8b919c';

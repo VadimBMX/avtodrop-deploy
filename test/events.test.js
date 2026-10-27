@@ -110,7 +110,7 @@ test('regen: no events = the old formula; the fuel event doubles only its own ho
   assert.equal(r.next, start + 5 * MIN);
 });
 
-test('server: the shared tank refills twice as fast during «Подвійне паливо»', () => {
+test('server: the shared tank refills twice as fast during «Подвійне пальне»', () => {
   const start = K('2026-10-29T00:00:00');
   const { db, g, clock, call } = setup(start - H);
   const car = g.giveCar(1, 'zaz-lanos').id;
@@ -275,7 +275,7 @@ test('reminder: «event started» once, in the first hours, within the daily lim
   rem.tick();
   await sender.idle();
   assert.equal(sent.length, 1);
-  assert.match(sent[0].text, /^🎉 Почалася подія «Подвійне паливо»/);
+  assert.match(sent[0].text, /^🎉 Почалася подія «Подвійне пальне»/);
   // Later the same day another reminder (the reward case) may go, but the event is not told again.
   clock.t += 4 * H;
   rem.tick();

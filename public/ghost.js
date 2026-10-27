@@ -60,8 +60,8 @@ export function challengeLink(bot, app, id) {
   return app ? `https://t.me/${bot}/${app}?startapp=ch_${id}` : `https://t.me/${bot}?start=ch_${id}`;
 }
 export const chTime = (t) => Number(t).toFixed(3).replace('.', ',');
-// «11,842 с на Toyota Supra A80. Поб'єш?»
-export const challengeLine = (model, time) => `${chTime(time)} с на ${MODELS[model]?.name || 'машині'}. Поб'єш?`;
+// «11,842 с на Toyota Supra A80. Поб’єш?»
+export const challengeLine = (model, time) => `${chTime(time)} с на ${MODELS[model]?.name || 'машині'}. Поб’єш?`;
 export function challengeCaption({ who = '', model, time }) {
   return `🏁 ${who ? who + ' кидає виклик: ' : 'Виклик: '}${challengeLine(model, time)}\n👻 Їдь проти мого привида — драг 402 м в АВТОДРОП. Перший кейс безкоштовно 👇`;
 }

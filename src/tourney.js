@@ -334,7 +334,7 @@ export function createTourney(ctx) {
   function join(uid, { carId } = {}) {
     tick();
     const tid = TR.tidOf(now());
-    if (TR.phaseAt(tid, now()) !== 'reg') fail(`Реєстрація — з п'ятниці 18:00 до суботи 12:00`);
+    if (TR.phaseAt(tid, now()) !== 'reg') fail(`Реєстрація — з п’ятниці 18:00 до суботи 12:00`);
     if ((userRow(uid).level || 1) < T.minLevel) fail(`Турнір — з ${T.minLevel}-го рівня`);
     const c = ownCar(uid, carId);
     const cls = TR.bracketCls(S.MODELS[c.model].cls);

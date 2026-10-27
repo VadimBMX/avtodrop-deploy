@@ -683,7 +683,7 @@ VIEWS.referrals = async () => {
     <div class="cards">
       ${stat('Прийшли за запрошенням', r.total, all ? `${Math.round((r.total / all) * 100)}% усіх гравців` : '')}
       ${stat('Прийшли самі', r.organic)}
-      ${stat('Дійшли до 3 рівня', r.qualified, r.total ? `${Math.round((r.qualified / r.total) * 100)}% запрошених` : '')}
+      ${stat('Дійшли до 3-го рівня', r.qualified, r.total ? `${Math.round((r.qualified / r.total) * 100)}% запрошених` : '')}
       ${stat('Виплачено нагород', short(r.qualified * r.reward), `по ${short(r.reward)} за друга`)}
       ${stat('Хто запрошує', r.top.length, 'гравців з друзями')}
     </div>
