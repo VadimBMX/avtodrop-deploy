@@ -42,6 +42,11 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     } catch (e) {
       log('changelog:', e.message);
     }
+    try {
+      game.deliverOutbox(JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'outbox.json'), 'utf8')));
+    } catch (e) {
+      log('outbox:', e.message);
+    }
   }
 
   // Static files: gzip/brotli once per file version, ?v=<hash> URLs cached for a year, the rest revalidated (src/static.js).

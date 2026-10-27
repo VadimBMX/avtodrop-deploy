@@ -1,5 +1,9 @@
 import { PACKS, PACKS_ON_SALE, SHOP_BY_ID, VIP_SUB, ALL_MODELS, MAIN_COUNTRIES, REF_FRIEND_BONUS, fmt, short } from '../public/shared.js';
 import { CH_PARAM, challengeLine } from '../public/ghost.js';
+import fs from 'node:fs';
+
+// One-off owner messages by @username (src/outbox.json), re-read on each /start so a waiting one goes out then.
+const outbox = () => { try { return JSON.parse(fs.readFileSync(new URL('./outbox.json', import.meta.url), 'utf8')); } catch { return []; } };
 
 export const ME_EVERY = 3600e3; // getMe again every hour
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -165,6 +169,7 @@ export function createBot({ token, webappUrl, admins = [], game, inline = null, 
       await send(m.chat.id, '🔕 Нагадування вимкнено. Повідомлення про обміни, PvP і аукціони приходитимуть і далі.\n\nУвімкнути знову: /start або «Меню → Налаштування» в грі.');
     } else if (cmd === '/start') {
       const u = game.ensureUser(m.from, args[0]) || {};
+      try { game.deliverOutbox?.(outbox()); } catch {}
       const wasOff = !!game.push?.isOff(m.from.id);
       if (wasOff) game.push.set(m.from.id, true);
       // A ghost challenge's link: the reply names it and its button opens the game right on the challenge (?ch=<id>).

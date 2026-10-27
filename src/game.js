@@ -4180,6 +4180,30 @@ export function createGame(db, opts = {}) {
     }
     return { sent: ids.length, entries: fresh.length };
   }
+  // One-off messages from the owner to a person by @username (src/outbox.json: [{id, username, text}]). Each goes
+  // once (meta outbox_<id>); a username not in the game yet (never pressed /start) waits — sent on their /start —
+  // and the staff hear once that it's waiting.
+  function deliverOutbox(list = [], { send = notify, tell = true } = {}) {
+    let sent = 0;
+    for (const m of Array.isArray(list) ? list : []) {
+      if (!m?.id || !m.username || !m.text || metaGet(`outbox_${m.id}`) === 'sent') continue;
+      const u = q('SELECT id FROM users WHERE lower(username) = lower(?)').get(String(m.username).replace(/^@/, ''));
+      if (!u) {
+        if (tell && !metaGet(`outbox_${m.id}`)) {
+          metaSet(`outbox_${m.id}`, 'waiting');
+          for (const id of staffIds()) try { send(id, `✉️ Повідомлення для @${m.username} чекає: він ще не запускав бота. Щойно натисне /start у @avtodrop2026_bot — піде саме.`); } catch {}
+        }
+        continue;
+      }
+      try {
+        send(u.id, m.text);
+        metaSet(`outbox_${m.id}`, 'sent');
+        sent++;
+        for (const id of staffIds()) try { send(id, `✉️ Надіслано @${m.username}.`); } catch {}
+      } catch {}
+    }
+    return { sent };
+  }
   // ---------- roles in the admin panel ----------
   // owner: in ADMIN_IDS (Railway variable) — can't be changed from the panel; admin: everything; helper: only
   // looking at players, answering support and writing messages (HELPER_ACTIONS).
@@ -5538,5 +5562,5 @@ export function createGame(db, opts = {}) {
     alog(by ? `bot:${by}` : 'bot', 'promo', null, { code: c, amount: Number(amount), uses: Number(uses), days: days || null });
     return c;
   });
-  return { api, admin, adminCall, announceUpdates, push, pushCandidates: push.candidates, pushMark: push.mark, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, vipSub: (uid) => db.tx(() => vipSub(uid)), vipSubSet: (uid, cancel) => db.tx(() => vipSubSet(uid, cancel)), createPromo: botPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)), challengeInfo, challengeCard, flushStartupNotes, backfillSecrets: (o) => backfillSecrets({ force: true, ...o }) };
+  return { api, admin, adminCall, announceUpdates, deliverOutbox, push, pushCandidates: push.candidates, pushMark: push.mark, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, vipSub: (uid) => db.tx(() => vipSub(uid)), vipSubSet: (uid, cancel) => db.tx(() => vipSubSet(uid, cancel)), createPromo: botPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)), challengeInfo, challengeCard, flushStartupNotes, backfillSecrets: (o) => backfillSecrets({ force: true, ...o }) };
 }
