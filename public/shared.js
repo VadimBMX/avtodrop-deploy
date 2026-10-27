@@ -2355,7 +2355,7 @@ const COSMETIC_INFO = {
 };
 export function cosmeticOf(id) {
   const m = /^cos:s(\d{1,3}):([a-z]+)$/.exec(String(id || ''));
-  const info = m && COSMETIC_INFO[m[2]];
+  const info = m && Object.hasOwn(COSMETIC_INFO, m[2]) ? COSMETIC_INFO[m[2]] : null;
   if (!info) return styleCosmetic(id); // «Стиль» items for stars: "cos:x:<item>" (STYLE_ITEMS)
   const season = Number(m[1]);
   const themed = SEASON_THEMES[season]?.cos?.[m[2]];
@@ -3066,4 +3066,62 @@ export function shareCaption(modelId, serial = null) {
   if (m.edition) return `🏁 Я виграв на «Причалі» тиражну ${m.name}${serial ? ` ${serialText(serial)}` : ''} в АВТОДРОП! Колекційна ціна ${short(m.price)}.\nВідкрий свій перший кейс безкоштовно 👇`;
   const cls = CLASSES[m.cls];
   return `🏁 Я вибив ${m.cls === 'X' ? 'секретну' : cls.name.toLowerCase().replace(/ий$/, 'у')} ${m.name} в АВТОДРОП! Колекційна ціна ${short(m.price)}.\nВідкрий свій перший кейс безкоштовно 👇`;
+}
+
+// ---------- «Чесна гра»: checking a case drop from the revealed seed (the server's rollCase, step by step) ----------
+// roll(sub) = HMAC-SHA256(server seed, «client seed:nonce:sub») as a float (src/game.js fairRoll). The roll uses sub 0
+// (class), 1 (car), 2–3 (luck: a second throw of the class, the better kept), 10+ (the losing-streak save: up to
+// LUCK.tries re-throws for a car worth the case, then the cheapest such car). The drop record says which path it took
+// (forced: 0 the plain throw, 1/4 the guarantee, 2 luck or the save), so a plain drop has exactly one right answer.
+export const FAIR_SUBS = [0, 1, 2, 3, ...Array.from({ length: LUCK.tries * 2 }, (_, i) => 10 + i)];
+export function verifyCaseDrop(cs, d, roll) {
+  const pick = (entries, r) => {
+    let x = r * entries.reduce((s, [, w]) => s + w, 0);
+    for (const [k, w] of entries) if ((x -= w) < 0) return k;
+    return entries[entries.length - 1][0];
+  };
+  const pickM = (list, r) => {
+    const w = modelWeights(list);
+    return pick(list.map((m, i) => [m.id, w[i]]), r);
+  };
+  const forced = Number(d.forced) || 0;
+  const price = (id) => MODELS[id]?.price || 0;
+  // Which paths the record allows: the plain throw only (0), luck or the save (2), the guarantee (+ the save) (1, 4).
+  const allowed = (base, pity, save) => (forced === 1 || forced === 4 ? pity : pity ? false : forced === 2 ? base === 'luck' || save : base === 'roll' && !save);
+  // The shown odds, or «Вихідні удачі» (the top class of a rarity case lifted, luckWeights).
+  const sets = [[cs.weights, false]];
+  if (cs.group === 'rarity') sets.push([luckWeights(cs.weights, EVENTS.luck.topMult), true]);
+  for (const [w, event] of sets) {
+    const classes = CLASS_ORDER.filter((c) => w[c]).map((c) => [c, w[c]]);
+    const c0 = pick(classes, roll(0)), alt = pick(classes, roll(3));
+    const bases = [[c0, 'roll']];
+    if (rankOf(alt) > rankOf(c0)) bases.push([alt, 'luck']);
+    for (const [cb, base] of bases) {
+      const opts = [[cb, false]];
+      if ((forced === 1 || forced === 4) && rankOf(d.cls) > rankOf(cb) && cs.weights[d.cls]) opts.push([d.cls, true]);
+      for (const [cl, pity] of opts) {
+        // The gold step draws among the cars still missing from the collection at that moment: any car of that class.
+        let m = pity && forced === 4 ? (cs.pool(cl).some((x) => x.id === d.item) ? d.item : null) : pickM(cs.pool(cl), roll(1));
+        if (!m) continue;
+        let c = cl;
+        const hit = (save) => c === d.cls && m === d.item && allowed(base, pity, save) ? { ok: true, how: pity ? 'pity' : save ? 'save' : base, event } : null;
+        let r = hit(false);
+        if (r) return r;
+        let moved = false;
+        for (let i = 0; i < LUCK.tries && price(m) < cs.price; i++) {
+          const c2 = pick(classes, roll(10 + i * 2)), m2 = pickM(cs.pool(c2), roll(11 + i * 2));
+          if (price(m2) > price(m)) (m = m2, c = c2, moved = true);
+        }
+        if (moved && (r = hit(true))) return r;
+        if (price(m) < cs.price) {
+          const win = classes.flatMap(([k]) => cs.pool(k)).filter((x) => x.price >= cs.price).sort((a, b) => a.price - b.price)[0];
+          if (win) {
+            [m, c] = [win.id, win.cls];
+            if ((r = hit(true))) return r;
+          }
+        }
+      }
+    }
+  }
+  return { ok: false, how: null, event: false };
 }

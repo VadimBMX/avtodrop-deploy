@@ -14,8 +14,9 @@ export function verifyInitData(initData, botToken, maxAgeSec = 86400, nowSec = M
   const secret = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
   const calc = crypto.createHmac('sha256', secret).update(dataCheck).digest();
   if (!crypto.timingSafeEqual(calc, Buffer.from(hash, 'hex'))) return null;
+  // Fresh only: not older than maxAgeSec, and not from the future (5 min of clock drift allowed).
   const authDate = Number(params.get('auth_date'));
-  if (!authDate || nowSec - authDate > maxAgeSec) return null;
+  if (!Number.isSafeInteger(authDate) || authDate <= 0 || nowSec - authDate > maxAgeSec || authDate - nowSec > 300) return null;
   let user;
   try {
     user = JSON.parse(params.get('user') || 'null');
@@ -23,7 +24,7 @@ export function verifyInitData(initData, botToken, maxAgeSec = 86400, nowSec = M
     return null;
   }
   if (!user || !Number.isSafeInteger(user.id)) return null;
-  return { user, startParam: params.get('start_param') || null };
+  return { user, startParam: params.get('start_param') || null, authDate };
 }
 
 // Builds a signed initData string — used by tests.

@@ -6525,11 +6525,11 @@ PAGES.fair = async () => {
   const [hist, revealed] = await Promise.all([api('case/history'), api('fair/revealed')]);
   const seeds = Object.fromEntries(revealed.map((r) => [r.seedHash, r.seed]));
   const label = (h) => (S.MODELS[h.item] ? M(h.item).name : S.partLabel(...h.item.split(':')));
-  return `${honestGlossary()}<div class="card small">Кожне відкриття = HMAC-SHA256(серверний сід, «клієнтський сід:номер:0») → клас, «…:1» → предмет. Хеш серверного сіда видно заздалегідь, сам сід розкривається після заміни — тоді будь-який дроп можна перевірити.</div>
+  return `${honestGlossary()}<div class="card small">Кожне відкриття = HMAC-SHA256(серверний сід, «клієнтський сід:номер:0») → клас, «…:1» → предмет; «…:2», «…:3» — другий кидок класу (удача), «…:10» і далі — захист від серії невдач. Хеш серверного сіда видно заздалегідь, сам сід розкривається після заміни — тоді будь-який дроп можна перевірити.</div>
     <div class="card"><div class="small muted">Хеш поточного серверного сіда</div><div class="mono">${me.fair.seedHash}</div>
     <div class="small muted mt">Клієнтський сід</div><div class="row mt"><input id="cseed" value="${esc(me.fair.clientSeed)}"><button class="btn sm" data-act="saveSeed">OK</button></div>
     <div class="small muted mt">Відкриттів на цьому сіді: ${me.fair.nonce}</div><button class="btn ghost mt" data-act="rotateSeed">Замінити сід і розкрити поточний</button></div>
-    <div class="h2"><span>Останні дропи</span></div><div class="list">${hist.length ? hist.map((h) => `<div class="li"><div class="grow small">${clsBadge(h.cls)} <b>${esc(label(h))}</b>${h.forced ? ' <span class="chip">гарантія</span>' : ''}<div class="tiny muted">${esc((S.CASE_BY_ID[h.caseId] || S.PART_CASE_BY_ID[h.caseId]).name)} · #${h.nonce}</div></div>
+    <div class="h2"><span>Останні дропи</span></div><div class="list">${hist.length ? hist.map((h) => `<div class="li"><div class="grow small">${clsBadge(h.cls)} <b>${esc(label(h))}</b>${h.forced === 1 || h.forced === 4 ? ' <span class="chip">гарантія</span>' : ''}<div class="tiny muted">${esc((S.CASE_BY_ID[h.caseId] || S.PART_CASE_BY_ID[h.caseId]).name)} · #${h.nonce}</div></div>
       ${seeds[h.seedHash] ? `<button class="btn sm ghost" data-act="verify" data-seed="${seeds[h.seedHash]}" data-hash="${h.seedHash}" data-cs="${esc(h.clientSeed)}" data-n="${h.nonce}" data-case="${h.caseId}" data-cls="${h.cls}" data-item="${h.item}" data-forced="${h.forced}">Перевірити</button>` : '<span class="tiny muted">сід ще не розкрито</span>'}</div>`).join('') : '<div class="empty">Ще немає дропів</div>'}</div>`;
 };
 // Glossary of the two numbers every car shows (honest numbers, audit №1): on «Чесна гра» and behind the garage total.
@@ -6542,16 +6542,16 @@ H.rotateSeed = async () => (await confirmBox('Розкрити поточний 
 H.verify = async (d) => {
   const hashOk = (await sha256hex(d.seed)) === d.hash;
   const r0 = await hmacFloat(d.seed, `${d.cs}:${d.n}:0`), r1 = await hmacFloat(d.seed, `${d.cs}:${d.n}:1`);
-  let item, ok;
+  let item, ok, how = '';
   if (S.CASE_BY_ID[d.case]) {
-    const cs = S.CASE_BY_ID[d.case];
-    const cls = d.forced === '1' || d.forced === '4' ? d.cls : pickW(S.CLASS_ORDER.filter((c) => cs.weights[c]).map((c) => [c, cs.weights[c]]), r0);
-    const list = cs.pool(cls), w = S.modelWeights(list);
-    item = pickW(list.map((m, i) => [m.id, w[i]]), r1);
-    ok = hashOk && cls === d.cls && item === d.item;
-    // The gold step draws among the cars missing from the collection at that moment: the car is checked to be one of
-    // that class in this case.
-    if (d.forced === '4' && list.some((m) => m.id === d.item)) [item, ok] = [d.item, hashOk && cls === d.cls];
+    // Every path of the server's roll (S.verifyCaseDrop): the plain throw, luck, the guarantee, the streak save, the
+    // luck weekend's odds.
+    const rolls = {};
+    for (const sub of S.FAIR_SUBS) rolls[sub] = await hmacFloat(d.seed, `${d.cs}:${d.n}:${sub}`);
+    const v = S.verifyCaseDrop(S.CASE_BY_ID[d.case], { cls: d.cls, item: d.item, forced: d.forced }, (sub) => rolls[sub]);
+    ok = hashOk && v.ok;
+    item = d.item;
+    how = v.ok ? ({ roll: 'звичайний кидок', luck: 'удача — другий кидок класу', pity: 'гарантія класу', save: 'захист від серії невдач' })[v.how] + (v.event ? ' · шанси «Вихідних удачі»' : '') : 'жоден шлях кидка не дає цей дроп';
   } else {
     const pc = S.PART_CASE_BY_ID[d.case];
     const tier = pickW(Object.entries(pc.weights), r0);
@@ -6559,7 +6559,7 @@ H.verify = async (d) => {
     ok = hashOk && d.item.endsWith(':' + tier);
     item = `${type}:${tier}`;
   }
-  sheet(ok ? 'Дроп чесний' : 'Не збігається', `<div class="small">Хеш сіда збігається: <b>${hashOk ? 'так' : 'ні'}</b></div><div class="small mt">Числа: ${r0.toFixed(8)} / ${r1.toFixed(8)}</div><div class="small">Результат: ${esc(S.MODELS[item] ? M(item).name : S.partLabel(...item.split(':')))}</div><div class="mono mt">${esc(d.seed)}</div>`);
+  sheet(ok ? 'Дроп чесний' : 'Не збігається', `<div class="small">Хеш сіда збігається: <b>${hashOk ? 'так' : 'ні'}</b></div><div class="small mt">Числа: ${r0.toFixed(8)} / ${r1.toFixed(8)}</div><div class="small">Результат: ${esc(S.MODELS[item] ? M(item).name : S.partLabel(...item.split(':')))}</div>${how ? `<div class="small">Як випало: ${esc(how)}</div>` : ''}<div class="mono mt">${esc(d.seed)}</div>`);
 };
 
 // ---------- boot ----------

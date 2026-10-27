@@ -289,7 +289,7 @@ test('admin panel: every change needs confirm and a reason; both go to the log w
   const steps = [
     ['money', { id: 10, amount: -500 }], ['money', { id: 10, amount: 700, note: 'Подарунок' }], ['give-car', { id: 10, model: 'vaz-2107' }],
     ['part', { id: 10, type: 'eng', tier: 'pro', count: 2 }], ['part', { id: 10, type: 'eng', tier: 'pro', count: -5 }],
-    ['keys', { id: 10, caseId: 'rust', count: 3 }], ['set', { id: 10, field: 'slots', value: 9 }], ['luck', { id: 10, chance: 50, opens: 5 }],
+    ['keys', { id: 10, caseId: 'rust', count: 3 }], ['set', { id: 10, field: 'slots', value: 9 }], ['part', { id: 10, type: 'eng', tier: 'pro', count: 1 }],
     ['ban', { id: 10, banned: true }], ['ban', { id: 10, banned: false }], ['promo/create', { code: 'TEST1', amount: 100, uses: 2 }], ['promo/delete', { code: 'TEST1' }],
   ];
   steps.forEach(([name, body], i) => g.adminCall('tg:2', name, { ...body, confirm: true, reason: `причина ${i}` }));

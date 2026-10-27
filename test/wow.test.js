@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { openDb } from '../src/db.js';
-import { createGame, GameError } from '../src/game.js';
+import { createGame, GameError, fairRoll, pickWeighted, classEntries, pickModel } from '../src/game.js';
 import { createShareStore, jpegSize, SHARE } from '../src/share.js';
 import { createApp } from '../server.js';
 import * as S from '../public/shared.js';
@@ -13,8 +13,17 @@ function setup() {
   g.ensureUser({ id: 1, first_name: 'A' });
   db.prepare('UPDATE users SET balance = 1e12, slots = 40 WHERE id = 1').run();
   const call = (name, body = {}) => g.api[name](1, body);
-  // The next case opened drops this model (the admin "rigged drop" path, the same as a real roll for giveCar).
-  const rig = (model) => db.prepare('INSERT INTO rigged_drops (user_id, model, created_at) VALUES (1, ?, ?)').run(model, t);
+  // The next open of this case drops this model: a client seed is picked whose fair roll gives it (luck's throw kept
+  // out of the way), the same as a player choosing his own seed. (Admin-set drops are gone: owner 27.10.)
+  const rig = (model, caseId) => {
+    const cs = S.CASE_BY_ID[caseId], u = db.prepare('SELECT server_seed, nonce FROM users WHERE id = 1').get();
+    for (let i = 0; ; i++) {
+      const r = (sub) => fairRoll(u.server_seed, 'rig' + i, u.nonce + 1, sub);
+      if (r(2) < 0.99) continue;
+      const cls = pickWeighted(classEntries(cs.weights), r(0));
+      if (cls === S.MODELS[model].cls && pickModel(cs.pool(cls), r(1)) === model) return db.prepare('UPDATE users SET client_seed = ? WHERE id = 1').run('rig' + i);
+    }
+  };
   return { db, g, call, rig, advance: (ms) => (t += ms) };
 }
 // A dream that some case drops: the case with the best chance for it.
@@ -52,7 +61,7 @@ test('dream car drop: the case result is marked, me shows it as got; the achieve
   const { call, rig, advance } = setup();
   const { model, caseId } = dreamOf('A');
   call('dream/set', { model });
-  rig(model);
+  rig(model, caseId);
   const r = call('case/open', { caseId, count: 1 });
   assert.equal(r.results[0].car.model, model);
   assert.equal(r.results[0].dream, true);
@@ -66,10 +75,10 @@ test('dream car drop: the case result is marked, me shows it as got; the achieve
   call('dream/set', { model: other.id });
   assert.equal(call('me').dream.got, false);
   advance(S.DREAM.achAgeMs + 1000);
-  rig(other.id);
+  rig(other.id, S.dreamChances(other.id)[0].caseId);
   assert.equal(call('case/open', { caseId: S.dreamChances(other.id)[0].caseId, count: 1 }).results[0].dream, true);
   assert.equal(call('achievements').list.find((s) => s.key === 'dream').value, 1);
-  rig(other.id); // the same dream again: still one
+  rig(other.id, S.dreamChances(other.id)[0].caseId); // the same dream again: still one
   call('case/open', { caseId: S.dreamChances(other.id)[0].caseId, count: 1 });
   const st = call('achievements').list.find((s) => s.key === 'dream');
   assert.equal(st.value, 1);
@@ -82,7 +91,7 @@ test('dream car: a cheap (D/C) dream never counts for the achievement', () => {
   const { model, caseId } = dreamOf('D');
   call('dream/set', { model });
   advance(S.DREAM.achAgeMs + 1000);
-  rig(model);
+  rig(model, caseId);
   assert.equal(call('case/open', { caseId, count: 1 }).results[0].dream, true);
   assert.equal(call('achievements').list.find((s) => s.key === 'dream').value, 0);
 });

@@ -539,16 +539,6 @@ function controls(u) {
       <select id="gModel">${S.CLASS_ORDER.map((c) => `<optgroup label="Клас ${c} · ${S.CLASSES[c].name}">${models.filter((m) => m.cls === c).map((m) => `<option value="${m.id}">${esc(m.name)} — ${short(m.price)}${m.secret ? ' (секретна)' : ''}</option>`).join('')}</optgroup>`).join('')}</select>
       <label class="row small muted"><input type="checkbox" id="gNotify" checked style="width:auto"> Повідомити гравця</label>
       <button class="btn sm" data-act="giveCar">${ic('gift')} Видати</button></div>
-    <div class="act"><h3>${ic('sparkles')} Підкрутка</h3>
-      <div class="small muted">Зараз удача гравця: <b>${Math.round(u.luck * 100)}%</b>${u.luckLeft ? ` · увімкнено тобою ${Math.round(u.luckBonus * 100)}% ще на ${u.luckLeft} відкриттів` : ''}. З удачею кейс кидає клас двічі й бере кращий.</div>
-      <div class="row"><input id="lChance" class="grow" inputmode="numeric" placeholder="Шанс, %" value="${u.luckLeft ? Math.round(u.luckBonus * 100) : 60}">
-        <input id="lOpens" class="grow" inputmode="numeric" placeholder="На скільки відкриттів" value="${u.luckLeft || 20}"></div>
-      <div class="row"><button class="btn green sm grow" data-act="luck">${ic('sparkles')} Увімкнути</button>${u.luckLeft ? `<button class="btn ghost sm" data-act="luckOff">Вимкнути</button>` : ''}</div>
-      <h3 style="margin-top:10px">${ic('target-arrow')} Гарантована машина</h3>
-      <select id="rModel">${S.CLASS_ORDER.filter((c) => c !== 'X').map((c) => `<optgroup label="Клас ${c} · ${S.CLASSES[c].name}">${models.filter((m) => m.cls === c && !m.secret).map((m) => `<option value="${m.id}">${esc(m.name)} — ${short(m.price)}</option>`).join('')}</optgroup>`).join('')}</select>
-      <div class="small muted" id="rCases">${rigCases(models.find((m) => !m.secret)?.id)}</div>
-      <button class="btn sm" data-act="rig">${ic('target-arrow')} Випаде з наступного кейса</button>
-      ${u.rigs.length ? `<div class="small mt">Чекають: ${u.rigs.map((r) => `<span class="chip">${esc(model(r.model).name)} <a href="#" data-act="rigCancel" data-id="${r.id}">✕</a></span>`).join(' ')}</div>` : ''}</div>
     <div class="act"><h3>${ic('tool')} Деталі</h3>
       <div class="row"><select id="pType" class="grow">${S.PART_KEYS.map((k) => `<option value="${k}">${esc(S.PARTS[k].name)}</option>`).join('')}</select>
         <select id="pTier" class="grow">${S.TIERS.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div>
@@ -609,31 +599,6 @@ H.grantVip = () => {
 H.giveCar = () => {
   const m = $('#gModel').value;
   mutate('give-car', { id: uid(), model: m, notify: $('#gNotify').checked }, { title: 'Видати машину', summary: `${cls(model(m).cls)} <b>${esc(model(m).name)}</b> (${money(model(m).price)}) → ${who()}`, button: 'Видати' }, `${model(m).name} видано`);
-};
-// Which cases can drop this car (a guaranteed car comes out of the first of them the player opens).
-function rigCases(id) {
-  const m = S.MODELS[id];
-  if (!m) return '';
-  const cases = S.CASES.filter((cs) => !cs.starter && cs.weights[m.cls] && cs.pool(m.cls).some((x) => x.id === id));
-  return cases.length ? `Випаде, коли гравець відкриє: ${cases.map((cs) => esc(cs.name)).join(', ')}` : '<span class="bad">Ця машина не випадає з кейсів</span>';
-}
-document.addEventListener('change', (e) => {
-  if (e.target.id === 'rModel') $('#rCases').innerHTML = rigCases(e.target.value);
-});
-H.luck = () => {
-  const chance = num('#lChance'), opens = num('#lOpens');
-  if (!(chance > 0 && chance <= 100)) return toast('Шанс від 1 до 100%', true);
-  if (!(opens > 0)) return toast('Вкажи кількість відкриттів', true);
-  mutate('luck', { id: uid(), chance, opens }, { title: 'Підкрутка удачі', summary: `${who()}: <b>${chance}%</b> на ${opens} відкриттів кейсів`, button: 'Увімкнути' }, 'Підкрутку увімкнено');
-};
-H.luckOff = () => mutate('luck', { id: uid(), chance: 0 }, { title: 'Вимкнути підкрутку', summary: who(), button: 'Вимкнути' }, 'Підкрутку вимкнено');
-H.rig = () => {
-  const m = $('#rModel').value;
-  mutate('rig', { id: uid(), model: m }, { title: 'Гарантована машина', summary: `${cls(model(m).cls)} <b>${esc(model(m).name)}</b> випаде ${who()} з наступного кейса, де вона є`, button: 'Підкрутити' }, `${model(m).name} випаде з наступного кейса`);
-};
-H.rigCancel = (d, el, e) => {
-  e?.preventDefault();
-  mutate('rig-cancel', { rigId: Number(d.id) }, { title: 'Скасувати гарантовану машину', summary: who(), button: 'Скасувати гарантію' }, 'Скасовано');
 };
 function giveTake(name, body, n, what) {
   const take = n < 0;

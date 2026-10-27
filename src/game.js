@@ -32,6 +32,8 @@ function int(v, min, max, what = 'Значення') {
   if (!Number.isSafeInteger(n) || n < min || n > max) fail(`${what}: некоректне число`);
   return n;
 }
+// A lookup by a player-sent key: own keys only, so '__proto__' / 'constructor' never pick up Object's own members.
+const own = (obj, key) => (key != null && Object.hasOwn(obj, String(key)) ? obj[String(key)] : undefined);
 function idList(v, max) {
   if (v == null) return [];
   if (!Array.isArray(v) || v.length > max) fail('Некоректний список');
@@ -123,11 +125,15 @@ export function createGame(db, opts = {}) {
     } catch {}
   }
   const addMoney = (uid, n) => {
+    // A NaN/Infinity amount would turn the balance into NULL or garbage: the whole call is rolled back instead.
+    if (!Number.isFinite(n)) fail('Некоректна сума');
     const r = q('UPDATE users SET balance = balance + ? WHERE id = ?').run(Math.round(n), uid);
     if (r.changes) moneyFlow(Math.round(n));
     return r;
   };
   function pay(uid, n) {
+    // Only a real, non-negative amount can be paid: a negative price would add money, a NaN one would be free.
+    if (typeof n !== 'number' || !Number.isFinite(n) || n < 0) fail('Некоректна сума');
     if (!n) return;
     if (!q('UPDATE users SET balance = balance - ? WHERE id = ? AND balance >= ?').run(n, uid, n).changes) fail('Недостатньо гривень');
     moneyFlow(-n);
@@ -797,7 +803,7 @@ export function createGame(db, opts = {}) {
   }
   // keyOnly (a reward key opened from the rewards reveal): never pays — no key left → an error, not a paid opening.
   function openCase(uid, { caseId, count, keyOnly }) {
-    const cs = S.CASE_BY_ID[caseId];
+    const cs = own(S.CASE_BY_ID, caseId);
     if (!cs) fail('Невідомий кейс');
     const n = int(count ?? 1, 1, 6, 'Кількість');
     if (![1, 3, 6].includes(n)) fail('Можна відкрити 1, 3 або 6');
@@ -825,16 +831,9 @@ export function createGame(db, opts = {}) {
       const luck = cs.starter ? 0 : 1 - (1 - deal.boost) * (1 - luckOf(uid));
       // After a losing streak the roll aims for a car worth at least the case (see S.LUCK.streak / hardStreak).
       const save = deal.save && streak >= S.LUCK.streak ? { need: cs.price, force: streak >= S.LUCK.hardStreak } : null;
-      let { model, forced, lucky } = rollCase(uid, ecs, luck, save);
-      if (!cs.starter) q('UPDATE users SET luck_bonus_left = MAX(0, luck_bonus_left - 1) WHERE id = ?').run(uid);
-      // An admin-set car replaces this roll (the drop record keeps forced = 3 so it can be told apart).
-      const rig = cs.starter ? null : riggedFor(uid, cs);
-      if (rig) {
-        q('UPDATE rigged_drops SET used_at = ? WHERE id = ?').run(now(), rig.id);
-        q('UPDATE drops SET item = ?, cls = ?, forced = 3 WHERE id = (SELECT MAX(id) FROM drops WHERE user_id = ?)').run(rig.model, S.MODELS[rig.model].cls, uid);
-        model = rig.model;
-        lucky = 1;
-      }
+      // Owner 27.10: no admin-set drops or admin luck any more — every drop is the provably fair roll (rigged_drops
+      // and users.luck_bonus* stay in the schema for the old records only; no code path reads them).
+      const { model, forced, lucky } = rollCase(uid, ecs, luck, save);
       const { id, isNew, dream } = giveCar(uid, model, cs.starter ? null : cs.id);
       // luck_spent holds the fading sum of what these cases should give on average (their expected value).
       if (!cs.starter) {
@@ -865,15 +864,10 @@ export function createGame(db, opts = {}) {
   // One provably fair case roll with the pity guarantee; recorded in drops so it can be verified later.
   // A truly broke player (money + garage) gets the most luck; otherwise it comes from recent case results.
   function luckOf(uid) {
-    const u = q('SELECT balance, total_value, luck_spent, luck_got, luck_bonus, luck_bonus_left, cases_opened FROM users WHERE id = ?').get(uid);
+    const u = q('SELECT balance, total_value, luck_spent, luck_got, cases_opened FROM users WHERE id = ?').get(uid);
     let own = S.luckChance(u.luck_spent, u.luck_got, S.isBroke(u.balance, u.total_value));
     if (u.cases_opened < S.LUCK.newbieOpens) own = Math.max(own, S.LUCK.newbie); // a newcomer's first opens
-    return u.luck_bonus_left > 0 ? Math.max(own, u.luck_bonus) : own;
-  }
-  // Admin-set car for this case, if one is waiting and this case can drop it.
-  function riggedFor(uid, cs) {
-    return q('SELECT * FROM rigged_drops WHERE user_id = ? AND used_at IS NULL ORDER BY id').all(uid)
-      .find((r) => cs.weights[S.MODELS[r.model]?.cls] && cs.pool(S.MODELS[r.model].cls).some((m) => m.id === r.model));
+    return own;
   }
   function rollCase(uid, cs, luck = 0, save = null) {
     const classes = classEntries(cs.weights);
@@ -973,7 +967,7 @@ export function createGame(db, opts = {}) {
   const partOpenedAt = new Map();
   const partCooldown = opts.partCooldownMs ?? S.PART_COOLDOWN_MS;
   function openParts(uid, { caseId, type, count }) {
-    const pc = S.PART_CASE_BY_ID[caseId];
+    const pc = own(S.PART_CASE_BY_ID, caseId);
     if (!pc) fail('Невідомий кейс');
     if (type != null && !S.PART_KEYS.includes(type)) fail('Невідома деталь');
     if (type && pc.randomOnly) fail('У цьому кейсі лише випадкові деталі');
@@ -1048,6 +1042,7 @@ export function createGame(db, opts = {}) {
     q('INSERT INTO parts_cool (user_id, type, tier, until) VALUES (?, ?, ?, ?)').run(uid, type, tier, now() + S.PART_COOLDOWN_MIN * 60e3);
   }
   function uninstall(uid, { carId, type }) {
+    if (!S.PART_KEYS.includes(type)) fail('Невідома деталь');
     const c = ownCar(uid, carId, ['garage', 'showcase']);
     const old = q('SELECT tier FROM car_parts WHERE car_id = ? AND type = ?').get(c.id, type);
     if (!old) fail('Тут немає деталі');
@@ -3262,7 +3257,7 @@ export function createGame(db, opts = {}) {
       q('UPDATE users SET dream_car = NULL, dream_at = 0 WHERE id = ?').run(uid);
       return { dream: dreamOut(userRow(uid)) };
     }
-    const m = S.MODELS[String(model)];
+    const m = own(S.MODELS, model);
     if (!m) fail('Невідома машина');
     if (m.secret) fail('Секретну машину не можна обрати мрією — її дають лише за колекцію');
     const u = userRow(uid);
@@ -3786,7 +3781,7 @@ export function createGame(db, opts = {}) {
 
   // ---------- star shop: VIP, pass, starter pack, conveniences (S.SHOP_ITEMS) ----------
   function itemPrice(uid, itemId) {
-    const it = S.SHOP_BY_ID[itemId];
+    const it = own(S.SHOP_BY_ID, itemId);
     if (!it) fail('Невідомий товар');
     const u = userRow(uid);
     if (it.once && u.starter_bought) fail('Стартовий набір можна купити лише один раз');
@@ -3916,10 +3911,19 @@ export function createGame(db, opts = {}) {
     return { list, type: week ? 'week' : 'all', me: { place: myPlace, score: myScore }, endsAt: next.getTime() - 2 * 3600e3, prizes: S.WEEKLY_PRIZES };
   }
 
+  // Guessing codes: at most PROMO_FAILS wrong ones per player in PROMO_WINDOW (kept in memory; a restart forgives).
+  const PROMO_FAILS = 5, PROMO_WINDOW = 10 * 60e3, promoFails = new Map();
   function redeemPromo(uid, { code }) {
-    const c = String(code || '').trim().toUpperCase();
+    const f = promoFails.get(uid);
+    if (f && now() - f[0] < PROMO_WINDOW && f[1] >= PROMO_FAILS) fail('Забагато невдалих спроб — спробуй за 10 хвилин');
+    const c = String(code || '').trim().toUpperCase().slice(0, 64);
     const p = q('SELECT * FROM promos WHERE code = ?').get(c);
-    if (!p || p.uses_left <= 0 || (p.expires_at && p.expires_at < now())) fail('Промокод недійсний');
+    if (!p || p.uses_left <= 0 || (p.expires_at && p.expires_at < now())) {
+      if (!f || now() - f[0] >= PROMO_WINDOW) promoFails.set(uid, [now(), 1]);
+      else f[1]++;
+      if (promoFails.size > 10000) promoFails.clear();
+      fail('Промокод недійсний');
+    }
     if (q('SELECT 1 FROM promo_uses WHERE code = ? AND user_id = ?').get(c, uid)) fail('Ти вже використав цей промокод');
     q('INSERT INTO promo_uses (code, user_id) VALUES (?, ?)').run(c, uid);
     q('UPDATE promos SET uses_left = uses_left - 1 WHERE code = ?').run(c);
@@ -3959,8 +3963,9 @@ export function createGame(db, opts = {}) {
     });
   }
   // The bot's /give: same as the panel's money action (never below zero), logged as "bot".
-  function adminGive(userId, amount) {
-    return db.tx(() => adminMoney('bot', { id: userId, amount }));
+  // The bot's /give: logged with the owner who typed it (bot:<id>), not just «bot».
+  function adminGive(userId, amount, by = null) {
+    return db.tx(() => adminMoney(by ? `bot:${by}` : 'bot', { id: userId, amount }));
   }
   function stats() {
     return {
@@ -4043,7 +4048,7 @@ export function createGame(db, opts = {}) {
     const off = offset ? int(offset, 0, 1e9, 'Зсув') : 0;
     // An exact ID or @username comes first, whatever the sort.
     const exact = s ? '(CAST(u.id AS TEXT) = ? OR ulower(u.username) = ?) DESC, ' : '';
-    const list = q(`SELECT u.*, (SELECT COUNT(*) FROM cars c WHERE c.owner_id = u.id) cars FROM users u ${where} ORDER BY ${exact}${USER_SORT[sort] || USER_SORT.value} LIMIT 50 OFFSET ?`)
+    const list = q(`SELECT u.*, (SELECT COUNT(*) FROM cars c WHERE c.owner_id = u.id) cars FROM users u ${where} ORDER BY ${exact}${own(USER_SORT, sort) || USER_SORT.value} LIMIT 50 OFFSET ?`)
       .all(...args, ...(s ? [s, s] : []), off).map(userBrief);
     return { list, total: q(`SELECT COUNT(*) n FROM users u ${where}`).get(...args).n };
   }
@@ -4058,9 +4063,8 @@ export function createGame(db, opts = {}) {
         streak: u.streak, stats: { cases: u.cases_opened, races: u.races, wins: u.wins, merges: u.merges },
         banReason: u.ban_reason, referrer: u.referrer_id ? { id: u.referrer_id, name: name(u.referrer_id) } : null,
         referrals: q('SELECT COUNT(*) n FROM users WHERE referrer_id = ?').get(uid).n,
-        luck: luckOf(uid), luckBonus: u.luck_bonus, luckLeft: u.luck_bonus_left, role: roleOf(uid),
+        luck: luckOf(uid), role: roleOf(uid),
         achievements: (() => { const s = achievementState(uid); return { claimed: s.reduce((n, x) => n + x.claimed, 0), reached: s.reduce((n, x) => n + x.reached, 0), total: S.ACHIEVEMENTS.reduce((n, a) => n + a.goals.length, 0) }; })(),
-        rigs: q('SELECT id, model, created_at createdAt FROM rigged_drops WHERE user_id = ? AND used_at IS NULL ORDER BY id').all(uid),
         invited: q('SELECT id, level, total_value, created_at, last_seen, ref_paid FROM users WHERE referrer_id = ? ORDER BY created_at DESC LIMIT 200').all(uid)
           .map((f) => ({ id: f.id, name: name(f.id), level: f.level, value: f.total_value, createdAt: f.created_at, lastSeen: f.last_seen, paid: !!f.ref_paid })),
         collection: q('SELECT COUNT(*) n FROM collection WHERE user_id = ?').get(uid).n,
@@ -4444,35 +4448,6 @@ export function createGame(db, opts = {}) {
     alog(who, 'reset', uid, { cars: carIds.length, balance: balanceBefore, reason: why || null });
     return { cars: carIds.length };
   }
-  // Luck for a player: chance (0–100 %) that each of their next `opens` case rolls is thrown twice, the better kept.
-  function adminLuck(who, { id, chance, opens }) {
-    const uid = int(id, 1, Number.MAX_SAFE_INTEGER, 'ID');
-    userRow(uid);
-    const c = int(chance, 0, 100, 'Шанс');
-    const n = c ? int(opens, 1, 10000, 'Кількість відкриттів') : 0;
-    q('UPDATE users SET luck_bonus = ?, luck_bonus_left = ? WHERE id = ?').run(c / 100, n, uid);
-    alog(who, 'luck', uid, { chance: c, opens: n });
-    return { luckBonus: c / 100, luckLeft: n };
-  }
-  // A guaranteed car: it drops from the player's next opened case that contains it.
-  function adminRig(who, { id, model }) {
-    const uid = int(id, 1, Number.MAX_SAFE_INTEGER, 'ID');
-    userRow(uid);
-    const m = S.MODELS[model];
-    if (!m || m.secret) fail('Обери звичайну (не секретну) машину');
-    const cases = S.CASES.filter((cs) => !cs.starter && cs.weights[m.cls] && cs.pool(m.cls).some((x) => x.id === m.id));
-    if (!cases.length) fail('Ця машина не випадає з жодного кейса');
-    const r = q('INSERT INTO rigged_drops (user_id, model, created_at) VALUES (?, ?, ?)').run(uid, m.id, now());
-    alog(who, 'rig', uid, { model: m.id });
-    return { id: Number(r.lastInsertRowid), cases: cases.map((cs) => cs.id) };
-  }
-  function adminRigCancel(who, { rigId }) {
-    const r = q('SELECT * FROM rigged_drops WHERE id = ? AND used_at IS NULL').get(int(rigId, 1, Number.MAX_SAFE_INTEGER));
-    if (!r) fail('Вже випала або скасована');
-    q('DELETE FROM rigged_drops WHERE id = ?').run(r.id);
-    alog(who, 'rig-cancel', r.user_id, { model: r.model });
-    return {};
-  }
   function adminMessage(who, { id, text }) {
     const uid = int(id, 1, Number.MAX_SAFE_INTEGER, 'ID');
     userRow(uid);
@@ -4596,7 +4571,7 @@ export function createGame(db, opts = {}) {
     };
   }
   // 'tg:123' → '@name'; 'key' / 'local' / 'bot' stay as they are.
-  const adminName = (who) => (String(who).startsWith('tg:') ? name(Number(String(who).slice(3))) : String(who));
+  const adminName = (who) => (String(who).startsWith('tg:') ? name(Number(String(who).slice(3))) : String(who).startsWith('bot:') ? `bot · ${name(Number(String(who).slice(4)))}` : String(who));
 
   // ---------- dashboard: activity, payments and economy health per Kyiv day ----------
   // Minutes Kyiv is ahead of UTC at time t (2 or 3 hours), so SQL can bucket timestamps by Kyiv day.
@@ -4799,7 +4774,6 @@ export function createGame(db, opts = {}) {
     money: adminMoney, 'give-car': adminGiveCar, 'grant-premium': adminGrantPremium, 'remove-car': adminRemoveCar, part: adminGivePart, keys: adminGiveKeys,
     'give-plate': adminGivePlate, 'remove-plate': adminRemovePlate, search: (w, b) => adminSearch(b), 'check-plate': (w, b) => checkPlate(b.text),
     set: adminSetUser, ban: adminBan, message: adminMessage, reset: adminResetUser,
-    luck: adminLuck, rig: adminRig, 'rig-cancel': adminRigCancel,
     market: () => adminMarket(), 'market/remove': (w, b) => adminMarketRemove(w, b),
     'dealer/refresh': (w) => (restockDealer(true), alog(w, 'dealer-refresh', null, null), {}),
     promos: () => adminPromos(), 'promo/create': adminPromoCreate, 'promo/delete': adminPromoDelete,
@@ -4820,12 +4794,26 @@ export function createGame(db, opts = {}) {
   // `confirm: true` (the confirm dialog) and a `reason` of 3+ characters, which goes into admin_log with the action.
   // message / support/reply are not here: their text is the whole action and is logged as it is.
   const ADMIN_MUTATING = new Set(['money', 'give-car', 'grant-premium', 'remove-car', 'part', 'keys', 'give-plate', 'remove-plate', 'set', 'ban', 'reset',
-    'luck', 'rig', 'rig-cancel', 'market/remove', 'dealer/refresh', 'promo/create', 'promo/delete', 'role', 'broadcast',
+    'market/remove', 'dealer/refresh', 'promo/create', 'promo/delete', 'role', 'broadcast',
     'game-events/start', 'game-events/stop', 'casino-mode']);
+  // Actions on one player's account. An admin (not the owner) can't use them on his own account (no self-dealing) or on
+  // the owner / another admin; the target is body.id, or the owner of the car / plate.
+  const ADMIN_ON_PLAYER = new Set(['money', 'give-car', 'grant-premium', 'remove-car', 'part', 'keys', 'give-plate', 'remove-plate', 'set', 'ban', 'reset']);
+  function adminTargetOf(name, b) {
+    if (name === 'remove-car') return q('SELECT owner_id FROM cars WHERE id = ?').get(Number(b.carId) || 0)?.owner_id ?? null;
+    if (name === 'remove-plate') return q('SELECT owner_id FROM plates WHERE id = ?').get(Number(b.plateId) || 0)?.owner_id ?? null;
+    return Number.isSafeInteger(Number(b.id)) ? Number(b.id) : null;
+  }
   function adminCall(who, name, body) {
     if (!Object.hasOwn(admin, name)) return undefined;
     const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
-    if (!canDo(actorRole(who), name)) fail('Немає прав на цю дію');
+    const role = actorRole(who);
+    if (!canDo(role, name)) fail('Немає прав на цю дію');
+    if (role !== 'owner' && ADMIN_ON_PLAYER.has(name)) {
+      const target = adminTargetOf(name, b);
+      if (target != null && String(who) === `tg:${target}`) fail('Свій акаунт змінювати не можна — попроси власника');
+      if (target != null && ['owner', 'admin'].includes(roleOf(target))) fail('Акаунт власника чи іншого адміна змінює лише власник');
+    }
     let reason = null;
     if (ADMIN_MUTATING.has(name)) {
       reason = String(b.reason ?? '').trim().slice(0, 300);
@@ -5506,9 +5494,9 @@ export function createGame(db, opts = {}) {
   migrateProgress();
   migratePity();
   // The bot's /promo is logged like the panel's (who = "bot").
-  const botPromo = (code, amount, uses, days) => db.tx(() => {
+  const botPromo = (code, amount, uses, days, by = null) => db.tx(() => {
     const c = createPromo(code, amount, uses, days);
-    alog('bot', 'promo', null, { code: c, amount: Number(amount), uses: Number(uses), days: days || null });
+    alog(by ? `bot:${by}` : 'bot', 'promo', null, { code: c, amount: Number(amount), uses: Number(uses), days: days || null });
     return c;
   });
   return { api, admin, adminCall, announceUpdates, push, pushCandidates: push.candidates, pushMark: push.mark, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, vipSub: (uid) => db.tx(() => vipSub(uid)), vipSubSet: (uid, cancel) => db.tx(() => vipSubSet(uid, cancel)), createPromo: botPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)), challengeInfo, challengeCard, flushStartupNotes, backfillSecrets: (o) => backfillSecrets({ force: true, ...o }) };

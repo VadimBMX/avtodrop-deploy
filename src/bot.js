@@ -188,10 +188,10 @@ export function createBot({ token, webappUrl, admins = [], game, inline = null, 
       await send(m.chat.id, 'Опиши проблему з оплатою одним повідомленням і додай час покупки — адміністратор відповість найближчим часом.');
     } else if (isAdmin && cmd === '/promo') {
       const [code, amount, uses, days] = args;
-      const c = game.createPromo(code, Number(amount), Number(uses), days ? Number(days) : null);
+      const c = game.createPromo(code, Number(amount), Number(uses), days ? Number(days) : null, m.from.id);
       await send(m.chat.id, `Промокод ${c}: ${fmt(Number(amount))}, використань: ${uses}${days ? `, днів: ${days}` : ''}`);
     } else if (isAdmin && cmd === '/give') {
-      game.adminGive(Number(args[0]), Number(args[1]));
+      game.adminGive(Number(args[0]), Number(args[1]), m.from.id);
       await send(m.chat.id, `Нараховано ${fmt(Number(args[1]))} гравцю ${args[0]}`);
     } else if (isAdmin && cmd === '/admin') {
       await send(m.chat.id, canButton ? 'Адмін-панель 👇' : 'Адмін-панель відкривається з https-адреси гри: WEBAPP_URL/admin.html (ще не налаштовано).',

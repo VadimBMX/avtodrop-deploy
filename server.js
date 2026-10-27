@@ -18,7 +18,7 @@ import * as G from './public/ghost.js';
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.ico': 'image/x-icon', '.webp': 'image/webp', '.woff2': 'font/woff2', '.json': 'application/json; charset=utf-8' };
-const CSP = "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://t.me https://*.t.me https://telegram.org https://*.telegram.org; connect-src 'self'; frame-ancestors 'self' https://web.telegram.org https://*.telegram.org";
+const CSP = "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; form-action 'self'; img-src 'self' data: blob: https://t.me https://*.t.me https://telegram.org https://*.telegram.org; connect-src 'self'; frame-ancestors 'self' https://web.telegram.org https://*.telegram.org";
 const SECURITY = { 'x-content-type-options': 'nosniff', 'content-security-policy': CSP, 'referrer-policy': 'no-referrer' };
 
 export function createApp({ dbFile, token = '', dev = false, webappUrl = '', admins = [], adminKey = '', channelId = '', channelApi = null, log = console.error } = {}) {
@@ -83,10 +83,13 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
       if (!v) return null;
       game.ensureUser(v.user, v.startParam);
       if (authCache.size > 5000) authCache.clear();
-      authCache.set(init, { uid: v.user.id, until: Date.now() + 10 * 60e3 });
+      // Cached for 10 minutes, never past the moment the initData itself goes stale.
+      authCache.set(init, { uid: v.user.id, until: Math.min(Date.now() + 10 * 60e3, (v.authDate + 86400) * 1000) });
       return v.user.id;
     }
-    if (dev && req.headers['x-dev-user']) {
+    // DEV sign-in by header: only without a bot token (a test copy), or from this computer itself. With BOT_TOKEN set
+    // and DEV=1 left on by mistake, a request through the proxy can't sign in as anybody.
+    if (dev && req.headers['x-dev-user'] && (!token || isLocal(req))) {
       try {
         const u = JSON.parse(decodeURIComponent(String(req.headers['x-dev-user'])));
         game.ensureUser(u, u.start_param);
@@ -152,14 +155,19 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
   }
   const canAdmin = (req, uid) => !!game.roleOf(uid) || (dev && isLocal(req));
 
-  function limited(uid) {
+  // Per player: 60 calls in 10 s in all, and of those at most MONEY_MAX that move money, cars or rewards (MONEY_API).
+  // A key is `uid` or `money:uid`; the map is dropped when it grows too big (it only ever holds the last 10 s).
+  const MONEY_API = /^(case\/open|parts\/(open|merge|sell|sell-junk)|sell$|upgrade$|dealer\/|market\/(sell|buy|cancel|item-sell|item-buy|item-cancel)|auction\/(create|bid|cancel)|trade\/(create|accept)|room\/(offer|ready)|battle\/(create|join)|pvp\/(create|accept|request)|containers\/(bid|expert)|clubs?\/|promo$|shop\/|plate\/(generate|sell)|barn\/|prestige\/|rescue\/claim|rewards\/|weekly\/chest|[a-z]+\/claim$)/;
+  const MONEY_MAX = 30;
+  function limited(uid, max = 60) {
     const t = Date.now();
     const h = hits.get(uid);
     if (!h || t - h[0] > 10e3) {
+      if (hits.size > 50000) hits.clear();
       hits.set(uid, [t, 1]);
       return false;
     }
-    return ++h[1] > 60;
+    return ++h[1] > max;
   }
 
   function send(res, code, body, type = 'application/json; charset=utf-8') {
@@ -325,7 +333,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     if (req.method !== 'POST') return send(res, 405, { error: 'POST only' });
     const uid = authenticate(req);
     if (!uid) return send(res, 401, { error: 'Відкрий гру через Telegram' });
-    if (limited(uid)) return send(res, 429, { error: 'Забагато запитів, зачекай секунду' });
+    if (limited(uid) || (MONEY_API.test(name) && limited('money:' + uid, MONEY_MAX))) return send(res, 429, { error: 'Забагато запитів, зачекай секунду' });
     if (game.isBanned(uid)) return send(res, 403, { error: 'Акаунт заблоковано адміністрацією' });
     if (name === 'share/card' || name === 'share/prepare') return await handleShare(req, res, name, uid);
     if (name === 'challenge/prepare') return await handleChallengeShare(req, res, uid);
