@@ -4,8 +4,9 @@ const KIND_NAME = { drop: 'Міфічний дроп', secret: 'Секретне
 
 export async function channelPage({ api, esc, date }) {
   const v = await api('channel');
+  const g = await api('tggroups');
   const c = v.cfg;
-  const warn = !v.hasChannel ? 'Не задано змінну TG_CHANNEL_ID (@назва_каналу або -100…) — автопости вимкнені.'
+  const warn = !v.hasChannel ? 'Канал не задано — впиши його нижче в «Наші групи» (або змінна TG_CHANNEL_ID). Без нього автопости вимкнені.'
     : !v.hasBot ? 'Бот не підключено (BOT_TOKEN) — постити нікому.' : '';
   const kinds = Object.entries(v.kinds).map(([k, t]) => `<label class="row" style="gap:6px;margin:4px 0"><input type="checkbox" data-kind="${k}" ${c.kinds[k] ? 'checked' : ''}> ${esc(t)}</label>`).join('');
   const num = (id, val, min, max, step = 1) => `<input id="${id}" type="number" min="${min}" max="${max}" step="${step}" value="${val}" style="width:90px">`;
@@ -29,6 +30,15 @@ export async function channelPage({ api, esc, date }) {
         <textarea id="chTest" rows="3" maxlength="500" placeholder="Тестовий пост: автопости АВТОДРОПу підключено ✅" style="width:100%"></textarea>
         <div class="row" style="gap:8px;margin-top:8px"><button class="btn ghost sm" data-act="chTest" ${v.configured ? '' : 'disabled'}>Надіслати тест</button></div></div>
     </div>
+    <div class="panel"><h2>Наші групи <span class="sub">бонус за канал отримали: ${g.claims.channel} · за чат: ${g.claims.chat} · нагадування надіслано: ${g.nudged}</span></h2>
+      <p class="small muted">1) Створи в Telegram канал (пишуть лише адміни: оновлення, новини, коди) і групу-чат для гравців. 2) Додай @avtodrop2026_bot адміністратором у канал і учасником (краще адміном) у чат. 3) Впиши сюди @нік кожної (для приватної — id -100… і посилання-запрошення). У грі з’явиться «Наші групи в Telegram»: за вступ — ${esc(g.reward.channel)} за канал і ${esc(g.reward.chat)} за чат, раз на гравця; бот перевіряє, що гравець справді в групі. Тим, хто ще не вступив, бот нагадує з 2-го рівня: не частіше разу на 3 дні, щонайбільше 4 рази. Канал звідси ж іде під автопости.</p>
+      <div class="grid2">
+        <label>Канал з анонсами (@нік або -100…)<input id="tgChannel" value="${esc(g.channel)}" placeholder="@avtodrop_news" style="width:100%"></label>
+        <label>Посилання на канал (для приватного)<input id="tgChannelLink" value="${esc(g.channel.startsWith('-') ? g.channelLink : '')}" placeholder="https://t.me/+…" style="width:100%"></label>
+        <label>Чат гравців (@нік або -100…)<input id="tgChat" value="${esc(g.chat)}" placeholder="@avtodrop_chat" style="width:100%"></label>
+        <label>Посилання на чат (для приватного)<input id="tgChatLink" value="${esc(g.chat.startsWith('-') ? g.chatLink : '')}" placeholder="https://t.me/+…" style="width:100%"></label>
+      </div>
+      <div class="row" style="gap:8px;margin-top:10px"><button class="btn green sm" data-act="tgGroupsSave">Зберегти групи</button></div></div>
     <div class="panel"><h2>Останні пости</h2>${log}</div>`;
 }
 
@@ -39,6 +49,11 @@ export function channelActions({ mutate, $ }) {
       const body = { on: $('#chOn').checked, maxPerHour: Number($('#chMax').value), digest: $('#chDigest').checked, digestMin: Number($('#chDigestMin').value), jackpotX: Number($('#chJackpot').value), kinds };
       return mutate('channel/set', body, { title: body.on ? 'Автопости в канал: увімкнути' : 'Автопости в канал: вимкнути', danger: !body.on, button: 'Зберегти',
         summary: `Не більше ${body.maxPerHour} постів на годину${body.digest ? `, міфічні дропи — дайджестом раз на ${body.digestMin} хв` : ''}.` }, 'Налаштування каналу збережено');
+    },
+    tgGroupsSave: () => {
+      const body = { channel: $('#tgChannel').value, channelLink: $('#tgChannelLink').value, chat: $('#tgChat').value, chatLink: $('#tgChatLink').value };
+      return mutate('tggroups/set', body, { title: 'Наші групи в Telegram', button: 'Зберегти',
+        summary: `Канал: ${body.channel || '—'} · чат: ${body.chat || '—'}. Гравці побачать групи в «Меню» й зможуть забрати бонус.` }, 'Групи збережено');
     },
     chTest: () => mutate('channel/test', { text: $('#chTest').value }, { title: 'Тестовий пост у канал', button: 'Надіслати', summary: 'Пост одразу з’явиться в каналі — його бачитимуть підписники.' }, 'Тест надіслано'),
   };

@@ -32,7 +32,7 @@ function setup() {
 test('reminder groups: every kind has a group, muted groups drop their kinds', () => {
   for (const k of KINDS) assert.ok(groupOf(k), `${k} has a group`);
   assert.ok(KINDS.includes('club') && KINDS.includes('tourney'));
-  assert.deepEqual([...mutedKinds('bonus,nope')].sort(), ['daily', 'rcase']);
+  assert.deepEqual([...mutedKinds('bonus,nope')].sort(), ['daily', 'rcase', 'tggroup']);
   const c = { lastSeen: T0 - 2 * H, pushDay: null, pushCount: 0, pushLast: 0, sent: {}, ready: [{ kind: 'daily', at: T0, text: 'a' }, { kind: 'fuel', at: T0, text: 'b' }] };
   assert.deepEqual(pickReminder(c, T0), ['daily', 'fuel']);
   assert.deepEqual(pickReminder({ ...c, mute: 'bonus' }, T0), ['fuel']);

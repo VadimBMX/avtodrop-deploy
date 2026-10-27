@@ -10,6 +10,7 @@ import { createHalloween } from './halloween.js';
 import { createTg } from './tg.js';
 import { createSchedule } from './schedule.js';
 import { createBarn } from './barn.js';
+import { createTgGroups } from './tggroups.js';
 import { createClubs } from './clubs.js';
 import { createTourney } from './tourney.js';
 import { createPrestige } from './prestige.js';
@@ -585,7 +586,7 @@ export function createGame(db, opts = {}) {
     if (q('SELECT 1 FROM weeks WHERE week_id = ?').get(prev)) return;
     q('INSERT INTO weeks (week_id, settled_at) VALUES (?, ?)').run(prev, now());
     const rows = q(`SELECT id, CASE WHEN week_id = ? THEN total_value - week_start_value WHEN last_week_id = ? THEN last_week_growth END g
-                    FROM users WHERE week_id = ? OR last_week_id = ? ORDER BY g DESC, id LIMIT 10`).all(prev, prev, prev, prev);
+                    FROM users WHERE (week_id = ? OR last_week_id = ?) AND lb_hidden = 0 ORDER BY g DESC, id LIMIT 10`).all(prev, prev, prev, prev);
     rows.filter((r) => r.g > 0).forEach((r, i) => {
       addMoney(r.id, S.WEEKLY_PRIZES[i]);
       event(r.id, `🏆 Гонка тижня: ${i + 1}-е місце! +${S.fmt(S.WEEKLY_PRIZES[i])}`);
@@ -4097,7 +4098,7 @@ export function createGame(db, opts = {}) {
       user: {
         ...userBrief({ ...u, cars: null }), slots: u.slots, showcaseSlots: u.showcase_slots, capLevel: u.cap_level, xp: u.xp, xpNeed: S.xpForLevel(u.level),
         streak: u.streak, stats: { cases: u.cases_opened, races: u.races, wins: u.wins, merges: u.merges },
-        banReason: u.ban_reason, referrer: u.referrer_id ? { id: u.referrer_id, name: name(u.referrer_id) } : null,
+        banReason: u.ban_reason, lbHidden: !!u.lb_hidden, referrer: u.referrer_id ? { id: u.referrer_id, name: name(u.referrer_id) } : null,
         referrals: q('SELECT COUNT(*) n FROM users WHERE referrer_id = ?').get(uid).n,
         luck: luckOf(uid), role: roleOf(uid),
         achievements: (() => { const s = achievementState(uid); return { claimed: s.reduce((n, x) => n + x.claimed, 0), reached: s.reduce((n, x) => n + x.reached, 0), total: S.ACHIEVEMENTS.reduce((n, a) => n + a.goals.length, 0) }; })(),
@@ -4462,6 +4463,15 @@ export function createGame(db, opts = {}) {
     }
     alog(who, banned ? 'ban' : 'unban', uid, r ? { reason: r } : null);
     return {};
+  }
+  // Hide a player from every rating (week, all time, season, «Статок») and the weekly prizes, or show him again.
+  // Nothing of his is touched; the boards just skip him (owner 27.10).
+  function adminLbHide(who, { id, hidden }) {
+    const uid = int(id, 1, Number.MAX_SAFE_INTEGER, 'ID');
+    userRow(uid);
+    q('UPDATE users SET lb_hidden = ? WHERE id = ?').run(hidden ? 1 : 0, uid);
+    alog(who, hidden ? 'lb-hide' : 'lb-show', uid, null);
+    return { hidden: !!hidden };
   }
   // Wipes one player's progress back to a fresh start. Kept: the account itself, who invited them, payments,
   // ban status, the fairness seed and drop history. Their open deals are closed first so nobody else loses money.
@@ -4833,7 +4843,7 @@ export function createGame(db, opts = {}) {
   }
   // Admin handlers get (who, body); read-only ones ignore `who`. Each runs in one transaction.
   const adminHandlers = {
-    overview: () => adminOverview(), users: (w, b) => adminUsers(b), user: (w, b) => adminUser(b),
+    overview: () => adminOverview(), users: (w, b) => adminUsers(b), user: (w, b) => adminUser(b), 'lb-hide': adminLbHide,
     money: adminMoney, 'give-car': adminGiveCar, 'grant-premium': adminGrantPremium, 'remove-car': adminRemoveCar, part: adminGivePart, keys: adminGiveKeys,
     'give-plate': adminGivePlate, 'remove-plate': adminRemovePlate, search: (w, b) => adminSearch(b), 'check-plate': (w, b) => checkPlate(b.text),
     set: adminSetUser, ban: adminBan, message: adminMessage, reset: adminResetUser,
@@ -4856,12 +4866,12 @@ export function createGame(db, opts = {}) {
   // Actions that change a player or the economy. From the panel (adminCall, used by the HTTP endpoint) each needs
   // `confirm: true` (the confirm dialog) and a `reason` of 3+ characters, which goes into admin_log with the action.
   // message / support/reply are not here: their text is the whole action and is logged as it is.
-  const ADMIN_MUTATING = new Set(['money', 'give-car', 'grant-premium', 'remove-car', 'part', 'keys', 'give-plate', 'remove-plate', 'set', 'ban', 'reset',
+  const ADMIN_MUTATING = new Set(['lb-hide', 'money', 'give-car', 'grant-premium', 'remove-car', 'part', 'keys', 'give-plate', 'remove-plate', 'set', 'ban', 'reset',
     'market/remove', 'dealer/refresh', 'promo/create', 'promo/delete', 'role', 'broadcast',
     'game-events/start', 'game-events/stop', 'casino-mode']);
   // Actions on one player's account. An admin (not the owner) can't use them on his own account (no self-dealing) or on
   // the owner / another admin; the target is body.id, or the owner of the car / plate.
-  const ADMIN_ON_PLAYER = new Set(['money', 'give-car', 'grant-premium', 'remove-car', 'part', 'keys', 'give-plate', 'remove-plate', 'set', 'ban', 'reset']);
+  const ADMIN_ON_PLAYER = new Set(['lb-hide', 'money', 'give-car', 'grant-premium', 'remove-car', 'part', 'keys', 'give-plate', 'remove-plate', 'set', 'ban', 'reset']);
   function adminTargetOf(name, b) {
     if (name === 'remove-car') return q('SELECT owner_id FROM cars WHERE id = ?').get(Number(b.carId) || 0)?.owner_id ?? null;
     if (name === 'remove-plate') return q('SELECT owner_id FROM plates WHERE id = ?').get(Number(b.plateId) || 0)?.owner_id ?? null;
@@ -5031,6 +5041,23 @@ export function createGame(db, opts = {}) {
     return fn(who, body || {});
   });
   HELPER_ACTIONS.add('barn');
+  // Telegram groups (src/tggroups.js): the channel and the chat, their one-time bonus, the «заходь у групи» reminder.
+  const TGG = createTgGroups({ db, q, now, fail, metaGet, metaSet, addKeys, event });
+  handlers.tggroups = (uid) => ({ groups: TGG.status(uid) });
+  {
+    const meBase = handlers.me;
+    handlers.me = (uid, b) => ({ ...meBase(uid, b), groups: TGG.status(uid) });
+  }
+  push.candidates = ((base) => (rules) => TGG.remind(base(rules), rules))(push.candidates);
+  admin.tggroups = (who) => db.tx(() => {
+    if (!canDo(actorRole(who), 'tggroups')) fail('Немає прав на цю дію');
+    return TGG.adminGet();
+  });
+  admin['tggroups/set'] = (who, body = {}) => db.tx(() => {
+    if (!canDo(actorRole(who), 'tggroups/set')) fail('Немає прав на цю дію');
+    return TGG.adminSet(body || {});
+  });
+  ADMIN_MUTATING.add('tggroups/set');
   // «Автоклуби» (src/clubs.js, public/clubs.js): its calls and admin tab; wins feed the weekly league (drag, drift, boss,
   // «Заїзд дня»), collected income gets the club's perk, and the rating / battles / day's board show members' tags.
   CL = createClubs({ db, q, now, fail, int, name, addMoney, pay, event, addKeys, userRow, weekOf, dayOf,
@@ -5104,6 +5131,20 @@ export function createGame(db, opts = {}) {
   // frequent polls below (every few seconds, or several times a second in a live race), which change no cars.
   const LIGHT = new Set(['pulse', 'pvp/progress', 'pvp/state', 'containers/lot']);
   const WEEKLY_AFTER = { 'drift/finish': 'drift' };
+  // Players hidden from the ratings by an admin (users.lb_hidden): every board skips them, the places close up. The
+  // lists take a few extra rows so a hidden top player doesn't leave the board one short.
+  {
+    const lbBase = handlers.leaderboard;
+    handlers.leaderboard = (uid, b) => {
+      const r = lbBase(uid, b);
+      const hidden = new Set(q('SELECT id FROM users WHERE lb_hidden = 1').all().map((x) => x.id));
+      if (!hidden.size || !Array.isArray(r?.list)) return r;
+      const before = r.list.filter((x) => hidden.has(x.id));
+      r.list = r.list.filter((x) => !hidden.has(x.id)).map((x, i) => ({ ...x, place: i + 1 }));
+      if (r.me && !hidden.has(uid)) r.me = { ...r.me, place: Math.max(1, r.me.place - before.filter((x) => x.place < r.me.place).length) };
+      return r;
+    };
+  }
   const api = Object.fromEntries(Object.entries(handlers).map(([k, fn]) => [k, (uid, body = {}) => db.tx(() => {
     const light = LIGHT.has(k);
     if (!light) {
@@ -5562,5 +5603,5 @@ export function createGame(db, opts = {}) {
     alog(by ? `bot:${by}` : 'bot', 'promo', null, { code: c, amount: Number(amount), uses: Number(uses), days: days || null });
     return c;
   });
-  return { api, admin, adminCall, announceUpdates, deliverOutbox, push, pushCandidates: push.candidates, pushMark: push.mark, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, vipSub: (uid) => db.tx(() => vipSub(uid)), vipSubSet: (uid, cancel) => db.tx(() => vipSubSet(uid, cancel)), createPromo: botPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)), challengeInfo, challengeCard, flushStartupNotes, backfillSecrets: (o) => backfillSecrets({ force: true, ...o }) };
+  return { api, admin, adminCall, announceUpdates, deliverOutbox, tgGroups: { claim: (uid, w, member) => db.tx(() => TGG.claim(uid, w, member)), cfg: () => TGG.cfg() }, push, pushCandidates: push.candidates, pushMark: push.mark, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, vipSub: (uid) => db.tx(() => vipSub(uid)), vipSubSet: (uid, cancel) => db.tx(() => vipSubSet(uid, cancel)), createPromo: botPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)), challengeInfo, challengeCard, flushStartupNotes, backfillSecrets: (o) => backfillSecrets({ force: true, ...o }) };
 }

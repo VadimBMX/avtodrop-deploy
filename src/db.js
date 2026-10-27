@@ -477,6 +477,8 @@ const MIGRATIONS = [
   'ALTER TABLE users ADD COLUMN xp_case_used INTEGER NOT NULL DEFAULT 0',
   // Reminder groups the player switched off (src/reminders.js PUSH_GROUPS ids, comma-separated).
   "ALTER TABLE users ADD COLUMN push_mute TEXT NOT NULL DEFAULT ''",
+  // Owner 27.10: an admin can hide a player from the ratings (and the weekly prizes) and show him again.
+  'ALTER TABLE users ADD COLUMN lb_hidden INTEGER NOT NULL DEFAULT 0',
 ];
 
 export function openDb(file) {

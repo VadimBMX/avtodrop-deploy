@@ -125,7 +125,7 @@ const caseName = (id) => S.CASE_BY_ID[id]?.name || id;
 const tierCls = (tier) => S.TIER_BY_ID[tier]?.cls || 'D';
 const ACTIONS = {
   money: 'Гроші', 'give-car': 'Видано авто', 'remove-car': 'Вилучено авто', part: 'Деталі', keys: 'Ключі', set: 'Параметр',
-  ban: 'Бан', unban: 'Розбан', reset: 'Обнулено', 'dealer-refresh': 'Нові лоти дилера', 'give-plate': 'Видано номер', 'remove-plate': 'Забрано номер', message: 'Повідомлення', 'market-remove': 'Знято лот', promo: 'Промокод', 'promo-delete': 'Видалено промокод', support: 'Відповідь підтримки', role: 'Права',
+  ban: 'Бан', unban: 'Розбан', 'lb-hide': 'Приховано з рейтингу', 'lb-show': 'Повернуто в рейтинг', reset: 'Обнулено', 'dealer-refresh': 'Нові лоти дилера', 'give-plate': 'Видано номер', 'remove-plate': 'Забрано номер', message: 'Повідомлення', 'market-remove': 'Знято лот', promo: 'Промокод', 'promo-delete': 'Видалено промокод', support: 'Відповідь підтримки', role: 'Права',
   luck: 'Підкрутка', rig: 'Гарантована машина', 'rig-cancel': 'Скасовано гарантовану машину', broadcast: 'Розсилка', 'casino-mode': 'Режим казино',
   'containers-toggle': 'Причал: перемикач', 'containers-close': 'Причал: лот закрито',
   'event-start': 'Подія: запуск', 'event-stop': 'Подія: зупинка', 'plan-add': 'Розклад: додано', 'plan-edit': 'Розклад: змінено', 'plan-delete': 'Розклад: видалено', 'plan-seed': 'Розклад: типовий календар',
@@ -395,7 +395,7 @@ VIEWS.user = async () => {
     ['events', 'Сповіщення', events.length], ['log', 'Дії адмінів', log.length]];
   const starsPaid = payments.reduce((s, p) => s + p.stars, 0);
   return `<div class="crumb"><a data-go="users">‹ Усі гравці</a></div>
-    <div class="head"><h1>${esc(u.name)}</h1>${u.role ? `<span class="badge amber">${ic('shield-check')} ${ROLE_NAMES[u.role]}</span>` : ''}${u.banned ? `<span class="badge red">${ic('lock')} заблокований${u.banReason ? `: ${esc(u.banReason)}` : ''}</span>` : ''}
+    <div class="head"><h1>${esc(u.name)}</h1>${u.role ? `<span class="badge amber">${ic('shield-check')} ${ROLE_NAMES[u.role]}</span>` : ''}${u.lbHidden ? `<span class="badge">${ic('trophy')} прихований з рейтингу</span>` : ''}${u.banned ? `<span class="badge red">${ic('lock')} заблокований${u.banReason ? `: ${esc(u.banReason)}` : ''}</span>` : ''}
       ${u.legacy ? `<span class="badge blue" title="Грав у першу версію">${ic('clock')} гравець v1${u.legacy.stars ? ` · ⭐ ${u.legacy.stars}` : ''}</span>` : ''}
       <button class="btn ghost sm" data-act="reload">${ic('refresh')} Оновити</button></div>
     <div class="hero-row">
@@ -562,6 +562,11 @@ function controls(u) {
     <div class="act"><h3>${ic('refresh')} Обнулити прогрес</h3>
       <div class="small muted">Зникнуть усі машини, номери, деталі, гривні, рівень і колекція — як новий гравець. Лишаються акаунт, хто запросив, оплати й бан.</div>
       <button class="btn red sm" data-act="resetUser">${ic('refresh')} Обнулити гравця</button></div>
+    <div class="act"><h3>${ic('trophy')} Рейтинг</h3>
+      ${u.lbHidden ? `<div class="small">Гравець прихований з усіх рейтингів (тиждень, увесь час, сезон, «Статок») і не отримує призів тижня. Гараж і гроші — без змін.</div>
+        <button class="btn green sm" data-act="lbHide" data-v="0">Показати в рейтингу</button>`
+        : `<div class="small muted">Сховати з усіх рейтингів і призів тижня. Гравець далі грає як звичайно; повернути можна будь-коли.</div>
+        <button class="btn ghost sm" data-act="lbHide" data-v="1">Приховати з рейтингу</button>`}</div>
     <div class="act"><h3>${ic('lock')} Блокування</h3>
       ${u.banned ? `<div class="small">Гравець заблокований${u.banReason ? `: ${esc(u.banReason)}` : ''}. Не може грати, його лоти знято з ринку.</div>
         <button class="btn green sm" data-act="ban" data-v="0">Розблокувати</button>`
@@ -625,6 +630,12 @@ H.message = () => {
   const text = $('#msgText').value.trim();
   if (!text) return toast('Напиши текст', true);
   doAndReload('message', { id: uid(), text }, 'Надіслано');
+};
+H.lbHide = (d) => {
+  const hide = d.v === '1';
+  mutate('lb-hide', { id: uid(), hidden: hide }, hide
+    ? { title: 'Приховати з рейтингу', summary: `${who()} зникне з усіх рейтингів і призів тижня. Гараж, гроші й гра — без змін.`, button: 'Приховати' }
+    : { title: 'Показати в рейтингу', summary: `${who()} знову з’явиться в рейтингах.`, button: 'Показати' }, hide ? 'Приховано з рейтингу' : 'Повернуто в рейтинг');
 };
 H.ban = (d) => {
   const ban = d.v === '1';

@@ -137,7 +137,8 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
     }
   };
   const metaSet = (k, v) => q('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(k, JSON.stringify(v));
-  const configured = () => !!(channelId && api);
+  const chId = () => (typeof channelId === 'function' ? channelId() : channelId) || '';
+  const configured = () => !!(chId() && api);
   const cfg = () => normalizeCfg(metaGet('channel_cfg') || {});
   const maxId = (t) => q(`SELECT COALESCE(MAX(id), 0) m FROM ${t}`).get().m;
   let pending = [];
@@ -198,7 +199,7 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
     for (const w of q('SELECT week_id, settled_at FROM weeks WHERE settled_at > ?').all(since)) {
       if (!c.kinds.weekly || !once('weekly', w.week_id)) continue;
       const rows = q(`SELECT id, CASE WHEN week_id = ? THEN total_value - week_start_value WHEN last_week_id = ? THEN last_week_growth END g
-                      FROM users WHERE (week_id = ? OR last_week_id = ?) AND banned = 0 ORDER BY g DESC, id LIMIT 3`).all(w.week_id, w.week_id, w.week_id, w.week_id).filter((r) => r.g > 0);
+                      FROM users WHERE (week_id = ? OR last_week_id = ?) AND banned = 0 AND lb_hidden = 0 ORDER BY g DESC, id LIMIT 3`).all(w.week_id, w.week_id, w.week_id, w.week_id).filter((r) => r.g > 0);
       if (rows.length) found.push({ kind: 'weekly', week: w.week_id, at: w.settled_at, ref: w.week_id, top: rows.map((r) => ({ uid: r.id, name: shownName(r.id) || null, growth: r.g })) });
     }
     metaSet('channel_cur', { since, drop: topDrop, car: topCar });
@@ -225,8 +226,8 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
     const pic = p.type === 'single' ? pictureOf(e) : { photo: '', preview: '' };
     const reply_markup = button();
     const params = pic.photo
-      ? { chat_id: channelId, photo: pic.photo, caption: text.slice(0, 1024), parse_mode: 'HTML', ...(reply_markup ? { reply_markup } : {}) }
-      : { chat_id: channelId, text, parse_mode: 'HTML', link_preview_options: pic.preview ? { url: pic.preview, prefer_large_media: true, show_above_text: true } : { is_disabled: true }, ...(reply_markup ? { reply_markup } : {}) };
+      ? { chat_id: chId(), photo: pic.photo, caption: text.slice(0, 1024), parse_mode: 'HTML', ...(reply_markup ? { reply_markup } : {}) }
+      : { chat_id: chId(), text, parse_mode: 'HTML', link_preview_options: pic.preview ? { url: pic.preview, prefer_large_media: true, show_above_text: true } : { is_disabled: true }, ...(reply_markup ? { reply_markup } : {}) };
     const kind = p.type === 'digest' ? 'digest' : e.kind;
     try {
       await api(pic.photo ? 'sendPhoto' : 'sendMessage', params);
@@ -273,7 +274,7 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
   function status() {
     const c = cfg();
     return {
-      configured: configured(), hasChannel: !!channelId, hasBot: !!api, cfg: c, defaults: normalizeCfg({}), kinds: CHANNEL_KINDS,
+      configured: configured(), hasChannel: !!chId(), hasBot: !!api, cfg: c, defaults: normalizeCfg({}), kinds: CHANNEL_KINDS,
       pending: pending.length, optins: q('SELECT COUNT(*) n FROM channel_optin').get().n,
       lastHour: q('SELECT COUNT(*) n FROM channel_log WHERE ok = 1 AND test = 0 AND at > ?').get(now() - 3600e3).n,
       log: q('SELECT at, kind, n, ok, test, text, error FROM channel_log ORDER BY id DESC LIMIT 20').all(),
@@ -300,7 +301,7 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
       return status();
     }
     if (name === 'channel/test') {
-      if (!configured()) return { error: channelId ? 'Бот не підключено (BOT_TOKEN)' : 'Не задано TG_CHANNEL_ID', code: 400 };
+      if (!configured()) return { error: chId() ? 'Бот не підключено (BOT_TOKEN)' : 'Не задано TG_CHANNEL_ID', code: 400 };
       const ev = { kind: 'test', at: now(), text: String(body.text || '').trim().slice(0, 500) || 'Тестовий пост: автопости АВТОДРОПу підключено ✅' };
       const r = await post({ type: 'single', events: [ev] }, { test: true });
       alog(who, 'channel-test', { ok: r.ok, error: r.error || null, reason });

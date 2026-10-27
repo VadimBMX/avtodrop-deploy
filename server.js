@@ -92,7 +92,8 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
 
   const shares = createShareStore(); // drop cards uploaded for Telegram stories / shared messages (src/share.js)
   // Auto-posts to the Telegram channel (TG_CHANNEL_ID; src/channel.js). channelApi: a test's stand-in for the Bot API.
-  const channel = createChannel({ db, channelId, api: channelApi || (bot ? bot.call : null), log,
+  // The channel for auto-posts: the TG_CHANNEL_ID variable, or the announcement channel set in the admin panel.
+  const channel = createChannel({ db, channelId: () => channelId || game.tgGroups.cfg().channel, api: channelApi || (bot ? bot.call : null), log,
     imageUrl: (model) => (httpsOrigin() && carImages()[model] ? httpsOrigin() + '/' + carImages()[model] : ''),
     cardUrl: (id) => (httpsOrigin() && shares.get(id) ? `${httpsOrigin()}/share/${id}.jpg` : ''),
     playUrl: () => (bot?.username ? (tgApp() ? `https://t.me/${bot.username}/${tgApp()}?startapp=${CHANNEL_START}` : `https://t.me/${bot.username}?start=${CHANNEL_START}`) : '') });
@@ -350,7 +351,9 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
   async function handleApi(req, res, name) {
     if (name === 'config') {
       // Community links (Telegram channel with news, players' chat) come from Railway variables; empty = button hidden.
-      const community = { channel: process.env.TG_CHANNEL_URL || '', chat: process.env.TG_CHAT_URL || '' };
+      // Set in the admin panel («Канал» → «Наші групи», src/tggroups.js); the old variables are the fallback.
+      const g = game.tgGroups.cfg();
+      const community = { channel: g.channelLink || process.env.TG_CHANNEL_URL || '', chat: g.chatLink || process.env.TG_CHAT_URL || '' };
       // EMOJI_STATUS_ID: the custom emoji (🏁) the app offers for the Telegram status after a career milestone; empty = no offer.
       const emojiStatus = /^\d{5,25}$/.test(process.env.EMOJI_STATUS_ID || '') ? process.env.EMOJI_STATUS_ID : '';
       return send(res, 200, { dev, bot: bot?.username || null, stars: !!bot, packs: PACKS_ON_SALE ? PACKS : [], images: carImages(), thumbs: carThumbs(), partImages: folderImages('parts'), community, emojiStatus, app: tgApp(), inline: !!bot?.inline });
@@ -365,6 +368,21 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     const body = await readBody(req);
     // «Показувати мене в каналі» (src/channel.js): opt-in, off by default.
     if (name === 'settings/channel') return send(res, 200, channel.setShow(uid, !!body.on));
+    // The group bonus (src/tggroups.js): Telegram says whether the player is in the channel / chat, the game books it.
+    if (name === 'tggroups/claim') {
+      const w = body.which === 'chat' ? 'chat' : 'channel';
+      const chatId = game.tgGroups.cfg()[w];
+      if (!bot || !chatId) throw new GameError('Ця група ще не підключена');
+      let member = false;
+      try {
+        const m = await bot.call('getChatMember', { chat_id: chatId, user_id: uid });
+        member = ['creator', 'administrator', 'member'].includes(m?.status) || (m?.status === 'restricted' && !!m.is_member);
+      } catch (e) {
+        log('tggroups getChatMember:', w, e.message);
+        throw new GameError('Не вдалося перевірити — спробуй за хвилину');
+      }
+      return send(res, 200, game.tgGroups.claim(uid, w, member));
+    }
     if (name === 'shop/invoice') {
       if (!bot) throw new GameError('Оплата зірками стане доступною після підключення бота');
       if (body.item) return send(res, 200, { link: await bot.itemInvoiceLink(uid, String(body.item), game.itemPrice(uid, String(body.item))) });

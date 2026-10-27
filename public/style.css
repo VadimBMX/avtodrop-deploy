@@ -4541,3 +4541,12 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .drop-dock.dd-sold .opencase .oc-l { color: inherit; text-decoration: none; }
 .drop-dock.dd-sold .opencase .oc-p { opacity: .8; }
 .drop-dock.dd-sold .btn.dd-back { min-height: 40px; margin-top: 6px; padding: 6px; border: 0; background: none; color: var(--muted); font: 600 var(--t-md, 14.5px)/1.2 var(--f-body); }
+
+/* «Наші групи в Telegram» (owner 27.10): the channel and the chat with their join bonus. */
+.card.tgg { margin-top: 0; padding: 4px 12px; }
+.tgg-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+.tgg-row + .tgg-row { border-top: 1px solid var(--line, #1f2633); }
+.tgg-row b { display: block; font: 700 15px/1.2 var(--f-disp); }
+.tgg-row .btn.sm { width: auto; min-width: 104px; margin: 0; }
+.tgg-ic { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 11px; background: #229ed91f; color: #38bdf8; flex: none; }
+.tgg-new { color: var(--accent); font-weight: 700; }

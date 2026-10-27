@@ -4164,7 +4164,7 @@ TABS.menu = () => {
   const H2 = (t, r = '') => `<div class="hub-h"><span>${t}</span>${r ? `<span>${r}</span>` : ''}</div>`;
   const nextLock = S.UNLOCKS.find((u) => !isOpen(u.key) && !(u.key === 'casino' && casinoOff()));
   return `<div class="hub">${head}${pass}${homeCard()}
-    ${H2('Нагороди й прогрес')}<div class="hub-grid g2">${tiles.join('')}</div>${challengeHubRow()}${clubHub()}${prestigeHubRow()}
+    ${H2('Нагороди й прогрес')}<div class="hub-grid g2">${tiles.join('')}</div>${challengeHubRow()}${clubHub()}${prestigeHubRow()}${tgGroupsCard()}
     ${H2('Торгівля', nextLock && ['market', 'trades', 'tradein', 'plates'].includes(nextLock.key) ? `${ic('lock')} далі: ${nextLock.name} · рів. ${nextLock.level}` : '')}<div class="hub-grid g4">${trade.join('')}</div>
     ${H2('Ризикнути')}<div class="hub-grid g2">${risk.join('')}</div>
     ${H2('Магазин')}${store}
@@ -4219,6 +4219,35 @@ H.openAdmin = () => {
     sessionStorage.setItem('avtodrop-back', location.href);
   } catch {}
   location.href = 'admin.html';
+};
+// «Наші групи в Telegram» (src/tggroups.js): the channel and the chat, a one-time key for joining each. «Вступити»
+// opens the group in Telegram, «Забрати» asks the server, which checks with Telegram that the player is in it.
+const tgGroupsCard = () => {
+  const g = me?.groups;
+  if (!g) return '';
+  const rows = Object.entries(g).map(([w, x]) => `<div class="tgg-row"><span class="tgg-ic">${ic(w === 'channel' ? 'bell' : 'users')}</span>
+    <span class="grow"><b>${esc(x.name)}</b><span class="hub-i">${x.claimed ? `${ic('check')} бонус отримано` : `+${esc(x.reward)}`}</span></span>
+    ${x.claimed ? `<button class="btn sm ghost" data-act="openLink" data-page="${esc(x.link)}">Відкрити</button>`
+    : state.tggOpened?.[w] ? `<button class="btn sm" data-act="tggClaim" data-k="${w}">Забрати</button>` : `<button class="btn sm" data-act="tggJoin" data-k="${w}" data-page="${esc(x.link)}">${w === 'channel' ? 'Підписатись' : 'Вступити'}</button>`}</div>`).join('');
+  const left = Object.values(g).filter((x) => !x.claimed).length;
+  return `<div class="hub-h"><span>Наші групи в Telegram</span>${left ? `<span class="tgg-new">${left} ${left > 1 ? 'бонуси' : 'бонус'}</span>` : ''}</div><div class="card tgg">${rows}</div>`;
+};
+H.tggJoin = (d) => {
+  H.openLink(d);
+  (state.tggOpened ||= {})[d.k] = true;
+  setTimeout(render, 600);
+};
+H.tggClaim = async (d) => {
+  try {
+    const r = await api('tggroups/claim', { which: d.k });
+    me.groups = r.groups;
+    toast(`🎁 +${r.reward}`);
+    haptic('medium');
+  } catch (e) {
+    toast(e.message, true);
+    if (state.tggOpened) delete state.tggOpened[d.k];
+  }
+  render();
 };
 H.openLink = (d) => (tg?.openTelegramLink && /^https:\/\/t\.me\//.test(d.page) ? tg.openTelegramLink(d.page) : window.open(d.page, '_blank'));
 // ---------- support ----------
