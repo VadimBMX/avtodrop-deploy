@@ -14,7 +14,7 @@ export const PUMPKIN_SVG = '<svg viewBox="0 0 32 32" aria-hidden="true"><path d=
 const BAT_SVG = '<svg viewBox="0 0 40 16" aria-hidden="true"><path d="M20 5c1-2 2-2 3 0 3-3 8-4 12-2-2 1-3 3-3 5-2-1-4 0-5 2-1-1-3-1-4 0-1-1-3-1-4 0-1-2-3-3-5-2 0-2-1-4-3-5 4-2 9-1 12 2 1-2 2-2 3 0z" fill="#4a2d60"/></svg>';
 
 function untilText(h) {
-  if (!h.end) return 'увімкнено адміністрацією';
+  if (!h.end) return 'подія триває'; // switched on by hand (no calendar end): players get a neutral line, the admin page says how
   const d = new Date(h.end - 1);
   return `до ${d.toLocaleDateString('uk-UA', { day: 'numeric', month: 'numeric', timeZone: 'Europe/Kyiv' })} 23:59`;
 }

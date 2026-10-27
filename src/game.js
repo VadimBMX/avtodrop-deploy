@@ -402,9 +402,11 @@ export function createGame(db, opts = {}) {
     'casino/slots': 'casino', 'casino/roulette': 'casino', 'casino/crash/start': 'casino', 'casino/mines/start': 'casino',
   };
   const CASINO_GAME_OF = { 'casino/slots': 'slots', 'casino/roulette': 'roulette', 'casino/crash/start': 'crash', 'casino/mines/start': 'mines' };
-  function gate(uid, name) {
+  function gate(uid, name, body = {}) {
     const key = GATES[name];
     if (!key) return;
+    // Free drift training is open from level 1 (no fuel, no prize, no XP): the empty-tank card offers it (audit3 §3 №3).
+    if (name === 'drift/start' && body?.rival === 'train') return;
     needFeature(uid, key);
     if (CASINO_GAME_OF[name] && !S.casinoGameOpen(casinoMode(), CASINO_GAME_OF[name])) fail('Ця гра зараз недоступна — відкрита лише рулетка');
   }
@@ -5084,7 +5086,7 @@ export function createGame(db, opts = {}) {
       rollSeason(uid);
     }
     checkComeback(uid); // normally done at sign-in (ensureUser); here too for callers that skip it
-    gate(uid, k); // progressive unlock and the casino switch (GATES)
+    gate(uid, k, body); // progressive unlock and the casino switch (GATES)
     // Presence for "online" (trade hall, live PvP): written at most every 15 s so plain reads don't hit the disk.
     if (q('UPDATE users SET last_seen = ? WHERE id = ? AND (last_seen IS NULL OR last_seen < ?)').run(now(), uid, now() - 15e3).changes) markDay(uid);
     const r = fn(uid, body || {});

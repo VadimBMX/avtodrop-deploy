@@ -6,6 +6,7 @@
 import * as S from './shared.js';
 import * as P from './prestige.js';
 import { carArt } from './car.js';
+import { spendConfirm } from './firsthour.js'; // «точно?» with the amount before a big, final spend
 
 let cur = null; // the open sheet: { car: id } or { hall: true }
 let X = null; // { me(), H, ic, esc, sheet, act, api, carSheet, go, serverNow, clockOffset(), carInc(c), toast, closeModal }
@@ -93,6 +94,8 @@ function restyleSheet(id) {
 async function doRestyle(d, el) {
   const c = X.me().cars.find((x) => x.id === Number(d.id));
   if (!c) return;
+  const n = c.stars || 0, cost = P.restyleCost(c.model, n);
+  if (!(await spendConfirm({ title: `Рестайлінг ${S.MODELS[c.model].name} · ${P.STAR}${n + 1}`, amount: cost, balance: X.me().balance, note: 'Гроші не повертаються: ★ — це статус і +3% доходу, ціни продажу вони не додають.', ok: 'Зробити', force: true }))) return;
   el.disabled = true;
   const r = await X.act('prestige/restyle', { carId: c.id }, (r) => `${S.MODELS[c.model].name}: ${P.STAR}${r.stars} · +${Math.round(r.bonus * 100)}% доходу`, { rerender: true });
   restyleSheet(c.id);
@@ -115,7 +118,7 @@ async function hallSheet() {
     return `<div class="pr-tr${own ? ' own' : next ? ' next' : ''}"><span class="pr-tr-ic">${X.ic(own || next ? t.icon : 'lock')}</span><b>${X.esc(t.name)}</b><small>${own ? 'твій' : S.short(t.cost)}</small></div>`;
   }).join('');
   const nextT = st.next && P.TROPHIES[st.next.k];
-  const buy = nextT ? `<button class="btn ${offer.on ? 'ghost ' : ''}mt" data-act="prTrophy" ${m.balance < nextT.cost ? 'disabled' : ''}>${X.ic(nextT.icon)} ${X.esc(nextT.name)} · ${S.short(nextT.cost)}</button>${m.balance < nextT.cost ? `<div class="tiny muted center mt">Не вистачає ${S.short(nextT.cost - m.balance)}</div>` : ''}` : '<div class="small muted center mt">Зала повна — усі 10 трофеїв твої.</div>';
+  const buy = nextT ? `<button class="btn ${offer.on ? 'ghost ' : ''}mt" data-act="prTrophy" data-cost="${nextT.cost}" data-name="${X.esc(nextT.name)}" ${m.balance < nextT.cost ? 'disabled' : ''}>${X.ic(nextT.icon)} ${X.esc(nextT.name)} · ${S.short(nextT.cost)}</button>${m.balance < nextT.cost ? `<div class="tiny muted center mt">Не вистачає ${S.short(nextT.cost - m.balance)}</div>` : ''}` : '<div class="small muted center mt">Зала повна — усі 10 трофеїв твої.</div>';
   const cars = st.restyled.slice(0, 8).map((r) => {
     const c = m.cars.find((x) => x.id === r.carId) || { id: r.carId, model: r.model, stars: r.stars };
     const wait = r.nextAt && r.nextAt > X.serverNow();
@@ -166,6 +169,7 @@ export function installPrestige(ctx) {
   H.prHall = () => hallSheet();
   H.prPick = () => pickForRestyle();
   H.prTrophy = async (d, el) => {
+    if (!(await spendConfirm({ title: `Трофей: ${d.name || ''}`, amount: Number(d.cost) || 0, balance: X.me().balance, note: 'Трофей не продається і гроші не повертаються — він рахується в «Статку».', force: true }))) return;
     el.disabled = true;
     const r = await X.act('prestige/trophy', {}, (r) => `${r.trophy.name} — у Трофейній залі${r.title ? ` · титул «${r.title}»` : ''}`, { rerender: true });
     hallSheet();
@@ -173,8 +177,17 @@ export function installPrestige(ctx) {
   };
   // The offer was bought from the restyle sheet or the hall: reopen the same one with the new numbers.
   const reopen = () => (cur?.car ? restyleSheet(cur.car) : hallSheet());
-  H.prSlot = async () => (await X.act('buy-slot', {}, 'Місце в гаражі додано'), reopen());
-  H.prCap = async () => (await X.act('upgrade-cap', {}, 'Касу збільшено'), reopen());
+  H.prSlot = async () => {
+    if (!(await spendConfirm({ title: 'Місце в гаражі', amount: S.slotCost(X.me().slots), balance: X.me().balance }))) return;
+    await X.act('buy-slot', {}, 'Місце в гаражі додано');
+    reopen();
+  };
+  H.prCap = async () => {
+    const m = X.me(), o = S.nextCapOffer(m.capLevel, m.income?.capH);
+    if (o && !(await spendConfirm({ title: `Каса до ${o.hours} год`, amount: o.cost, balance: m.balance }))) return;
+    await X.act('upgrade-cap', {}, 'Касу збільшено');
+    reopen();
+  };
   H.prBoard = () => {
     X.closeModal();
     X.state().lbType = 'wealth';

@@ -22,6 +22,7 @@ const challengeCard = (o) => import('./challenge-card.js').then((x) => x.challen
 import { installHalloween, hwNight, HW_DRIFT, hwDriftPumpkins, hwDriftOverlay } from './halloween-ui.js';
 // «Сарайна знахідка»: the «Сарай» page, a garage row and a menu row (public/barn-ui.js).
 import { installBarn } from './barn-ui.js';
+import { installTopStrip, raceCarChoice, garageSig, bossWall, sovietEra } from './firsthour.js';
 // «Автоклуби»: page «Клуб», [TAG] next to names, the menu row, club_<code> invite links (public/clubs-ui.js).
 import { installClubs, clubTag, clubHub, clubFromLink } from './clubs-ui.js';
 // D-race: the boss's fight-poster intro before the lights; «scene mode» (no tab bar) while a run is on screen.
@@ -62,10 +63,11 @@ const flag = (id) => S.COUNTRIES[M(id).country].flag;
 // Where a car is from, as a chip. The «Україна/СРСР» case mixes Ukrainian makes with Soviet ones (ВАЗ, ГАЗ, Москвич…):
 // the Ukrainian flag goes only with ЗАЗ / ЛуАЗ / own prototypes, a Soviet car gets a grey «СРСР» tag instead.
 const SOVIET_RE = /^(ВАЗ|Lada|Москвич|ГАЗ|ЗІЛ|УАЗ|ІЖ|ИЖ)(?=[\s-]|$)/; // (\b is ASCII-only, useless after a Cyrillic letter)
-const originText = (m) => (m.country === 'UA' ? (SOVIET_RE.test(m.name) ? 'СРСР · радянська класика' : '🇺🇦 Україна') : `${S.COUNTRIES[m.country].flag} ${S.COUNTRIES[m.country].name}`);
+const isSoviet = (m) => SOVIET_RE.test(m.name) && sovietEra(m); // brand AND era: ВАЗ-2114 (2010), Priora (2012) are «Україна»
+const originText = (m) => (m.country === 'UA' ? (isSoviet(m) ? 'СРСР · радянська класика' : '🇺🇦 Україна') : `${S.COUNTRIES[m.country].flag} ${S.COUNTRIES[m.country].name}`);
 const originChip = (id) => {
   const m = M(id), c = S.COUNTRIES[m.country];
-  if (m.country === 'UA') return SOVIET_RE.test(m.name) ? '<span class="chip origin su"><i>СРСР</i> Радянська класика</span>' : `<span class="chip origin">${c.flag} Україна</span>`;
+  if (m.country === 'UA') return isSoviet(m) ? '<span class="chip origin su"><i>СРСР</i> Радянська класика</span>' : `<span class="chip origin">${c.flag} Україна</span>`;
   return `<span class="chip origin">${c.flag} ${c.name}</span>`;
 };
 // Line icons from public/icons.svg (Tabler, MIT).
@@ -541,6 +543,7 @@ const PAGE_FEATURE = { plates: 'plates', market: 'market', tradein: 'tradein', t
 const TAB_FEATURE = { shop: 'parts' };
 installBarn({ me: () => me, state: () => state, api, act, H, ic, esc, sheet, go, carArt, FX, PAGES, PAGE_TITLES, PAGE_FEATURE, isOpen, lockChip,
   untilSpan: (t) => untilSpan(t), serverNow: () => serverNow(), confirmBox: (t) => confirmBox(t), toast: (...a) => toast(...a), render: () => render(), closeModal: () => closeModal() });
+installTopStrip({ state: () => state }); // firsthour: one strip on top of «Гараж»/«Меню», by priority
 function lockBody(key) {
   const u = S.UNLOCK_BY_KEY[key];
   if (key === 'casino' && casinoOff()) return `<div class="center lockcard"><span class="lockic">${ic('lock')}</span><b class="big">${u.name}</b><div class="muted mt">Казино зараз вимкнено.</div></div>`;
@@ -1075,6 +1078,7 @@ H.carShowcase = async (d) => {
 };
 H.raceWith = (d) => {
   state.raceCar = state.raceCarPicked = Number(d.id);
+  markRaceCarPick();
   state.tab = 'race';
   state.page = null;
   state.raceView = 'race';
@@ -1493,7 +1497,7 @@ TABS.cases = () => {
     ${cs.starter ? '' : (() => {
       const fr = me.fragments?.[cs.id] || 0, need = S.FRAGMENTS_PER_KEY;
       return `<div class="card hooks mt">
-        <div class="hook"><div class="row between"><span class="hook-t">${ic('key')} Фрагменти ключа</span><b>${fr}<small>/${need}</small></b></div><div class="pips">${Array.from({ length: need }, (_, i) => `<i class="${i < fr ? 'on' : ''}"></i>`).join('')}</div><div class="tiny muted">Кожна машина дешевша за кейс дає фрагмент · ${need} фрагментів = безкоштовне відкриття${keys ? ` · у тебе ${ic('key')} ${keys}` : ''}${S.originSellOf(cs.id) < 1 ? `<br>Машини з цього кейсу продаються одразу за ×${dec(S.originSellOf(cs.id), 2)} звичайного викупу; у гаражі, доході й колекції — повна вартість` : ''}</div></div>
+        <div class="hook"><div class="row between"><span class="hook-t">${ic('key')} Фрагменти ключа</span><b>${fr}<small>/${need}</small></b></div><div class="pips">${Array.from({ length: need }, (_, i) => `<i class="${i < fr ? 'on' : ''}"></i>`).join('')}</div><div class="tiny muted">Фрагмент дає машина, чия колекційна ціна нижча за ціну кейсу (не сума продажу) · ${need} фрагментів = безкоштовне відкриття${keys ? ` · у тебе ${ic('key')} ${keys}` : ''}${S.originSellOf(cs.id) < 1 ? `<br>Машини з цього кейсу продаються одразу за ×${dec(S.originSellOf(cs.id), 2)} звичайного викупу; у гаражі, доході й колекції — повна вартість` : ''}</div></div>
         ${S.pitySteps(cs).map(pityHook).join('')}
       </div>`;
     })()}
@@ -1840,9 +1844,8 @@ TABS.race = async () => {
   const seg = `<div class="seg">${[['race', 'Драг-заїзд'], ['career', "Кар’єра"], ['drift', 'Дрифт'], ['pvp', 'PvP']].map(([k, t]) => `<button class="${state.raceView === k ? 'on' : ''} ${isOpen(k) ? '' : 'locked'}" data-act="raceView" data-k="${k}">${isOpen(k) ? '' : ic('lock')}${t}</button>`).join('')}</div>${eventStrip(['race', 'fuel'])}`;
   const garage = me.cars.filter((c) => c.status === 'garage');
   if (!garage.length) return seg + emptyBox('flag-3', 'Немає на чому їхати', 'Для гонки потрібна хоча б одна машина в гаражі', '<button class="btn sm" data-act="toCases">Відкрити кейс</button>');
-  if (!garage.some((c) => c.id === state.raceCar)) state.raceCar = prefGet('raceCar', (id) => garage.some((c) => c.id === id)) || [...garage].sort((a, b) => (b.tank > 0) - (a.tank > 0) || a.et - b.et)[0].id;
+  syncRaceCar(garage);
   readyRaceCar(garage);
-  prefSet('raceCar', state.raceCar);
   const car = garage.find((c) => c.id === state.raceCar);
   if (state.raceView === 'pvp') return seg + await pvpView(car);
   if (state.raceView === 'drift') return seg + await driftView(car, garage);
@@ -1886,13 +1889,17 @@ function fuelRow(car) {
 }
 // An empty tank: the rivals below grey out (CSS .fuel-out ~ .rivals) and this card says when the next one comes and
 // what to do meanwhile — instead of an error toast on a tap. The screen redraws itself when the fuel is back.
-function fuelOut() {
+function fuelOut(train = true) {
   fuelBackSoon();
   const next = me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : 'скоро +1';
   return `<div class="card fuelcard fuel-out mt" id="fuelOut"><div class="row between"><span class="hook-t">${ic('gas-station')} Пальне ${me.fuel}/${S.FUEL_MAX}</span><b class="fuel-next">${next}</b></div>
     <div class="pips fuel">${Array.from({ length: S.FUEL_MAX }, () => '<i></i>').join('')}</div>
-    <div class="small">Поки бак наповнюється — відкрий кейс або забери нагороду: кейс нагород буває з повним баком.</div>
-    <div class="btns mt"><button class="btn sm" data-act="toCases">${ic('box')} Кейси</button><button class="btn sm ghost" data-act="fuelGifts">${ic('gift')} Нагороди</button></div></div>`;
+    ${train ? `<div class="small">Поки бак наповнюється — потренуйся в дрифті: тренування безкоштовне, без пального, з підказками над кожним поворотом.</div>
+    <button class="btn mt fh-train" data-act="fuelTrain">${ic('target-arrow')} Тренування дрифту · безкоштовно</button>
+    <div class="tiny muted mt">Або відкрий кейс чи забери нагороду: кейс нагород буває з повним баком.</div>
+    <div class="btns mt"><button class="btn sm ghost" data-act="toCases">${ic('box')} Кейси</button><button class="btn sm ghost" data-act="fuelGifts">${ic('gift')} Нагороди</button></div></div>`
+    : `<div class="small">Поки бак наповнюється — тренування нижче безкоштовне. Або відкрий кейс чи забери нагороду: кейс нагород буває з повним баком.</div>
+    <div class="btns mt"><button class="btn sm ghost" data-act="toCases">${ic('box')} Кейси</button><button class="btn sm ghost" data-act="fuelGifts">${ic('gift')} Нагороди</button></div></div>`}`;
 }
 let fuelTimer = 0;
 function fuelBackSoon() {
@@ -1913,6 +1920,8 @@ function fuelNudge() {
   FX.shake(card, 360);
 }
 H.fuelGifts = () => openRewards();
+// Empty tank → the free drift training right away (no fuel; open from level 1 on the server too).
+H.fuelTrain = () => H.startDrift({ rival: 'train' });
 // The car picker rail: the chosen car is always in view (it may be the 20th of 30), without moving the page.
 // Race / drift / PvP verdict, once it is on screen: a win throws yellow confetti and counts the prize up,
 // a loss gives the verdict a small shake.
@@ -1955,7 +1964,22 @@ AFTER.race = () => {
   if (dx < 16 || dx + cur.offsetWidth > pick.clientWidth - 16) pick.scrollLeft += dx - 16;
 };
 H.raceView = (d) => (isOpen(d.k) ? (state.raceView = d.k, render()) : lockedSheet(d.k));
-H.pickRaceCar = (d) => (state.raceCar = state.raceCarPicked = Number(d.id), prefSet('raceCar', state.raceCar), render());
+H.pickRaceCar = (d) => (state.raceCar = state.raceCarPicked = Number(d.id), markRaceCarPick(), render());
+// firsthour (audit3 §3 №3в): the race car. A car picked by hand stays for this session while the garage keeps the
+// same cars (and after a restart, if it still does); a new, sold or won car → the best car that can go again.
+// Automatic picks are never saved, so a faster car becomes the default by itself.
+function syncRaceCar(garage) {
+  const saved = prefGet('raceCar', (v) => !!v && typeof v === 'object' && typeof v.sig === 'string');
+  const ch = raceCarChoice(garage, { picked: state.raceCarPicked, pickedSig: state.raceCarSig, saved });
+  state.raceCar = ch.id;
+  state.raceCarPicked = ch.picked ? ch.id : null;
+  state.raceCarSig = ch.sig;
+}
+// Call right after setting state.raceCar(Picked) by hand: remembers the pick with the garage it was made in.
+function markRaceCarPick() {
+  state.raceCarSig = garageSig(me.cars.filter((c) => c.status === 'garage'));
+  prefSet('raceCar', { id: state.raceCar, sig: state.raceCarSig });
+}
 // A remembered car with an empty tank never stays the default when another car can go (audit: the career opened on
 // the Москвич 0/5 while the BYD was full) — unless the player picked it himself in this session. `ok` narrows it
 // further (the career: a class the next boss takes). The fastest ready car wins.
@@ -1965,7 +1989,6 @@ function readyRaceCar(garage, ok = () => true) {
   const alt = garage.filter((c) => c.tank > 0 && ok(c)).sort((a, b) => a.et - b.et)[0];
   if (!alt) return false;
   state.raceCar = alt.id;
-  prefSet('raceCar', alt.id);
   return true;
 }
 
@@ -2601,7 +2624,7 @@ async function driftView(car, garage) {
   const dots = S.driftDots(model);
   return `<div class="h2"><span>Твоя машина</span><span>${garage.length}</span></div>
     <div class="carpick dr-strip">${garage.map((c) => carTile(c, { act: 'pickRaceCar', sel: c.id === car.id, showTank: true })).join('')}</div>
-    ${me.fuel < 1 ? fuelOut() : ''}<div class="card mt"><div class="row between"><b class="disp" style="font-size:16px">${ic('gas-station')} Пальне ${me.fuel}/${S.FUEL_MAX}</b><span class="small muted">${me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}"></span>` : 'бак повний'}</span></div>
+    ${me.fuel < 1 ? fuelOut(false) : ''}<div class="card mt"><div class="row between"><b class="disp" style="font-size:16px">${ic('gas-station')} Пальне ${me.fuel}/${S.FUEL_MAX}</b><span class="small muted">${me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}"></span>` : 'бак повний'}</span></div>
       <div class="dfeel mt"><div class="row between"><span>Тримається в повороті</span>${dDots(dots.hold)}</div><div class="row between"><span>Швидкість</span>${dDots(dots.speed)}</div></div>
       <div class="tiny muted mt">Підвіска й диски — машина краще тримається в повороті. Потужність — більше швидкості, але занос різкіший.</div></div>
     ${train && prefGet('driftWon') ? `<div class="card mt dtrain-row"><span class="grow">${ic('target-arrow')} <b>Тренування</b> · безкоштовно</span><button class="btn sm ghost" data-act="startDrift" data-rival="train">${ic('player-play')} Тренуватися</button></div>`
@@ -2623,7 +2646,7 @@ async function driftView(car, garage) {
       <p>Залетиш у поворот надто швидко або з малим кутом — <b>«Знесло!»</b>. Перебереш кут — <b>«Розворот!»</b> і половина очок повороту згорає. Чисті повороти поспіль множать очки: комбо ×1,5 → ×2 → … ×3.</p></div>`;
 }
 H.startDrift = async (d) => {
-  if (fuelNow() < 1) return fuelNudge();
+  if (d.rival !== 'train' && fuelNow() < 1) return fuelNudge(); // training takes no fuel
   let r;
   try {
     r = await api('drift/start', { carId: state.raceCar, rival: d.rival });
@@ -3078,7 +3101,7 @@ function bossFitHint(b) {
 H.bossPickCar = async (d) => {
   // A car the player picked himself: careerView must not swap it back to one for the next boss (readyRaceCar).
   state.raceCar = state.raceCarPicked = Number(d.id);
-  prefSet('raceCar', state.raceCar);
+  markRaceCarPick();
   if (!$('#modal').hidden) closeModal();
   await render();
   if (d.boss && $('#modal').hidden) H.bossCard({ id: d.boss });
@@ -3127,8 +3150,44 @@ function bossFeature(b, s, car) {
     <div class="row between mt" style="gap:8px;flex-wrap:wrap"><span class="small ${s.fits ? 'muted' : 'lose'}">${s.fits ? `Клас <span class="nw">${S.bossWindowText(b)}</span>${b.own ? ` · ${S.BOSS_COUNTRY_ADJ[b.country]}` : ''} · бос їде ~${dec(b.et, 2)} с` : `Потрібна ${bossNeedHtml(b)}`}</span>${bossChance(s)}</div>
     ${s.fits ? '' : bossFitHint(b)}
     <div class="row between mt"><span class="small">Нагорода: <b class="win">${esc(S.bossRewardText(b.reward))}</b></span></div>
-    <button class="btn yellow mt" data-act="startBoss" data-id="${b.id}" ${!s.fits || me.fuel < 1 ? 'disabled' : ''}>${ic('flag-3')} Кинути виклик</button></div>`;
+    ${bossWall(s) ? bossWallHelp(b, s, car) + bossRiskyBtn(b, s) : `<button class="btn yellow mt" data-act="startBoss" data-id="${b.id}" ${!s.fits || me.fuel < 1 ? 'disabled' : ''}>${ic('flag-3')} Кинути виклик</button>`}</div>`;
 }
+// firsthour (audit3 §3 №3б): a boss wall (chance < FH.BOSS_WALL_CHANCE %). Instead of a bright «Кинути виклик» that
+// burns fuel on a sure loss: how far the car is from the boss and what helps, each with its button; the fight itself
+// stays, quiet, behind a «точно?».
+const chanceTxt = (n) => (n < 1 ? '<1' : String(n));
+function bossWallHelp(b, s, car) {
+  if (!car) return '';
+  const gap = car.et - b.et;
+  const fit = bossGarageFits(b).find((c) => c.id !== car.id && c.et < car.et - 0.05);
+  const best = isOpen('parts') ? T.bestTune(car, me.parts) : null;
+  const acts = [
+    best?.changes.length ? `<button class="btn sm" data-act="installBest" data-id="${car.id}">${ic('sparkles')} Встановити найкраще <small>${T.fmtDt(best.dt)}</small></button>` : '',
+    isOpen('parts') ? `<button class="btn sm ghost" data-act="fhWallGo" data-to="shop">${ic('tool')} Деталі на двигун</button>` : '',
+    fit ? `<button class="btn sm ghost" data-act="bossPickCar" data-id="${fit.id}" data-boss="${b.id}">${ic('car')} ${esc(M(fit.model).name)} · ${dec(fit.et, 2)} с</button>`
+      : `<button class="btn sm ghost" data-act="fhWallGo" data-to="cases">${ic('box')} Сильніша машина — з кейсів</button>`,
+    `<button class="btn sm ghost" data-act="fhWallGo" data-to="race">${ic('target-arrow')} Потренуватися в драгу</button>`,
+  ].filter(Boolean);
+  if (!best?.changes.length) acts[0] = acts[0].replace('btn sm ghost', 'btn sm'); // one yellow: the first thing to try
+  return `<div class="fh-wall"><div class="fh-wall-h">${ic('info-circle')} <b>Що робити: зараз шанс ${chanceTxt(s.chance)}%</b></div>
+    <div class="small muted">${gap > 0 ? `Твоя ${esc(M(car.model).name)} їде ~${dec(car.et, 2)} с, бос — ~${dec(b.et, 2)} с: треба скинути ще ~${dec(gap, 2)} с.` : `Машина вже на рівні боса (~${dec(car.et, 2)} с) — вирішують старт і чисті перемикання.`} Допоможуть деталі (двигун, турбо, коробка), сильніша машина потрібного класу або тренування старту й перемикань.</div>
+    <div class="fh-wall-btns">${acts.join('')}</div></div>`;
+}
+const bossRiskyBtn = (b, s, hard = false) => `<button class="btn ghost mt fh-risky" data-act="startBossRisky" data-id="${b.id}" data-chance="${s.chance}"${hard ? ' data-hard="1"' : ''} ${!s.fits || me.fuel < 1 ? 'disabled' : ''}>${ic('flag-3')} Все одно кинути виклик · шанс ${chanceTxt(s.chance)}%</button>`;
+// From the card or its sheet: close the sheet, then the workshop, the cases or the drag list (its «Тренування» rival).
+H.fhWallGo = (d) => {
+  if (!$('#modal').hidden) closeModal();
+  if (d.to === 'race') state.raceView = 'race';
+  if (d.to === 'shop') (state.shopView = 'cases', state.partType = 'eng');
+  state.tab = d.to;
+  state.page = null;
+  window.scrollTo(0, 0);
+  render();
+};
+H.startBossRisky = async (d) => {
+  if (!(await confirmBox(`Шанс перемоги — ${chanceTxt(Number(d.chance))}%. Програш коштує 1 пальне, нагорода — лише за перемогу. Все одно їхати?`))) return;
+  return H.startBoss(d);
+};
 function bossRow(b, s) {
   const prev = S.BOSSES[b.n - 1];
   const tag = s.beaten ? `<span class="diff easy">${ic('check')} Переможений</span>` : s.open ? '<span class="diff mid">Наступний</span>' : `<span class="diff lock">${ic('lock')} Після «${esc(prev.nick)}»</span>`;
@@ -3188,7 +3247,7 @@ H.bossCard = (d) => {
       ${s.beaten ? row('refresh', 'Реванш', s.prize != null ? `як звичайна гонка: приз +${S.short(s.prize)}, внесок ${S.short(s.entry)}` : 'як звичайна гонка') : row('gas-station', 'Без внеску', 'програш коштує тільки пальне')}
       ${s.beaten ? row('flame', 'Реванш · складний', `${h.kit ? `${S.TIER_BY_ID[h.kit].name}-кіт` : 'без тюнінгу'} · ${h.hp} к.с. · водій ${S.BOSS_AI[h.ai].name} · ~${dec(h.et, 2)} с<br>${hs.done ? 'Сьогодні вже виграно — завтра знову' : `приз ×${S.BOSS_HARD.prizeMult}${hs.prize != null ? `: +${S.short(hs.prize)}, внесок ${S.short(hs.entry)}` : ''} · перемога раз на день`}`, hs.chance != null && !hs.done ? `<b>${hs.chance < 1 ? '<1' : hs.chance}%</b>` : '') : ''}
     </div>
-    <button class="btn yellow mt" data-act="startBoss" data-id="${b.id}" ${!s.open || !s.fits || me.fuel < 1 ? 'disabled' : ''}>${btn}</button>
+    ${bossWall(s) ? bossWallHelp(b, s, car) + bossRiskyBtn(b, s) : `<button class="btn yellow mt" data-act="startBoss" data-id="${b.id}" ${!s.open || !s.fits || me.fuel < 1 ? 'disabled' : ''}>${btn}</button>`}
     ${s.beaten ? `<button class="btn ghost mt bc-hard" data-act="startBoss" data-id="${b.id}" data-hard="1" ${hs.done || !s.fits || me.fuel < 1 ? 'disabled' : ''}>${ic('flame')} Реванш · складний ×${S.BOSS_HARD.prizeMult}</button>` : ''}</div>`);
 };
 H.startBoss = async (d) => {
@@ -3272,7 +3331,7 @@ async function pvpView(car) {
       .replace('</b></div>', `</b></div><div class="tiny muted">${esc(p.creator)} · ${dec(p.car.et, 2)} с ${p.car.et < car.et ? '<span class="lose">швидший за твою</span>' : '<span class="win">повільніший за твою</span>'}</div>${p.mine ? '' : pvpWho(p)}`)).join('')}</div>` : emptyLine('flag-3', 'Поки порожньо — кинь виклик вище: його побачать усі, хто зайде в PvP')}
     ${data.history.length ? `<div class="h2"><span>Історія</span></div><div class="list">${data.history.map((h) => `<div class="li"><div class="grow"><b class="${h.win ? 'win' : 'lose'}">${h.win ? 'Перемога' : 'Поразка'}</b> <span class="muted small">vs ${esc(h.rival.name)}${h.result?.live ? '' : ' · на автопілоті'}</span><div class="tiny muted">${esc(M(h.me.model).name)} проти ${esc(M(h.rival.car.model).name)}</div></div><b>${h.win ? '+' + S.short(h.result.prize - h.bet) : '−' + S.short(h.bet)}</b></div>`).join('')}</div>` : ''}`;
 }
-H.pvpCar = () => pickCar('Обери авто', (id) => (state.raceCar = state.raceCarPicked = id, render()));
+H.pvpCar = () => pickCar('Обери авто', (id) => (state.raceCar = state.raceCarPicked = id, markRaceCarPick(), render()));
 H.pvpCreate = () => act('pvp/create', { carId: state.raceCar, bet: num($('#bet').value) }, 'Виклик створено — чекай суперника');
 H.pvpCancel = (d) => act('pvp/cancel', { id: Number(d.id) }, 'Скасовано, ставку повернуто');
 // Tapping a challenge asks its creator to race live; an offline (or "do not disturb") creator is raced by autopilot.

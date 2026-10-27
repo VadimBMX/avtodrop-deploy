@@ -4515,3 +4515,22 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
   .story *, .story, .lvup *, .hw-in *, #sheet .hw-task, #sheet .hw-prog i, .season-car.sr-intro * { animation: none !important; transition: none !important; }
   .st-streaks, .st-sweep, .lu-lock, .boss-in-streak, .boss-in-ring { display: none; }
 }
+
+/* ===== firsthour 2026-10-30 (public/firsthour.js): one strip on top of «Гараж»/«Меню», the boss wall «що робити»,
+   the spend confirm with the amount, the reward counter in sentence case. Tokens and buttons of D-screens. ===== */
+#view > .fh-off, #banners.fh-off { display: none !important; }
+.rvl-n { text-transform: none; letter-spacing: .2px; font-size: var(--t-xs, 11px); } /* «Нагорода 2 з 2», not «НАГОРОДА 2 З 2» (З read as 3) */
+.fuel-out .fh-train { width: 100%; }
+.fh-wall { margin-top: 12px; padding: 12px; border-radius: var(--r-sm, 10px); background: var(--card2, #1c2330); border-left: 3px solid var(--warn, #ff9f0a); text-align: left; }
+.fh-wall-h { display: flex; align-items: center; gap: 6px; font-size: var(--t-md, 14.5px); margin-bottom: 4px; }
+.fh-wall-h .i { color: var(--warn, #ff9f0a); }
+.fh-wall-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.fh-wall-btns .btn { min-height: 44px; height: auto; padding: 8px 10px; font-size: 13px; line-height: 1.2; white-space: normal; text-align: center; justify-content: center; }
+.fh-wall-btns .btn small { display: block; opacity: .75; font-size: 11px; }
+.fh-risky { width: 100%; color: var(--muted, #8a94a7); }
+.fh-spend .confirm-card { text-align: center; }
+.fh-sp-t { font-size: var(--t-md, 14.5px); color: var(--muted, #8a94a7); margin-bottom: 6px; }
+.fh-sp-amt { display: block; font: 800 var(--t-2xl, 30px) var(--f-disp, inherit); color: var(--text, #eef1f6); }
+.fh-sp-sub { font-size: var(--t-sm, 12.5px); color: var(--muted, #8a94a7); margin-top: 4px; min-height: 1em; }
+.fh-sp-note { font-size: var(--t-sm, 12.5px); margin: 10px 0 14px; color: var(--text, #eef1f6); }
+/* ===== /firsthour ===== */

@@ -6,6 +6,7 @@
 // by stage; the «R» shows its own livery (S.MODELS[r].filter, like the editions).
 import * as S from './shared.js';
 import * as B from './barn.js';
+import { spendConfirm } from './firsthour.js';
 
 let X = null; // { me(), state(), api, act, H, ic, esc, sheet, go, carArt, untilSpan, confirmBox, toast, FX, render, closeModal, isOpen, lockChip }
 let data = null, timer = 0;
@@ -122,6 +123,8 @@ function install(ctx) {
   H.barnGo = async (d) => {
     const f = data?.finds.find((x) => x.id === Number(d.id));
     const st = f ? B.STAGES[f.done] : null;
+    // A big stage (≥ 10 млн or a fifth of the balance) asks first, with the amount.
+    if (f && st && !(await spendConfirm({ title: `${S.MODELS[f.model].name}: етап «${st.name}»`, amount: B.stageMoney(f.model, f.done), balance: X.me().balance, note: 'Гроші й деталі йдуть у реставрацію і не повертаються.', ok: 'Почати' }))) return;
     X.closeModal();
     await doAct('barn/start', { id: Number(d.id) }, st ? `Етап «${st.name}» почався — ${st.hours} год` : 'Етап почався');
   };
