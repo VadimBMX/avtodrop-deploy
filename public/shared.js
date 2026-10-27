@@ -863,8 +863,17 @@ export const PLATE_VALUE = { D: [1500, 4000], C: [8000, 20000], B: [40000, 10000
 // Plate of a chosen region: the class is a full random roll from ordinary to mythic (no tier to pick), and the
 // region sets the price — the capital and the national ІІ series cost more, big oblast centres a bit more.
 export const REGION_GEN = { weights: { D: 80, C: 15, B: 4.2, A: 0.75, S: 0.05 }, price: 15000 };
-const REGION_PRICE = { AA: 60000, KA: 60000, II: 100000, OO: 30000, AE: 30000, KE: 30000, AX: 30000, KX: 30000, BC: 30000, HC: 30000, BH: 30000, HH: 30000, AI: 25000, KI: 25000 };
+const REGION_PRICE = { AA: 40000, KA: 40000, II: 75000, OO: 30000, AE: 30000, KE: 30000, AX: 30000, KX: 30000, BC: 30000, HC: 30000, BH: 30000, HH: 30000, AI: 25000, KI: 25000 };
 export const regionPrice = (code) => REGION_PRICE[code] || REGION_GEN.price;
+// Owner 28.10: the odds are the same in every region, the price buys a prestige series — and a prestige plate is worth
+// more: a new plate's value (its sale price and what it adds to the car) × this by its series (ІІ, the capital, big
+// oblast centres). Plates made before keep their value.
+const REGION_VALUE = { II: 1.5, AA: 1.3, KA: 1.3, OO: 1.15, AE: 1.15, KE: 1.15, AX: 1.15, KX: 1.15, BC: 1.15, HC: 1.15, BH: 1.15, HH: 1.15 };
+export const plateRegionMult = (text) => REGION_VALUE[String(text || '').slice(0, 2)] || 1;
+export const plateValueRoll = (cls, text, r) => {
+  const [lo, hi] = PLATE_VALUE[cls];
+  return Math.round(((lo + r * (hi - lo)) * plateRegionMult(text)) / 100) * 100;
+};
 // Regions for the picker: one row per region with all its codes.
 export const REGION_LIST = Object.values(Object.entries(REGIONS).reduce((m, [code, name]) => ((m[name] ||= { name, codes: [] }).codes.push(code), m), {}))
   .sort((a, b) => (a.name === 'Загальнодержавний') - (b.name === 'Загальнодержавний') || a.name.replace('м. ', '').localeCompare(b.name.replace('м. ', ''), 'uk'));

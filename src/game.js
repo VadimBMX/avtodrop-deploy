@@ -1252,8 +1252,7 @@ export function createGame(db, opts = {}) {
     pay(uid, price);
     const cls = pickWeighted(classEntries(weights), rnd());
     const text = makePlate(cls, reg);
-    const [lo, hi] = S.PLATE_VALUE[cls];
-    const value = Math.round((lo + rnd() * (hi - lo)) / 100) * 100;
+    const value = S.plateValueRoll(cls, text, rnd());
     const r = q('INSERT INTO plates (owner_id, text, cls, value, created_at) VALUES (?, ?, ?, ?, ?)').run(uid, text, cls, value, now());
     q('UPDATE users SET plate_best = MAX(plate_best, ?) WHERE id = ?').run(S.rankOf(cls), uid);
     xp(uid, 'plate');
@@ -1703,8 +1702,7 @@ export function createGame(db, opts = {}) {
     out.reward = { money: rw.money, caseId: rw.caseId, count: rw.count, tier: rw.tier, parts: rw.parts, items: got.items || [] };
     if (rw.plate) {
       const text = makePlate(rw.plate);
-      const [lo, hi] = S.PLATE_VALUE[rw.plate];
-      const value = Math.round((lo + rnd() * (hi - lo)) / 100) * 100;
+      const value = S.plateValueRoll(rw.plate, text, rnd());
       const pid = Number(q('INSERT INTO plates (owner_id, text, cls, value, created_at) VALUES (?, ?, ?, ?, ?)').run(uid, text, rw.plate, value, now()).lastInsertRowid);
       q('UPDATE users SET plate_best = MAX(plate_best, ?) WHERE id = ?').run(S.rankOf(rw.plate), uid);
       out.reward.plate = { id: pid, text, cls: rw.plate, value };

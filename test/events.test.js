@@ -196,7 +196,7 @@ test('server: «Щасливі номери» — pretty and region plates −20
   assert.equal(b - user().balance, 200000);
   b = user().balance;
   call('plate/generate', { region: 'AA' });
-  assert.equal(b - user().balance, 48000);
+  assert.equal(b - user().balance, 32000); // 40 000 −20%
   b = user().balance;
   call('plate/generate', { gen: 'basic' });
   assert.equal(b - user().balance, 3000);

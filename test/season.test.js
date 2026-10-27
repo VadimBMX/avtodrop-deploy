@@ -211,7 +211,13 @@ test('plates: a chosen region gives a plate of that region at its price; ІІ ex
     assert.ok(plate.text.startsWith(reg + ' '), plate.text);
     assert.equal(call(1, 'me').balance, bal - S.regionPrice(reg));
   }
-  assert.equal(S.regionPrice('KA'), 60000);
+  assert.equal(S.regionPrice('KA'), 40000);
+  assert.equal(S.regionPrice('II'), 75000);
+  // Same odds everywhere; a prestige series is worth more (owner 28.10).
+  assert.equal(S.plateValueRoll('A', 'II 7777 II', 0), 300000);
+  assert.equal(S.plateValueRoll('A', 'KA 7777 KA', 0), 260000);
+  assert.equal(S.plateValueRoll('A', 'BC 7777 BC', 0), 230000);
+  assert.equal(S.plateValueRoll('A', 'AB 7777 AB', 0), 200000);
   assert.throws(() => call(1, 'plate/generate', { region: 'ZZ' }), /Невідомий регіон/);
   assert.ok(call(1, 'plate/generate', { gen: 'basic' }).plate.text);
 });
