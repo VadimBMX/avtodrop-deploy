@@ -12,6 +12,8 @@ import * as SFX from './sfx.js';
 // «Заїзд дня»: the car of the day and the prizes (shared with the server); the share card is loaded when needed.
 import * as DRS from './dayrace.js';
 import * as WOW from './wow.js';
+// wIntro: count-ups and swipes for the animated intros (stories, level-up, Halloween sheet, season showroom).
+import * as IFX from './intro-fx.js';
 // Ghost challenges: the ghost's replay and the rules (shared with the server), the share card.
 import * as G from './ghost.js';
 // The share card is drawn only when a challenge is thrown: loaded then (like the «Заїзд дня» card), not at start.
@@ -646,18 +648,22 @@ const newUnlocks = () => S.unlocksBetween(me.levelSeen, me.level).filter((u) => 
 function showLevelUp() {
   const rw = S.levelReward(me.level);
   const opened = newUnlocks();
+  const from = Math.max(1, Math.min(me.levelSeen || me.level - 1, me.level - 1)); // the face counts up from here (wIntro)
   // Seen as soon as it is shown: closing with ✕ or a tap outside must not bring it back on the next refresh.
   me.levelSeen = me.level;
   api('level/seen').catch(() => {});
   const nextU = S.UNLOCKS.find((u) => u.level > me.level && isOpen(u.key) === false && !(u.key === 'casino' && casinoOff()));
-  sheet('', `<div class="center"><div class="ring">${ring(me.level, 1, 1, 84)}<span class="face">${me.level}</span></div>
+  // wIntro: the ring turns in while the number counts up, the gift card lands, each unlocked feature slides in and
+  // drops its lock (CSS «wIntro», .lvup; still under reduced motion).
+  sheet('', `<div class="center lvup"><div class="ring">${ring(me.level, 1, 1, 84)}<span class="face" data-from="${from}" data-to="${me.level}">${me.level}</span></div>
     <div class="big mt">Рівень ${me.level}!</div><div class="muted">подарунок уже в тебе</div>
     <div class="card mt"><b class="win">${esc(rewardText(rw))}</b></div>
-    ${opened.length ? `<div class="h2 unlocked-h"><span>${ic('sparkles')} Відкрито</span></div><div class="list unlocked">${opened.map((u) => `<div class="li"><span class="ic tint" style="--c:#ffc400">${ic(u.icon)}</span><div class="grow left"><b>${u.name}</b><div class="tiny muted">${esc(u.text)}</div></div></div>`).join('')}</div>` : ''}
+    ${opened.length ? `<div class="h2 unlocked-h"><span>${ic('sparkles')} Відкрито</span></div><div class="list unlocked">${opened.map((u, k) => `<div class="li" style="--i:${Math.min(k, 3)}"><span class="ic tint" style="--c:#ffc400">${ic(u.icon)}<b class="lu-lock" aria-hidden="true">${ic('lock')}</b></span><div class="grow left"><b>${u.name}</b><div class="tiny muted">${esc(u.text)}</div></div></div>`).join('')}</div>` : ''}
     ${nextU ? `<div class="tiny muted mt">Далі: ${nextU.name} — на рівні ${nextU.level}</div>` : ''}
     <button class="btn mt" data-act="levelOk">Чудово</button></div>`);
   haptic('success');
   celebrateSheet($('#sheet .ring'), ['#f5b301', '#ffd500', '#ffffff', '#34c759']);
+  IFX.countUpIn($('#sheet .ring'), 560, 60);
 }
 H.levelOk = () => closeModal();
 // A celebratory moment for a sheet that just opened (level-up, set done, reward): the hero element pops with a
@@ -5613,13 +5619,19 @@ PAGES.season = async () => {
     return `<div class="prow ${reached ? 'reached' : ''} ${l.level === s.level ? 'cur' : ''}"><span class="plvl">${l.level}</span>${passCell(l.free, st('f'))}${passCell(l.premium, st('p'))}</div>`;
   };
   const th = S.seasonTheme(s.id);
+  // wIntro: the first time a player opens this season's pass, its showroom powers on and the season car drives in.
+  let srIntro = false;
+  try {
+    const k = 'avtodrop-season-intro-' + s.id;
+    if (car && !localStorage.getItem(k)) (srIntro = true), localStorage.setItem(k, '1');
+  } catch {}
   return `<div class="card${th ? ` s2-theme" data-season="${s.id}` : ''}"><div class="row between"><b class="disp" style="font-size:18px">Сезон ${s.id}${th ? ` <span class="s2-name">· ${esc(th.name)}</span>` : ''}</b><span class="small muted">до кінця <span data-until="${s.endsAt - clockOffset}"></span></span></div>${th ? `<div class="tiny muted s2-tag">${esc(th.tagline)}</div>` : ''}
       <div class="row between mt"><span>Рівень <b>${s.level}</b> з ${S.SEASON.levels}</span><span class="small muted">${s.need ? `${s.levelXp} / ${s.need} досвіду` : 'максимум'}</span></div>
       <div class="progress gold mt"><i style="width:${s.need ? (s.levelXp / s.need) * 100 : 100}%"></i></div>
       <div class="tiny muted mt">Досвід сезону — той самий, що й завжди: гонки (перемоги більше), кейси, завдання, бонуси. Нічого не скидається, крім пропуску.</div>
       <div class="tiny mt pass-rate">${ic('coin')} Гроші пропуску ростуть разом з гаражем: ${S.passHours(2).toFixed(1).replace('.', ',')}–${S.passHours(S.SEASON.levels).toFixed(1).replace('.', ',')} год його доходу за рівень${s.rate ? ` (зараз ${S.short(s.rate)}/год)` : ''}, мінімум ${S.short(S.passMoneyFor(2))}</div>
       ${s.ready ? `<button class="btn yellow mt" data-act="passClaim">${ic('gift')} Забрати нагороди · ${s.ready}</button>` : ''}</div>
-    ${car ? `<div class="card center season-car"><div class="small muted">Рівень ${S.SEASON.levels} · преміум</div><div class="showroom">${SHOWROOM_SVG}<div class="sr-refl" aria-hidden="true">${carArt(car.id)}</div><div class="art">${carArt(car.id)}</div></div><b style="font-size:17px">${esc(car.name)}</b>
+    ${car ? `<div class="card center season-car${srIntro ? ' sr-intro' : ''}"><div class="small muted">Рівень ${S.SEASON.levels} · преміум</div><div class="showroom">${SHOWROOM_SVG}${srIntro ? '<i class="st-streaks" aria-hidden="true"></i><i class="st-sweep" aria-hidden="true"></i>' : ''}<div class="sr-refl" aria-hidden="true">${carArt(car.id)}</div><div class="art">${carArt(car.id)}</div></div><b style="font-size:17px">${esc(car.name)}</b>
       <div class="small muted">${car.hp} к.с. · колекційна ${S.short(car.price)} · лише в цьому сезоні</div>
       ${s.premium ? `<div class="mt" style="color:var(--accent)">${ic('crown')} Преміум активний</div>` : `<button class="btn ${s.ready ? 'soft' : 'yellow'} mt" data-act="buyItem" data-id="pass">${ic('crown')} Преміум · ${ic('star')} ${S.SEASON.premiumStars}</button><div class="tiny muted mt">Нагороди правої доріжки за вже пройдені рівні — одразу після покупки</div>`}</div>` : ''}
     ${seasonCosStrip(s)}
@@ -5694,37 +5706,61 @@ async function firstRefresh() {
 // above, the class badges under the «classes» slide), the line icon elsewhere.
 const INTRO_CARS = { 'car-turbine': 'bugatti-chiron-super-sport', gift: 'zaz-965-horbatyi', coin: 'toyota-supra-a80', 'flag-3': 'nissan-skyline-gt-r-r34' };
 const WORDMARK = '<span class="wordmark">АВТО<b>ДРОП</b></span>';
+// wIntro: every slide enters on its own (the car drives in from the side the player went, the title, chip, text, class
+// badges and button come one by one, a number counts up — all within 0.9 s, CSS «wIntro»); the slide it leaves drives
+// out the other way. Swipe left/right too. Taps are never blocked: a tap mid-entrance just goes on.
 function playStory(story, onClose = () => {}) {
-  let i = 0;
+  let i = 0, dir = 0; // dir: 1 forward, -1 back, 0 the first slide (the showroom lights come on)
   const slides = story.slides;
   const el = document.createElement('div');
-  el.className = 'story';
+  el.className = 'story st-first';
   const visual = (sl) => {
     const car = story === S.INTRO_STORY && INTRO_CARS[sl.icon];
-    if (car && M(car)) return `<div class="season-car story-car"><div class="showroom">${SHOWROOM_SVG}<div class="sr-refl" aria-hidden="true">${carArt(car)}</div><div class="art">${carArt(car)}</div></div></div>`;
+    if (car && M(car)) return `<div class="season-car story-car"><div class="showroom">${SHOWROOM_SVG}<i class="st-streaks" aria-hidden="true"></i><div class="sr-refl" aria-hidden="true">${carArt(car)}</div><div class="art">${carArt(car)}</div><i class="st-sweep" aria-hidden="true"></i></div></div>`;
     return `<div class="story-ic${sl.c ? ' wn-ic' : ''}"${sl.c ? ` style="--c:${sl.c}"` : ''}>${ic(sl.icon)}</div>`;
   };
   // «Що нового»: a short chip under the title (dates, level, time).
   const tag = (sl) => (sl.tag ? `<div class="wn-tag"${sl.c ? ` style="--c:${sl.c}"` : ''}>${esc(sl.tag)}</div>` : '');
-  const classes = (sl) => (story === S.INTRO_STORY && (sl.classes || sl.icon === 'diamond') ? `<div class="story-classes">${S.CLASS_ORDER.filter((k) => k !== 'X').map((k) => `<span class="stamp r${S.rankOf(k)}" style="--c:${S.CLASSES[k].color}"><b>${k}</b>${S.CLASSES[k].name}</span>`).join('')}</div>` : '');
+  const classes = (sl) => (story === S.INTRO_STORY && (sl.classes || sl.icon === 'diamond') ? `<div class="story-classes">${S.CLASS_ORDER.filter((k) => k !== 'X').map((k, n) => `<span class="stamp r${S.rankOf(k)}" style="--c:${S.CLASSES[k].color};--i:${n}"><b>${k}</b>${S.CLASSES[k].name}</span>`).join('')}</div>` : '');
   const paint = () => {
     const sl = slides[i];
+    const old = dir && !IFX.reducedMotion() ? el.querySelector('.story-body') : null;
+    const box = old && { top: old.offsetTop, h: old.offsetHeight };
+    el.style.setProperty('--d', dir < 0 ? -1 : 1);
     el.innerHTML = `<div class="story-bars">${slides.map((_, k) => `<i class="${k < i ? 'done' : k === i ? 'on' : ''}"></i>`).join('')}</div>
       ${story === S.INTRO_STORY ? `<div class="story-brand">${WORDMARK}</div>` : ''}
       <button class="story-skip">Пропустити</button>
-      <div class="story-body">${visual(sl)}<div class="story-title disp">${esc(sl.title)}</div>${tag(sl)}<div class="story-text">${esc(sl.text)}</div>${classes(sl)}</div>
+      <div class="story-body">${visual(sl)}<div class="story-title disp">${esc(sl.title)}</div>${tag(sl)}<div class="story-text">${IFX.markNumber(esc(sl.text))}</div>${classes(sl)}</div>
       <button class="btn yellow story-next">${i < slides.length - 1 ? 'Далі' : story.last || 'Поїхали!'}</button>`;
+    if (old) {
+      old.className = 'story-body st-out';
+      old.setAttribute('aria-hidden', 'true');
+      old.style.cssText = `top:${box.top}px;height:${box.h}px`;
+      el.appendChild(old);
+      setTimeout(() => old.remove(), 260);
+    }
+    IFX.countUpIn(el.querySelector('.story-text'), 600, 440);
   };
   const close = () => {
     el.remove();
     onClose();
   };
+  const step = (d) => {
+    if (d > 0 && ++i >= slides.length) return close();
+    if (d < 0) {
+      if (i === 0) return;
+      i--;
+    }
+    dir = d;
+    el.classList.remove('st-first');
+    paint();
+  };
+  const body = () => el.querySelector('.story-body:not(.st-out)');
+  const wasSwipe = IFX.swipeNav(el, { next: () => step(1), prev: () => step(-1), follow: (dx) => body()?.style.setProperty('--drag', `${Math.max(-60, Math.min(60, dx * 0.35))}px`) });
   el.addEventListener('click', (e) => {
     if (e.target.closest('.story-skip')) return close();
-    if (e.target.closest('.story-next') || e.clientX > window.innerWidth / 3) {
-      if (++i >= slides.length) return close();
-    } else if (i > 0) i--;
-    paint();
+    if (wasSwipe()) return;
+    step(e.target.closest('.story-next') || e.clientX > window.innerWidth / 3 ? 1 : -1);
   });
   paint();
   document.body.appendChild(el);

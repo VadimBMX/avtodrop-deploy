@@ -52,10 +52,11 @@ function openSheet() {
   const h = X.me()?.halloween;
   if (!h) return;
   const { ic, esc } = X;
-  const rows = h.tasks.map((t) => `<div class="li hw-task${t.done ? ' done' : ''}"><span class="ic tint" style="--c:${t.done ? '#30d158' : HW.HALLOWEEN.color}">${ic(t.done ? 'check' : t.icon)}</span>
+  // wIntro: the pumpkin drops in and lights up, the tasks come in one by one and their bars fill (CSS «wIntro» .hw-in).
+  const rows = h.tasks.map((t, k) => `<div class="li hw-task${t.done ? ' done' : ''}" style="--i:${k}"><span class="ic tint" style="--c:${t.done ? '#30d158' : HW.HALLOWEEN.color}">${ic(t.done ? 'check' : t.icon)}</span>
     <div class="grow"><b>${esc(t.text)}</b><div class="tiny muted">${t.done && t.prize ? esc(t.prize.text) : `нагорода: ${esc(t.reward)}`}</div>
     ${t.done ? '' : `<div class="progress hw-prog"><i style="width:${Math.round((t.progress / t.n) * 100)}%"></i></div>`}</div><span class="small ${t.done ? 'acc' : 'muted'} nw">${t.progress}/${t.n}</span></div>`).join('');
-  X.sheet(HW.HALLOWEEN.name, `<div class="hw-sheet-head"><span class="hw-pk lg">${PUMPKIN_SVG}</span><div class="grow"><b>${untilText(h)}</b>
+  X.sheet(HW.HALLOWEEN.name, `<div class="hw-sheet-head hw-in"><span class="hw-pk lg">${PUMPKIN_SVG}</span><div class="grow"><b>${untilText(h)}</b>
       <div class="small muted">Нічна траса дрифту й драгу, «Контейнер з привидом» на «Причалі», рамка «Гарбуз». Ціни й шанси кейсів — як завжди.</div></div></div>
     <div class="h2"><span>Завдання події</span><span>${h.tasks.filter((t) => t.done).length}/${h.tasks.length}</span></div>
     <div class="list">${rows}</div>

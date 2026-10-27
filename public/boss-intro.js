@@ -3,6 +3,8 @@
 // 2.2 s, a tap anywhere skips it; with reduced motion it is a still card for 1 s. Pure DOM: the caller passes ready
 // (escaped) HTML, so this module knows nothing about the game. It only delays the start: runRace() is called after
 // the promise resolves, so the server's race clock (greenMs, "finished too soon") is untouched.
+// wIntro polish: speed streaks behind both cars, the class floor lights flicker on as each car stops, a shock ring
+// under «VS», one light sweep over the boss (CSS «wIntro»).
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /**
@@ -25,9 +27,9 @@ export function bossIntro(o) {
     el.innerHTML = `<div class="boss-in-place">${o.place}</div>
       <div class="boss-in-stage">
         <i class="boss-in-seam"></i>
-        <div class="boss-in-car bs"><span class="boss-in-art">${o.bossArt}</span><span class="boss-in-who">${o.bossCar}</span></div>
-        <b class="boss-in-vs" aria-hidden="true">VS</b>
-        <div class="boss-in-car me"><span class="boss-in-art">${o.meArt}</span><span class="boss-in-who"><b>Ти</b> · ${o.meCar}</span></div>
+        <div class="boss-in-car bs"><i class="boss-in-streak" aria-hidden="true"></i><span class="boss-in-art">${o.bossArt}</span><span class="boss-in-who">${o.bossCar}</span></div>
+        <i class="boss-in-ring" aria-hidden="true"></i><b class="boss-in-vs" aria-hidden="true">VS</b>
+        <div class="boss-in-car me"><i class="boss-in-streak" aria-hidden="true"></i><span class="boss-in-art">${o.meArt}</span><span class="boss-in-who"><b>Ти</b> · ${o.meCar}</span></div>
       </div>
       <div class="boss-in-name"><b>${o.nick}</b><div class="boss-in-drv">${o.driver}</div><q class="boss-in-taunt">${o.taunt}</q></div>
       <div class="boss-in-skip">Торкнись, щоб пропустити</div>
