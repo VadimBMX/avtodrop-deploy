@@ -29,6 +29,7 @@ import { installClubs, clubTag, clubHub, clubFromLink } from './clubs-ui.js';
 // The boss poster is loaded when a boss race starts (not at start); if it can't load, the race simply starts.
 const bossIntro = (o) => import('./boss-intro.js').then((x) => x.bossIntro(o)).catch(() => {});
 import { watchScene } from './race-scene.js';
+import { driftEnv, grassTile, speedLines } from './drift-env.js';
 import { installTourney } from './tourney-ui.js';
 // «Престиж»: restyle ★ on cars, the restyle sheet, «Трофейна зала» (public/prestige-ui.js).
 import { installPrestige, starsHtml, starTileCls, sellStarNote, carRestyleLi, prestigeHubRow } from './prestige-ui.js';
@@ -2572,6 +2573,9 @@ function raceResult() {
 }
 // ---------- drift («Дрифт 2.0») ----------
 const DRIFT_RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Drift speeds on screen (owner 27.10 «дрифт трохи швидшим»): the physics keeps its own units (the server replays it
+// and the rivals are tuned on it), the speedometer and the hints show them on a track scale: ×4.5 instead of ×3.6.
+const DRIFT_KMH = 4.5;
 const DKIND = { fast: 'Швидкий', mid: 'Середній', hair: 'Шпилька' };
 const DGRADE = { perfect: ['Ідеально!', '#facc15'], clean: ['Чисто!', '#4ade80'], weak: ['Слабкий занос', '#fbbf24'], spin: ['Розворот!', '#f87171'], wide: ['Знесло!', '#fb923c'] };
 const dArrow = (dir) => (dir > 0 ? '↱' : '↰');
@@ -2691,7 +2695,7 @@ function driftScene(canvas, color, track, tips = false) {
   const W = canvas.clientWidth, H = canvas.clientHeight;
   canvas.width = Math.round(W * dpr);
   canvas.height = Math.round(H * dpr);
-  const PX = 5, STEP = 4, HALF = 42; // px per metre, px between samples, half the road width
+  const PX = 7, STEP = 4, HALF = 42; // px per metre (7, was 5: the track rushes by faster at the same physics), px between samples, half the road width
   const segs = [...track.segs, { kind: 'straight', len: 140, from: track.length, to: track.length + 140 }];
   const G = driftGeom(segs, PX, STEP), { xs, ys, hs, kd } = G, last = xs.length - 1;
   const finishAt = G.start[segs.length - 1];
@@ -2709,18 +2713,10 @@ function driftScene(canvas, color, track, tips = false) {
   gr.addColorStop(1, 'rgba(236,237,241,0)');
   pg.fillStyle = gr;
   pg.fillRect(0, 0, 64, 64);
-  const tile = document.createElement('canvas');
-  tile.width = tile.height = 48;
-  const tg2 = tile.getContext('2d');
   const hwOn = hwNight(); // «Ніч Хелловіну»: the night palette, pumpkins by the road, bats (public/halloween-ui.js)
   const night = hwOn || evActive().some((e) => e.id === 'drift'); // «Ніч дрифту» (scheduler): the night palette only
-  tg2.fillStyle = night ? HW_DRIFT.grass : '#17241b';
-  tg2.fillRect(0, 0, 48, 48);
-  for (let i = 0; i < 26; i++) {
-    tg2.fillStyle = night ? HW_DRIFT.specks[i % 2] : i % 2 ? '#1c2c20' : '#132017';
-    tg2.fillRect((i * 37) % 48, (i * 23 + (i >> 2) * 7) % 48, 2, 2);
-  }
-  const grass = ctx.createPattern(tile, 'repeat');
+  const grass = ctx.createPattern(grassTile(night, hwOn ? HW_DRIFT : null), 'repeat');
+  const env = driftEnv(G, HALF, segs, { night }), streaks = speedLines(); // the track's surroundings (public/drift-env.js)
   const MAXM = 520, MAXP = DRIFT_RM ? 24 : 80;
   const marks = [], smoke = [];
   let camH = 0, lastRear = null, lastPuff = 0, shake = 0;
@@ -2770,7 +2766,7 @@ function driftScene(canvas, color, track, tips = false) {
   return {
     // seg/pos: where the car is (segment, metres); lat: the line (−1 inside … 1 outside edge of the corner `dir`);
     // angle: drift angle in degrees; spin: 0..1 progress of a spin-out.
-    draw(seg, pos, lat, angle, spin, dt, now, dir) {
+    draw(seg, pos, lat, angle, spin, dt, now, dir, speed = 0) {
       const k = idx(seg, pos), i = Math.floor(k), fr = k - i;
       const heading = lerp(hs, i, fr), off = lat * (HALF - 13);
       const cx = lerp(xs, i, fr) - dir * Math.cos(heading) * off, cy = lerp(ys, i, fr) - dir * Math.sin(heading) * off;
@@ -2803,12 +2799,14 @@ function driftScene(canvas, color, track, tips = false) {
       ctx.fillStyle = grass;
       ctx.fillRect(cx - 700, cy - 700, 1400, 1400);
       const from = Math.max(0, i - 80), to = Math.min(last, i + 170);
+      env.under(ctx, from, to, road); // gravel traps and armco
       road(from, to, HALF * 2 + 20, night ? HW_DRIFT.kerbB : '#e5e7eb', null, true); // kerbs on corners: white…
       road(from, to, HALF * 2 + 20, night ? HW_DRIFT.kerbA : '#dc2626', [10, 10], true); // …and red
       road(from, to, HALF * 2 + 6, night ? HW_DRIFT.edge : '#f4f4f5');
       road(from, to, HALF * 2, night ? HW_DRIFT.asphalt : '#34373e');
       road(from, to, 2, night ? HW_DRIFT.dash : '#ffffff66', [14, 14]);
       ctx.setLineDash([]);
+      env.over(ctx, from, to, camH); // tyre stacks, boards, grandstands, trees, lamps
       if (hwOn) hwDriftPumpkins(ctx, xs, ys, hs, from, to, HALF);
       if (from <= 2) checker(1);
       if (finishAt >= from && finishAt <= to) checker(finishAt);
@@ -2817,7 +2815,7 @@ function driftScene(canvas, color, track, tips = false) {
         for (let s = 0; s < segs.length; s++) {
           const g = segs[s], at = G.start[s];
           if (g.kind === 'straight' || g.corner == null || s <= seg || at < from || at > Math.min(to, i + 110)) continue;
-          const txt = `${g.dir > 0 ? '↱' : '↰'} ${g.center}° · до ${Math.round(g.vref * 3.6)} км/год`;
+          const txt = `${g.dir > 0 ? '↱' : '↰'} ${g.center}° · до ${Math.round(g.vref * DRIFT_KMH)} км/год`;
           ctx.save();
           ctx.translate(xs[at], ys[at]);
           // Only where it is fully on screen, clear of the corner name at the top.
@@ -2856,6 +2854,7 @@ function driftScene(canvas, color, track, tips = false) {
       }
       ctx.globalAlpha = 1;
       ctx.restore();
+      if (!DRIFT_RM) streaks(ctx, W, H, speed, dt);
       if (hwOn) hwDriftOverlay(ctx, W, H, now);
     },
     bump(v = 0.4) {
@@ -2988,10 +2987,10 @@ function runDrift() {
     const g = segs[sim.seg], ang = sim.ang, t = sim.t;
     if (g.kind !== 'straight') dir = g.dir;
     // A spin-out turns the car a full circle.
-    scene.draw(sim.seg, sim.pos, sim.y, ang, t < sim.spinUntil ? 1 - (sim.spinUntil - t) / 700 : 0, dt, now, dir);
+    scene.draw(sim.seg, sim.pos, sim.y, ang, t < sim.spinUntil ? 1 - (sim.spinUntil - t) / 700 : 0, dt, now, dir, Math.max(0, Math.min(1, (sim.v - 12) / Math.max(1, M2.vmax - 12))));
     el('dNeedle').style.left = pct(ang);
     put('dAngle', `кут ${Math.round(ang)}°`);
-    put('dSpd', `${Math.round(sim.v * 3.6)} км/год`);
+    put('dSpd', `${Math.round(sim.v * DRIFT_KMH)} км/год`);
     const pend = sim.cur ? Math.floor(sim.cur.base) : 0;
     put('dScore', dPts(sim.score));
     put('dPend', pend ? `+${pend}` : '');
@@ -3013,7 +3012,7 @@ function runDrift() {
       let tip = hint, tone = 'ok';
       if (g.kind === 'straight') {
         const nx = segs[sim.seg + 1];
-        if (nx && sim.v > nx.vref * 1.15) (tip = `Відпусти газ — гальмуй до ${Math.round(nx.vref * 3.6)} км/год`, tone = 'stop');
+        if (nx && sim.v > nx.vref * 1.15) (tip = `Відпусти газ — гальмуй до ${Math.round(nx.vref * DRIFT_KMH)} км/год`, tone = 'stop');
         else if (nx && sim.v < nx.vref * 0.85) (tip = 'Тримай газ — розганяйся', tone = 'go');
         else if (nx) tip = `Заходь у поворот: тримай газ, кут ${nx.center}°`;
       } else if (t >= sim.spinUntil) {
@@ -3068,7 +3067,7 @@ function driftResult() {
     <div class="dbreak">${cs.map((c) => `<div class="drow g-${c.grade}" style="--w:${Math.round((c.pts / best) * 100)}%">
       <span class="dn k-${c.kind}">${c.i + 1}</span>
       <div class="grow"><b>${dArrow(c.dir)} ${DKIND[c.kind]} <em>${DGRADE[c.grade][0]}</em></b>
-        <div class="tiny muted">у зоні ${c.zone}% · центр ${c.ideal}% · лінія ${c.line}% · ${c.kmh} км/год</div></div>
+        <div class="tiny muted">у зоні ${c.zone}% · центр ${c.ideal}% · лінія ${c.line}% · ${Math.round((c.kmh * DRIFT_KMH) / 3.6)} км/год</div></div>
       <div class="dp"><b>${dPts(c.pts)}</b><small>${c.base}${c.mult > 1 ? ' ' + dMult(c.mult) : ''}</small></div></div>`).join('')}</div>` : ''}
     </div><div class="dr-dock"><div class="dr-btns">${r.training ? '<button class="btn yellow" data-act="driftTrainAgain">Ще тренування</button>'
       : `<button class="btn yellow btn2" data-act="driftAgain" ${me.fuel < 1 ? 'disabled' : ''}><span>${ic('refresh')} Ще дрифт</span><small>${ic('gas-station')}${me.fuel}/${S.FUEL_MAX}</small></button>`}
