@@ -42,6 +42,23 @@ export function startText({ name, created = false, ref = false, pushBack = false
 }
 
 // The command menu (setMyCommands), Ukrainian. Admins get theirs on top, in their own chats only.
+// The welcome post for the players' chat (the owner's /welcome in the «Новини» topic).
+export const WELCOME_TEXT = `🏁 Ласкаво просимо в АВТОДРОП!
+
+Це гра в Telegram, де ти збираєш гараж мрії зі справжніх авто — від «Запорожця» до гіперкарів.
+
+🎰 Кейси зі 170+ справжніми машинами — перший безкоштовно
+💰 Гараж заробляє, навіть коли ти не в грі
+🏎 Драг, дрифт і 27 босів кар’єри
+🔨 Аукціон контейнерів о 20:00, обміни й ринок між гравцями
+👥 Автоклуби й турнір вихідних
+
+📣 У цій темі — оновлення, події й промокоди (пишуть лише адміни)
+💬 У темі «Чат» — хвалися дропами, шукай обміни, питай поради
+
+🎁 Бонус за вступ: у грі Меню → «Наші групи в Telegram» → «Забрати» — ключ від кейсу «Міський».
+
+👉 Грати: @avtodrop2026_bot`;
 export const COMMANDS = [
   { command: 'start', description: '🏎 Відкрити гру' },
   { command: 'garage', description: '🚗 Мій гараж: баланс, каса, найкраще авто' },
@@ -162,6 +179,17 @@ export function createBot({ token, webappUrl, admins = [], game, inline = null, 
     const text = m.text || '';
     const [cmd, ...args] = text.trim().split(/\s+/);
     const isAdmin = admins.includes(m.from.id);
+    // Groups (the players' chat, owner 28.10): the bot answers nothing there — only the owner's /welcome, written in a
+    // topic, makes it post the welcome message into that topic, pin it and remove the command.
+    if (m.chat.type !== 'private') {
+      if (isAdmin && cmd.split('@')[0] === '/welcome') {
+        const thread = m.is_topic_message ? { message_thread_id: m.message_thread_id } : {};
+        const posted = await call('sendMessage', { chat_id: m.chat.id, text: WELCOME_TEXT, link_preview_options: { is_disabled: true }, ...thread });
+        await call('pinChatMessage', { chat_id: m.chat.id, message_id: posted.message_id, disable_notification: true }).catch((e) => log('welcome pin:', e.message));
+        await call('deleteMessage', { chat_id: m.chat.id, message_id: m.message_id }).catch(() => {});
+      }
+      return;
+    }
     // The player wrote to the bot, so it can write to them again (a 403 earlier marked them blocked).
     if (m.chat.type === 'private') game.push?.unblock(m.from.id);
     if (cmd === '/stop') {

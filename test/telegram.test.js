@@ -154,6 +154,18 @@ test('bot: getMe re-read hourly (inline switched on in BotFather), Ukrainian com
     assert.equal(msgs[0].reply_markup.inline_keyboard[0][0].text, '🚗 Відкрити гараж');
     assert.match(msgs[1].text, /✅ Бонуси/);
     assert.match(msgs[2].text, /@avtodrop_bot/);
+    // In a group the bot stays quiet; only the owner's /welcome in a topic posts, pins and removes the command.
+    const G = { id: -1009, type: 'supergroup', is_forum: true };
+    updates.push({ update_id: 4, message: { message_id: 40, from: { id: 7, first_name: 'Оля' }, chat: G, text: '/start' } });
+    updates.push({ update_id: 5, message: { message_id: 41, from: { id: 7, first_name: 'Оля' }, chat: G, text: '/welcome', is_topic_message: true, message_thread_id: 3 } });
+    updates.push({ update_id: 6, message: { message_id: 42, from: { id: 5, first_name: 'Власник' }, chat: G, text: '/welcome@avtodrop_bot', is_topic_message: true, message_thread_id: 3 } });
+    for (let i = 0; i < 100 && !calls.some((c) => c.method === 'deleteMessage'); i++) await new Promise((r) => setTimeout(r, 10));
+    const inGroup = calls.filter((c) => c.method === 'sendMessage' && c.params.chat_id === -1009);
+    assert.equal(inGroup.length, 1);
+    assert.equal(inGroup[0].params.message_thread_id, 3);
+    assert.match(inGroup[0].params.text, /Ласкаво просимо в АВТОДРОП/);
+    assert.ok(calls.some((c) => c.method === 'pinChatMessage'));
+    assert.equal(calls.find((c) => c.method === 'deleteMessage').params.message_id, 42);
   } finally {
     bot.stop();
     await new Promise((r) => setTimeout(r, 30));
