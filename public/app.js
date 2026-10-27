@@ -29,6 +29,7 @@ import { installClubs, clubTag, clubHub, clubFromLink } from './clubs-ui.js';
 // The boss poster is loaded when a boss race starts (not at start); if it can't load, the race simply starts.
 const bossIntro = (o) => import('./boss-intro.js').then((x) => x.bossIntro(o)).catch(() => {});
 import { watchScene } from './race-scene.js';
+import { raceWheels } from './race-wheels.js';
 import { driftEnv, grassTile, speedLines } from './drift-env.js';
 import { installTourney } from './tourney-ui.js';
 // «Престиж»: restyle ★ on cars, the restyle sheet, «Трофейна зала» (public/prestige-ui.js).
@@ -2399,6 +2400,8 @@ function runRace() {
 function drScene(E0, R) {
   let E = E0, W = 0, meW = 0, rvW = 0, mapW = 0, last = 0, cache = new Map();
   const body = { me: { p: 0, v: 0, go: false }, rv: { p: 0, v: 0, go: false } };
+  const wheels = raceWheels(R, { reduced: DR_RM }); // spinning wheels over the photos (public/race-wheels.js)
+  wheels.mount(E);
   const measure = () => {
     W = E.scene.clientWidth;
     meW = E.me.offsetWidth;
@@ -2416,6 +2419,7 @@ function drScene(E0, R) {
       E = e;
       cache = new Map();
       measure();
+      wheels.mount(E);
     },
     launch(who) {
       if (body[who].go) return;
@@ -2457,6 +2461,7 @@ function drScene(E0, R) {
       }
       tf(E.me, `translate3d(${(meX - meW).toFixed(1)}px,0,0)`);
       tf(E.rv, `translate3d(${(rvX - rvW).toFixed(1)}px,0,0)`);
+      wheels.tick(myM, rvM);
       for (const mk of E.marks) tf(mk, `translate3d(${x(+mk.dataset.m).toFixed(1)}px,0,0)`);
       if (!DR_RM) {
         tf(E.city, `translate3d(${(-(camPx * 0.05) % 480).toFixed(1)}px,0,0)`);
