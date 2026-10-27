@@ -1491,7 +1491,9 @@ TABS.cases = () => {
       const sellBtn = alive.length && !last ? `<button class="btn ghost btn2${lock}" data-act="sellDrops"><span>${ic('cash')} ${alive.length > 1 ? 'Продати все' : 'Продати'}</span><small>${S.short(sum)}</small></button>` : '';
       // D-reveal: the drop's actions live in one sticky dock over the tab bar (on 360 a ×6 grid pushed them off screen);
       // «Відкрити ще» rides under them as a text link (.drop-dock .opencase), the share row stays in the flow below.
-      return `<div class="drop-dock"><div class="btns"><button class="btn ${alive.length ? '' : 'outline'}" data-act="toGarage">У гараж</button>${sellBtn}</div>${last ? '<div class="tiny muted center mt">Це твоя єдина машина: на ній ганяєш і заробляєш, тому продати її не можна</div>' : ''}${openBlock()}</div>${wowShareRow(d)}`;
+      // Everything sold: «Відкрити ще» becomes the big main button and «У гараж» a quiet line under it (owner 27.10).
+      if (!alive.length) return `<div class="drop-dock dd-sold">${openBlock()}<button class="btn outline dd-back" data-act="toGarage">До гаража</button></div>${wowShareRow(d)}`;
+      return `<div class="drop-dock"><div class="btns"><button class="btn" data-act="toGarage">У гараж</button>${sellBtn}</div>${last ? '<div class="tiny muted center mt">Це твоя єдина машина: на ній ганяєш і заробляєш, тому продати її не можна</div>' : ''}${openBlock()}</div>${wowShareRow(d)}`;
     })() : ''}
     <div class="fastrow"><span>${ic('bolt')} Швидке відкриття <small>без рулетки</small></span><button class="toggle ${state.fast ? 'on' : ''}" data-act="toggleFast" aria-label="Швидке відкриття"></button></div>
     ${cs.starter ? '' : (() => {

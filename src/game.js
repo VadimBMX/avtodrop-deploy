@@ -4168,7 +4168,10 @@ export function createGame(db, opts = {}) {
     const fresh = list.slice(0, idx < 0 ? list.length : idx);
     if (!fresh.length) return { sent: 0 };
     metaSet('changelog_sent', list[0].id);
-    const text = ['🆕 Вийшло оновлення АВТОДРОП', ...fresh.map((e) => `\n${e.title ? `${e.title}\n` : ''}${e.items.map((i) => `• ${i}`).join('\n')}`)].join('\n').slice(0, 3900);
+    // Short form for Telegram: the title plus the entry's `short` lines (2–3 one-liners); entries without them
+    // go as the title only. The full `items` stay in changelog.json.
+    const brief = (e) => (Array.isArray(e.short) ? e.short : []);
+    const text = ['🆕 Оновлення АВТОДРОП', ...fresh.map((e) => `\n${e.title || e.items[0]}${brief(e).map((i) => `\n• ${i}`).join('')}`)].join('\n').slice(0, 3900);
     const ids = staffIds();
     for (const id of ids) {
       try {

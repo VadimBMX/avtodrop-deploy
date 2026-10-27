@@ -16,7 +16,8 @@ test('changelog: valid file, announced once to owners/admins/helpers', () => {
   const first = game.announceUpdates(log, { send });
   assert.equal(first.sent, 1);
   assert.equal(first.entries, 1); // a fresh database announces only the newest entry
-  assert.ok(sent[0][1].includes(log[0].items[0]));
+  assert.ok(sent[0][1].includes(log[0].title || ''));
+  assert.ok(sent[0][1].length < 700, 'short Telegram message');
   assert.equal(game.announceUpdates(log, { send }).sent, 0); // not again
   const next = [{ id: 'new', items: ['x'] }, ...log];
   assert.equal(game.announceUpdates(next, { send }).entries, 1);

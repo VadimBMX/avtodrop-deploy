@@ -4534,3 +4534,10 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .fh-sp-sub { font-size: var(--t-sm, 12.5px); color: var(--muted, #8a94a7); margin-top: 4px; min-height: 1em; }
 .fh-sp-note { font-size: var(--t-sm, 12.5px); margin: 10px 0 14px; color: var(--text, #eef1f6); }
 /* ===== /firsthour ===== */
+
+/* Drop screen after «Продати все»: «Відкрити ще» is the main yellow button again (owner 27.10). */
+.drop-dock.dd-sold .btn.opencase { min-height: 56px; padding: 10px 14px; border-radius: 12px; background: var(--accent); color: var(--accent-ink);
+  flex-direction: row; gap: 8px; font: 700 17px/1.15 var(--f-disp); }
+.drop-dock.dd-sold .opencase .oc-l { color: inherit; text-decoration: none; }
+.drop-dock.dd-sold .opencase .oc-p { opacity: .8; }
+.drop-dock.dd-sold .btn.dd-back { min-height: 40px; margin-top: 6px; padding: 6px; border: 0; background: none; color: var(--muted); font: 600 var(--t-md, 14.5px)/1.2 var(--f-body); }
