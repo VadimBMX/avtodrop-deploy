@@ -37,10 +37,15 @@ const dayNum = (day) => Math.round(Date.parse(day + 'T00:00:00Z') / 86400e3);
 export const addDays = (day, n) => new Date((dayNum(day) + n) * 86400e3).toISOString().slice(0, 10);
 export const isTid = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && addDays(v, 0) === v && new Date(v + 'T00:00:00Z').getUTCDay() === 5;
 // hh:00 Kyiv time of a date, right across the summer-time switches.
+const atCache = new Map(); // (date, hour) → time: the same every call
 export function kyivAt(date, hour) {
+  const key = `${date}|${hour}`;
+  if (atCache.has(key)) return atCache.get(key);
   let t = kyivMidnightOf(date) + hour * 3600e3;
   const h = Number(HOUR.format(new Date(t)));
   if (h !== hour) t += ((((hour - h) % 24) + 36) % 24 - 12) * 3600e3;
+  if (atCache.size > 500) atCache.clear();
+  atCache.set(key, t);
   return t;
 }
 // The tournament of the Kyiv week of t: its Friday ('YYYY-MM-DD') is its id.

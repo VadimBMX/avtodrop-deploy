@@ -14,7 +14,8 @@ import * as DRS from './dayrace.js';
 import * as WOW from './wow.js';
 // Ghost challenges: the ghost's replay and the rules (shared with the server), the share card.
 import * as G from './ghost.js';
-import { challengeCard } from './challenge-card.js';
+// The share card is drawn only when a challenge is thrown: loaded then (like the «Заїзд дня» card), not at start.
+const challengeCard = (o) => import('./challenge-card.js').then((x) => x.challengeCard(o));
 // «Ніч Хелловіну»: banner, event sheet, night drift (public/halloween-ui.js; hides itself when me.halloween is null).
 import { installHalloween, hwNight, HW_DRIFT, hwDriftPumpkins, hwDriftOverlay } from './halloween-ui.js';
 // «Сарайна знахідка»: the «Сарай» page, a garage row and a menu row (public/barn-ui.js).
@@ -22,7 +23,8 @@ import { installBarn } from './barn-ui.js';
 // «Автоклуби»: page «Клуб», [TAG] next to names, the menu row, club_<code> invite links (public/clubs-ui.js).
 import { installClubs, clubTag, clubHub, clubFromLink } from './clubs-ui.js';
 // D-race: the boss's fight-poster intro before the lights; «scene mode» (no tab bar) while a run is on screen.
-import { bossIntro } from './boss-intro.js';
+// The boss poster is loaded when a boss race starts (not at start); if it can't load, the race simply starts.
+const bossIntro = (o) => import('./boss-intro.js').then((x) => x.bossIntro(o)).catch(() => {});
 import { watchScene } from './race-scene.js';
 import { installTourney } from './tourney-ui.js';
 // «Престиж»: restyle ★ on cars, the restyle sheet, «Трофейна зала» (public/prestige-ui.js).
@@ -91,7 +93,7 @@ const countryTag = (c) => `<span class="cc sm">${c}</span>`;
 const emptyBox = (icon, title, sub = '', cta = '') => `<div class="empty-box"><span class="empty-ic">${ic(icon)}</span><b>${title}</b>${sub ? `<span>${sub}</span>` : ''}${cta}</div>`;
 const initialOf = (n) => (String(n || '?').replace(/^@/, '').trim()[0] || '?').toUpperCase();
 // A small car picture standing on a floor lit in its class colour (lists, market, rivals).
-const miniCar = (model, cls = '', look = null, dirt = 0) => `<div class="mini art lit r${S.rankOf(M(model).cls)} ${cls}" style="--c:${S.CLASSES[M(model).cls].color}">${carArt(model, { look, dirt })}</div>`;
+const miniCar = (model, cls = '', look = null, dirt = 0) => `<div class="mini art lit r${S.rankOf(M(model).cls)} ${cls}" style="--c:${S.CLASSES[M(model).cls].color}">${carArt(model, { look, dirt, thumb: true })}</div>`;
 
 let config = { dev: false, packs: [], images: {} };
 let me = null;
@@ -367,7 +369,7 @@ function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false,
   const sale = S.saleOf(c); // honest numbers: the sale is the main figure, the collection price the grey line
   return `<button class="car r${S.rankOf(m.cls)}${starTileCls(c)} ${sel ? 'sel' : ''} ${c.status === 'market' || c.status === 'auction' ? 'listed' : ''}" data-act="${act}" data-id="${c.id}" style="--c:${S.CLASSES[m.cls].color}">
     ${clsBadge(m.cls, 'tl')}<span class="tr">${isNew ? `<span class="new">${ic('sparkles')}нова</span>` : ''}<span class="chip">${ic('tool')}${partCount(c)}/${partSlots(c)}</span></span>
-    <div class="art">${carArt(c.model, { look: c.look, dirt: c.dirt })}${dirtPip(c)}</div>
+    <div class="art">${carArt(c.model, { look: c.look, dirt: c.dirt, thumb: true })}${dirtPip(c)}</div>
     ${tileMarks(c, m)}<div class="nm clamp2" title="${esc(m.name)}">${esc(m.restored ? m.name.replace(/ · R$/, '') : m.name)}</div>
     ${c.plate ? `<div class="meta">${plate(c.plate.text, 'sm', c.pf)}</div>` : ''}
     <div class="meta row between" style="gap:4px"><span>${c.hp} к.с.</span><b class="disp hn-sale" style="color:var(--text);font-size:14px;font-weight:600" title="${sale == null ? 'Колекційна ціна' : 'Продаж'}">${sale == null ? S.short(c.value) : `${ic('cash')}${S.short(sale)}`}</b></div>${collLine ? `<div class="meta sellp">${sale == null ? 'не продається' : `${collLine === 'short' ? 'колекц.' : 'колекційна'} ${S.short(c.value)}`}</div>` : ''}
@@ -965,8 +967,22 @@ H.selToggle = (d) => {
   if (c.status !== 'garage') return toast('Авто зараз на ринку', true);
   if (M(c.model).secret) return toast('Секретну машину продати не можна — це нагорода за колекцію', true);
   state.selling.has(id) ? state.selling.delete(id) : state.selling.add(id);
-  render();
+  selRepaint(id);
 };
+// A tap in the sell mode changes one tile and the sell bar: only those are redrawn, not the whole garage (40 tiles
+// with photos). Anything unexpected falls back to the full render.
+function selRepaint(id) {
+  const tile = $(`#view .garage-grid [data-act="selToggle"][data-id="${id}"]`), bar = $('#view .sellbar');
+  if (state.page || state.tab !== 'garage' || !tile || !bar) return render();
+  const html = TABS.garage();
+  if (typeof html !== 'string') return render();
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  const fresh = tpl.content.querySelector('.sellbar');
+  if (!fresh) return render();
+  tile.classList.toggle('sel', state.selling.has(id));
+  bar.replaceWith(fresh);
+}
 H.sellSel = async () => {
   const ids = [...state.selling];
   if (!(await confirmBox(`Продати ${ids.length} авто? Деталі й номери повернуться тобі.${sellStarNote(ids.map((id) => me.cars.find((c) => c.id === id)))}`))) return;
@@ -1321,7 +1337,7 @@ const sellPrice = (car) => car.sell ?? S.sellPriceOf(car.model, Infinity, car.or
 const sellTotal = (cars) => cars.reduce((s, c) => s + sellPrice(c), 0);
 const dropAlive = (r) => !r.sold && me.cars.some((c) => c.id === r.car.id && c.status === 'garage');
 // The price on a reel card is what that drop would sell for (honest numbers), not the model's collection price.
-const reelCard = (model, cs) => `<div class="car r${S.rankOf(M(model).cls)}" style="--c:${S.CLASSES[M(model).cls].color}">${clsBadge(M(model).cls, 'tl')}<div class="art">${carArt(model)}</div><div class="nm tiny ellipsis">${esc(M(model).name)}</div><div class="price tiny" style="color:${S.CLASSES[M(model).cls].color}">${S.short(S.dropSaleOf(model, cs))}</div></div>`;
+const reelCard = (model, cs) => `<div class="car r${S.rankOf(M(model).cls)}" style="--c:${S.CLASSES[M(model).cls].color}">${clsBadge(M(model).cls, 'tl')}<div class="art">${carArt(model, { thumb: true })}</div><div class="nm tiny ellipsis">${esc(M(model).name)}</div><div class="price tiny" style="color:${S.CLASSES[M(model).cls].color}">${S.short(S.dropSaleOf(model, cs))}</div></div>`;
 // ---------- game events (S.EVENTS): chips with a timer, the «Події» card, the deal for a case right now ----------
 const evActive = () => (me.gameEvents?.active || []).filter((e) => e.end > serverNow());
 const evFx = () => S.eventEffects(evActive());
@@ -1580,7 +1596,7 @@ H.odds = () => {
       const w = S.modelWeights(list), sw = w.reduce((a, b) => a + b, 0);
       const p = (W[cls] / total) * 100;
       return `<div class="h2"><span>${clsBadge(cls)} ${S.CLASSES[cls].name}</span><span>${pct(p)}</span></div>
-        <div class="grid">${list.map((m, i) => `<div class="car" style="min-height:0;--c:${S.CLASSES[cls].color}">${owned.has(m.id) ? '<span class="tr win">✓</span>' : ''}<div class="art" style="height:54px">${carArt(m.id)}</div><div class="nm tiny">${esc(m.name)}</div><div class="meta">${pct((p * w[i]) / sw)} · ${S.short(S.dropSaleOf(m.id, cs))}</div></div>`).join('')}</div>`;
+        <div class="grid">${list.map((m, i) => `<div class="car" style="min-height:0;--c:${S.CLASSES[cls].color}">${owned.has(m.id) ? '<span class="tr win">✓</span>' : ''}<div class="art" style="height:54px">${carArt(m.id, { thumb: true })}</div><div class="nm tiny">${esc(m.name)}</div><div class="meta">${pct((p * w[i]) / sw)} · ${S.short(S.dropSaleOf(m.id, cs))}</div></div>`).join('')}</div>`;
     }).join('')}`);
 };
 // A country case: what finishing it gives (the secret car, S.countryNeed is exactly this case's list) and the claim
@@ -3064,6 +3080,7 @@ H.bossPickCar = async (d) => {
 const bossKit = (b) => (b.kit ? `${S.TIER_BY_ID[b.kit].name}-кіт` : 'без тюнінгу');
 const bossOf = (c) => S.BOSSES.filter((b) => b.country === c);
 async function careerView(car, garage) {
+  import('./boss-intro.js').catch(() => {}); // the bosses are on screen: have the poster ready before «Кинути виклик»
   let data = await api('boss/list', { carId: car.id });
   // The next boss decides the default car: one with fuel and a class he takes (not the empty or too weak one).
   const nb = data.next && BOSS(data.next);
@@ -3110,7 +3127,7 @@ function bossRow(b, s) {
   const prev = S.BOSSES[b.n - 1];
   const tag = s.beaten ? `<span class="diff easy">${ic('check')} Переможений</span>` : s.open ? '<span class="diff mid">Наступний</span>' : `<span class="diff lock">${ic('lock')} Після «${esc(prev.nick)}»</span>`;
   return `<button class="rival boss ${s.beaten ? 'beaten' : s.open ? 'open' : 'locked'}" data-act="bossCard" data-id="${b.id}">
-    <div class="mini art lit r${S.rankOf(M(b.model).cls)}" style="--c:${S.CLASSES[M(b.model).cls].color}">${carArt(b.model, { silhouette: !s.open })}</div>
+    <div class="mini art lit r${S.rankOf(M(b.model).cls)}" style="--c:${S.CLASSES[M(b.model).cls].color}">${carArt(b.model, { silhouette: !s.open, thumb: true })}</div>
     <div class="grow"><b class="ellipsis">${esc(b.nick)}${b.final ? ` ${ic('crown', 'win')}` : ''}</b><div class="small muted rv-meta"><span class="ellipsis">${esc(M(b.model).name)}</span><span class="nw">· ${b.hp} к.с.</span></div>
       <div class="row mt" style="gap:6px">${tag}${s.open && !s.beaten ? bossChance(s) : ''}${s.beaten ? (s.hard?.done ? `<span class="chip">${ic('check')} складний сьогодні</span>` : '<span class="chip bs-hard">складний ×2</span>') : ''}</div></div>
     <div class="center">${s.beaten ? `<b class="muted">${s.best != null ? dec(s.best, 2) + ' с' : ''}</b><div class="tiny muted">реванш</div>` : `<b class="win">+${S.short(b.reward.money)}</b><div class="tiny muted">${b.final ? 'і значок' : 'нагорода'}</div>`}</div></button>`;
@@ -3628,7 +3645,7 @@ function washView() {
   const dirtyAll = cars.filter((x) => (x.dirt || 0) >= 10);
   const allSum = vip ? 0 : dirtyAll.reduce((s, x) => s + S.washPrice(x.model), 0);
   const strip = `<div class="paint-cars wash-cars" id="washCars">${cars.map((x) => `<button class="pcar ${x.id === c.id ? 'on' : ''}" data-act="washPick" data-id="${x.id}" style="--c:${S.CLASSES[M(x.model).cls].color}">
-    <span class="art">${carArt(x.model, { look: x.look, dirt: x.dirt })}</span><span class="pcar-nm ellipsis">${esc(M(x.model).name)}</span>
+    <span class="art">${carArt(x.model, { look: x.look, dirt: x.dirt, thumb: true })}</span><span class="pcar-nm ellipsis">${esc(M(x.model).name)}</span>
     <span class="wash-meter"><i style="width:${x.dirt || 0}%"></i></span><span class="pcar-d ${isDirty(x) ? 'dirty' : ''}">${shining(x) ? `${ic('sparkles')}блищить` : `${x.dirt || 0}%`}</span></button>`).join('')}</div>`;
   const state1 = sh ? `<span class="wash-state shine">${ic('sparkles')} Блищить ще <span data-until="${c.shineUntil - clockOffset}"></span> · +${Math.round(S.WASH.shine * 100)}% доходу</span>`
     : `<span class="wash-state ${isDirty(c) ? 'dirty' : ''}">${ic('droplet')} Бруд ${d}% · ${d >= 30 ? `після мийки +${Math.round(S.WASH.shine * 100)}% доходу` : 'майже чиста'}</span>`;
@@ -3860,7 +3877,7 @@ function paintView() {
   const d = state.paintDraft;
   const mode = state.paintMode || 'color';
   const strip = `<div class="paint-cars" id="paintCars">${cars.map((x) => `<button class="pcar ${x.id === c.id ? 'on' : ''} ${PAINT.canPaint(x.model) ? '' : 'off'}" data-act="paintPick" data-id="${x.id}" style="--c:${S.CLASSES[M(x.model).cls].color}">
-    <span class="art">${carArt(x.model, { look: x.look })}</span><span class="pcar-nm ellipsis">${esc(M(x.model).name)}</span></button>`).join('')}</div>`;
+    <span class="art">${carArt(x.model, { look: x.look, thumb: true })}</span><span class="pcar-nm ellipsis">${esc(M(x.model).name)}</span></button>`).join('')}</div>`;
   let body;
   if (locked) body = `<div class="card center muted">Машина на ${c.status === 'market' ? 'ринку' : 'аукціоні'} — зніми її з продажу, щоб перефарбувати.</div>`;
   else if (!can) body = `<div class="card center muted">Для цієї машини фарбування поки недоступне: на її фото не вдалося точно виділити кузов.</div>
@@ -4186,7 +4203,7 @@ const collectionCars = () => {
   };
   const tile = (m) => {
     const own = owned.has(m.id), r = S.rankOf(m.cls), col = S.CLASSES[m.cls].color;
-    return `<div class="ctile r${r} ${own ? '' : 'off'}" style="--c:${col}"><div class="art">${carArt(m.id, { silhouette: !own })}</div>
+    return `<div class="ctile r${r} ${own ? '' : 'off'}" style="--c:${col}"><div class="art">${carArt(m.id, { silhouette: !own, thumb: true })}</div>
       <b class="ellipsis">${own ? esc(m.name) : m.secret ? 'Секретна' : '???'}</b><span class="ellipsis">${m.season ? `Сезон ${m.season}` : m.secret && !own ? `збери: ${S.COUNTRIES[m.country].name}` : originText(m)}</span></div>`;
   };
   return `<div class="card coll-sum"><div class="coll-ring"><svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="${R}" fill="none" stroke="#0b0f16" stroke-width="7"/><circle cx="40" cy="40" r="${R}" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-dasharray="${(C * n) / totalReg} ${C}" transform="rotate(-90 40 40)"/></svg><b>${pctAll}<small>%</small></b></div>
@@ -4238,7 +4255,7 @@ function setsView() {
     const col = SET_TIER_COLORS[s.tier], ready = p.done && !claimed;
     const thumbs = s.models.map((id) => {
       const m = M(id), own = owned.has(id);
-      return `<div class="set-car ${own ? 'own' : 'miss'} r${S.rankOf(m.cls)}" style="--c:${S.CLASSES[m.cls].color}" title="${own ? esc(m.name) : '???'}"><div class="art">${carArt(id, { silhouette: !own })}</div>
+      return `<div class="set-car ${own ? 'own' : 'miss'} r${S.rankOf(m.cls)}" style="--c:${S.CLASSES[m.cls].color}" title="${own ? esc(m.name) : '???'}"><div class="art">${carArt(id, { silhouette: !own, thumb: true })}</div>
         <span class="ellipsis">${own ? esc(m.name) : `${S.COUNTRIES[m.country].flag} ${m.cls} · ???`}</span></div>`;
     }).join('');
     return `<div class="card set-card ${ready ? 'ready' : ''} ${claimed ? 'claimed' : ''}" style="--tc:${col}">
@@ -4265,7 +4282,7 @@ H.setClaim = async (d) => {
     `${ic('coin')} +${Math.round(rw.income * 100)}% доходу машинам сету`,
   ].filter(Boolean);
   sheet('Сет зібрано!', `<div class="card center reward-res pop set-done" style="--tc:${SET_TIER_COLORS[s.tier]}">
-      <div class="set-cars mini">${s.models.map((id) => `<div class="set-car own"><div class="art">${carArt(id)}</div></div>`).join('')}</div>
+      <div class="set-cars mini">${s.models.map((id) => `<div class="set-car own"><div class="art">${carArt(id, { thumb: true })}</div></div>`).join('')}</div>
       <span class="set-medal">${ic(s.icon)}</span><b class="disp rr-name">${esc(s.name)}</b>
       <span class="lstamp" style="--bc:${SET_TIER_COLORS[s.tier]}">${ic('trophy')}${esc(rw.badge)}</span>
       <div class="set-rw-list">${list.map((x) => `<div>${x}</div>`).join('')}</div>
@@ -4644,7 +4661,7 @@ function bindChat() {
     H[e.currentTarget.dataset.send]();
   });
 }
-const miniCars = (models) => models.map((m) => `<span class="mini art">${carArt(m)}</span>`).join('');
+const miniCars = (models) => models.map((m) => `<span class="mini art">${carArt(m, { thumb: true })}</span>`).join('');
 function roomsHtml(h) {
   const list = [...h.rooms].sort((a, b) => b.invited - a.invited || b.mine - a.mine);
   if (!list.length) return emptyLine('arrows-exchange', 'Поки порожньо — створи кімнату вище: її побачать усі, хто зайде в Трейд-зал');
@@ -4940,7 +4957,7 @@ function openBattle(id, anim) {
 }
 function dropCard(d, hidden) {
   const m = M(d.model);
-  return `<div class="car bdrop r${S.rankOf(m.cls)} ${hidden ? 'hid' : ''}" style="--c:${S.CLASSES[m.cls].color}">${clsBadge(m.cls, 'tl')}<div class="art">${carArt(d.model)}</div>
+  return `<div class="car bdrop r${S.rankOf(m.cls)} ${hidden ? 'hid' : ''}" style="--c:${S.CLASSES[m.cls].color}">${clsBadge(m.cls, 'tl')}<div class="art">${carArt(d.model, { thumb: true })}</div>
     <div class="nm ellipsis">${esc(m.name)}</div><div class="meta"><b>${S.short(d.value)}</b></div><div class="q">?</div></div>`;
 }
 PAGES.battle = async () => {
@@ -5888,7 +5905,7 @@ PAGES.upgrade = () => {
     <div class="h2"><span>Твої авто · ${U.cars.size}/${S.UPGRADE.maxCars}</span><span>${S.short(stake)}</span></div>
     <div class="grid">${garage.map((c) => carTile(c, { act: 'upCar', sel: U.cars.has(c.id) })).join('')}</div>
     ${list.length ? `<div class="h2"><span>Ціль</span><span>${list.length}</span></div>
-      <div class="list">${[...list].reverse().map((m) => `<button class="li ${m.id === U.target ? 'on' : ''}" data-act="upTarget" data-id="${m.id}"><div class="mini art">${carArt(m.id)}</div>
+      <div class="list">${[...list].reverse().map((m) => `<button class="li ${m.id === U.target ? 'on' : ''}" data-act="upTarget" data-id="${m.id}"><div class="mini art">${carArt(m.id, { thumb: true })}</div>
         <div class="grow"><b class="ellipsis">${esc(m.name)}</b><div class="small muted">${clsBadge(m.cls)} ${S.short(m.price)} · ×${dec(m.price / stake, 1)}</div></div><b class="${S.upgradeChance(stake, m.price, state.up.cars.size) >= 0.5 ? 'win' : ''}">${pct(S.upgradeChance(stake, m.price, state.up.cars.size) * 100)}</b></button>`).join('')}</div>` : ''}`;
 };
 H.upCar = (d) => {
@@ -6941,7 +6958,7 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide', 'toggleChannel']) {
   try {
     config = await (await fetch('/api/config')).json();
   } catch {}
-  setImages(config.images);
+  setImages(config.images, config.thumbs);
   // body masks' index (small); painted cars render as plain photos if it's slow or missing
   await Promise.race([PAINT.loadPaintMeta(), new Promise((r) => setTimeout(r, 1500))]);
   PAINT.watchLooks(document.body);
@@ -7455,7 +7472,7 @@ function dreamCard() {
     if (!sm || Date.now() - hidden < 3 * 86400e3) return '';
     return `<div class="card dream sug" style="--c:${S.CLASSES[sm.cls].color}">
       <div class="dream-h"><span>${ic('heart')} Яка машина — твоя мрія?</span><button class="dream-x" data-act="dreamHide" aria-label="Сховати">${ic('x')}</button></div>
-      <div class="dream-row"><div class="dream-art">${carArt(sm.id, { glow: true })}</div><div class="grow"><b class="dream-nm">${esc(sm.name)}</b>
+      <div class="dream-row"><div class="dream-art">${carArt(sm.id, { glow: true, thumb: true })}</div><div class="grow"><b class="dream-nm">${esc(sm.name)}</b>
         <div class="small muted">${clsBadge(sm.cls)} ${S.short(sm.price)}</div><div class="tiny muted">Обери ціль — гараж показуватиме, скільки лишилось і де її шукати</div></div></div>
       <div class="btns dream-acts"><button class="btn ghost" data-act="dreamSet" data-id="${sm.id}">${ic('heart')} Хочу її</button><button class="txtlink" data-act="dreamPick">Обрати іншу</button></div></div>`;
   }
@@ -7465,7 +7482,7 @@ function dreamCard() {
     const own = me.cars.find((c) => c.model === m.id);
     return `<div class="card dream got" style="--c:${color}">
       <div class="dream-h"><span>${ic('trophy')} Мрію здійснено!</span></div>
-      <div class="dream-row"><div class="dream-art">${carArt(m.id, { glow: true, look: own?.look })}</div><div class="grow"><b class="dream-nm">${esc(m.name)}</b><div class="small muted">${clsBadge(m.cls)} у твоєму гаражі</div></div></div>
+      <div class="dream-row"><div class="dream-art">${carArt(m.id, { glow: true, look: own?.look, thumb: true })}</div><div class="grow"><b class="dream-nm">${esc(m.name)}</b><div class="small muted">${clsBadge(m.cls)} у твоєму гаражі</div></div></div>
       <div class="btns">${own ? `<button class="btn ghost" data-act="shareCar" data-id="${own.id}">${ic('share')} Поділитися</button>` : ''}<button class="btn soft" data-act="dreamPick">${ic('heart')} Нова мрія</button></div></div>`;
   }
   const ch = S.dreamChances(m.id)[0];
@@ -7473,7 +7490,7 @@ function dreamCard() {
   const o = S.dreamOutlook(m.id, { balance: me.balance, keys: me.keys });
   return `<div class="card dream" style="--c:${color}">
     <div class="dream-h"><span>${ic('heart')} Машина мрії</span><button class="dream-edit" data-act="dreamPick">Змінити</button></div>
-    <div class="dream-row"><div class="dream-art">${carArt(m.id, { glow: true })}</div><div class="grow"><b class="dream-nm">${esc(m.name)}</b><div class="small muted">${clsBadge(m.cls)} ${m.hp} к.с. · колекційна ${S.short(m.price)}</div></div></div>
+    <div class="dream-row"><div class="dream-art">${carArt(m.id, { glow: true, thumb: true })}</div><div class="grow"><b class="dream-nm">${esc(m.name)}</b><div class="small muted">${clsBadge(m.cls)} ${m.hp} к.с. · колекційна ${S.short(m.price)}</div></div></div>
     ${o && cs ? dreamOutlookHtml(o, cs) : ''}
     ${me.balance >= m.price ? `<div class="tiny mt" style="color:var(--green)">${ic('check')} Грошей більше за її колекційну ціну — пошукай її на ринку чи аукціоні</div>` : ''}
     ${cs ? `<button class="dream-case" data-act="dreamCase" data-id="${cs.id}"><span class="ic">${caseIcon(cs)}</span><span class="grow"><b>Випадає з «${esc(cs.name)}»</b><span class="tiny muted">шанс ${pct(ch.pct)} · це ${WOW.oneIn(ch.pct)} · кейс ${S.short(cs.price)}</span></span><span class="chev">${ic('chevron-right')}</span></button>`
@@ -7515,7 +7532,7 @@ function dreamPicker() {
   const tile = (m) => {
     const ch = S.dreamChances(m.id)[0];
     return `<button class="car dream-tile ${m.id === cur ? 'on' : ''}" data-act="dreamSet" data-id="${m.id}" style="--c:${S.CLASSES[m.cls].color}">${m.id === cur ? `<span class="tr">${ic('heart')}</span>` : owned.has(m.id) ? '<span class="tr win">✓</span>' : ''}
-      <div class="art">${carArt(m.id)}</div><div class="nm">${esc(m.name)}</div><div class="meta"><b>${S.short(m.price)}</b> · ${ch ? pct(ch.pct) : 'ринок'}</div></button>`;
+      <div class="art">${carArt(m.id, { thumb: true })}</div><div class="nm">${esc(m.name)}</div><div class="meta"><b>${S.short(m.price)}</b> · ${ch ? pct(ch.pct) : 'ринок'}</div></button>`;
   };
   sheet('Машина мрії', `<div class="small muted">Обери ціль з каталогу. Коли вона випаде — буде окреме свято й досягнення «Мрійник».</div>
     <div class="chips gfilter mt">${['S', 'A', 'B', 'C', 'D'].map((k) => `<button class="${k === cls ? 'on' : ''}" data-act="dreamCls" data-k="${k}" style="--c:${S.CLASSES[k].color}"><i></i>${k}<small>${S.CLASSES[k].name}</small></button>`).join('')}</div>
@@ -7561,7 +7578,7 @@ function dayRaceTile() {
   return `<button class="drt" data-act="drOpen" style="--c:${S.CLASSES[m.cls].color}">
     <span class="drt-tx"><span class="drt-h">${ic('flag-3')} Заїзд дня${tag}</span><b class="drt-car ellipsis">${esc(m.name)}</b><span class="drt-st">${stat}</span>
       <span class="drt-at">${drPips(d.left, d.max)}<small>${d.left ? `спроби ${d.left}/${d.max}` : 'спроби закінчились'}</small></span></span>
-    <span class="drt-art">${carArt(d.model)}</span><span class="chev">${ic('chevron-right')}</span></button>`;
+    <span class="drt-art">${carArt(d.model, { thumb: true })}</span><span class="chev">${ic('chevron-right')}</span></button>`;
 }
 {
   const base = TABS.race;

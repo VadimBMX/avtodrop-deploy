@@ -119,7 +119,7 @@ async function hallSheet() {
   const cars = st.restyled.slice(0, 8).map((r) => {
     const c = m.cars.find((x) => x.id === r.carId) || { id: r.carId, model: r.model, stars: r.stars };
     const wait = r.nextAt && r.nextAt > X.serverNow();
-    return `<button class="li" data-act="prRestyle" data-id="${r.carId}"><span class="mini art">${carArt(r.model)}</span><div class="grow"><b class="clamp2">${X.esc(S.MODELS[r.model].name)}</b><div class="small muted">${starsHtml(c, { full: true })} · вкладено <span class="nw">${S.short(r.spent)}</span></div></div><span class="small ${wait ? 'muted' : 'pr-ready'} nw">${r.stars >= P.PRESTIGE.max ? 'легенда' : wait ? untilHtml(r.nextAt) : 'можна ★'}</span></button>`;
+    return `<button class="li" data-act="prRestyle" data-id="${r.carId}"><span class="mini art">${carArt(r.model, { thumb: true })}</span><div class="grow"><b class="clamp2">${X.esc(S.MODELS[r.model].name)}</b><div class="small muted">${starsHtml(c, { full: true })} · вкладено <span class="nw">${S.short(r.spent)}</span></div></div><span class="small ${wait ? 'muted' : 'pr-ready'} nw">${r.stars >= P.PRESTIGE.max ? 'легенда' : wait ? untilHtml(r.nextAt) : 'можна ★'}</span></button>`;
   }).join('');
   const titleNext = P.TROPHY_TITLES.find((x) => x.n > st.n);
   X.sheet('Престиж', `<div class="card pr-sum"><div class="row between"><span class="small muted">Статок</span>${st.title ? `<span class="chip pr-title">${X.ic('trophy')} ${X.esc(st.title)}</span>` : ''}</div>
@@ -138,7 +138,7 @@ function pickForRestyle() {
   const m = X.me();
   const list = m.cars.filter((c) => (c.status === 'garage' || c.status === 'showcase') && P.canRestyle(c.model))
     .sort((a, b) => (b.stars || 0) - (a.stars || 0) || S.MODELS[b.model].price - S.MODELS[a.model].price);
-  X.sheet('Яку машину?', list.length ? `<div class="list">${list.map((c) => `<button class="li" data-act="prRestyle" data-id="${c.id}"><span class="mini art">${carArt(c.model, { look: c.look })}</span><div class="grow"><b class="clamp2">${X.esc(S.MODELS[c.model].name)}</b><div class="small muted">${c.stars ? starsHtml(c, { full: true }) : 'без ★'} · ${P.STAR}${(c.stars || 0) + 1 > P.PRESTIGE.max ? '5' : (c.stars || 0) + 1} ${c.stars >= P.PRESTIGE.max ? 'готово' : S.short(P.restyleCost(c.model, c.stars || 0))}</div></div><span class="chev">›</span></button>`).join('')}</div>`
+  X.sheet('Яку машину?', list.length ? `<div class="list">${list.map((c) => `<button class="li" data-act="prRestyle" data-id="${c.id}"><span class="mini art">${carArt(c.model, { look: c.look, thumb: true })}</span><div class="grow"><b class="clamp2">${X.esc(S.MODELS[c.model].name)}</b><div class="small muted">${c.stars ? starsHtml(c, { full: true }) : 'без ★'} · ${P.STAR}${(c.stars || 0) + 1 > P.PRESTIGE.max ? '5' : (c.stars || 0) + 1} ${c.stars >= P.PRESTIGE.max ? 'готово' : S.short(P.restyleCost(c.model, c.stars || 0))}</div></div><span class="chev">›</span></button>`).join('')}</div>`
     : '<div class="card small muted">Рестайлінг — для машин класу A, S і секретних. У гаражі таких поки немає.</div>', () => hallSheet());
 }
 

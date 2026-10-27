@@ -64,6 +64,26 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     return map;
   }
   const carImages = () => folderImages('cars');
+  // Small copies of the photos for lists (tools/car_thumbs.py → public/cars/thumb/<id>.webp). A copy is offered only
+  // while it was made from the current photo (cars/thumb/index.json keeps each photo's hash), so a replaced photo
+  // never shows its old picture in a list.
+  function carThumbs() {
+    const c = imagesCache.thumbs;
+    if (c && c.until > Date.now()) return c.map;
+    const map = {};
+    try {
+      const made = JSON.parse(fs.readFileSync(path.join(PUBLIC, 'cars', 'thumb', 'index.json'), 'utf8'));
+      for (const [id, photo] of Object.entries(carImages())) {
+        const v = photo.split('?v=')[1];
+        if (v && made[id] === v) {
+          const t = statics.version(`cars/thumb/${id}.webp`);
+          if (t.includes('?v=')) map[id] = t;
+        }
+      }
+    } catch {}
+    imagesCache.thumbs = { map, until: Date.now() + 30e3 };
+    return map;
+  }
 
   const shares = createShareStore(); // drop cards uploaded for Telegram stories / shared messages (src/share.js)
   // Auto-posts to the Telegram channel (TG_CHANNEL_ID; src/channel.js). channelApi: a test's stand-in for the Bot API.
@@ -328,7 +348,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
       const community = { channel: process.env.TG_CHANNEL_URL || '', chat: process.env.TG_CHAT_URL || '' };
       // EMOJI_STATUS_ID: the custom emoji (🏁) the app offers for the Telegram status after a career milestone; empty = no offer.
       const emojiStatus = /^\d{5,25}$/.test(process.env.EMOJI_STATUS_ID || '') ? process.env.EMOJI_STATUS_ID : '';
-      return send(res, 200, { dev, bot: bot?.username || null, stars: !!bot, packs: PACKS_ON_SALE ? PACKS : [], images: carImages(), partImages: folderImages('parts'), community, emojiStatus, app: tgApp(), inline: !!bot?.inline });
+      return send(res, 200, { dev, bot: bot?.username || null, stars: !!bot, packs: PACKS_ON_SALE ? PACKS : [], images: carImages(), thumbs: carThumbs(), partImages: folderImages('parts'), community, emojiStatus, app: tgApp(), inline: !!bot?.inline });
     }
     if (req.method !== 'POST') return send(res, 405, { error: 'POST only' });
     const uid = authenticate(req);

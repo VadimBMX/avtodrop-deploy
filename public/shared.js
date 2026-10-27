@@ -750,11 +750,15 @@ export const CASE_BY_ID = Object.fromEntries(CASES.map((c) => [c.id, c]));
 // nothing (22.10). A country without a case of its own keeps countryModels. The list is built from the pool, so a
 // model added later joins it the same way it joins the case.
 const COUNTRY_CASE_ID = Object.fromEntries(CASES.filter((c) => c.country && !c.starter).map((c) => [c.country, c.id]));
+const needCache = new Map(); // the catalogue is fixed once loaded: one list per country (a copy is returned)
 export const countryNeed = (c) => {
+  if (needCache.has(c)) return needCache.get(c).slice();
   const cs = CASE_BY_ID[COUNTRY_CASE_ID[c]];
   if (!cs) return countryModels(c);
   const ids = new Set(Object.keys(cs.weights).flatMap((cls) => cs.pool(cls).map((m) => m.id)));
-  return ALL_MODELS.filter((m) => ids.has(m.id) && !m.secret);
+  const list = ALL_MODELS.filter((m) => ids.has(m.id) && !m.secret);
+  needCache.set(c, list.slice());
+  return list;
 };
 export const countryDone = (c, owned) => countryNeed(c).every((m) => owned.has(m.id));
 // Case of the day: one rarity case (never the starter) is CASE_OF_DAY.off cheaper for the whole Kyiv day; its hidden
@@ -2591,10 +2595,19 @@ export const EVENT_WEEKS = [
   [{ id: 'country', day: 0 }, { id: 'fuel', day: 1 }, { id: 'plates', day: 3 }, { id: 'race', day: 5 }],
 ];
 const KYIV_PARTS = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Kyiv', hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' });
-// How far the Kyiv wall clock is ahead of UTC at t (2 or 3 hours).
+// How far the Kyiv wall clock is ahead of UTC at t (2 or 3 hours). Summer time switches on a whole UTC hour, so the
+// answer is the same for a whole hour: kept per hour (Intl.formatToParts is slow and this runs on every API call).
+const aheadCache = new Map();
 function kyivAhead(t) {
-  const p = Object.fromEntries(KYIV_PARTS.formatToParts(new Date(t)).map((x) => [x.type, x.value]));
-  return Date.UTC(+p.year, p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second) - Math.floor(t / 1000) * 1000;
+  const h = Math.floor(t / 3600e3);
+  let v = typeof t === 'number' && Number.isFinite(h) ? aheadCache.get(h) : undefined;
+  if (v === undefined) {
+    const p = Object.fromEntries(KYIV_PARTS.formatToParts(new Date(t)).map((x) => [x.type, x.value]));
+    v = Date.UTC(+p.year, p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second) - Math.floor(t / 1000) * 1000;
+    if (aheadCache.size > 2000) aheadCache.clear();
+    if (typeof t === 'number' && Number.isFinite(h)) aheadCache.set(h, v);
+  }
+  return v;
 }
 const addDate = (date, days) => new Date(Date.parse(date + 'T00:00:00Z') + days * 86400e3).toISOString().slice(0, 10);
 // 00:00 Kyiv time of a calendar date ('YYYY-MM-DD') plus `days` days — right across the summer-time switches.
@@ -3030,7 +3043,15 @@ export function bossRewardText(rw) {
 }
 // ---------- dream car: the player's goal from the catalogue (any non-secret car) ----------
 // Which cases can drop the model and with what chance (base odds, no events/luck): [{ caseId, pct }] best first.
+// The catalogue is fixed once this module has loaded, so each model's answer is worked out once (a copy is returned).
+const dreamCache = new Map();
 export function dreamChances(modelId) {
+  if (dreamCache.has(modelId)) return dreamCache.get(modelId).map((x) => ({ ...x }));
+  const out = dreamChancesOf(modelId);
+  if (MODELS[modelId]) dreamCache.set(modelId, out.map((x) => ({ ...x })));
+  return out;
+}
+function dreamChancesOf(modelId) {
   const m = MODELS[modelId];
   if (!m || m.secret) return [];
   const out = [];

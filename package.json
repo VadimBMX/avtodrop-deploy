@@ -11,6 +11,7 @@
     "prompts": "node tools/make_prompts.mjs",
     "cars": "python -I tools/prepare_cars.py",
     "car-photos": "node tools/car_photos.mjs",
+    "car-thumbs": "python -I tools/car_thumbs.py",
     "paint-masks": "python -I tools/paint/masks.py",
     "green-cars": "python -I tools/paint/green.py"
   },

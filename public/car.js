@@ -3,11 +3,21 @@ import { MODELS, CLASSES } from './shared.js';
 import { lookKey, cachedLook, canPaint, setPhotoSource } from './paint.js';
 import { dirtKey, cachedDirt } from './dirt.js';
 
-let IMAGES = {};
-export function setImages(map) {
+let IMAGES = {}, THUMBS = {};
+// thumbs: small copies of the photos for lists (public/cars/thumb, tools/car_thumbs.py), offered next to the photo.
+export function setImages(map, thumbs = {}) {
   IMAGES = map || {};
+  THUMBS = thumbs || {};
   setPhotoSource((id) => IMAGES[id] || `cars/${id}.webp`);
 }
+// srcset for a plain photo in a list (carArt's `thumb`: tiles and rows at most ~160 px wide): the 480 px copy and the
+// photo — the browser takes the copy for that size on a phone screen (×3), the photo where it is drawn bigger.
+// (Not sizes="auto": Chromium keeps such lazy images alive after they leave the page.)
+const thumbAttrs = (modelId, m) => {
+  const th = IMAGES[modelId] ? THUMBS[modelId] : m.img ? THUMBS[m.img] : null;
+  const src = IMAGES[modelId] || (m.img && IMAGES[m.img]);
+  return th && src ? ` srcset="${th} 480w, ${src} 900w" sizes="160px"` : '';
+};
 
 // [body path, window path, rear wheel x, front wheel x, wheel r]
 const BODIES = {
@@ -52,7 +62,7 @@ ${wheel(rx)}${wheel(fx)}</svg>`;
 // look = an owned car's paint/livery ({ paint, livery, n } from the server): the <img> carries data-look and paint.js
 // swaps in the recoloured picture (straight away when it's already cached). dirt = the car's dirt % (S.WASH): from 10%
 // the <img> carries data-dirt instead and dirt.js swaps in the dirty picture (painted underneath when it has a look).
-export function carArt(modelId, { glow = false, silhouette = false, look = null, dirt = 0 } = {}) {
+export function carArt(modelId, { glow = false, silhouette = false, look = null, dirt = 0, thumb = false } = {}) {
   const m = MODELS[modelId];
   if (!m) return '';
   const style = glow ? ` style="--c:${CLASSES[m.cls].color}"` : '';
@@ -68,7 +78,7 @@ export function carArt(modelId, { glow = false, silhouette = false, look = null,
       return `<img src="${ready || src}" alt="" class="${cls}"${st ? ` style="${st}"` : ''} data-dirt="${dk}"${cachedDirt(dk) ? ` data-dirtied="${dk}"` : ''} loading="lazy" draggable="false">`;
     }
     const ready = key && cachedLook(key);
-    return `<img src="${ready || src}" alt="" class="${cls}"${st ? ` style="${st}"` : ''}${key ? ` data-look="${key}"${ready ? ` data-painted="${key}"` : ''}` : ''} loading="lazy" draggable="false">`;
+    return `<img src="${ready || src}"${key || !thumb ? '' : thumbAttrs(modelId, m)} alt="" class="${cls}"${st ? ` style="${st}"` : ''}${key ? ` data-look="${key}"${ready ? ` data-painted="${key}"` : ''}` : ''} loading="lazy" draggable="false">`;
   }
   return svg(modelId).replace('<svg ', `<svg class="${cls}"${style} `);
 }

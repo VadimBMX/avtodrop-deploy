@@ -20,7 +20,19 @@ const fail = (msg) => {
 };
 
 const KYIV = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv', year: 'numeric', month: '2-digit', day: '2-digit' });
-export const dayOf = (t) => KYIV.format(new Date(t));
+// A Kyiv day starts on a whole UTC hour, so the date is kept per hour (Intl formatting is slow; dayOf runs many times a call).
+const dayCache = new Map();
+export const dayOf = (t) => {
+  const h = Math.floor(t / 3600e3);
+  if (typeof t !== 'number' || !Number.isFinite(h)) return KYIV.format(new Date(t));
+  let d = dayCache.get(h);
+  if (d === undefined) {
+    d = KYIV.format(new Date(t));
+    if (dayCache.size > 2000) dayCache.clear();
+    dayCache.set(h, d);
+  }
+  return d;
+};
 export function weekOf(t) {
   const d = new Date(dayOf(t) + 'T00:00:00Z');
   d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
@@ -179,15 +191,27 @@ export function createGame(db, opts = {}) {
     const min = f.next ? Math.max(1, Math.ceil((f.next - now()) / 60e3)) : S.FUEL_REGEN_MIN;
     fail(`Пальне 0/${S.FUEL_MAX} — +1 через ${min} хв. Кейс нагород чи завдання можуть дати повний бак`);
   }
-  function carOut(c) {
+  // All of one owner's cars at once (me, the garage value, income, a player card): their parts, plates and restyle ★
+  // in three queries instead of three per car — the same values carParts / carPlate / restyleOf give one by one.
+  function carExtras(uid) {
+    const parts = new Map(), plates = new Map(), restyle = new Map();
+    for (const r of q('SELECT cp.car_id k, cp.type, cp.tier FROM car_parts cp JOIN cars c ON c.id = cp.car_id WHERE c.owner_id = ? ORDER BY cp.car_id, cp.type').all(uid)) {
+      if (!parts.has(r.k)) parts.set(r.k, []);
+      parts.get(r.k).push([r.type, r.tier]);
+    }
+    for (const { k, ...p } of q('SELECT p.car_id k, p.id, p.text, p.cls, p.value FROM plates p JOIN cars c ON c.id = p.car_id WHERE c.owner_id = ?').all(uid)) plates.set(k, p);
+    for (const { k, ...r } of q('SELECT r.car_id k, r.stars, r.at, r.spent FROM car_restyle r JOIN cars c ON c.id = r.car_id WHERE c.owner_id = ?').all(uid)) restyle.set(k, r);
+    return { parts: (id) => Object.fromEntries(parts.get(id) || []), plate: (id) => plates.get(id) || null, restyle: (id) => restyle.get(id) || null };
+  }
+  function carOut(c, ex = null) {
     if (!c) return null;
-    const parts = carParts(c.id);
-    const plate = carPlate(c.id);
+    const parts = ex ? ex.parts(c.id) : carParts(c.id);
+    const plate = ex ? ex.plate(c.id) : carPlate(c.id);
     const st = S.carStats({ model: c.model, parts, plateValue: plate?.value || 0 });
     const t = tankState(c);
     return { id: c.id, model: c.model, status: c.status, parts, plate, look: lookOf(c), tank: t.tank, tankNext: t.next, sell: S.sellPriceOf(c.model, now() - c.created_at, c.origin), origin: c.origin || null, ...st,
       dirt: Math.floor(S.dirtNow(c.dirt, c.dirt_at, now())), shineUntil: c.shine_until > now() ? c.shine_until : 0, ...(c.serial ? { serial: c.serial } : {}),
-      ...((r) => (r?.stars ? { stars: r.stars, starAt: r.at, starSpent: r.spent } : {}))(restyleOf(c.id)) };
+      ...((r) => (r?.stars ? { stars: r.stars, starAt: r.at, starSpent: r.spent } : {}))(ex ? ex.restyle(c.id) : restyleOf(c.id)) };
   }
   // Paint and livery as the client draws them (n = the race livery's number); null for a factory car. Unknown ids
   // (an old colour that was dropped) count as factory.
@@ -196,7 +220,7 @@ export function createGame(db, opts = {}) {
     const livery = S.LIVERY_BY_ID[c.livery] ? c.livery : null;
     return paint || livery ? { paint, livery, n: (c.id % 99) + 1 } : null;
   }
-  const carValueOf = (c) => S.carValue({ model: c.model, parts: carParts(c.id), plateValue: carPlate(c.id)?.value || 0 });
+  const carValueOf = (c, ex = null) => S.carValue({ model: c.model, parts: ex ? ex.parts(c.id) : carParts(c.id), plateValue: (ex ? ex.plate(c.id) : carPlate(c.id))?.value || 0 });
   function ownCar(uid, id, statuses = ['garage']) {
     const c = carRow(int(id, 1, Number.MAX_SAFE_INTEGER, 'ID авто'));
     if (!c || c.owner_id !== uid) fail('Це не твоє авто');
@@ -264,11 +288,12 @@ export function createGame(db, opts = {}) {
     const u = q('SELECT slots FROM users WHERE id = ?').get(uid);
     const rows = q("SELECT * FROM cars WHERE owner_id = ? AND status IN ('garage', 'market', 'auction') ORDER BY id").all(uid);
     const garage = rows.filter((c) => c.status === 'garage');
+    const ex = garage.length ? carExtras(uid) : null;
     const t = now(), cut = garage.length > 0 && isOpen(uid, 'wash');
     // S.garageIncome is the one count of who earns and how much (the client shows the same per car and in total).
     const g = S.garageIncome({
       cars: rows.map((c) => (c.status === 'garage'
-        ? { id: c.id, model: c.model, status: c.status, parts: carParts(c.id), plateValue: carPlate(c.id)?.value || 0, dirt: c.dirt, dirtAt: c.dirt_at, shineUntil: c.shine_until, stars: restyleOf(c.id)?.stars || 0 }
+        ? { id: c.id, model: c.model, status: c.status, parts: ex.parts(c.id), plateValue: ex.plate(c.id)?.value || 0, dirt: c.dirt, dirtAt: c.dirt_at, shineUntil: c.shine_until, stars: ex.restyle(c.id)?.stars || 0 }
         : { id: c.id, model: c.model, status: c.status })),
       slots: u?.slots ?? 1e9, claimed: garage.length ? claimedSets(uid) : [], t, cut,
     });
@@ -542,7 +567,8 @@ export function createGame(db, opts = {}) {
   // ---------- weekly race & totals ----------
   function totalValue(uid) {
     let v = 0;
-    for (const c of q('SELECT * FROM cars WHERE owner_id = ?').all(uid)) v += carValueOf(c);
+    const ex = carExtras(uid);
+    for (const c of q('SELECT * FROM cars WHERE owner_id = ?').all(uid)) v += carValueOf(c, ex);
     v += q('SELECT COALESCE(SUM(value), 0) v FROM plates WHERE owner_id = ? AND car_id IS NULL').get(uid).v;
     return v;
   }
@@ -675,7 +701,8 @@ export function createGame(db, opts = {}) {
     const u = userRow(uid);
     const inc = incomeState(u);
     const fuel = fuelState(u);
-    const cars = q('SELECT * FROM cars WHERE owner_id = ? ORDER BY id').all(uid).map(carOut);
+    const ex = carExtras(uid);
+    const cars = q('SELECT * FROM cars WHERE owner_id = ? ORDER BY id').all(uid).map((c) => carOut(c, ex));
     const keys = Object.fromEntries(q('SELECT case_id, count FROM keys WHERE user_id = ? AND count > 0').all(uid).map((r) => [r.case_id, r.count]));
     const collection = q('SELECT model FROM collection WHERE user_id = ?').all(uid).map((r) => r.model);
     const pity = Object.fromEntries(q('SELECT case_id, count FROM pity WHERE user_id = ?').all(uid).map((r) => [r.case_id, r.count]));
@@ -1077,7 +1104,8 @@ export function createGame(db, opts = {}) {
   // dealer rate. items: what the app showed in its confirm; only those still unneeded are sold, at most that many.
   function sellJunk(uid, { items }) {
     if (!Array.isArray(items) || !items.length || items.length > 200) fail('Немає що продати');
-    const cars = q('SELECT id, model FROM cars WHERE owner_id = ?').all(uid).map((c) => ({ model: c.model, parts: carParts(c.id) }));
+    const ex = carExtras(uid);
+    const cars = q('SELECT id, model FROM cars WHERE owner_id = ?').all(uid).map((c) => ({ model: c.model, parts: ex.parts(c.id) }));
     const junk = T.junkParts(cars, inventory(uid));
     let got = 0, count = 0;
     const sold = [];
@@ -2458,7 +2486,8 @@ export function createGame(db, opts = {}) {
   function player(uid, { query, id }) {
     const pid = id ? int(id, 1, Number.MAX_SAFE_INTEGER) : findPlayer(query);
     const u = userRow(pid);
-    const cars = q("SELECT * FROM cars WHERE owner_id = ? AND status IN ('garage', 'showcase') ORDER BY id").all(pid).map(carOut);
+    const ex = carExtras(pid);
+    const cars = q("SELECT * FROM cars WHERE owner_id = ? AND status IN ('garage', 'showcase') ORDER BY id").all(pid).map((c) => carOut(c, ex));
     const best = [...cars].sort((a, b) => b.value - a.value)[0] || null;
     return {
       id: pid, name: name(pid), level: u.level, value: u.total_value, cars: cars.filter((c) => c.status === 'garage'),

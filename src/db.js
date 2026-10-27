@@ -349,6 +349,13 @@ CREATE INDEX IF NOT EXISTS event_plan_end ON event_plan (end);
 CREATE TABLE IF NOT EXISTS car_restyle (car_id INTEGER PRIMARY KEY, stars INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL DEFAULT 0, spent INTEGER NOT NULL DEFAULT 0);
 CREATE TRIGGER IF NOT EXISTS car_restyle_gone AFTER DELETE ON cars BEGIN DELETE FROM car_restyle WHERE car_id = old.id; END;
 CREATE TABLE IF NOT EXISTS trophies (user_id INTEGER NOT NULL, k INTEGER NOT NULL, cost INTEGER NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (user_id, k)) WITHOUT ROWID;
+-- Lookups by player that had no index of their own (EXPLAIN QUERY PLAN showed a full scan): incoming trades and room
+-- invites (every me / pulse), parts cooling down (inventory), barn finds (me), who is online (the trade hall).
+CREATE INDEX IF NOT EXISTS trades_to ON trades(to_id, status);
+CREATE INDEX IF NOT EXISTS trade_rooms_invited ON trade_rooms(invited_id, status);
+CREATE INDEX IF NOT EXISTS parts_cool_user ON parts_cool(user_id, until);
+CREATE INDEX IF NOT EXISTS barn_finds_user ON barn_finds(user_id, status);
+CREATE INDEX IF NOT EXISTS users_seen ON users(last_seen);
 `;
 // Columns added after the first release; ALTER fails harmlessly when they already exist.
 const MIGRATIONS = [
