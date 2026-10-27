@@ -55,6 +55,7 @@ export const MONEY_GROUPS = [
   { key: 'start', name: 'Старт новачка', src: ['signup'] },
   { key: 'containers', name: 'Причал (контейнери)', src: ['containers'] },
   { key: 'barn', name: 'Сарайна знахідка', src: ['barn/'] },
+  { key: 'clubs', name: 'Автоклуби (каса, ліга)', src: ['club'] },
   { key: 'market', name: 'Ринок, аукціон, обміни', src: ['market/', 'auction', 'trade/', 'room/'] },
   { key: 'casino', name: 'Казино', src: ['casino/'] },
   { key: 'shop', name: 'Магазин ⭐', src: ['shop'] },

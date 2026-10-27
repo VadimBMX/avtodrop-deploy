@@ -10,6 +10,7 @@ import { createHalloween } from './halloween.js';
 import { createTg } from './tg.js';
 import { createSchedule } from './schedule.js';
 import { createBarn } from './barn.js';
+import { createClubs } from './clubs.js';
 
 export class GameError extends Error {}
 const fail = (msg) => {
@@ -2270,11 +2271,13 @@ export function createGame(db, opts = {}) {
   }
   let HW = null; // «Ніч Хелловіну» (src/halloween.js), created below with the game's helpers
   let CT = null; // the container auction («Причал», src/containers.js), created below with the game's helpers
+  let CL = null; // «Автоклуби» (src/clubs.js), created below with the game's helpers
   function sweepContainers() {
     return CT ? db.tx(() => CT.sweep()) : 0;
   }
   function settleAuctions() {
     sweepContainers(); // lots of «Причал» with live bidding: the bots' answers and endings, even when nobody looks
+    if (CL) db.tx(() => CL.settle()); // «Автоклуби»: the weekly league pays out at Monday 00:00 Kyiv, even when nobody looks
     const due = q("SELECT * FROM auctions WHERE status = 'open' AND ends_at <= ?").all(now());
     for (const a of due) {
       db.tx(() => {
@@ -4961,6 +4964,64 @@ export function createGame(db, opts = {}) {
     return fn(who, body || {});
   });
   HELPER_ACTIONS.add('barn');
+  // «Автоклуби» (src/clubs.js, public/clubs.js): its calls and admin tab; wins feed the weekly league (drag, drift, boss,
+  // «Заїзд дня»), collected income gets the club's perk, and the rating / battles / day's board show members' tags.
+  CL = createClubs({ db, q, now, fail, int, name, addMoney, pay, event, addKeys, userRow, weekOf, dayOf,
+    alog: (...a) => alog(...a), asClub: (fn) => srcWrap('club', fn)(),
+    addFuel: (uid, n) => { // the shared tank, never above full (the same bookkeeping as a race start)
+      const f = fuelState(userRow(uid));
+      const v = Math.min(S.FUEL_MAX, f.fuel + n);
+      if (v <= f.fuel) return 0;
+      q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(v, v >= S.FUEL_MAX ? now() : f.at, uid);
+      return v - f.fuel;
+    } });
+  Object.assign(handlers, CL.api);
+  {
+    const base = { ...handlers };
+    const tagBattle = (b) => (b && CL.tagRows([b.creator, b.opponent].filter(Boolean)), b);
+    handlers.me = (uid, b) => (CL.settle(), { ...base.me(uid, b), club: CL.brief(uid) });
+    handlers['race/finish'] = (uid, b) => {
+      const r = base['race/finish'](uid, b);
+      if (r?.win) r.clubPts = CL.award(uid, r.dayrace ? (r.dayrace.counted ? 'dayrace' : '') : r.boss ? 'boss' : 'drag');
+      return r;
+    };
+    handlers['drift/finish'] = (uid, b) => {
+      const r = base['drift/finish'](uid, b);
+      if (r?.win && !r.training) r.clubPts = CL.award(uid, 'drift');
+      return r;
+    };
+    handlers.collect = (uid, b) => {
+      const r = base.collect(uid, b);
+      const bonus = CL.incomeBonus(uid, r.got);
+      if (bonus) (r.clubBonus = bonus, r.got += bonus);
+      return r;
+    };
+    handlers.leaderboard = (uid, b) => {
+      const r = base.leaderboard(uid, b);
+      CL.tagRows(r?.list);
+      return r;
+    };
+    handlers['battle/list'] = (uid, b) => {
+      const r = base['battle/list'](uid, b);
+      for (const k of ['open', 'recent', 'mine']) (r?.[k] || []).forEach(tagBattle);
+      return r;
+    };
+    handlers['battle/get'] = (uid, b) => tagBattle(base['battle/get'](uid, b));
+    handlers.dayrace = (uid, b) => {
+      const r = base.dayrace(uid, b);
+      CL.tagRows(r?.board);
+      CL.tagRows(r?.friends?.list);
+      return r;
+    };
+  }
+  for (const [k, fn] of Object.entries(CL.admin)) {
+    admin[k] = (who, body = {}) => db.tx(() => {
+      if (!canDo(actorRole(who), k)) fail('Немає прав на цю дію');
+      return fn(who, body || {});
+    });
+  }
+  for (const k of CL.mutating) ADMIN_MUTATING.add(k);
+  HELPER_ACTIONS.add('clubs'); // helpers may look at the clubs, not rename or disband them
   // Every call runs in one transaction, settles the weekly race and refreshes the caller's garage value — except the
   // frequent polls below (every few seconds, or several times a second in a live race), which change no cars.
   const LIGHT = new Set(['pulse', 'pvp/progress', 'pvp/state', 'containers/lot']);

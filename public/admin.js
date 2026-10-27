@@ -6,6 +6,7 @@ import { dayRacePage, dayRaceActions } from './admin-dayrace.js';
 import { halloweenPage, halloweenActions } from './admin-halloween.js';
 import { channelPage, channelActions } from './admin-channel.js';
 import { eventsPage, eventsActions, eventsAfter } from './admin-events.js';
+import { clubsPage, clubsActions } from './admin-clubs.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -342,6 +343,10 @@ Object.assign(ACTIONS, { 'channel-set': 'Канал: налаштування', 
 VIEWS.events = () => eventsPage({ api, esc, ic });
 AFTER.events = () => eventsAfter({ $ });
 Object.assign(H, eventsActions({ mutate, render, esc }));
+// ---------- «Автоклуби»: clubs, treasuries, league weeks, moderation (public/admin-clubs.js) ----------
+VIEWS.clubs = () => clubsPage({ api, esc, date, userLink });
+Object.assign(H, clubsActions({ mutate }));
+Object.assign(ACTIONS, { 'clubs-reset': 'Клуб: скинуто', 'clubs-disband': 'Клуб розпущено' });
 Object.assign(ACTIONS, { 'dayrace-set': 'Заїзд дня: машина', 'dayrace-dq': 'Заїзд дня: результат' });
 function userTable(list, rich) {
   if (!list.length) return '<div class="empty">Гравців поки немає</div>';

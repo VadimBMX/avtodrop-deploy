@@ -171,8 +171,12 @@ export function createBot({ token, webappUrl, admins = [], game, inline = null, 
       const chM = CH_PARAM.exec(args[0] || '');
       const challenge = chM ? game.challengeInfo?.(chM[1]) : null;
       const chUrl = challenge && canButton ? `${webappUrl}${webappUrl.includes('?') ? '&' : '?'}ch=${challenge.id}` : null;
+      // A club invite (/start club_<code>): the button opens the game on the invite (?club=<code>, public/clubs-ui.js).
+      const clubM = /^club_([a-z0-9]{8})$/.exec(args[0] || '');
+      const clubUrl = clubM && canButton && !chUrl ? `${webappUrl}${webappUrl.includes('?') ? '&' : '?'}club=${clubM[1]}` : null;
       await send(m.chat.id, startText({ name: m.from.first_name, created: !!u.created, ref: !!u.ref, pushBack: wasOff, canButton, challenge }),
-        chUrl && !challenge.expired ? { reply_markup: { inline_keyboard: [[{ text: '🏁 Прийняти виклик', web_app: { url: chUrl } }]] } } : {});
+        chUrl && !challenge.expired ? { reply_markup: { inline_keyboard: [[{ text: '🏁 Прийняти виклик', web_app: { url: chUrl } }]] } }
+          : clubUrl ? { reply_markup: { inline_keyboard: [[{ text: '🏁 Вступити в автоклуб', web_app: { url: clubUrl } }]] } } : {});
     } else if (cmd === '/help') {
       await send(m.chat.id, HELP_TEXT.replace('{bot}', username || 'bot'));
     } else if (cmd === '/garage') {

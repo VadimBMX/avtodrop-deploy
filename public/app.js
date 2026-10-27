@@ -19,6 +19,8 @@ import { challengeCard } from './challenge-card.js';
 import { installHalloween, hwNight, HW_DRIFT, hwDriftPumpkins, hwDriftOverlay } from './halloween-ui.js';
 // «Сарайна знахідка»: the «Сарай» page, a garage row and a menu row (public/barn-ui.js).
 import { installBarn } from './barn-ui.js';
+// «Автоклуби»: page «Клуб», [TAG] next to names, the menu row, club_<code> invite links (public/clubs-ui.js).
+import { installClubs, clubTag, clubHub, clubFromLink } from './clubs-ui.js';
 // D-race: the boss's fight-poster intro before the lights; «scene mode» (no tab bar) while a run is on screen.
 import { bossIntro } from './boss-intro.js';
 import { watchScene } from './race-scene.js';
@@ -512,6 +514,8 @@ const AFTER = {};
 const TABS = {};
 const PAGES = {};
 installHalloween({ me: () => me, state: () => state, H, ic, esc, sheet, go });
+installClubs({ me: () => me, state: () => state, config: () => config, tg, H, PAGES, AFTER, PAGE_TITLES, api, act, toast, sheet, closeModal, confirmBox, go, render, ic, esc, initialOf,
+  untilSpan: (t) => untilSpan(t), tickUntil: () => tickUntil(), emptyLine: (...a) => emptyLine(...a) });
 
 // ---------- progressive unlock (S.UNLOCKS; the server says what is open in me.unlocked) ----------
 // Locked things stay in sight with a lock and the level they open at, so there's something to look forward to.
@@ -933,7 +937,7 @@ H.gSort = () => {
   render();
 };
 H.toCases = () => (state.tab = 'cases', state.page = null, window.scrollTo(0, 0), render());
-H.collect = () => act('collect', {}, (r) => `+${S.fmt(r.got)}`);
+H.collect = () => act('collect', {}, (r) => `+${S.fmt(r.got)}${r.clubBonus ? ` · клуб +${S.short(r.clubBonus)}` : ''}`);
 // Purchases confirm with a second tap on the same button (no pop-up), so several slots can be bought in a row.
 H.buySlot = (d, el) => armed(el, `<b>Точно купити?</b><span>${S.short(S.slotCost(me.slots))}</span>`) && act('buy-slot', {}, `Місце додано · тепер ${me.slots + 1}`);
 H.upgradeCap = (d, el) => {
@@ -4053,7 +4057,7 @@ TABS.menu = () => {
   const H2 = (t, r = '') => `<div class="hub-h"><span>${t}</span>${r ? `<span>${r}</span>` : ''}</div>`;
   const nextLock = S.UNLOCKS.find((u) => !isOpen(u.key) && !(u.key === 'casino' && casinoOff()));
   return `<div class="hub">${head}${pass}${homeCard()}
-    ${H2('Нагороди й прогрес')}<div class="hub-grid g2">${tiles.join('')}</div>${challengeHubRow()}
+    ${H2('Нагороди й прогрес')}<div class="hub-grid g2">${tiles.join('')}</div>${challengeHubRow()}${clubHub()}
     ${H2('Торгівля', nextLock && ['market', 'trades', 'tradein', 'plates'].includes(nextLock.key) ? `${ic('lock')} далі: ${nextLock.name} · рів. ${nextLock.level}` : '')}<div class="hub-grid g4">${trade.join('')}</div>
     ${H2('Ризикнути')}<div class="hub-grid g2">${risk.join('')}</div>
     ${H2('Магазин')}${store}
@@ -4827,7 +4831,7 @@ function battleRow(b) {
     : b.me ? (b.winnerId === me.id ? '<span class="chip ready">перемога</span>' : '<span class="chip lose">поразка</span>')
       : `<span class="chip">переміг ${esc((b.winnerId === b.creator.id ? b.creator : b.opponent).name)}</span>`;
   return `<button class="li" data-act="openBattle" data-id="${b.id}"><div class="grow"><b>${caseLabel(b.caseId)} ×${b.count}</b>
-    <div class="small muted">${esc(b.creator.name)}${b.opponent ? ` vs ${esc(b.opponent.name)}${b.bot ? ' (бот)' : ''}` : ''}${r ? ` · ${S.short(r.creator.total)} : ${S.short(r.opponent.total)}` : ''}</div></div>${verdict}</button>`;
+    <div class="small muted">${clubTag(b.creator)}${esc(b.creator.name)}${b.opponent ? ` vs ${clubTag(b.opponent)}${esc(b.opponent.name)}${b.bot ? ' (бот)' : ''}` : ''}${r ? ` · ${S.short(r.creator.total)} : ${S.short(r.opponent.total)}` : ''}</div></div>${verdict}</button>`;
 }
 // The battle form starts on the cheapest case ×1 (it used to offer «Еліта ×3 = 30 млн» — 88% of a rich player's money).
 const battleDefaultCase = () => [...S.CASES].filter((c) => !c.starter).sort((a, b) => a.price - b.price)[0]?.id || 'rust';
@@ -4853,7 +4857,7 @@ PAGES.battles = async () => {
     ${L.recent.length ? `<div class="h2"><span>Останні батли</span></div><div class="list">${L.recent.map(battleRow).join('')}</div>` : ''}`;
 };
 const battleOpenHtml = (open) => (open.length ? `<div class="list">${open.map((b) => `<div class="li"><div class="grow"><b>${caseLabel(b.caseId)} ×${b.count}</b>
-    <div class="small muted">${esc(b.creator.name)} · рів. ${b.creator.level}</div>${battleBotWait(b)}</div>
+    <div class="small muted">${clubTag(b.creator)}${esc(b.creator.name)} · рів. ${b.creator.level}</div>${battleBotWait(b)}</div>
     ${b.mine ? `<button class="btn sm ghost" data-act="battleCancel" data-id="${b.id}">Скасувати</button>`
       : `<button class="btn sm yellow" data-act="battleJoin" data-id="${b.id}" data-price="${b.price}" ${me.balance < b.price ? 'disabled' : ''}>Битись · ${S.short(b.price)}</button>`}</div>`).join('')}</div>`
   : emptyLine('flame', 'Поки порожньо — створи батл вище: якщо за 30 с ніхто не зайде, зіграє бот «Дилер Петрович»'));
@@ -5774,10 +5778,10 @@ PAGES.leaderboard = async () => {
     const pod = list.length >= 3 ? `<div class="podium">${[1, 0, 2].map((i) => {
       const r = list[i];
       return `<button class="pod p${r.place} ${r.me ? 'me' : ''}" data-act="playerCard" data-id="${r.id}"><span class="pod-ava">${esc(initialOf(r.name))}${crown(r)}</span>
-        <b class="ellipsis">${nameHtml(r.name, r.style)}</b><span class="pod-val">${val(r)}</span><span class="pod-step"><span class="medal m${r.place}">${r.place}</span></span></button>`;
+        <b class="ellipsis">${clubTag(r)}${nameHtml(r.name, r.style)}</b><span class="pod-val">${val(r)}</span><span class="pod-step"><span class="medal m${r.place}">${r.place}</span></span></button>`;
     }).join('')}</div>` : '';
     const rest = list.length >= 3 ? list.slice(3) : list;
-    const rows = rest.map((r) => `<button class="lb ${r.me ? 'me' : ''}" data-act="playerCard" data-id="${r.id}"><span class="pl">${r.place <= 3 ? `<span class="medal m${r.place}">${r.place}</span>` : r.place}</span><span class="lb-ava">${esc(initialOf(r.name))}</span><span class="grow ellipsis">${nameHtml(r.name, r.style)}${crown(r)}</span>${extra(r)}<b>${val(r)}</b></button>`).join('');
+    const rows = rest.map((r) => `<button class="lb ${r.me ? 'me' : ''}" data-act="playerCard" data-id="${r.id}"><span class="pl">${r.place <= 3 ? `<span class="medal m${r.place}">${r.place}</span>` : r.place}</span><span class="lb-ava">${esc(initialOf(r.name))}</span><span class="grow ellipsis">${clubTag(r)}${nameHtml(r.name, r.style)}${crown(r)}</span>${extra(r)}<b>${val(r)}</b></button>`).join('');
     return pod + (rows ? `<div class="list">${rows}</div>` : '');
   };
   const empty = (t) => emptyBox('trophy', t, 'Відкривай кейси й ганяй — і твоє ім’я з’явиться тут');
@@ -6935,7 +6939,7 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide', 'toggleChannel']) {
     const story = S.storyFor(me, whatsNewSeenHere());
     const st = guideOn() && S.GUIDE_STEPS.find((s) => s.key === me.guide);
     if (st?.tab) state.tab = st.tab; // back in the middle of the first steps: open where the next one is
-    const fromLink = challengeFromLink(); // a ghost challenge's link opens on the challenge (over the intro's end too)
+    const fromLink = challengeFromLink() || clubFromLink(); // a ghost challenge's / club invite's link opens on it (over the intro's end too)
     render();
     // A new player gets neither the rewards window nor banners over the first steps: the guide brings them to the gift.
     if (me.dailyReady && !guideOn() && !me.intro && !fromLink) {
@@ -7603,7 +7607,7 @@ function drMeHtml(v) {
   const share = mine && !mine.dq ? `<button class="drs-share" data-act="drShare">${ic('share')} Поділитися часом</button>` : '';
   return `<div class="row between"><span class="hook-t">${ic('trophy')} Твій найкращий час</span>${drPips(a.left, a.max)}</div><div class="drs-row">${line}</div>${btn}${share}`;
 }
-const drRow = (r, extra = '') => `<button class="lb ${r.me ? 'me' : ''}" data-act="playerCard" data-id="${r.id}"><span class="pl">${r.place <= 3 ? `<span class="medal m${r.place}">${r.place}</span>` : r.place}</span><span class="lb-ava">${esc(initialOf(r.name))}</span><span class="grow ellipsis">${esc(r.name)}</span>${extra}<b class="nw drb-t">${drT(r.time)}</b></button>`;
+const drRow = (r, extra = '') => `<button class="lb ${r.me ? 'me' : ''}" data-act="playerCard" data-id="${r.id}"><span class="pl">${r.place <= 3 ? `<span class="medal m${r.place}">${r.place}</span>` : r.place}</span><span class="lb-ava">${esc(initialOf(r.name))}</span><span class="grow ellipsis">${clubTag(r)}${esc(r.name)}</span>${extra}<b class="nw drb-t">${drT(r.time)}</b></button>`;
 function drBoardHtml(v) {
   if ((state.drTab || 'all') === 'friends') {
     const f = v.friends;
