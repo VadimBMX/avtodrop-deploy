@@ -344,6 +344,11 @@ CREATE TABLE IF NOT EXISTS hw_tasks (event TEXT NOT NULL, user_id INTEGER NOT NU
 CREATE TABLE IF NOT EXISTS event_plan (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, title TEXT, start INTEGER NOT NULL,
   end INTEGER NOT NULL, params TEXT, note TEXT, seed TEXT UNIQUE, created_by TEXT, created_at INTEGER NOT NULL, updated_at INTEGER);
 CREATE INDEX IF NOT EXISTS event_plan_end ON event_plan (end);
+-- «Престиж» (src/prestige.js): a car's restyle ★ (they stay with the car whoever owns it), when the last ★ was done
+-- (one per car per 24 h) and how much was paid for them; trophies bought in the «Трофейна зала» (k = 0…9, in order).
+CREATE TABLE IF NOT EXISTS car_restyle (car_id INTEGER PRIMARY KEY, stars INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL DEFAULT 0, spent INTEGER NOT NULL DEFAULT 0);
+CREATE TRIGGER IF NOT EXISTS car_restyle_gone AFTER DELETE ON cars BEGIN DELETE FROM car_restyle WHERE car_id = old.id; END;
+CREATE TABLE IF NOT EXISTS trophies (user_id INTEGER NOT NULL, k INTEGER NOT NULL, cost INTEGER NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (user_id, k)) WITHOUT ROWID;
 `;
 // Columns added after the first release; ALTER fails harmlessly when they already exist.
 const MIGRATIONS = [

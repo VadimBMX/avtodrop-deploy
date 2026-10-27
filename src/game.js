@@ -12,6 +12,7 @@ import { createSchedule } from './schedule.js';
 import { createBarn } from './barn.js';
 import { createClubs } from './clubs.js';
 import { createTourney } from './tourney.js';
+import { createPrestige } from './prestige.js';
 
 export class GameError extends Error {}
 const fail = (msg) => {
@@ -156,6 +157,8 @@ export function createGame(db, opts = {}) {
     return Object.fromEntries(q('SELECT type, tier FROM car_parts WHERE car_id = ?').all(carId).map((r) => [r.type, r.tier]));
   }
   const carPlate = (carId) => q('SELECT id, text, cls, value FROM plates WHERE car_id = ?').get(carId) || null;
+  // «Престиж» (src/prestige.js): the car's restyle ★, when the last one was done, what was paid; null = none.
+  const restyleOf = (carId) => q('SELECT stars, at, spent FROM car_restyle WHERE car_id = ?').get(carId) || null;
   const vipOf = (uid) => (q('SELECT vip_until FROM users WHERE id = ?').get(uid)?.vip_until || 0) > now();
   // VIP refills the shared tank twice as fast; the «Подвійне паливо» event doubles that while it runs (S.regenAt
   // switches the speed exactly at the event's start and end, at most ×EVENT_CAPS.fuelTotal).
@@ -177,7 +180,8 @@ export function createGame(db, opts = {}) {
     const st = S.carStats({ model: c.model, parts, plateValue: plate?.value || 0 });
     const t = tankState(c);
     return { id: c.id, model: c.model, status: c.status, parts, plate, look: lookOf(c), tank: t.tank, tankNext: t.next, sell: S.sellPriceOf(c.model, now() - c.created_at, c.origin), origin: c.origin || null, ...st,
-      dirt: Math.floor(S.dirtNow(c.dirt, c.dirt_at, now())), shineUntil: c.shine_until > now() ? c.shine_until : 0, ...(c.serial ? { serial: c.serial } : {}) };
+      dirt: Math.floor(S.dirtNow(c.dirt, c.dirt_at, now())), shineUntil: c.shine_until > now() ? c.shine_until : 0, ...(c.serial ? { serial: c.serial } : {}),
+      ...((r) => (r?.stars ? { stars: r.stars, starAt: r.at, starSpent: r.spent } : {}))(restyleOf(c.id)) };
   }
   // Paint and livery as the client draws them (n = the race livery's number); null for a factory car. Unknown ids
   // (an old colour that was dropped) count as factory.
@@ -258,7 +262,7 @@ export function createGame(db, opts = {}) {
     // S.garageIncome is the one count of who earns and how much (the client shows the same per car and in total).
     const g = S.garageIncome({
       cars: rows.map((c) => (c.status === 'garage'
-        ? { id: c.id, model: c.model, status: c.status, parts: carParts(c.id), plateValue: carPlate(c.id)?.value || 0, dirt: c.dirt, dirtAt: c.dirt_at, shineUntil: c.shine_until }
+        ? { id: c.id, model: c.model, status: c.status, parts: carParts(c.id), plateValue: carPlate(c.id)?.value || 0, dirt: c.dirt, dirtAt: c.dirt_at, shineUntil: c.shine_until, stars: restyleOf(c.id)?.stars || 0 }
         : { id: c.id, model: c.model, status: c.status })),
       slots: u?.slots ?? 1e9, claimed: garage.length ? claimedSets(uid) : [], t, cut,
     });
@@ -5034,6 +5038,17 @@ export function createGame(db, opts = {}) {
   }
   for (const k of CL.mutating) ADMIN_MUTATING.add(k);
   HELPER_ACTIONS.add('clubs'); // helpers may look at the clubs, not rename or disband them
+  // «Престиж» (src/prestige.js): restyle ★ and the trophy hall; `me.prestige`, the «Статок» board, the player card.
+  const PR = createPrestige({ q, now, fail, pay, bank, ownCar, carChanged, userRow, restyleOf, name, styleOf });
+  Object.assign(handlers, PR.api);
+  {
+    const meBase = handlers.me, lbBase = handlers.leaderboard, playerBase = handlers.player, upBase = handlers.upgrade, tiBase = handlers['dealer/tradein'];
+    handlers.me = (uid, b) => ({ ...meBase(uid, b), prestige: PR.brief(uid) });
+    handlers.leaderboard = (uid, b) => (b?.type === 'wealth' ? PR.board(uid) : lbBase(uid, b));
+    handlers.player = (uid, b) => { const p = playerBase(uid, b); return { ...p, prestige: PR.card(p.id) }; };
+    handlers.upgrade = (uid, b) => (PR.noStars(b?.carIds), upBase(uid, b));
+    handlers['dealer/tradein'] = (uid, b) => (PR.noStars(b?.carIds), tiBase(uid, b));
+  }
   // Every call runs in one transaction, settles the weekly race and refreshes the caller's garage value — except the
   // frequent polls below (every few seconds, or several times a second in a live race), which change no cars.
   const LIGHT = new Set(['pulse', 'pvp/progress', 'pvp/state', 'containers/lot']);

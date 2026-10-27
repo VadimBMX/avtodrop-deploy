@@ -967,11 +967,13 @@ export function washFactorAvg(dirt, at, shineUntil, a, b, cut = true) {
 // parts/plate) × the claimed-set bonus (setIncomeBonus); three or more earning cars of one country: +COUNTRY_BONUS;
 // then × its shine (washFactor at t: +WASH.shine after a wash, dirt costs nothing). VIP only lengthens the
 // cash cap, not the rate. Returns the total rate and per car { earning, clean, set, country, base, wash, rate }.
+// «Престиж» (public/prestige.js): each ★ of restyling adds STAR_INCOME to the car's clean income, next to the set bonus.
+export const STAR_INCOME = 0.03;
 export function garageIncome({ cars, slots = 1e9, claimed = [], t = Date.now(), cut = false }) {
   const listed = cars.filter((c) => c.status === 'market' || c.status === 'auction').length;
   const rows = cars.filter((c) => c.status === 'garage').map((c) => {
-    const clean = carIncomeOf(c), set = claimed.length ? setIncomeBonus(c.model, claimed) : 0;
-    return { c, country: MODELS[c.model].country, clean, set, v: clean * (1 + set) };
+    const clean = carIncomeOf(c), set = claimed.length ? setIncomeBonus(c.model, claimed) : 0, star = Math.min(5, Math.max(0, c.stars || 0)) * STAR_INCOME;
+    return { c, country: MODELS[c.model].country, clean, set, star, v: clean * (1 + set + star) };
   }).sort((a, b) => b.v - a.v || a.c.id - b.c.id);
   const room = Math.max(0, slots - listed);
   const per = {};
@@ -983,7 +985,7 @@ export function garageIncome({ cars, slots = 1e9, claimed = [], t = Date.now(), 
     const country = earning && per[r.country] >= COUNTRY_BONUS.cars ? COUNTRY_BONUS.income : 0;
     const base = earning ? r.v * (1 + country) : 0;
     const wash = washFactor(r.c.dirt, r.c.dirtAt || 0, r.c.shineUntil, t, cut);
-    out[r.c.id] = { earning, clean: r.clean, set: r.set, country, base, wash, rate: base * wash };
+    out[r.c.id] = { earning, clean: r.clean, set: r.set, star: r.star, country, base, wash, rate: base * wash };
     rate += base * wash;
   });
   return { rate, cars: out, room, earning: Math.min(room, rows.length), idle: Math.max(0, rows.length - room) };

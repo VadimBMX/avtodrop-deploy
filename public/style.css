@@ -4290,3 +4290,74 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .plate.pf-champ { box-shadow: 0 0 0 max(1.5px, calc(var(--h) * .06)) #f5c84a, 0 0 0 max(3px, calc(var(--h) * .12)) #14100a, 0 0 0 max(4px, calc(var(--h) * .16)) #c99a1e, 0 0 max(6px, calc(var(--h) * .45)) #f5c84a66; }
 @media (prefers-reduced-motion: reduce) { .tnm-tile:active { transform: none; } }
 /* ===== /S-tourney ===== */
+
+/* ===== Prestige ===== */
+/* «Престиж» (public/prestige-ui.js): ★ рестайлінгу — тихе «шампанське» золото (--pr-star), не жовтий дії; жовта
+   заливка на шиті одна (пропозиція місця або ★/трофей). Рух — лише transform/opacity, вимикається під reduced-motion. */
+:root { --pr-star: #f2d58a; --pr-star-dim: #f2d58a40; }
+.pr-stars { display: inline-flex; gap: 1px; color: var(--pr-star); font: 700 12px/1 var(--f-body, inherit); letter-spacing: .5px; white-space: nowrap; vertical-align: 1px; }
+.pr-stars i { font-style: normal; color: var(--pr-star-dim); }
+.pr-stars.pr-t { display: flex; font-size: 11px; margin-bottom: 1px; }
+.pr-stars.pr-lg { font-size: 22px; gap: 3px; margin-top: 6px; }
+.pr-stars.pr-c { height: 26px; align-items: center; padding: 0 8px; border-radius: var(--r-sm, 10px); background: var(--card2); border: 1px solid var(--line2); }
+.pr-stars.max { text-shadow: 0 0 8px #f2d58a66; }
+.pr-stars.pop { animation: prPop .5s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes prPop { 40% { transform: scale(1.18); } }
+.car.pr-gold { outline: 2px solid var(--pr-star); outline-offset: -2px; }
+.pr-chip { color: var(--pr-star); }
+.pr-card-line b { color: var(--text); }
+
+.pr-hero { position: relative; display: grid; grid-template-columns: 46% 1fr; gap: 12px; align-items: center; padding: 12px; border-radius: var(--r, 14px);
+  background: radial-gradient(120% 90% at 20% 100%, color-mix(in srgb, var(--c) 22%, transparent), transparent 70%), var(--card); border: 1px solid var(--line); }
+.pr-hero.pr-gold { border-color: var(--pr-star); }
+.pr-hero .art { aspect-ratio: 16 / 10; display: grid; place-items: center; }
+.pr-hero-tx b { font: 700 var(--t-lg, 17px)/1.15 var(--f-disp, inherit); }
+.pr-plate { display: inline-block; margin-top: 8px; padding: 3px 8px; border-radius: 4px; font-size: var(--t-xs, 11px); font-weight: 700; color: #1d1606;
+  background: linear-gradient(180deg, #f6e2a6, #cfae5c); box-shadow: inset 0 0 0 1px #8a6d2a; }
+.pr-next, .pr-offer, .pr-done, .pr-lock, .pr-sum { margin-top: 12px; }
+.pr-offer { box-shadow: inset 3px 0 0 var(--green, #2fd27a); }
+.pr-next { box-shadow: inset 3px 0 0 var(--pr-star); }
+.pr-next .disp { font-size: var(--t-lg, 17px); }
+.pr-gain { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: var(--t-sm, 12.5px); color: var(--muted); }
+.pr-gain b { color: var(--text); font-weight: 600; white-space: nowrap; }
+.pr-gain small { color: var(--muted); font-weight: 500; }
+.pr-timer { margin-top: 12px; padding: 12px; border-radius: var(--r-sm, 10px); background: var(--card2); border: 1px dashed var(--line2); font-size: var(--t-sm, 12.5px); color: var(--muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.pr-timer b { color: var(--text); font-variant-numeric: tabular-nums; }
+.pr-ladder { margin-top: 16px; display: grid; gap: 6px; }
+.pr-step { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--r-sm, 10px); background: var(--card); border: 1px solid var(--line); }
+.pr-step .pr-s { min-width: 34px; font: 700 14px/1 var(--f-disp, inherit); color: var(--muted); }
+.pr-step b { display: block; font-size: var(--t-md, 14.5px); }
+.pr-step small { display: block; font-size: var(--t-xs, 11px); color: var(--muted); margin-top: 2px; }
+.pr-step .pr-st { font-size: var(--t-xs, 11px); color: var(--muted); }
+.pr-step.done .pr-s, .pr-step.done .pr-st { color: var(--pr-star); }
+.pr-step.next { border-color: var(--line2); background: var(--card2); }
+.pr-step.next .pr-s { color: var(--text); }
+.pr-rules { line-height: 1.45; }
+.pr-need { display: grid; grid-template-columns: 22px 1fr; gap: 4px 8px; align-items: center; margin-top: 10px; font-size: var(--t-sm, 12.5px); color: var(--muted); }
+.pr-need.ok { color: var(--green, #2fd27a); }
+.pr-need b { color: var(--text); font-weight: 600; }
+.pr-bar { grid-column: 2; height: 4px; border-radius: 999px; background: var(--line2); overflow: hidden; }
+.pr-bar i { display: block; height: 100%; background: var(--text); }
+.pr-need.ok .pr-bar i { background: var(--green, #2fd27a); }
+
+.pr-wealth { display: block; margin: 4px 0 2px; font: 800 var(--t-2xl, 30px)/1.1 var(--f-disp, inherit); }
+.pr-title { color: var(--pr-star); border-color: currentColor; }
+.pr-lb { margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 0; background: none; border: 0; color: var(--text); font: 600 var(--t-sm, 12.5px)/1 var(--f-body, inherit); min-height: 32px; }
+.pr-hall { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.pr-tr { display: grid; grid-template-columns: 34px 1fr; grid-template-rows: auto auto; column-gap: 8px; align-items: center; padding: 8px; border-radius: var(--r-sm, 10px); background: var(--card); border: 1px solid var(--line); min-width: 0; }
+.pr-tr-ic { grid-row: span 2; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: var(--card2); color: var(--muted); }
+.pr-tr b { font-size: var(--t-xs, 11px); line-height: 1.2; font-weight: 600; color: var(--muted); overflow-wrap: anywhere; }
+.pr-tr small { font-size: var(--t-xs, 11px); color: var(--muted); }
+.pr-tr.own { border-color: #f2d58a55; }
+.pr-tr.own .pr-tr-ic { color: #1d1606; background: radial-gradient(circle at 35% 30%, #fff3c9, var(--pr-star) 60%, #b8933f); }
+.pr-tr.own b { color: var(--text); }
+.pr-tr.own small { color: var(--pr-star); }
+.pr-tr.next { border-color: var(--line2); background: var(--card2); }
+.pr-tr.next .pr-tr-ic, .pr-tr.next b { color: var(--text); }
+.pr-tr.next small { color: var(--text); font-weight: 600; }
+.pr-ready { color: var(--green, #2fd27a); }
+.pr-hub { margin-top: 12px; }
+.pr-hub .hub-ic { color: var(--pr-star); }
+.pr-hub.locked .hub-ic { color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .pr-stars.pop { animation: none; } }
+/* ===== /Prestige ===== */

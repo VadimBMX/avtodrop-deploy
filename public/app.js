@@ -25,6 +25,8 @@ import { installClubs, clubTag, clubHub, clubFromLink } from './clubs-ui.js';
 import { bossIntro } from './boss-intro.js';
 import { watchScene } from './race-scene.js';
 import { installTourney } from './tourney-ui.js';
+// «Престиж»: restyle ★ on cars, the restyle sheet, «Трофейна зала» (public/prestige-ui.js).
+import { installPrestige, starsHtml, starTileCls, sellStarNote, carRestyleLi, prestigeHubRow } from './prestige-ui.js';
 
 const tg = window.Telegram?.WebApp;
 const $ = (s, el = document) => el.querySelector(s);
@@ -357,10 +359,10 @@ const partSlots = (c) => S.partKeysOf(c.model).length;
 function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false, sellLine = false, incLine = false, collLine = false } = {}) {
   const m = M(c.model);
   const sale = S.saleOf(c); // honest numbers: the sale is the main figure, the collection price the grey line
-  return `<button class="car r${S.rankOf(m.cls)} ${sel ? 'sel' : ''} ${c.status === 'market' || c.status === 'auction' ? 'listed' : ''}" data-act="${act}" data-id="${c.id}" style="--c:${S.CLASSES[m.cls].color}">
+  return `<button class="car r${S.rankOf(m.cls)}${starTileCls(c)} ${sel ? 'sel' : ''} ${c.status === 'market' || c.status === 'auction' ? 'listed' : ''}" data-act="${act}" data-id="${c.id}" style="--c:${S.CLASSES[m.cls].color}">
     ${clsBadge(m.cls, 'tl')}<span class="tr">${isNew ? `<span class="new">${ic('sparkles')}нова</span>` : ''}<span class="chip">${ic('tool')}${partCount(c)}/${partSlots(c)}</span></span>
     <div class="art">${carArt(c.model, { look: c.look, dirt: c.dirt })}${dirtPip(c)}</div>
-    <div class="nm clamp2" title="${esc(m.name)}">${m.restored ? `${esc(m.name.replace(/ · R$/, ''))} <span class="br-no">R${c.serial ? ' ' + S.serialText(c.serial) : ''}</span>` : `${esc(m.name)}${c.serial ? ` <span class="ed-no">${S.serialText(c.serial)}</span>` : ''}`}</div>
+    <div class="nm clamp2" title="${esc(m.name)}">${starsHtml(c, { cls: 'pr-t' })}${m.restored ? `${esc(m.name.replace(/ · R$/, ''))} <span class="br-no">R${c.serial ? ' ' + S.serialText(c.serial) : ''}</span>` : `${esc(m.name)}${c.serial ? ` <span class="ed-no">${S.serialText(c.serial)}</span>` : ''}`}</div>
     ${c.plate ? `<div class="meta">${plate(c.plate.text, 'sm', c.pf)}</div>` : ''}
     <div class="meta row between" style="gap:4px"><span>${c.hp} к.с.</span><b class="disp hn-sale" style="color:var(--text);font-size:14px;font-weight:600" title="${sale == null ? 'Колекційна ціна' : 'Продаж'}">${sale == null ? S.short(c.value) : `${ic('cash')}${S.short(sale)}`}</b></div>${collLine ? `<div class="meta sellp">${sale == null ? 'не продається' : `${collLine === 'short' ? 'колекц.' : 'колекційна'} ${S.short(c.value)}`}</div>` : ''}
     ${incLine && c.status === 'garage' ? tileInc(c) : ''}
@@ -376,7 +378,7 @@ function tileInc(c) {
 }
 function carRow(c, right = '', meta = '', later = false) {
   const m = M(c.model);
-  return `<div class="li">${miniCar(c.model, '', c.look, c.dirt)}<div class="grow"><div class="clamp2"><b>${esc(m.name)}</b></div>
+  return `<div class="li">${miniCar(c.model, '', c.look, c.dirt)}<div class="grow"><div class="clamp2"><b>${esc(m.name)}</b>${c.stars ? ` ${starsHtml(c)}` : ''}</div>
     <div class="small muted">${clsBadge(m.cls)} ${c.plate ? plate(c.plate.text, 'sm', c.pf) : ''} <span class="nw">${c.hp} к.с.</span> · ${rowMoney(c, later)}${dirtTag(c)}</div>${meta ? `<div class="lot-meta">${meta}</div>` : ''}</div>${right}</div>`;
 }
 // A car's money on a list row: the sale first («продаж потім ≈» on a lot you'd buy), the collection price in grey.
@@ -517,6 +519,7 @@ const PAGES = {};
 installHalloween({ me: () => me, state: () => state, H, ic, esc, sheet, go });
 installClubs({ me: () => me, state: () => state, config: () => config, tg, H, PAGES, AFTER, PAGE_TITLES, api, act, toast, sheet, closeModal, confirmBox, go, render, ic, esc, initialOf,
   untilSpan: (t) => untilSpan(t), tickUntil: () => tickUntil(), emptyLine: (...a) => emptyLine(...a) });
+installPrestige({ me: () => me, state: () => state, H, ic, esc, sheet, act, api, go, toast, closeModal, carSheet: (id) => carSheet(id), serverNow: () => serverNow(), clockOffset: () => clockOffset, carInc: (c) => carInc(c) });
 
 // ---------- progressive unlock (S.UNLOCKS; the server says what is open in me.unlocked) ----------
 // Locked things stay in sight with a lock and the level they open at, so there's something to look forward to.
@@ -720,7 +723,7 @@ function licenceCard(p) {
   const bay = (c, i) => {
     const m = M(c.model), r = S.rankOf(m.cls);
     return `<div class="lbay ${i === 0 ? 'main' : ''} r${r}" style="--c:${S.CLASSES[m.cls].color}"><div class="art">${carArt(c.model, { glow: i === 0 && r >= 3, look: c.look })}</div>
-      <div class="lbay-tx">${clsBadge(m.cls)}<b class="ellipsis">${esc(m.name)}</b><span>${S.short(c.value)}</span></div></div>`;
+      <div class="lbay-tx">${clsBadge(m.cls)}<b class="ellipsis">${esc(m.name)}</b>${starsHtml(c)}<span>${S.short(c.value)}</span></div></div>`;
   };
   const xpFrac = p.xpNeed ? p.xp / p.xpNeed : 1;
   return `<div class="licence r${rank}${styleCls('gl', p.style?.glow)}" style="--c:${color}">
@@ -958,7 +961,7 @@ H.selToggle = (d) => {
 };
 H.sellSel = async () => {
   const ids = [...state.selling];
-  if (!(await confirmBox(`Продати ${ids.length} авто? Деталі й номери повернуться тобі.`))) return;
+  if (!(await confirmBox(`Продати ${ids.length} авто? Деталі й номери повернуться тобі.${sellStarNote(ids.map((id) => me.cars.find((c) => c.id === id)))}`))) return;
   if (await act('sell', { carIds: ids }, (r) => `Продано: +${S.fmt(r.got)}`)) {
     state.selling = null;
     render();
@@ -993,7 +996,7 @@ function carSheet(id, best = null) {
   const locked = c.status === 'market' || c.status === 'auction';
   const rank = S.rankOf(m.cls), color = S.CLASSES[m.cls].color;
   sheet(esc(m.name), `
-    <div class="rarity-row sheet-tags"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span>${originChip(c.model)}<span class="chip">${m.year}</span>${c.serial ? (m.restored ? `<span class="chip br-chip">${ic('sparkles')}R ${S.serialText(c.serial)}</span>` : `<span class="chip ed-chip">${ic('box')}тираж ${S.serialText(c.serial)}</span>`) : ''}${dirtTag(c)}</div>
+    <div class="rarity-row sheet-tags"><span class="stamp r${rank}" style="--c:${color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span>${originChip(c.model)}<span class="chip">${m.year}</span>${c.serial ? (m.restored ? `<span class="chip br-chip">${ic('sparkles')}R ${S.serialText(c.serial)}</span>` : `<span class="chip ed-chip">${ic('box')}тираж ${S.serialText(c.serial)}</span>`) : ''}${c.stars ? starsHtml(c, { full: true, cls: 'pr-c' }) : ''}${dirtTag(c)}</div>
     <div class="hero r${rank} ${shining(c) ? 'shining' : ''}" style="--c:${color}"><div class="art">${carArt(c.model, { glow: rank >= 3, look: c.look, dirt: c.dirt })}</div>${c.plate ? `<div class="plate-on">${plate(c.plate.text)}</div>` : ''}</div>
     <div class="stat four"><div><b>${c.hp}${c.hp > m.hp ? `<em class="win">+${c.hp - m.hp}</em>` : ''}</b><span>к.с.</span></div><div><b>${dec(c.et, 2)}</b><span>с на 402 м</span></div><div class="val">${m.secret ? `<b>${S.short(c.value)}</b><span>колекційна ціна</span><span class="sellp">не продається</span>` : `<b>${S.short(sellPrice(c))}</b><span>продаж</span><span class="sellp">колекційна ${S.short(c.value)}</span>`}</div>${incStat(c)}</div>
     ${incNote(c)}${honestNote(c)}${m.restored ? `<div class="card mt small ed-note br-note">${ic('sparkles')} <b>R-версія із «Сарайної знахідки».</b> Реставраційна ліврея (не перефарбувати), номер ${c.serial ? S.serialText(c.serial) : 'реставрації'}, ×${String(S.R_MULT).replace('.', ',')} вартості й доходу. Продаж на ринку й обмін — так; дилер платить як за звичайну; не йде в колекцію, сети, апгрейд і трейд-ін.</div>` : ''}${m.edition && !m.restored ? `<div class="card mt small ed-note">${ic('box')} <b>Тиражна машина з «Причалу».</b> Заводська ліврея (не перефарбувати), номер ${c.serial ? S.serialText(c.serial) : 'тиражу'}. Продаж на ринку й обмін — так; дилер викуповує за ${Math.round(S.EDITION_SELL * 100)}%; не йде в колекцію, сети, апгрейд і трейд-ін.</div>` : ''}
@@ -1002,6 +1005,7 @@ function carSheet(id, best = null) {
       <button class="li" data-act="carShowcase" data-id="${c.id}"><span class="ic">${ic('building-arch')}</span><div class="grow"><b>${c.status === 'showcase' ? 'Повернути в гараж' : 'Виставити на вітрину'}</b><div class="small muted">${c.status === 'showcase' ? 'знову приноситиме дохід' : `вільно місць: ${me.showcaseSlots - me.cars.filter((x) => x.status === 'showcase').length}`}</div></div><span class="chev">›</span></button>
       <button class="li" data-act="carPlate" data-id="${c.id}"><span class="ic">${ic('license')}</span><div class="grow"><b>Номер</b><div class="small muted">${c.plate ? `+${S.short(c.plate.value)} до колекційної ціни` : 'немає'}</div></div>${c.plate ? plate(c.plate.text, 'sm') : '<span class="chev">›</span>'}</button>
       ${washLi(c)}
+      ${carRestyleLi(c)}
       <button class="li" data-act="shareCar" data-id="${c.id}"><span class="ic">${ic('share')}</span><div class="grow"><b>Поділитися</b><div class="small muted">картка машини в Telegram: чат або історія</div></div><span class="chev">›</span></button>
       ${PAINT.canPaint(c.model) || c.look ? `<button class="li" data-act="carPaint" data-id="${c.id}"><span class="ic">${ic('palette')}</span><div class="grow"><b>Фарбування</b><div class="small muted">${c.look ? [S.PAINT_BY_ID[c.look.paint]?.name, S.LIVERY_BY_ID[c.look.livery] && 'ліврея «' + S.LIVERY_BY_ID[c.look.livery].name + '»'].filter(Boolean).join(' · ') : 'заводський колір'}</div></div>${c.look?.paint ? `<span class="sw-dot ${S.PAINT_BY_ID[c.look.paint].finish}" style="--sw:${S.PAINT_BY_ID[c.look.paint].hex}"></span>` : '<span class="chev">›</span>'}</button>` : ''}
     </div>
@@ -1253,7 +1257,7 @@ H.carSellMenu = (d) => {
 };
 H.sellOne = async (d) => {
   const c = me.cars.find((x) => x.id === Number(d.id));
-  if (!(await confirmBox(`Продати ${M(c.model).name} за ${S.fmt(sellPrice(c))}?`))) return;
+  if (!(await confirmBox(`Продати ${M(c.model).name} за ${S.fmt(sellPrice(c))}?${sellStarNote([c])}`))) return;
   if (await act('sell', { carIds: [c.id] }, (r) => `+${S.fmt(r.got)}`)) closeModal();
 };
 H.listMarket = (d) => {
@@ -3567,6 +3571,7 @@ function incNote(c) {
   const bits = [];
   if (e.country) bits.push(`країна ${sPct(e.country)}`);
   if (e.set) bits.push(`сет ${sPct(e.set)}`);
+  if (e.star) bits.push(`★ ${sPct(e.star)}`);
   if (e.wash > 1) bits.push(`блищить ${sPct(e.wash - 1)}`);
   else if (e.wash < 1) bits.push(`бруд ${sPct(e.wash - 1)}`);
   return bits.length ? `<div class="inc-note muted">База ${S.short(e.clean)} / год · ${bits.join(' · ')}</div>` : '';
@@ -4058,7 +4063,7 @@ TABS.menu = () => {
   const H2 = (t, r = '') => `<div class="hub-h"><span>${t}</span>${r ? `<span>${r}</span>` : ''}</div>`;
   const nextLock = S.UNLOCKS.find((u) => !isOpen(u.key) && !(u.key === 'casino' && casinoOff()));
   return `<div class="hub">${head}${pass}${homeCard()}
-    ${H2('Нагороди й прогрес')}<div class="hub-grid g2">${tiles.join('')}</div>${challengeHubRow()}${clubHub()}
+    ${H2('Нагороди й прогрес')}<div class="hub-grid g2">${tiles.join('')}</div>${challengeHubRow()}${clubHub()}${prestigeHubRow()}
     ${H2('Торгівля', nextLock && ['market', 'trades', 'tradein', 'plates'].includes(nextLock.key) ? `${ic('lock')} далі: ${nextLock.name} · рів. ${nextLock.level}` : '')}<div class="hub-grid g4">${trade.join('')}</div>
     ${H2('Ризикнути')}<div class="hub-grid g2">${risk.join('')}</div>
     ${H2('Магазин')}${store}
@@ -4413,7 +4418,7 @@ PAGES.market = async () => {
   const kinds = `<div class="seg mk-kinds">${[['car', 'car', 'Машини'], ['part', 'engine', 'Деталі'], ['plate', 'license', 'Номери']].map(([k, i, t]) => `<button class="${state.marketKind === k ? 'on' : ''}" data-act="mKind" data-k="${k}">${ic(i)}${t}</button>`).join('')}</div>`;
   if (state.marketKind !== 'car') return kinds + (await itemMarket(state.marketKind));
   const seg = kinds + `<div class="seg mk-seg4">${[['buy', 'Купити'], ['auction', 'Аукціони'], ['pier', 'Причал'], ['mine', 'Мої лоти']].map(([k, t]) => `<button class="${state.marketTab === k ? 'on' : ''}" data-act="mTab" data-k="${k}">${t}</button>`).join('')}</div>`;
-  const info = (c) => `<span class="chip">${partCount(c)}/${partSlots(c)} деталей</span>`;
+  const info = (c) => `<span class="chip">${partCount(c)}/${partSlots(c)} деталей</span>${c.stars ? `<span class="chip pr-chip">★${c.stars} · вкладено ${S.short(c.starSpent || 0)}</span>` : ''}`;
   if (state.marketTab === 'buy') {
     const { list, dealer, now } = await api('market/list', { cls: state.marketCls, sort: state.marketSort });
     // Own lots stay in the list (marked), so a freshly listed car doesn't look like it vanished.
@@ -5771,7 +5776,7 @@ function guideProgress() {
 PAGES.leaderboard = async () => {
   state.lbType = state.lbType || 'season';
   const lb = await api('leaderboard', { type: state.lbType });
-  const segs = `<div class="seg">${[['season', 'Сезон'], ['week', 'Тиждень'], ['all', 'Весь час']].map(([k, t]) => `<button class="${state.lbType === k ? 'on' : ''}" data-act="lbType" data-k="${k}">${t}</button>`).join('')}</div>`;
+  const segs = `<div class="seg">${[['season', 'Сезон'], ['week', 'Тиждень'], ['all', 'Весь час'], ['wealth', 'Статок']].map(([k, t]) => `<button class="${state.lbType === k ? 'on' : ''}" data-act="lbType" data-k="${k}">${t}</button>`).join('')}</div>`;
   const crown = (r) => (r.vip ? `<span class="lb-vip">${ic('crown')}</span>` : '');
   // The top three stand on a podium (2 · 1 · 3), everyone else is a row with an initial; my row and bar are yellow.
   const board = (val, extra = () => '') => {
@@ -5793,6 +5798,11 @@ PAGES.leaderboard = async () => {
       <div class="prizes"><div><span class="medal m1">1</span>${ic('star')} ${p[0]}</div><div><span class="medal m2">2</span>${ic('star')} ${p[1]}</div><div><span class="medal m3">3</span>${ic('star')} ${p[2]}</div><div><span>${ic('trophy')}</span>4–10: ${ic('star')} ${p[3]}</div></div></div>
       ${lb.list.length ? board((r) => r.score.toLocaleString('uk-UA'), (r) => `<span class="chip">рів. ${r.level}</span>`) : empty('Сезон щойно почався')}
       <div class="mybar"><span>Ти: #${lb.me.place}</span><span class="grow"></span><span>${lb.me.score.toLocaleString('uk-UA')} досвіду</span></div>`;
+  }
+  if (lb.type === 'wealth') {
+    return `${segs}<div class="tiny muted" style="margin:0 2px 10px">«Статок» = колекційна вартість гаража + вкладене в ★ рестайлінгу + Трофейна зала (Меню → Престиж)</div>
+      ${lb.list.length ? board((r) => S.short(r.score), (r) => (r.trophies ? `<span class="chip">${ic('trophy')} ${r.trophies}</span>` : '')) : empty('Поки порожньо')}
+      <div class="mybar"><span>Ти: #${lb.me.place}</span><span class="grow"></span><span>${S.short(lb.me.score)}</span></div>`;
   }
   const week = lb.type === 'week';
   return `${segs}
@@ -5816,6 +5826,7 @@ H.playerCard = async (d, el, e, showcase) => {
   sheet('Картка гравця', `${licenceCard({ id: p.id, name: p.name, level: p.level, vip: p.vip, badges: p.badges, legacy: p.legacy, style: p.style, top: p.top || (p.best ? [p.best] : []),
       value: p.value, cases: p.stats?.cases, wins: p.stats?.wins, coll: collPct(p.collection) })}
     <div class="row between small muted mt" style="padding:0 2px"><span>${p.carCount} ${plural(p.carCount, ['машина', 'машини', 'машин'])} · ${p.collection} у колекції</span><span>${p.stats?.races ? `${Math.round((p.stats.wins / p.stats.races) * 100)}% перемог` : ''}</span></div>
+    ${p.prestige?.trophies || p.prestige?.best ? `<div class="small mt pr-card-line">${p.prestige.best ? `${p.prestige.best.stars >= 5 ? 'Легенда' : 'Рестайлінг'}: <b>${esc(M(p.prestige.best.model)?.name || '')}</b> ${starsHtml(p.prestige.best)}` : ''}${p.prestige.trophies ? `<span class="muted">${p.prestige.best ? ' · ' : ''}трофеї ${p.prestige.trophies}/10</span>` : ''}</div>` : ''}
     <div class="btns mt"><button class="btn ${p.self ? '' : 'ghost'}" data-act="playerShowcase" data-id="${p.id}">${ic('building-arch')} Вітрина · ${p.showcase.length}</button>
     ${p.self ? '' : `<button class="btn" data-act="tradeWith" data-id="${p.id}">${ic('arrows-exchange')} Обмін</button>`}</div>`);
 };
