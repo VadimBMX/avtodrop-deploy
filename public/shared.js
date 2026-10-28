@@ -1049,12 +1049,16 @@ export function raceBaseTime(hp, kg, grip) {
 // lines in plain words with the real numbers, the biggest reason first. me / rival: { model, parts }; time / rivalTime:
 // the two finish times. Empty when you won or had no more power (hp or hp per kg) than the rival.
 const secs = (x) => x.toFixed(2).replace('.', ',');
-export function raceWhy(me, rival, { time, rivalTime } = {}) {
+// reaction / shifts (optional, fix5): when the start was good (0–0,3 s) and every shift perfect or good, the start and
+// shifts are not blamed — a pro rival was simply quicker this time.
+export const RACE_WHY_PRO = 'Суперник-профі цього разу був швидшим — таке рідко, спробуй ще';
+export function raceWhy(me, rival, { time, rivalTime, reaction, shifts } = {}) {
   if (!MODELS[me?.model] || !MODELS[rival?.model] || !(time > rivalTime)) return [];
   const a = carStats(me), b = carStats(rival);
   if (a.hp <= b.hp && a.hp / a.kg <= b.hp / b.kg) return [];
   // The car was quicker: the start and the shifts decided it (nothing else to explain).
-  if (a.base < b.base) return [`Твоя машина швидша на ${secs(b.base - a.base)} с — програно на старті й передачах`];
+  const clean = typeof reaction === 'number' && reaction >= 0 && reaction < 0.3 && Array.isArray(shifts) && shifts.length > 0 && shifts.every((q) => q === 'perfect' || q === 'good');
+  if (a.base < b.base) return [clean ? RACE_WHY_PRO : `Твоя машина швидша на ${secs(b.base - a.base)} с — програно на старті й передачах`];
   const out = [], grip100 = (x) => Math.round(x * 100); // grip in the units the parts show («+20 до зчеплення»)
   // Your tyres can't hold your power: what it costs, and what the best grip parts give back.
   if (a.slip >= 0.05) {
@@ -1196,7 +1200,9 @@ export const TANK_UPGRADES = [{ max: 18, cost: 2000000, level: 5 }, { max: 21, c
 export const fuelMaxOf = (lvl) => (lvl > 0 ? TANK_UPGRADES[Math.min(lvl, TANK_UPGRADES.length) - 1].max : FUEL_MAX);
 export const nextTank = (lvl) => TANK_UPGRADES[lvl || 0] || null;
 // «Каністра»: fuel earned by play — with the daily bonus and with every finished daily quest, never above the tank.
-export const CANISTER = { daily: 3, quest: 1 };
+// spare (fix5, crit4 №7): a canister on a full tank isn't lost — up to `spare` fuel waits «в запасі» above the tank and
+// is the first to go on the next races (the tank shows n/max + запас).
+export const CANISTER = { daily: 3, quest: 1, spare: 3 };
 // ---------- solo drag rivals (race2) ----------
 // A rival is a real car: a model of your class (a class above for a hard rival when your class has nothing faster)
 // with the parts it needs, and its shown power and time are that car's own (carStats). It is driven by RIVAL_AI.
@@ -2003,7 +2009,8 @@ export const QUESTS = {
   collect: { text: 'Забери дохід гаража {n} раз', range: [1, 2], group: 'garage', icon: 'coin' },
   wash: { text: 'Помий {n} машин', range: [1, 2], feature: 'wash', group: 'garage', icon: 'droplet' },
   plate: { text: 'Згенеруй номерний знак', range: [1, 1], feature: 'plates', group: 'garage', icon: 'license' },
-  market: { text: 'Купи або продай авто на ринку', range: [1, 1], feature: 'market', group: 'garage', icon: 'building-store' },
+  // minCars (fix5): with one car there's nothing to sell (the last car can't be sold) — not a goal for him yet.
+  market: { text: 'Купи або продай авто на ринку', range: [1, 1], feature: 'market', minCars: 2, group: 'garage', icon: 'building-store' },
   bid: { text: 'Зроби ставку на «Причалі»', range: [1, 1], feature: 'auction', minLevel: 3, group: 'garage', icon: 'hammer' },
   // Depends on someone else being online (and is farmable with a second account): not a goal a key should wait on.
   pvp: { text: 'Зіграй {n} PvP-заїзд', range: [1, 2], feature: 'pvp', off: true },
@@ -2539,12 +2546,18 @@ export const INTRO_STORY = {
   // Four slides (were seven): the showroom car on each one (app.js INTRO_CARS by icon), the class badges on the case
   // slide (`classes`). Every car counts, the secret ones too.
   slides: [
-    { icon: 'car-turbine', title: 'Вітаємо в АВТОДРОПі', text: `Збирай гараж мрії: ${ALL_MODELS.length} ${realCars(ALL_MODELS.length)} — від «Запорожця» до Bugatti. Відкривай кейси, ганяй і збирай колекції.` },
+    { icon: 'car-turbine', title: 'Вітаємо в АВТОДРОПі', text: `Збирай гараж мрії: ${carCountText()} — від «Запорожця» до Bugatti. Відкривай кейси, ганяй і збирай колекції.` },
     { icon: 'gift', classes: true, title: 'Перший кейс — безкоштовно', text: 'Усередині — радянська й українська класика. Класи машин: D → C → B → A → S — що рідший клас, то дорожча машина. Скільки лишилось до гарантії — видно під кейсом.' },
     { icon: 'coin', title: 'Гараж заробляє', text: `Машини приносять дохід щогодини, навіть коли гра закрита, — заходь і тисни «Забрати». Щоденний бонус на ${DAILY_BONUS.length} днів: на 7-й — авто зі «Спорткара».` },
     { icon: 'flag-3', title: 'Гонки й колекції', text: `Драг на 402 м: «Газ» — на зелений, передачі — у зеленій зоні. Збери всі машини країни — і отримаєш секретну, якої немає в жодному кейсі.` },
   ],
 };
+// fix5 (crit4 №6): the same count as the collection («1/169»): the cars in cases, and the secret ones apart —
+// «169 справжніх авто і ще 10 секретних». Derived from ALL_MODELS, never written by hand.
+export function carCountText() {
+  const secret = ALL_MODELS.filter((m) => m.secret).length, open = ALL_MODELS.length - secret;
+  return `${open} ${realCars(open)}${secret ? ` і ще ${secret} ${secret % 10 === 1 && secret % 100 !== 11 ? 'секретне' : 'секретних'}` : ''}`;
+}
 // «1 справжнє авто», «3 справжні авто», «177 справжніх авто».
 function realCars(n) {
   const a = n % 10, b = n % 100;

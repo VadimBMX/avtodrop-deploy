@@ -530,9 +530,10 @@ export function createGame(db, opts = {}) {
     if (q('SELECT COUNT(*) n FROM quests WHERE user_id = ? AND day = ?').get(uid, day).n) return day;
     const h = sha256(`${uid}:${day}`);
     const u = userRow(uid), open = openKeys(u), lvl = u.level;
+    const cars = q('SELECT COUNT(*) n FROM cars WHERE owner_id = ?').get(uid).n;
     const keys = Object.keys(S.QUESTS).filter((k) => {
       const x = S.QUESTS[k];
-      return !x.off && (!x.feature || open.includes(x.feature)) && (!x.minLevel || lvl >= x.minLevel);
+      return !x.off && (!x.feature || open.includes(x.feature)) && (!x.minLevel || lvl >= x.minLevel) && (!x.minCars || cars >= x.minCars);
     });
     // The pool in the order of this player's day, then the first of each group, then the rest.
     const rank = Object.fromEntries(keys.map((k) => [k, sha256(`${uid}:${day}:${k}`)]));
@@ -691,16 +692,18 @@ export function createGame(db, opts = {}) {
 
   function fuelState(u) {
     const max = fuelMax(u);
-    if (u.fuel >= max) return { fuel: max, max, at: now(), next: null, fullAt: u.fuel_at };
+    // fix5: a full tank may hold up to CANISTER.spare more «в запасі» (a canister on a full tank); races use it first.
+    if (u.fuel >= max) return { fuel: Math.min(u.fuel, max + S.CANISTER.spare), max, at: now(), next: null, fullAt: u.fuel_at };
     const r = S.regenAt(u.fuel_at, now(), REGEN_MS, max - u.fuel, evOv, vipMult((u.vip_until || 0) > now()));
     const fuel = u.fuel + r.n;
     return { fuel, max, at: fuel >= max ? now() : r.at, next: r.next, fullAt: fuel >= max ? r.at : null };
   }
   // Fuel into the shared tank (clubs' «Клубна заправка», «Каністра»), never above the player's own max (the same
   // bookkeeping as a race start). Returns how much really went in.
-  function addFuel(uid, n) {
+  // over (fix5): how far above the tank this fuel may go («Каністра» → S.CANISTER.spare in reserve).
+  function addFuel(uid, n, over = 0) {
     const f = fuelState(userRow(uid));
-    const v = Math.min(f.max, f.fuel + n);
+    const v = Math.max(f.fuel, Math.min(f.max + over, f.fuel + n));
     if (v <= f.fuel) return 0;
     q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(v, v >= f.max ? now() : f.at, uid);
     return v - f.fuel;
@@ -758,7 +761,7 @@ export function createGame(db, opts = {}) {
       id: u.id, username: u.username, firstName: u.first_name, balance: u.balance, intro, guide,
       slots: u.slots, used: cars.filter((c) => c.status !== 'showcase').length, showcaseSlots: u.showcase_slots, capLevel: u.cap_level, fragments,
       income: { rate: Math.round(inc.rate), pending: inc.pending, capH: inc.capH, since: u.income_at, banked: u.banked, comebackUntil: u.comeback_cap_until > now() ? u.comeback_cap_until : 0 },
-      fuel: fuel.fuel, fuelNext: fuel.next, fuelMax: fuel.max, tankLvl: u.tank_lvl || 0, cars, keys, collection, pity, plates, parts: inventory(uid),
+      fuel: Math.min(fuel.fuel, fuel.max), fuelSpare: Math.max(0, fuel.fuel - fuel.max), fuelNext: fuel.next, fuelMax: fuel.max, tankLvl: u.tank_lvl || 0, cars, keys, collection, pity, plates, parts: inventory(uid),
       level: u.level, levelSeen: u.level_seen, xp: u.xp, xpNeed: S.xpForLevel(u.level),
       xpToday: u.xp_day === day ? u.xp_day_capped : 0, xpCaseToday: u.xp_case_day === day ? u.xp_case_used : 0, newbie: newbieState(u),
       dailyReady: u.streak_day !== day, streak: u.streak, rewardCaseAt: u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3,
@@ -3257,7 +3260,7 @@ export function createGame(db, opts = {}) {
     const rw = S.DAILY_BONUS[(streak - 1) % S.DAILY_BONUS.length];
     q('UPDATE users SET streak = ?, streak_day = ? WHERE id = ?').run(streak, day, uid);
     const got = grant(uid, rw);
-    got.canister = addFuel(uid, S.CANISTER.daily); // «Каністра»: +3 fuel, never above the tank
+    got.canister = addFuel(uid, S.CANISTER.daily, S.CANISTER.spare); // «Каністра»: +3 fuel; on a full tank into the reserve (fix5)
     if ((u.vip_until || 0) > now()) {
       addMoney(uid, S.VIP.daily);
       got.vip = S.VIP.daily;
@@ -3512,7 +3515,7 @@ export function createGame(db, opts = {}) {
     if (r.progress < r.target) fail('Завдання ще не виконано');
     q('UPDATE quests SET claimed = 1 WHERE user_id = ? AND day = ? AND key = ?').run(uid, day, r.key);
     addMoney(uid, r.reward);
-    const canister = addFuel(uid, S.CANISTER.quest); // «Каністра»: +1 fuel per daily quest, never above the tank
+    const canister = addFuel(uid, S.CANISTER.quest, S.CANISTER.spare); // «Каністра»: +1 fuel per goal; a full tank → reserve (fix5)
     xp(uid, 'quest');
     return { got: r.reward, canister };
   }

@@ -27,9 +27,10 @@ export function countUp(node, ms = 620) {
 }
 export const countUpIn = (root, ms, delay = 0) => root && setTimeout(() => root.querySelectorAll('[data-to]').forEach((n) => countUp(n, ms)), delay);
 
-// The first stand-alone 2–4-digit number of an (already escaped) text gets a span to count up: «177 справжніх авто»,
+// The first stand-alone 3–4-digit number of an (already escaped) text gets a span to count up: «177 справжніх авто»,
 // «Драг 402 м», «До 20 гравців». Dates and times («20:00», «2.11») and «10-го» are left alone.
-export const markNumber = (html) => html.replace(/(^|[\s(])(\d{2,4})(?=[\s)])/, (_, a, n) => `${a}<span class="st-num" data-to="${n}">${n}</span>`);
+// fix5: only 3–4 digits count up — a small number («бонус на 14 днів», «20 гравців») caught mid-count read as wrong.
+export const markNumber = (html) => html.replace(/(^|[\s(])(\d{3,4})(?=[\s)])/, (_, a, n) => `${a}<span class="st-num" data-to="${n}">${n}</span>`);
 
 // Horizontal swipe on el: left → next(), right → prev(). While the finger moves, follow(dx) can drag the slide a
 // little. Returns a function that says whether the click that ends this gesture should be ignored (it was a swipe).

@@ -9,6 +9,8 @@ let X = null;
 const M = (id) => S.MODELS[id];
 
 function cardHtml(o) {
+  // fix5: a newcomer with no request yet — one calm line inside «Сьогодні», never a card of its own
+  if (o.hint) return `<div class="card tb-card tb-hint" id="tbCard"><div class="tb-note">${X.ic('users')} ${X.esc(o.hint)}</div></div>`;
   const pct = `+${Math.round(o.prem * 100)}%`;
   const head = `<div class="tb-head"><span class="tb-ic">${X.ic('users')}</span><span class="grow tb-who"><b>Таємний покупець</b><small>з ${X.esc(o.city)}</small></span>
     ${o.sold ? '' : `<span class="tb-time">${X.ic('clock')}${X.untilSpan(o.expiresAt)}</span>`}</div>`;
@@ -37,10 +39,11 @@ function paint() {
   const st = X.state(), o = X.me()?.buyer, view = document.getElementById('view');
   if (!view) return;
   const old = document.getElementById('tbCard');
-  const show = o && !st.page && !st.race && !st.drift && st.tab === 'garage' && st.garageView !== 'showcase' && o.expiresAt > X.serverNow();
-  if (!show) return old?.remove();
-  const sig = JSON.stringify([o.day, o.sold, o.cars.map((c) => [c.id, c.pay]), o.lastCar]);
   const today = document.getElementById('todayCard'); // qa4: a row of the «Сьогодні» card when the garage has one
+  const live = o && (o.hint ? !!today : o.expiresAt > X.serverNow()); // fix5: the hint lives only inside «Сьогодні»
+  const show = live && !st.page && !st.race && !st.drift && st.tab === 'garage' && st.garageView !== 'showcase';
+  if (!show) return old?.remove();
+  const sig = o.hint ? `hint:${o.hint}` : JSON.stringify([o.day, o.sold, o.cars.map((c) => [c.id, c.pay]), o.lastCar]);
   if (old && old.dataset.sig === sig && old.parentNode === (today || view)) return;
   const tpl = document.createElement('template');
   tpl.innerHTML = cardHtml(o).trim();

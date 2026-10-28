@@ -39,7 +39,7 @@ import { installPrestige, starsHtml, starTileCls, sellStarNote, carRestyleLi, pr
 // «Шоурум»: up to 3 cars on show, likes, «Шоурум тижня», the share card and sr_<id> links (public/showroom-ui.js).
 import { installShowroom, showroomHubRow, showroomStrip, showroomFromLink } from './showroom-ui.js';
 import { installGoals, goalsHead } from './goals-ui.js';
-import { tankShown } from './garage-calm.js';
+import { tankShown, idleCapHours } from './garage-calm.js';
 
 const tg = window.Telegram?.WebApp;
 const $ = (s, el = document) => el.querySelector(s);
@@ -848,7 +848,7 @@ async function openRewards(result, auto = false) {
     }).join('')}</div>
     ${r.ready ? `<div class="day-now">${ic('gift')} <b>День ${r.nextDay}</b> — ${esc(S.dailyText(r.days[r.nextDay - 1]))} <span class="muted">+ ${ic('gas-station')}${S.CANISTER.daily}</span></div>` : ''}
     <div class="tiny muted mt">Заходь щодня: на 5-й і 10-й день — машина, на 7-й — кейс «Спорткар» (машина ${S.caseClassSpan('sport')}), на 14-й — кейс «Еліта» (машина ${S.caseClassSpan('elite')}). Кейс відкривається одразу після «Забрати». Новий день — опівночі за Києвом. Пропустив день — нічого не згорає, продовжиш з того ж місця.</div>
-    <div class="tiny muted mt tk-can">${ic('gas-station')} Щодня ще й каністра: +${S.CANISTER.daily} пального до бонусу, +${S.CANISTER.quest} за кожну ціль дня (не більше за бак)</div>
+    <div class="tiny muted mt tk-can">${ic('gas-station')} Щодня ще й каністра: +${S.CANISTER.daily} пального до бонусу, +${S.CANISTER.quest} за кожну ціль дня (на повному баку — до ${S.CANISTER.spare} у запас)</div>
     ${r.vip ? `<div class="tiny mt" style="color:var(--accent)">${ic('crown')} VIP: ще +${S.short(r.vipDaily)} щодня до бонусу</div>` : `<div class="tiny muted mt">${ic('crown')} VIP додає ще +${S.short(r.vipDaily)} щодня</div>`}
     <button class="btn mt ${liveRewardClaims().length ? 'soft' : ''}" data-act="claimDaily" ${r.ready ? '' : 'disabled'}>${r.ready ? `Забрати · день ${r.nextDay}${r.days[r.nextDay - 1].caseId ? ' · відкрити кейс' : ''}` : 'Наступний опівночі · <span data-until="' + (S.kyivMidnightOf(S.kyivDateOf(serverNow()), 1) - clockOffset) + '"></span>'}</button></div>
     <div class="h2"><span>Кейс нагород</span><span>раз на ${S.REWARD_CASE_HOURS} год</span></div>
@@ -868,16 +868,18 @@ async function openRewards(result, auto = false) {
 // A car or a case of the daily bonus (days 5/7/10/14) is revealed like a case drop (revealRewards); money and parts
 // show in the rewards window.
 H.claimDaily = async () => {
+  const f0 = me.fuel, s0 = me.fuelSpare;
   const r = await act('rewards/daily', {}, null, { rerender: false });
   if (!r) return;
   pulseSoon();
+  fuelSync(f0, s0);
   const day = ((r.streak - 1) % S.DAILY_BONUS.length) + 1, rw = r.reward;
   if (rw.carOut || rw.caseId) {
     if (rw.vip || rw.canister) toast([rw.canister ? `${ic('gas-station')} Каністра: +${rw.canister} пального` : '', rw.vip ? `${ic('crown')} VIP: +${S.short(rw.vip)}` : ''].filter(Boolean).join(' · '));
     const title = `Щоденний бонус · день ${day}`;
     return revealRewards([rw.carOut ? { kind: 'car', car: rw.carOut, isNew: rw.isNew, title } : { kind: 'key', caseId: rw.caseId, count: rw.count || 1, title }]);
   }
-  openRewards({ title: `День ${day}`, text: rewardText(rw) + (rw.items ? ': ' + rw.items.map((p) => S.PARTS[p.type].name).join(', ') : '') + (rw.vip ? ` + VIP ${S.short(rw.vip)}` : '') + (rw.canister ? ` + каністра ${rw.canister} пального` : '') });
+  openRewards({ title: `День ${day}`, text: rewardText(rw) + (rw.items ? ': ' + rw.items.map((p) => S.PARTS[p.type].name).join(', ') : '') + (rw.vip ? ` + VIP ${S.short(rw.vip)}` : '') + (rw.canister ? ` + каністра ${rw.canister} пального${me.fuelSpare ? ` (бак повний — ${me.fuelSpare} у запасі)` : ''}` : '') });
 };
 // The reward case: a 2-second strip of what it can give stops on what came (the coins fly only then).
 H.claimRewardCase = async () => {
@@ -945,6 +947,10 @@ TABS.garage = () => {
   const nextCap = S.nextCapOffer(me.capLevel, i.capH); // with VIP / comeback hours: the real next cap, never smaller
   const capPlus = nextCap?.extra ? ` (${nextCap.base} + ${nextCap.extra} ${me.vip ? 'VIP' : 'бонус'})` : '';
   const cs = capState(pending);
+  // fix5 (crit4 №9): how long the cash stood full before this visit — kept for the session, so the line stays after «Забрати»
+  const idleH = idleCapHours({ level: me.level, income: i, now: serverNow(), next: nextCap });
+  if (idleH && (!state.idleCap || state.idleCap.h < idleH)) state.idleCap = { h: idleH, capLevel: me.capLevel };
+  const idle = state.idleCap && state.idleCap.capLevel === me.capLevel && nextCap && me.level < 5 ? state.idleCap.h : 0;
   const all = me.cars.filter((c) => c.status !== 'showcase');
   const rk = (c) => S.rankOf(M(c.model).cls);
   const shown = (c) => S.saleOf(c) ?? c.value; // the number on the tile (the sale), so «За ціною» reads in order
@@ -966,6 +972,7 @@ TABS.garage = () => {
     <div class="cap-line" id="capLine">${cs.text}</div>
     <button class="btn mt${fill > 10 ? '' : ' ghost'}" data-act="collect" ${pending < 1 ? 'disabled' : ''}>Забрати</button>
     ${i.comebackUntil ? `<div class="tiny center mt" style="color:#30d158">${ic('gift')} Подарунок повернення: +${S.COMEBACK.capHours} год сховища ще <span data-until="${i.comebackUntil - clockOffset}"></span></div>` : ''}
+    ${idle ? `<div class="tiny center mt cap-idle">${ic('clock')} Каса стояла повна ${idle} год — <a data-act="upgradeCap" class="txtlink">збільш її до ${nextCap.hours} год за ${S.short(nextCap.cost)}</a></div>` : ''}
     ${nextCap ? `<div class="cap-up"><span class="tiny muted">Повна каса не росте — поки не забереш, дохід стоїть.</span><button class="btn outline sm" data-act="upgradeCap">${ic('clock')} Каса на ${nextCap.hours} год${capPlus} · ${S.short(nextCap.cost)}</button></div>` : ''}
     <div class="tiny muted center mt cap-more">Каса вміщує ${i.capH} год доходу${nextCap ? ` · <a data-act="upgradeCap" class="txtlink">збільшити до ${nextCap.hours} год${capPlus} — ${S.short(nextCap.cost)}</a>` : ''}</div>
   </div>
@@ -1500,10 +1507,13 @@ TABS.cases = () => {
   } else {
     stage = `<div class="reel-wrap" id="reelWrap"><div class="reel" id="reel">${Array.from({ length: 6 }, () => reelCard(weightedModel(cs), cs)).join('')}</div></div>`;
   }
-  const top = S.CLASS_ORDER.filter((c) => cs.weights[c]).pop();
+  // fix5 (crit4 a05): the drop of the starter case keeps the starter's header — not the next case's odds («A 0,040%»)
+  const fromStarter = onDrop && S.CASE_BY_ID[state.dropCase]?.starter;
+  const hc = fromStarter ? S.CASE_BY_ID[state.dropCase] : cs;
+  const top = S.CLASS_ORDER.filter((c) => hc.weights[c]).pop();
   return `<div class="feed" id="dropFeed"></div>${eventStrip(['luck', 'country', 'plates'])}
-    <div class="casebar"><button class="picker" data-act="casePicker" style="--c:${S.CLASSES[top].color}"><span class="picker-ic">${caseIcon(cs)}</span>
-      <span class="picker-tx"><b>${esc(cs.name)}</b><span class="picker-sub">${oddsBar(deal.weights)}${dayCase ? `<span class="chip dayc">${ic('flame')} Кейс дня −${S.CASE_OF_DAY.off * 100}%</span>` : ''}${caseEvChip(deal)}</span></span>
+    <div class="casebar"><button class="picker" data-act="casePicker" style="--c:${S.CLASSES[top].color}"><span class="picker-ic">${caseIcon(hc)}</span>
+      <span class="picker-tx"><b>${esc(hc.name)}</b><span class="picker-sub">${fromStarter ? '<span class="tiny muted">Подарунок новачку · відкрито</span>' : `${oddsBar(deal.weights)}${dayCase ? `<span class="chip dayc">${ic('flame')} Кейс дня −${S.CASE_OF_DAY.off * 100}%</span>` : ''}${caseEvChip(deal)}`}</span></span>
       <span class="picker-chev">${ic('chevron-right')}</span></button>
       <button class="iconbtn" data-act="odds" aria-label="Що всередині">${ic('info-circle')}</button></div>
     <div class="stage ${d?.length ? 'lit' : ''}" id="stage" style="${d?.length > 1 ? 'height:auto;min-height:230px;' : ''}${d?.length ? `--c:${S.CLASSES[M(d.reduce((a, r) => (S.rankOf(M(r.car.model).cls) > S.rankOf(M(a.car.model).cls) ? r : a)).car.model).cls].color}` : ''}">${stage}</div>
@@ -1923,7 +1933,7 @@ function fuelCard(car, extra = '') {
 function tankCard() {
   const next = S.nextTank(me.tankLvl), f = fuelNow();
   if (!tankShown({ level: me.level, fuel: f, balance: me.balance, next })) return '';
-  const when = f >= fmax() ? 'бак повний' : me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : '';
+  const when = f >= fmax() ? `бак повний${spareTxt()}` : me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : '';
   const up = next && me.level >= next.level
     ? `<button class="btn sm outline tk-buy" data-act="tankUp" title="Назавжди: +${next.max - fmax()} пального в баку на всі машини. Без зірок — лише за гривні.">Бак ${next.max} · ${S.short(next.cost)}</button>` : '';
   return `<div class="card tk-card tk-slim"><div class="tk-row"><span class="tk-ic">${ic('gas-station')}</span><div class="grow tk-tx"><b>Бак <span class="tk-n">${f}<small>/${fmax()}</small></span></b><span class="tiny muted">${when}</span></div>${up}</div></div>`;
@@ -1936,7 +1946,7 @@ H.tankUp = (d, el) => {
 function fuelRow(car) {
   return `<div class="dr-fuel" title="Один бак на всі машини, +1 кожні ${S.FUEL_REGEN_MIN} хв · ${car.hp} к.с. · ${dec(car.et, 2)} с на 402 м">${ic('gas-station')}
     <span class="pips fuel">${Array.from({ length: fmax() }, (_, i) => `<i class="${i < me.fuel ? 'on' : ''}"></i>`).join('')}</span>
-    <b>${me.fuel}<small>/${fmax()}</small></b><span class="dr-fuel-t">${me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : 'бак повний'}</span></div>`;
+    <b>${me.fuel}<small>/${fmax()}</small>${me.fuelSpare > 0 ? `<small class="dr-spare" title="Каністра в запасі: піде першою"> +${me.fuelSpare}</small>` : ''}</b><span class="dr-fuel-t">${me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : `бак повний${me.fuelSpare > 0 ? ' · є запас' : ''}`}</span></div>`;
 }
 // An empty tank: the rivals below grey out (CSS .fuel-out ~ .rivals) and this card says when the next one comes and
 // what to do meanwhile — instead of an error toast on a tap. The screen redraws itself when the fuel is back.
@@ -1968,6 +1978,18 @@ function fuelBackSoon() {
 }
 // Fuel as of now (the last `me` may be a few minutes old: the next one may have come since).
 const fuelNow = () => me.fuel + (me.fuel < fmax() && me.fuelNext && serverNow() >= me.fuelNext ? 1 : 0);
+// fix5: one fuel for a start, here as on the server — the canister reserve («в запасі», S.CANISTER.spare) goes first.
+function spendFuelLocal() {
+  if (me.fuelSpare > 0) me.fuelSpare--;
+  else me.fuel--;
+}
+const spareTxt = () => (me.fuelSpare > 0 ? ` · +${me.fuelSpare} у запасі` : '');
+// fix5 (crit4 №7): a claim that changed the fuel redraws the garage / race tab under the sheet at once (the tank card
+// read «Бак 0/15» after «Забрати все» until another tab was opened).
+function fuelSync(f0, s0) {
+  if (me.fuel === f0 && (me.fuelSpare || 0) === (s0 || 0)) return;
+  if (!state.page && !state.race && !state.drift && (state.tab === 'garage' || state.tab === 'race')) render();
+}
 // A tap on a greyed rival: point at the card instead of an error.
 function fuelNudge() {
   const card = $('#fuelOut');
@@ -2057,7 +2079,7 @@ H.startRace = async (d) => {
   } catch (e) {
     return toast(e.message, true);
   }
-  me.fuel--;
+  spendFuelLocal();
   renderHeader();
   hideClaimBanners();
   state.race = { phase: 'lights', id: r.raceId, car: r.car, rival: r.rival, greenMs: r.greenMs, reaction: null, shifts: [], gear: 1, result: null };
@@ -2578,7 +2600,7 @@ H.pvpExit = () => {
 };
 // Why you lost with more power (S.raceWhy, owner 22.10): one or two lines in plain words with the real numbers.
 function whyLines(car, rival, r) {
-  return r && !r.win && rival?.model ? S.raceWhy({ model: car.model, parts: car.parts || {} }, rival, { time: r.time, rivalTime: r.rivalTime }) : [];
+  return r && !r.win && rival?.model ? S.raceWhy({ model: car.model, parts: car.parts || {} }, rival, { time: r.time, rivalTime: r.rivalTime, reaction: r.jump ? -1 : r.reaction, shifts: r.shifts }) : [];
 }
 const whyHtml = (lines) => (lines.length ? `<div class="card dr-why">${lines.map((t) => `<div class="dr-why-l">${ic('flame')}<span>${esc(t)}</span></div>`).join('')}</div>` : '');
 function raceResult() {
@@ -2718,7 +2740,7 @@ H.startDrift = async (d) => {
     return toast(e.message, true);
   }
   const training = r.rival?.id === 'train';
-  if (!training) me.fuel--;
+  if (!training) spendFuelLocal();
   renderHeader();
   state.drift = { phase: 'count', ...r, training, trackObj: S.driftTrack(r.track), result: null };
   await render();
@@ -3317,7 +3339,7 @@ H.startBoss = async (d) => {
     return toast(e.message, true);
   }
   if (!$('#modal').hidden) closeModal();
-  me.fuel--;
+  spendFuelLocal();
   renderHeader();
   hideClaimBanners();
   // D-race: the boss walks out first (a fight-poster card, 2.2 s, a tap skips) — before the race screen and runRace(),
@@ -5444,9 +5466,11 @@ function rewardsAllCard() {
 const claimAllText = (r) => [`Забрано: ${r.n}`, r.money > 0 ? '+' + S.short(r.money) : '', r.parts > 0 ? `деталі ×${r.parts}` : '', r.slots > 0 ? `+${r.slots} ${plural(r.slots, ['місце', 'місця', 'місць'])} в гаражі` : '', r.fuel ? 'повний бак' : '', r.canister > 0 ? `+${r.canister} пального` : '', ...(r.cosmetics || [])].filter(Boolean).join(' · ');
 H.claimAll = async () => {
   const fromSheet = !$('#modal').hidden;
+  const f0 = me.fuel, s0 = me.fuelSpare;
   const r = await act('rewards/all', {}, claimAllText, { rerender: false });
   if (!r) return;
   pulseSoon();
+  fuelSync(f0, s0);
   if (r.reveal.length) await revealRewards(r.reveal);
   if (fromSheet && !rvl) openRewards();
 };
@@ -7487,7 +7511,7 @@ H.challengeRace = async (d, el) => {
     if (el) el.disabled = false;
     return toast(e.message, true);
   }
-  if (!r.free) me.fuel--;
+  if (!r.free) spendFuelLocal();
   renderHeader();
   hideClaimBanners();
   closeModal();
@@ -8631,6 +8655,7 @@ function homeAskOnce(tries = 0) {
 // «Бета-тест» (owner 28.10): once per player (from level 2, past the first minutes), in a calm moment — found a bug or
 // an odd price, write to support; useful finds get a bonus. The support page keeps the same line.
 const BUG_ASK_KEY = 'avtodrop.bugAsk1';
+const bugRewarded = () => !!me?.badges?.some((b) => b.key === 'tester'); // src/bugbounty.js: a rewarded find gives this badge
 let bugAskTimer = 0, bugAskOn = false;
 function bugAskOnce(tries = 0) {
   if (bugAskOn && !tries) return;
@@ -8643,6 +8668,7 @@ function bugAskOnce(tries = 0) {
   clearTimeout(bugAskTimer);
   bugAskTimer = setTimeout(() => {
     if ((me?.level || 1) < 2 || guideOn()) return void (bugAskOn = false); // asked again after a later refresh (after «Перші кроки»)
+    if (bugRewarded()) return; // fix5 (qa4): he already found a bug and got its reward — no «Знайшов баг?» on top
     if (!$('#modal').hidden || state.opening || state.race || state.page || document.querySelector('.story') || WOW.isOpen()) {
       if (tries < 45) bugAskOnce(tries + 1);
       else bugAskOn = false;

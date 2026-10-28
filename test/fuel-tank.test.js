@@ -35,7 +35,7 @@ test('rules: three steps 18 / 21 / 25 for 2 / 10 / 50 млн ₴ from levels 5 /
   assert.equal(S.nextTank(3), null);
   assert.ok(!S.SHOP_ITEMS.some((i) => /tank|бак/i.test(i.id)), 'the tank is not sold for stars');
   assert.equal(S.VIP.extraTank, undefined, 'VIP gives no tank');
-  assert.deepEqual(S.CANISTER, { daily: 3, quest: 1 });
+  assert.deepEqual(S.CANISTER, { daily: 3, quest: 1, spare: 3 });
 });
 
 test('tank/upgrade: level gate, ₴ only, in order, keeps the fuel; me reports the max; nothing past 25', () => {
@@ -180,12 +180,13 @@ test('«Каністра»: +3 with the daily bonus, +1 per daily quest, never a
   let d = s.call(1, 'rewards/daily');
   assert.equal(d.reward.canister, 3);
   assert.equal(s.call(1, 'me').fuel, 8);
-  // Next day, 17 of 18: only 1 goes in.
+  // Next day, 17 of 18: 1 goes in, 2 wait in the reserve (fix5: a canister on a full tank isn't lost).
   s.add(D);
   s.tank(1, 1, 17);
   d = s.call(1, 'rewards/daily');
-  assert.equal(d.reward.canister, 1);
+  assert.equal(d.reward.canister, 3);
   assert.equal(s.call(1, 'me').fuel, 18);
+  assert.equal(s.call(1, 'me').fuelSpare, 2);
   // Quests: +1 each; a full tank takes nothing (the money still comes).
   const day = () => s.db.prepare('SELECT day FROM quests WHERE user_id = 1 ORDER BY day DESC LIMIT 1').get().day;
   s.call(1, 'quests');
@@ -195,11 +196,12 @@ test('«Каністра»: +3 with the daily bonus, +1 per daily quest, never a
   const q1 = s.call(1, 'quests/claim', { key: keys[0] });
   assert.equal(q1.canister, 1);
   assert.equal(s.call(1, 'me').fuel, 11);
-  s.tank(1, 1, 18);
+  s.tank(1, 1, 21); // 18 + a full reserve of 3: nothing more goes in (the money still comes)
   const q2 = s.call(1, 'quests/claim', { key: keys[1] });
   assert.equal(q2.canister, 0);
   assert.ok(q2.got > 0);
   assert.equal(s.call(1, 'me').fuel, 18);
+  assert.equal(s.call(1, 'me').fuelSpare, 3);
   // «Забрати все» next day: daily +3 and the quests +1 each, told apart from a full-tank reward.
   s.add(D);
   s.call(1, 'quests');

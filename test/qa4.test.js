@@ -60,7 +60,7 @@ test('garage: «Цілі дня» and «Таємний покупець» are ro
 
 test('texts: the canister line speaks of «цілі дня»; a showroom row fits 360 px', () => {
   const app = src('app.js'), css = src('style.css');
-  assert.match(app, /за кожну ціль дня \(не більше за бак\)/);
+  assert.match(app, /за кожну ціль дня \(на повному баку — до \$\{S\.CANISTER\.spare\} у запас\)/); // fix5: the reserve
   assert.doesNotMatch(app, /виконане завдання дня/);
   assert.match(css, /\.srm-row \.srm-th \.art \{ flex: 0 1 58px; min-width: 0; \}/);
 });
@@ -80,21 +80,25 @@ test('goals × canister × bigger tank: +1 per goal and +3 a day, up to the play
   x.db.prepare('UPDATE quests SET progress = target WHERE user_id = ? AND day = ? AND key = ?').run(u, day, keys[0]);
   assert.equal(x.call(u, 'quests/claim', { key: keys[0] }).canister, 1);
   assert.deepEqual(x.fuel(u), [17, 18]);
-  // the daily +3 stops at 18 (not at the old 15, not above the tank)
-  assert.equal(x.call(u, 'rewards/daily').reward.canister, 1);
+  // the daily +3 fills 18 (not the old 15) and, fix5, the rest waits «в запасі» (up to S.CANISTER.spare)
+  assert.equal(x.call(u, 'rewards/daily').reward.canister, 3);
   assert.deepEqual(x.fuel(u), [18, 18]);
-  // full: the next goal pays its money, no fuel
+  assert.equal(x.call(u, 'me').fuelSpare, 2);
+  // full: the next goal pays its money and its +1 tops the reserve up to 3
   x.db.prepare('UPDATE quests SET progress = target WHERE user_id = ? AND day = ? AND key = ?').run(u, day, keys[1]);
-  assert.equal(x.call(u, 'quests/claim', { key: keys[1] }).canister, 0);
-  // a bigger tank keeps what was in it
+  assert.equal(x.call(u, 'quests/claim', { key: keys[1] }).canister, 1);
+  assert.equal(x.call(u, 'me').fuelSpare, 3);
+  // a bigger tank keeps what was in it (the reserve pours into it)
   x.call(u, 'tank/upgrade');
-  assert.deepEqual(x.fuel(u), [18, 21]);
+  assert.deepEqual(x.fuel(u), [21, 21]);
+  assert.equal(x.call(u, 'me').fuelSpare, 0);
   // the last goal → +1 fuel and the day's key; «Забрати все» still counts it once
   x.db.prepare('UPDATE quests SET progress = target WHERE user_id = ? AND day = ? AND key = ?').run(u, day, keys[2]);
   const all = x.call(u, 'rewards/all');
   assert.equal(all.canister, 1);
   assert.ok(all.reveal.some((r) => r.kind === 'key' && r.caseId === S.goalKey(18)), 'the goals key comes with it');
-  assert.deepEqual(x.fuel(u), [19, 21]);
+  assert.deepEqual(x.fuel(u), [21, 21]);
+  assert.equal(x.call(u, 'me').fuelSpare, 1);
 });
 
 test('buyer × showroom: a car on show sold to the buyer leaves the showroom cleanly (own page, lists, others)', () => {

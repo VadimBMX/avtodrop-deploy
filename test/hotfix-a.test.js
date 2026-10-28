@@ -87,7 +87,9 @@ test('texts: decimal comma in part effects; the intro is 4 slides with every car
   assert.equal(S.partEffect('brakes', 'stock'), '−0,3% часу');
   const sl = S.INTRO_STORY.slides;
   assert.equal(sl.length, 4);
-  assert.match(sl[0].text, new RegExp(`${S.ALL_MODELS.length} справжніх авто`));
+  // fix5: the same count as the collection («1/169»), the secret cars apart — both from ALL_MODELS
+  const secret = S.ALL_MODELS.filter((m) => m.secret).length;
+  assert.match(sl[0].text, new RegExp(`${S.ALL_MODELS.length - secret} справжніх авто і ще ${secret} секретних`));
   assert.match(sl[1].text, /радянська й українська класика/);
   assert.ok(sl.every((s) => s.text.length < 220), 'short enough for a 360 px phone');
 });

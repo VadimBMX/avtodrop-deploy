@@ -47,7 +47,7 @@ function lockCard() {
 }
 // «Slot first»: the better buy as a card with the sheet's one yellow button; null when there is none.
 function offerCard() {
-  const m = X.me(), o = P.firstOffer({ balance: m.balance, slots: m.slots, capLevel: m.capLevel });
+  const m = X.me(), o = P.firstOffer({ balance: m.balance, slots: m.slots, capLevel: m.capLevel, capH: m.income?.capH });
   if (!o) return { html: '', on: false };
   const text = o.kind === 'slot'
     ? `<b>Спершу вигідніше: місце в гаражі</b><div class="small muted">Місце № ${m.slots + 1} коштує ${S.short(o.cost)} — це менше ${Math.round(P.PRESTIGE.slotShare * 100)}% твого балансу, а ще одна машина приноситиме дохід щогодини. Рестайлінг нікуди не дінеться.</div>`

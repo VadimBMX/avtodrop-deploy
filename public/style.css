@@ -4760,3 +4760,6 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .srm-row .srm-th { min-width: 0; }
 .srm-row .srm-th .art { flex: 0 1 58px; min-width: 0; }
 .srm-row .srm-n { flex: none; }
+
+/* fix5: the canister reserve next to the tank count in the race header («15/15 +3») */
+.dr-fuel .dr-spare { color: #30d158; font-weight: 700; }

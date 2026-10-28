@@ -37,10 +37,13 @@ export function createBuyer(ctx) {
     const t = now(), day = dayOf(t);
     const cur = current(uid);
     if (cur) return cur;
-    const u = q('SELECT balance FROM users WHERE id = ?').get(uid);
-    const pick = B.pickRequest(rngFor(uid, day), { own: ownModels(uid), balance: u?.balance || 0, canSell: carCount(uid) > 1 });
+    const u = q('SELECT balance, level FROM users WHERE id = ?').get(uid);
+    const cars = carCount(uid), newbie = B.isNewbie({ level: u?.level || 1, cars });
+    const pick = B.pickRequest(rngFor(uid, day), { own: ownModels(uid), balance: u?.balance || 0, canSell: cars > 1, newbie });
+    if (!pick) return null; // fix5: a newcomer with no sensible request gets no offer (picked again on a later visit)
+    const win = B.windowOf(t); // fix5: made at night → the 3 hours run from 08:00 Kyiv
     q(`INSERT INTO buyer_offers (user_id, day, kind, req, prem, city, line, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT DO NOTHING`).run(uid, day, pick.kind, JSON.stringify(pick.req), pick.prem, pick.city, pick.line, t, t + B.BUYER.hours * 3600e3);
+       ON CONFLICT DO NOTHING`).run(uid, day, pick.kind, JSON.stringify(pick.req), pick.prem, pick.city, pick.line, t, win.expires);
     return rowOf(uid, day);
   }
   // The player's cars the buyer would take (garage or showcase, not on the market or an auction), dearest first.
@@ -70,7 +73,8 @@ export function createBuyer(ctx) {
   function brief(uid) {
     if (!isOpen(uid, B.BUYER.feature)) return null;
     const o = ensure(uid);
-    if (!o || o.expires_at <= now()) return null;
+    if (!o) return carCount(uid) < B.BUYER.newbieCars ? { hint: B.NEWBIE_HINT } : null; // fix5: a calm line, no card
+    if (o.expires_at <= now()) return null;
     return out(uid, o);
   }
 

@@ -65,8 +65,15 @@ export function pickReminder(c, t, rules = PUSH) {
   return kinds.length ? kinds : null;
 }
 
+// fix5 (qa4): a bundle keeps to BUNDLE.lines lines — the most important by BUNDLE.rank (then in KINDS order), and
+// «…і ще N — у грі» for the rest (they count as told, as before: one message, the same limits).
+export const BUNDLE = { lines: 3, rank: ['daily', 'event', 'goals', 'income', 'buyer', 'dayrace', 'season', 'rcase', 'fuel', 'barn', 'club', 'tourney', 'tggroup'] };
+const rankOf = (k) => (BUNDLE.rank.includes(k) ? BUNDLE.rank.indexOf(k) : BUNDLE.rank.length + KINDS.indexOf(k));
 export function reminderText(items) {
-  return items.map((r) => r.text).join('\n') + '\n\nНалаштувати: Меню → Налаштування в грі · вимкнути все: /stop';
+  const list = items.filter(Boolean);
+  const top = new Set([...list].sort((a, b) => rankOf(a.kind) - rankOf(b.kind)).slice(0, BUNDLE.lines));
+  const shown = list.filter((r) => top.has(r)), more = list.length - shown.length;
+  return shown.map((r) => r.text).join('\n') + (more > 0 ? `\n…і ще ${more} — у грі` : '') + '\n\nНалаштувати: Меню → Налаштування в грі · вимкнути все: /stop';
 }
 
 const realSleep = (ms) => new Promise((r) => setTimeout(r, Math.max(0, ms)));

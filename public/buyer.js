@@ -25,7 +25,23 @@ export const BUYER = {
   remindMin: 60, // the bot nudge «покупець чекає ще 1 год» — when this little is left (src/reminders.js limits apply)
   kinds: [['own', 0.5], ['reach', 0.35], ['stretch', 0.15]],
   groupShare: 0.4, // a reach/stretch request asks for «class + country» instead of one model this often
+  // fix5 (crit4 №3): a newcomer (under newbieLevel or fewer than newbieCars cars) gets only a «reach» for a D–C model
+  // from the cheapest cases he can pay for — no «own», no «stretch», no hypercar fallback; nothing sensible → no offer.
+  newbieLevel: 5,
+  newbieCars: 3,
+  newbieClasses: ['D', 'C'],
+  newbieCases: 3, // how many of the cheapest affordable cases (with a D–C pool) the request may come from
+  // fix5: an offer made at night (00:00–dayFrom Kyiv) starts its window at dayFrom — a night visitor doesn't lose it.
+  dayFrom: 8,
 };
+export const NEWBIE_HINT = 'Покупець з’явиться, коли в гаражі буде 3 машини.';
+export const isNewbie = ({ level = 1, cars = 0 } = {}) => level < BUYER.newbieLevel || cars < BUYER.newbieCars;
+// The 3-hour window of an offer made at t: from t, or from dayFrom:00 Kyiv when t is earlier that day.
+export function windowOf(t) {
+  const from = S.kyivParse(`${S.kyivDateOf(t)}T${String(BUYER.dayFrom).padStart(2, '0')}:00`) ?? t;
+  const start = Math.max(t, from);
+  return { start, expires: start + BUYER.hours * 3600e3 };
+}
 
 export const CITIES = ['Одеси', 'Львова', 'Харкова', 'Дніпра', 'Києва', 'Ужгорода', 'Чернівців', 'Полтави', 'Вінниці', 'Запоріжжя', 'Луцька', 'Миколаєва', 'Тернополя', 'Івано-Франківська'];
 // {w}: what he wants (a model name or «будь-яку німецьку машину класу B»).
@@ -119,8 +135,10 @@ export const payOf = (sell, prem) => Math.floor(sell * (1 + prem));
 
 // ---------- the request of the day ----------
 // rnd: a seeded generator (the server's HMAC of uid + day). ctx: { own: [model ids in the garage], balance }.
-// Returns { kind, req, prem, city, line } — always an offer (falls back to a stretch model with room for a premium).
-export function pickRequest(rnd, { own = [], balance = 0, canSell = true } = {}) {
+// Returns { kind, req, prem, city, line } — always an offer (falls back to a stretch model with room for a premium);
+// for a newcomer (ctx.newbie) only a reach for a cheap D–C model, or null when none has room for a premium.
+export function pickRequest(rnd, { own = [], balance = 0, canSell = true, newbie = false } = {}) {
+  if (newbie) return pickNewbie(rnd, balance);
   const roll = rnd();
   let acc = 0, kind = 'stretch';
   for (const [k, w] of BUYER.kinds) if (roll < (acc += w)) {
@@ -179,7 +197,43 @@ export function pickRequest(rnd, { own = [], balance = 0, canSell = true } = {})
     const room = BUYABLE.filter((m) => premCap({ model: m.id }) >= BUYER.prem.stretch[0]);
     out = tryReq({ model: room[Math.floor(rnd() * room.length)].id }, 'stretch');
   }
+  return dress(rnd, out);
+}
+function dress(rnd, out) {
   const city = CITIES[Math.floor(rnd() * CITIES.length)];
   const line = LINES[Math.floor(rnd() * LINES.length)].replace('{w}', reqText(out.req));
   return { ...out, city, line };
+}
+// fix5: the newcomer's request — one D–C model from one of the cheapest cases he can pay for, by real drop chances.
+export function newbieCases(balance = 0) {
+  const ok = (cs) => BUYER.newbieClasses.some((c) => cs.weights[c] && cs.pool(c).some(buyable));
+  const byPrice = CASES.filter(ok).sort((a, b) => a.price - b.price);
+  if (!byPrice.length) return [];
+  const can = byPrice.filter((c) => c.price <= Math.max(balance, byPrice[0].price));
+  return can.slice(0, BUYER.newbieCases);
+}
+function pickNewbie(rnd, balance) {
+  const cases = newbieCases(balance);
+  for (let i = 0; i < 8 && cases.length; i++) {
+    const cs = cases[Math.floor(rnd() * cases.length)];
+    const sh = share.get(cs.id);
+    const classes = BUYER.newbieClasses.filter((c) => sh[c] && cs.pool(c).some(buyable));
+    const tot = classes.reduce((a, c) => a + sh[c], 0);
+    let r = rnd() * tot, cls = classes[0];
+    for (const c of classes) if ((r -= sh[c]) <= 0) {
+      cls = c;
+      break;
+    }
+    const list = cs.pool(cls).filter(buyable);
+    const mw = S.modelWeights(list), sw = mw.reduce((x, y) => x + y, 0);
+    let k = rnd() * sw, m = list[0];
+    for (let j = 0; j < list.length; j++) if ((k -= mw[j]) <= 0) {
+      m = list[j];
+      break;
+    }
+    const [lo, hi] = BUYER.prem.reach;
+    const prem = Math.floor(Math.min(lo + (hi - lo) * rnd(), premCap({ model: m.id })) * 100) / 100;
+    if (prem >= BUYER.minPrem) return dress(rnd, { kind: 'reach', req: { model: m.id }, prem });
+  }
+  return null;
 }

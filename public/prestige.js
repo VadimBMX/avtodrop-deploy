@@ -50,9 +50,12 @@ export function starGain(model, stars, cleanIncome) {
 export const prestigeOpen = ({ level = 0, value = 0, ever = false } = {}) => ever || (level >= PRESTIGE.level && value >= PRESTIGE.garage);
 
 // The better buy to offer before a ★, or null: a garage slot (another car earns) or the cash upgrade.
-export function firstOffer({ balance, slots, capLevel }) {
+// capH (fix5): the hours the cash holds now (VIP / comeback hours included) — a VIP whose cash already holds the next
+// level's hours is not told «каса на 6 год».
+export function firstOffer({ balance, slots, capLevel, capH }) {
   if (slots < S.MAX_SLOTS && S.slotCost(slots) < balance * PRESTIGE.slotShare) return { kind: 'slot', cost: S.slotCost(slots) };
   const cap = S.CAP_LEVELS[capLevel + 1];
+  if (cap && capH != null && capH >= cap.hours) return null;
   if (cap && cap.cost < balance * PRESTIGE.capShare) return { kind: 'cap', cost: cap.cost, hours: cap.hours };
   return null;
 }
