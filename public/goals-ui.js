@@ -76,9 +76,12 @@ function paintGarage() {
   const st = X.state(), view = document.getElementById('view');
   document.getElementById('glCard')?.remove();
   if (!view || st.page || st.tab !== 'garage' || st.garageView === 'showcase' || st.race || st.drift || X.guideOn()) return;
-  const inc = document.getElementById('incomeCard');
   const html = goalsCard(X.me()?.goals);
-  if (inc && html) inc.insertAdjacentHTML('afterend', html);
+  if (!html) return;
+  // qa4: the first row of the «Сьогодні» card (app.js #todayCard, shared with «Таємний покупець»); old layout: after the cash
+  const today = document.getElementById('todayCard'), inc = document.getElementById('incomeCard');
+  if (today) today.insertAdjacentHTML('afterbegin', html);
+  else inc?.insertAdjacentHTML('afterend', html);
 }
 
 export function installGoals(ctx) {

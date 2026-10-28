@@ -4730,3 +4730,33 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .gl-frz { display: flex; align-items: center; gap: 6px; font-size: var(--t-xs, 11px); color: #5d6570; }
 .gl-frz.on { color: #7cc4ff; }
 .gl-frz .i { width: 14px; height: 14px; flex: none; }
+/* ---------- qa4 · calm garage (N2): «Сьогодні» = «Цілі дня» + «Таємний покупець» as rows of one card; a slim tank line ---------- */
+/* app.js #todayCard is empty when neither has anything to say (first minutes, no offer) — then it takes no space. */
+.card.today:empty { display: none; }
+.card.today { padding: 10px 14px 12px; margin-top: 12px; }
+.card.today::before { content: 'Сьогодні'; display: block; margin-bottom: 6px; font: 700 var(--t-xs, 11px)/1.2 var(--f-disp, inherit); letter-spacing: .6px; text-transform: uppercase; color: var(--muted, #8a94a7); }
+.card.today > .card { margin: 0; padding: 0; background: none; border: 0; box-shadow: none; border-radius: 0; }
+.card.today > .card + .card { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line, #232c3b); }
+.card.today > .gl-card.ready { box-shadow: none; }
+.card.today > .gl-card.quiet { opacity: .7; }
+.card.today > .gl-card:active { transform: none; opacity: .85; }
+.card.today > .tb-card { overflow: visible; }
+.card.today > .tb-card::before { display: none; }
+.card.today .tb-ic { width: 22px; height: 22px; background: none; color: var(--muted, #8a94a7); }
+.card.today .tb-head { font-size: var(--t-sm, 12.5px); }
+.card.today .tb-who { flex-direction: row; align-items: baseline; gap: 5px; }
+.card.today .tb-row { margin-top: 4px; }
+.card.today .tb-btn { margin-top: 8px; min-height: 36px; }
+.card.today .tb-note { margin-top: 6px; }
+.card.today .tb-sold .tb-who { display: block; font-weight: 500; }
+.card.today .tb-sold .tb-who b { font-weight: 700; }
+.tb-sheet .tb-line { margin: 2px 0 4px; max-width: 34ch; }
+.tk-card.tk-slim { padding: 9px 12px; margin-top: 12px; }
+.tk-slim .tk-ic { width: 28px; height: 28px; font-size: 16px; }
+.tk-slim .tk-tx b { font-size: 14px; }
+.tk-offer { gap: 10px; padding-top: 10px; border-top: 1px solid var(--line, #232c3b); } .tk-offer .btn { flex: none; white-space: nowrap; }
+/* qa4: a showroom row on 360 — three thumbs + place + ♥ count + heart were 6 px too wide; the thumbs give way. */
+.srm-row .srm-who { flex: 1 1 auto; }
+.srm-row .srm-th { min-width: 0; }
+.srm-row .srm-th .art { flex: 0 1 58px; min-width: 0; }
+.srm-row .srm-n { flex: none; }

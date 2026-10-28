@@ -39,6 +39,7 @@ import { installPrestige, starsHtml, starTileCls, sellStarNote, carRestyleLi, pr
 // «Шоурум»: up to 3 cars on show, likes, «Шоурум тижня», the share card and sr_<id> links (public/showroom-ui.js).
 import { installShowroom, showroomHubRow, showroomStrip, showroomFromLink } from './showroom-ui.js';
 import { installGoals, goalsHead } from './goals-ui.js';
+import { tankShown } from './garage-calm.js';
 
 const tg = window.Telegram?.WebApp;
 const $ = (s, el = document) => el.querySelector(s);
@@ -847,7 +848,7 @@ async function openRewards(result, auto = false) {
     }).join('')}</div>
     ${r.ready ? `<div class="day-now">${ic('gift')} <b>День ${r.nextDay}</b> — ${esc(S.dailyText(r.days[r.nextDay - 1]))} <span class="muted">+ ${ic('gas-station')}${S.CANISTER.daily}</span></div>` : ''}
     <div class="tiny muted mt">Заходь щодня: на 5-й і 10-й день — машина, на 7-й — кейс «Спорткар» (машина ${S.caseClassSpan('sport')}), на 14-й — кейс «Еліта» (машина ${S.caseClassSpan('elite')}). Кейс відкривається одразу після «Забрати». Новий день — опівночі за Києвом. Пропустив день — нічого не згорає, продовжиш з того ж місця.</div>
-    <div class="tiny muted mt tk-can">${ic('gas-station')} Щодня ще й каністра: +${S.CANISTER.daily} пального до бонусу, +${S.CANISTER.quest} за кожне виконане завдання дня (не більше за бак)</div>
+    <div class="tiny muted mt tk-can">${ic('gas-station')} Щодня ще й каністра: +${S.CANISTER.daily} пального до бонусу, +${S.CANISTER.quest} за кожну ціль дня (не більше за бак)</div>
     ${r.vip ? `<div class="tiny mt" style="color:var(--accent)">${ic('crown')} VIP: ще +${S.short(r.vipDaily)} щодня до бонусу</div>` : `<div class="tiny muted mt">${ic('crown')} VIP додає ще +${S.short(r.vipDaily)} щодня</div>`}
     <button class="btn mt ${liveRewardClaims().length ? 'soft' : ''}" data-act="claimDaily" ${r.ready ? '' : 'disabled'}>${r.ready ? `Забрати · день ${r.nextDay}${r.days[r.nextDay - 1].caseId ? ' · відкрити кейс' : ''}` : 'Наступний опівночі · <span data-until="' + (S.kyivMidnightOf(S.kyivDateOf(serverNow()), 1) - clockOffset) + '"></span>'}</button></div>
     <div class="h2"><span>Кейс нагород</span><span>раз на ${S.REWARD_CASE_HOURS} год</span></div>
@@ -968,6 +969,7 @@ TABS.garage = () => {
     ${nextCap ? `<div class="cap-up"><span class="tiny muted">Повна каса не росте — поки не забереш, дохід стоїть.</span><button class="btn outline sm" data-act="upgradeCap">${ic('clock')} Каса на ${nextCap.hours} год${capPlus} · ${S.short(nextCap.cost)}</button></div>` : ''}
     <div class="tiny muted center mt cap-more">Каса вміщує ${i.capH} год доходу${nextCap ? ` · <a data-act="upgradeCap" class="txtlink">збільшити до ${nextCap.hours} год${capPlus} — ${S.short(nextCap.cost)}</a>` : ''}</div>
   </div>
+  <div class="card today" id="todayCard"></div>
   ${tankCard()}
   ${dreamCard()}
   ${washHint(all)}
@@ -1916,15 +1918,15 @@ function fuelCard(car, extra = '') {
 }
 // «Більший бак» in the garage: the tank now (n/max, when the next one comes) and the next step for ₴ — from its level,
 // confirmed with a second tap like the other garage purchases. Earned fuel («Каністра») is told in the rewards.
+// qa4 (garage calm): one slim line, only when it matters (public/garage-calm.js tankShown) — the tank is empty, or the
+// next tank is open by level and the player has at least half its price. Otherwise the tank lives in «Гонки».
 function tankCard() {
-  if (me.level < 2) return ''; // the first minutes: cases and the first race only
   const next = S.nextTank(me.tankLvl), f = fuelNow();
+  if (!tankShown({ level: me.level, fuel: f, balance: me.balance, next })) return '';
   const when = f >= fmax() ? 'бак повний' : me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : '';
-  const up = !next ? '<span class="tk-max tiny muted">найбільший бак</span>'
-    : me.level < next.level ? `<span class="tk-lock tiny muted">${ic('lock')} ${next.max} — з ${next.level} рівня</span>`
-    : `<button class="btn sm outline tk-buy" data-act="tankUp">${ic('gas-station')} Бак ${next.max} · ${S.short(next.cost)}</button>`;
-  return `<div class="card tk-card"><div class="tk-row"><span class="tk-ic">${ic('gas-station')}</span><div class="grow tk-tx"><b>Бак <span class="tk-n">${f}<small>/${fmax()}</small></span></b><span class="tiny muted">${when}</span></div>${up}</div>
-    ${next && me.level >= next.level ? `<div class="tiny muted tk-note">Назавжди: +${next.max - fmax()} пального в баку на всі машини. Без зірок — лише за гривні.</div>` : ''}</div>`;
+  const up = next && me.level >= next.level
+    ? `<button class="btn sm outline tk-buy" data-act="tankUp" title="Назавжди: +${next.max - fmax()} пального в баку на всі машини. Без зірок — лише за гривні.">Бак ${next.max} · ${S.short(next.cost)}</button>` : '';
+  return `<div class="card tk-card tk-slim"><div class="tk-row"><span class="tk-ic">${ic('gas-station')}</span><div class="grow tk-tx"><b>Бак <span class="tk-n">${f}<small>/${fmax()}</small></span></b><span class="tiny muted">${when}</span></div>${up}</div></div>`;
 }
 H.tankUp = (d, el) => {
   const next = S.nextTank(me.tankLvl);
@@ -1946,9 +1948,15 @@ function fuelOut(train = true) {
     ${train ? `<div class="small">Поки бак наповнюється — потренуйся в дрифті: тренування безкоштовне, без пального, з підказками над кожним поворотом.</div>
     <button class="btn mt fh-train" data-act="fuelTrain">${ic('target-arrow')} Тренування дрифту · безкоштовно</button>
     <div class="tiny muted mt">Або відкрий кейс чи забери нагороду: кейс нагород буває з повним баком.</div>
-    <div class="btns mt"><button class="btn sm ghost" data-act="toCases">${ic('box')} Кейси</button><button class="btn sm ghost" data-act="fuelGifts">${ic('gift')} Нагороди</button></div></div>`
+    <div class="btns mt"><button class="btn sm ghost" data-act="toCases">${ic('box')} Кейси</button><button class="btn sm ghost" data-act="fuelGifts">${ic('gift')} Нагороди</button></div>${tankOffer()}</div>`
     : `<div class="small">Поки бак наповнюється — тренування нижче безкоштовне. Або відкрий кейс чи забери нагороду: кейс нагород буває з повним баком.</div>
-    <div class="btns mt"><button class="btn sm ghost" data-act="toCases">${ic('box')} Кейси</button><button class="btn sm ghost" data-act="fuelGifts">${ic('gift')} Нагороди</button></div></div>`}`;
+    <div class="btns mt"><button class="btn sm ghost" data-act="toCases">${ic('box')} Кейси</button><button class="btn sm ghost" data-act="fuelGifts">${ic('gift')} Нагороди</button></div>${tankOffer()}</div>`}`;
+}
+// qa4: the bigger tank where the tank runs out — one quiet line, only when the next step is open and affordable.
+function tankOffer() {
+  const n = S.nextTank(me.tankLvl);
+  if (!n || me.level < n.level || me.balance < n.cost) return '';
+  return `<div class="row between tk-offer mt"><span class="tiny muted">Більший бак назавжди: +${n.max - fmax()} пального</span><button class="btn sm outline" data-act="tankUp">Бак ${n.max} · ${S.short(n.cost)}</button></div>`;
 }
 let fuelTimer = 0;
 function fuelBackSoon() {

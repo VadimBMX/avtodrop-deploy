@@ -12,9 +12,9 @@ function cardHtml(o) {
   const pct = `+${Math.round(o.prem * 100)}%`;
   const head = `<div class="tb-head"><span class="tb-ic">${X.ic('users')}</span><span class="grow tb-who"><b>Таємний покупець</b><small>з ${X.esc(o.city)}</small></span>
     ${o.sold ? '' : `<span class="tb-time">${X.ic('clock')}${X.untilSpan(o.expiresAt)}</span>`}</div>`;
-  if (o.sold) {
-    return `<div class="card tb-card tb-sold" id="tbCard">${head}<div class="tb-row">Продано: <b>${X.esc(M(o.sold.model)?.name || '')}</b> · <span class="tb-plus">+${X.esc(S.short(o.sold.paid))}</span>
-      <span class="muted">(${X.esc(S.short(o.sold.bonus))} понад дилера)</span></div></div>`;
+  if (o.sold) { // qa4: done for today — one quiet line, no second card's worth of space
+    return `<div class="card tb-card tb-sold" id="tbCard"><div class="tb-head"><span class="tb-ic">${X.ic('users')}</span><span class="grow tb-who ellipsis">Покупець з ${X.esc(o.city)}: <b>${X.esc(M(o.sold.model)?.name || '')}</b></span>
+      <span class="tb-plus">+${X.esc(S.short(o.sold.paid))}</span></div></div>`;
   }
   let act;
   if (o.cars.length && o.lastCar) act = '<div class="tb-note">Це твоя остання машина — її не продати навіть покупцю.</div>';
@@ -27,8 +27,8 @@ function cardHtml(o) {
     const cs = o.cases.map((id) => S.CASE_BY_ID[id]?.name).filter(Boolean);
     act = `<div class="tb-note">У гаражі такої немає${cs.length ? ` · найчастіше падає з кейса «${X.esc(cs[0])}»` : ''}.</div>`;
   }
+  // qa4: a compact row of the «Сьогодні» card — who / what / how much more; the buyer's own line is in the confirm sheet
   return `<div class="card tb-card" id="tbCard">${head}
-    <div class="tb-line">«${X.esc(o.line)}»</div>
     <div class="tb-row">Шукає: <b>${X.esc(o.text)}</b> · <span class="tb-plus">${pct}</span> до ціни дилера</div>
     ${act}</div>`;
 }
@@ -40,12 +40,15 @@ function paint() {
   const show = o && !st.page && !st.race && !st.drift && st.tab === 'garage' && st.garageView !== 'showcase' && o.expiresAt > X.serverNow();
   if (!show) return old?.remove();
   const sig = JSON.stringify([o.day, o.sold, o.cars.map((c) => [c.id, c.pay]), o.lastCar]);
-  if (old && old.dataset.sig === sig && old.parentNode === view) return;
+  const today = document.getElementById('todayCard'); // qa4: a row of the «Сьогодні» card when the garage has one
+  if (old && old.dataset.sig === sig && old.parentNode === (today || view)) return;
   const tpl = document.createElement('template');
   tpl.innerHTML = cardHtml(o).trim();
   const el = tpl.content.firstElementChild;
   el.dataset.sig = sig;
-  if (old) return old.replaceWith(el);
+  if (old && old.parentNode === (today || view)) return old.replaceWith(el);
+  old?.remove();
+  if (today) return void today.append(el);
   const income = document.getElementById('incomeCard');
   if (income && income.parentNode === view) income.after(el);
 }
@@ -56,6 +59,7 @@ function confirmSale(c) {
     X.sheet('Продати покупцю?', `<div class="tb-sheet">
       <div class="art lit tb-art" style="--c:${S.CLASSES[m.cls].color}">${carArt(c.model, { look: car?.look, thumb: true })}</div>
       <b class="tb-name">${X.esc(m.name)}</b>
+      ${o?.line ? `<div class="tb-line">«${X.esc(o.line)}»</div>` : ''}
       <div class="tb-sum">${X.esc(S.fmt(c.pay))}</div>
       <div class="small muted">Дилер дав би ${X.esc(S.fmt(c.sell))} · покупець доплачує <span class="tb-plus">+${X.esc(S.fmt(c.pay - c.sell))}</span></div>
       <div class="tiny muted mt">Деталі й номер повернуться тобі.${X.esc(sellStarNote([car].filter(Boolean)))} Покупець бере одну машину на день.</div>
