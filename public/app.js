@@ -436,7 +436,7 @@ function rewardText(rw) {
 
 // ---------- header & navigation ----------
 const TITLES = { garage: 'Гараж', cases: 'Кейси', race: 'Гонки', shop: 'Майстерня', menu: 'Меню' };
-const PAGE_TITLES = { casino: 'Казино', upgrade: 'Апгрейд', collection: 'Колекція', plates: 'Номери', market: 'Ринок', trades: 'Обміни', tradeNew: 'Новий обмін', room: 'Кімната обміну', battles: 'Кейс-батли', battle: 'Батл', quests: 'Завдання', leaderboard: 'Рейтинг', store: 'Магазин', season: 'Сезон', tradein: 'Трейд-ін', friends: 'Друзі', promo: 'Промокоди', fair: 'Чесна гра', events: 'Сповіщення', achievements: 'Досягнення', support: 'Підтримка' };
+const PAGE_TITLES = { casino: 'Казино', upgrade: 'Апгрейд', collection: 'Колекція', plates: 'Номери', market: 'Ринок', trades: 'Обміни', tradeNew: 'Новий обмін', room: 'Кімната обміну', battles: 'Кейс-батли', battle: 'Батл', quests: 'Цілі дня й тижня', leaderboard: 'Рейтинг', store: 'Магазин', season: 'Сезон', tradein: 'Трейд-ін', friends: 'Друзі', promo: 'Промокоди', fair: 'Чесна гра', events: 'Сповіщення', achievements: 'Досягнення', support: 'Підтримка' };
 function ring(level, xp, need, size = 40) {
   const r = size / 2 - 2, c = 2 * Math.PI * r, f = Math.min(1, xp / need);
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#252c39" stroke-width="3"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="${c * f} ${c}" transform="rotate(-90 ${size / 2} ${size / 2})"/></svg>`;
@@ -4242,7 +4242,7 @@ TABS.menu = () => {
   const qReady = C.quests ? C.quests.ready : me.questReady || 0;
   const coll = claimableCollection();
   const tiles = [
-    hubTile({ page: 'quests', icon: 'target-arrow', c: Y, title: 'Завдання', id: 'hubQuests', badge: qReady, info: C.quests ? `день ${C.quests.done}/${C.quests.total} · тиж. ${C.quests.wk}` : 'щоденні й тижневі' }),
+    hubTile({ page: 'quests', icon: 'target-arrow', c: Y, title: 'Цілі дня', id: 'hubQuests', badge: qReady, info: C.quests ? `день ${C.quests.done}/${C.quests.total} · тиж. ${C.quests.wk}` : 'щоденні й тижневі' }),
     `<button class="hub-t tall${act.length ? ' live' : ''}" data-act="eventsOpen" style="--c:${act[0]?.color || AM}"><span class="hub-ic">${ic(act[0]?.icon || 'calendar')}</span><span class="hub-tx"><b>Події</b><span class="hub-i">${evInfo}</span></span>${act.length ? '<span class="hub-live">наживо</span>' : ''}</button>`,
     hubTile({ page: 'collection', icon: 'books', c: BL, title: 'Колекція', badge: coll, info: `${have}/${total} машин${setsReady() ? ` · <span class="acc">сет готовий</span>` : ''}`, extra: `<span class="hub-bar"><i style="width:${(have / total) * 100}%"></i></span>` }),
     hubTile({ page: 'achievements', icon: 'diamond', c: PU, title: 'Досягнення', id: 'hubAch', badge: me.achReady || 0, info: C.ach ? `${C.ach.done}/${C.ach.total} рівнів` : 'рівні й бейджі' }),
