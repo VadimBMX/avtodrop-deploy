@@ -4803,3 +4803,18 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .pk-hot { margin: 0 0 8px; padding: 9px 12px; border-radius: 12px; background: #ff7a1a1f; color: #ffb27a; font-size: 14px; }
 .pk-timer { color: #ff9a4d; font-weight: 700; }
 .hc.pk-badge { background: #ff7a1a; color: #1a0d00; font-weight: 800; }
+
+/* Garage diet 2 (owner 28.10): wash as a chip, compact buyer row */
+.garage-h .wash-chip { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 3px 9px; border-radius: 999px; background: #22c3e61a; color: #67e8f9; font: 600 12.5px/1.2 var(--f-body, inherit); vertical-align: middle; }
+.garage-h .wash-chip .i { width: 14px; height: 14px; }
+.tb-card.tb-compact .tb-head { margin-bottom: 6px; }
+.tb-card.tb-compact .tb-btn { margin-top: 0; }
+
+/* Garage diet 2: compact income card */
+.income.inc-compact { padding: 12px 14px; }
+.income.inc-compact .inc-row { display: flex; align-items: center; gap: 12px; }
+.income.inc-compact .big { margin-top: 2px; font-size: 28px; line-height: 1.1; }
+.income.inc-compact .inc-btn { width: auto; min-width: 110px; min-height: 44px; margin: 0; }
+.income.inc-compact .progress.cap { margin-top: 8px; }
+.income.inc-compact .cap-line { margin-top: 4px; font-size: 12.5px; }
+.income.inc-compact .cap-more { margin-top: 4px; }

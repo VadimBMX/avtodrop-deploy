@@ -30,8 +30,9 @@ function cardHtml(o) {
     act = `<div class="tb-note">У гаражі такої немає${cs.length ? ` · найчастіше падає з кейса «${X.esc(cs[0])}»` : ''}.</div>`;
   }
   // qa4: a compact row of the «Сьогодні» card — who / what / how much more; the buyer's own line is in the confirm sheet
-  return `<div class="card tb-card" id="tbCard">${head}
-    <div class="tb-row">Шукає: <b>${X.esc(o.text)}</b> · <span class="tb-plus">${pct}</span> до ціни дилера</div>
+  // Owner 28.10 (garage too long): one line — who wants what and how much more, then the action.
+  return `<div class="card tb-card tb-compact" id="tbCard"><div class="tb-head"><span class="tb-ic">${X.ic('users')}</span><span class="grow tb-who ellipsis">Покупець шукає <b>${X.esc(o.text)}</b> <span class="tb-plus">${pct}</span></span>
+    <span class="tb-time">${X.ic('clock')}${X.untilSpan(o.expiresAt)}</span></div>
     ${act}</div>`;
 }
 

@@ -984,12 +984,12 @@ TABS.garage = () => {
   const free = Math.max(0, me.slots - all.length);
   const SORT_NAMES = { value: 'За ціною', class: 'За класом', new: 'Нові' };
   return seg + `${overfullHtml()}
-  <div class="card income ${cs.full ? 'full' : ''}" id="incomeCard">
-    <div class="row between small muted"><span>${ic('coin')} Дохід гаража</span><span class="rate"><b>${S.short(i.rate)}</b> / год</span></div>
-    <div class="big" id="pending">${S.fmt(pending)}</div>
-    <div class="progress cap mt"><i id="capBar" style="width:${fill}%"></i></div>
+  <div class="card income inc-compact ${cs.full ? 'full' : ''}" id="incomeCard">
+    <div class="inc-row"><div class="grow"><div class="small muted">${ic('coin')} Дохід гаража · <b class="rate">${S.short(i.rate)}</b> / год</div>
+      <div class="big" id="pending">${S.fmt(pending)}</div></div>
+      <button class="btn sm${fill > 10 ? '' : ' ghost'} inc-btn" data-act="collect" ${pending < 1 ? 'disabled' : ''}>Забрати</button></div>
+    <div class="progress cap"><i id="capBar" style="width:${fill}%"></i></div>
     <div class="cap-line" id="capLine">${cs.text}</div>
-    <button class="btn mt${fill > 10 ? '' : ' ghost'}" data-act="collect" ${pending < 1 ? 'disabled' : ''}>Забрати</button>
     ${i.comebackUntil ? `<div class="tiny center mt" style="color:#30d158">${ic('gift')} Подарунок повернення: +${S.COMEBACK.capHours} год сховища ще <span data-until="${i.comebackUntil - clockOffset}"></span></div>` : ''}
     ${idle ? `<div class="tiny center mt cap-idle">${ic('clock')} Каса стояла повна ${idle} год — <a data-act="upgradeCap" class="txtlink">збільш її до ${nextCap.hours} год за ${S.short(nextCap.cost)}</a></div>` : ''}
     ${nextCap ? `<div class="cap-up"><span class="tiny muted">Повна каса не росте — поки не забереш, дохід стоїть.</span><button class="btn outline sm" data-act="upgradeCap">${ic('clock')} Каса на ${nextCap.hours} год${capPlus} · ${S.short(nextCap.cost)}</button></div>` : ''}
@@ -998,8 +998,7 @@ TABS.garage = () => {
   <div class="card today" id="todayCard"></div>
   ${tankCard()}
   ${dreamCard()}
-  ${washHint(all)}
-  <div class="h2 garage-h"><span>Машини <b>${all.length}</b>/${me.slots}</span>${all.length ? `<button class="hn-gsum" data-act="honestHelp"><span>Продаж усього гаража: <b>${S.short(sellTotal(all.filter((c) => !M(c.model).secret)))}</b></span><small>колекційна ціна ${S.short(total)} ${ic('info-circle')}</small></button>` : ''}</div>
+  <div class="h2 garage-h"><span>Машини <b>${all.length}</b>/${me.slots}${washHint(all)}</span>${all.length ? `<button class="hn-gsum" data-act="honestHelp"><span>Продаж усього гаража: <b>${S.short(sellTotal(all.filter((c) => !M(c.model).secret)))}</b></span><small>колекційна ціна ${S.short(total)} ${ic('info-circle')}</small></button>` : ''}</div>
   ${all.length > 1 ? `${present.length > 1 ? `<div class="chips gfilter"><button class="${state.garageCls ? '' : 'on'}" data-act="gFilter" data-k="">Усі</button>${present.map((k) => `<button class="${state.garageCls === k ? 'on' : ''}" data-act="gFilter" data-k="${k}" style="--c:${S.CLASSES[k].color}"><i></i>${k}<small>${all.filter((c) => M(c.model).cls === k).length}</small></button>`).join('')}</div>` : ''}
     <div class="row between sellbar">${sel ? `<span class="small muted">${sel.size ? `Обрано ${sel.size} · ${S.fmt(selTotal)}` : `Обери машини. Продаж: ${Math.round(Math.min(...Object.values(S.SELL_RATES)) * 100)}–${Math.round(Math.max(...Object.values(S.SELL_RATES)) * 100)}% ціни моделі, деталі й номер повертаються`}</span>` : `<button class="gsort" data-act="gSort">${ic('adjustments')}${SORT_NAMES[sort]}</button>`}
     <span class="row">${sel ? `<button class="btn sm red" data-act="sellSel" ${sel.size ? '' : 'disabled'}>Продати</button>` : ''}<button class="btn sm ghost" data-act="sellMode">${sel ? 'Скасувати' : `${ic('cash')} Продати кілька`}</button></span></div>` : ''}
@@ -1951,7 +1950,7 @@ function fuelCard(car, extra = '') {
 // next tank is open by level and the player has at least half its price. Otherwise the tank lives in «Гонки».
 function tankCard() {
   const next = S.nextTank(me.tankLvl), f = fuelNow();
-  if (!tankShown({ level: me.level, fuel: f, balance: me.balance, next })) return '';
+  if (f >= 1 || !tankShown({ level: me.level, fuel: f, balance: me.balance, next })) return ''; // owner 28.10: in the garage only when the tank is empty (the upgrade lives in «Гонки»)
   const when = f >= fmax() ? `бак повний${spareTxt()}` : me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : '';
   const up = next && me.level >= next.level
     ? `<button class="btn sm outline tk-buy" data-act="tankUp" title="Назавжди: +${next.max - fmax()} пального в баку на всі машини. Без зірок — лише за гривні.">Бак ${next.max} · ${S.short(next.cost)}</button>` : '';
@@ -3802,8 +3801,8 @@ function washHint(all) {
   const dirty = all.filter((c) => c.status === 'garage' && isDirty(c));
   if (dirty.length < 2) return '';
   // Dirt costs nothing (S.WASH.maxCut 0): the hint only offers the shine bonus.
-  return `<button class="card row wash-hint" data-act="toWash"><span class="wash-hint-ic">${ic('droplet')}</span><div class="grow"><b>${dirty.length} ${plural(dirty.length, ['машина брудна', 'машини брудні', 'машин брудні'])}</b>
-    <div class="small muted">Помий — і вони блищатимуть: +${Math.round(S.WASH.shine * 100)}% доходу на ${S.WASH.shineHours} год. Бруд доходу не зменшує</div></div><span class="chev">${ic('chevron-right')}</span></button>`;
+  // Owner 28.10 (garage too long): a small chip next to «Машини N/M» instead of a card.
+  return ` <button class="wash-chip" data-act="toWash" title="Помий — +${Math.round(S.WASH.shine * 100)}% доходу на ${S.WASH.shineHours} год">${ic('droplet')} Помити ${dirty.length}</button>`;
 }
 H.toWash = (d) => {
   if (!isOpen('wash')) return lockedSheet('wash');
@@ -7823,7 +7822,7 @@ function dreamLine(d) {
   }
   return `<button class="dream-line" data-act="dreamFold" style="--c:${S.CLASSES[m.cls].color}">${ic(d.got ? 'trophy' : 'heart')}<span class="grow"><b>Мрія:</b> ${esc(m.name)} — ${tail}</span><span class="dl-open">${ic('chevron-right')}</span></button>`;
 }
-H.dreamFold = () => ((state.dreamOpen = !state.dreamOpen), render());
+H.dreamFold = () => ((state.dreamOpen = state.dreamOpenVisit === garageVisits ? !state.dreamOpen : true), (state.dreamOpenVisit = garageVisits), render()); // owner 28.10: opened only for this visit to the garage
 function dreamCard() {
   const d = me.dream;
   if (!d) return '';
@@ -7835,14 +7834,14 @@ function dreamCard() {
     } catch {}
     if (!sm || Date.now() - hidden < 3 * 86400e3) return '';
     if (dreamSugVisit < 0) dreamSugVisit = garageVisits;
-    if (dreamSugVisit !== garageVisits) return dreamLine(d);
+    return dreamLine(d); // owner 28.10 (garage too long): the suggestion is always one line; a tap opens the picker
     return `<div class="card dream sug" style="--c:${S.CLASSES[sm.cls].color}">
       <div class="dream-h"><span>${ic('heart')} Яка машина — твоя мрія?</span><button class="dream-x" data-act="dreamHide" aria-label="Сховати">${ic('x')}</button></div>
       <div class="dream-row"><div class="dream-art">${carArt(sm.id, { glow: true, thumb: true })}</div><div class="grow"><b class="dream-nm">${esc(sm.name)}</b>
         <div class="small muted">${clsBadge(sm.cls)} ${S.short(sm.price)}</div><div class="tiny muted">Обери ціль — гараж показуватиме, скільки лишилось і де її шукати</div></div></div>
       <div class="btns dream-acts"><button class="btn ghost" data-act="dreamSet" data-id="${sm.id}">${ic('heart')} Хочу її</button><button class="txtlink" data-act="dreamPick">Обрати іншу</button></div></div>`;
   }
-  if (!state.dreamOpen) return dreamLine(d);
+  if (!state.dreamOpen || state.dreamOpenVisit !== garageVisits) return dreamLine(d);
   const m = M(d.model);
   const color = S.CLASSES[m.cls].color;
   if (d.got) {
