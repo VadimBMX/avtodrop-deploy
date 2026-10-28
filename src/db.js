@@ -202,6 +202,13 @@ CREATE TABLE IF NOT EXISTS support (
   answer TEXT, answered_at INTEGER, answered_by TEXT
 );
 CREATE INDEX IF NOT EXISTS support_user ON support(user_id, id);
+-- «🐞 Нагорода за баг» (src/bugbounty.js): one row per rewarded find — preset, what was paid, the ticket it came from.
+CREATE TABLE IF NOT EXISTS bug_rewards (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, ticket_id INTEGER, preset TEXT NOT NULL, money INTEGER NOT NULL DEFAULT 0,
+  keys TEXT, note TEXT, admin TEXT NOT NULL, created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS bug_rewards_user ON bug_rewards(user_id);
+CREATE INDEX IF NOT EXISTS bug_rewards_ticket ON bug_rewards(ticket_id);
 CREATE TABLE IF NOT EXISTS invite_log (from_id INTEGER NOT NULL, to_id INTEGER NOT NULL, at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS invite_log_from ON invite_log(from_id, at);
 -- Ghost challenges (public/ghost.js): a finished drag run (race_id, one challenge per run) a friend races against.

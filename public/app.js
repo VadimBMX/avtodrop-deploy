@@ -746,7 +746,7 @@ function licenceCard(p) {
   const setB = (p.badges || []).filter((b) => b.key?.startsWith('set:'));
   const stamps = [
     p.vip ? `<span class="lstamp vip">${ic('crown')}VIP</span>` : '',
-    ...(p.badges || []).filter((b) => !b.key?.startsWith('set:')).map((b) => `<span class="lstamp" style="--bc:${b.key === 'fire' ? '#ff8a3d' : BADGE_COLORS[b.tier] || '#8e8e93'}">${ic(b.key === 'fire' ? 'flame' : 'trophy')}${esc(b.title)}</span>`),
+    ...(p.badges || []).filter((b) => !b.key?.startsWith('set:')).map((b) => `<span class="lstamp" style="--bc:${b.key === 'fire' ? '#ff8a3d' : BADGE_COLORS[b.tier] || '#8e8e93'}">${ic(b.key === 'fire' ? 'flame' : b.key === 'tester' ? 'bug' : 'trophy')}${esc(b.title)}</span>`),
     ...setB.slice(0, 2).map((b) => `<span class="lstamp" style="--bc:${SET_TIER_COLORS[b.tier] || '#8e8e93'}">${ic('books')}${esc(b.title)}</span>`),
     setB.length > 2 ? `<span class="lstamp" style="--bc:#c3cad6">${ic('books')}+${setB.length - 2} ${plural(setB.length - 2, ['сет', 'сети', 'сетів'])}</span>` : '',
     p.legacy ? `<span class="lstamp legacy">${ic('heart')}Гравець з перших днів</span>` : '',
@@ -6003,7 +6003,7 @@ PAGES.leaderboard = async () => {
   state.lbType = state.lbType || 'season';
   const lb = await api('leaderboard', { type: state.lbType });
   const segs = `<div class="seg">${[['season', 'Сезон'], ['week', 'Тиждень'], ['all', 'Весь час'], ['wealth', 'Статок']].map(([k, t]) => `<button class="${state.lbType === k ? 'on' : ''}" data-act="lbType" data-k="${k}">${t}</button>`).join('')}</div>`;
-  const crown = (r) => (r.vip ? `<span class="lb-vip">${ic('crown')}</span>` : '');
+  const crown = (r) => (r.vip ? `<span class="lb-vip">${ic('crown')}</span>` : '') + (r.tester ? `<span class="lb-bug t${r.tester}" title="${r.tester >= 3 ? 'Головний тестувальник' : 'Тестувальник'}">${ic('bug')}</span>` : '');
   // The top three stand on a podium (2 · 1 · 3), everyone else is a row with an initial; my row and bar are yellow.
   const board = (val, extra = () => '') => {
     const list = lb.list;
@@ -6944,6 +6944,14 @@ function showGift() {
     art = `<div class="gift-ic" style="--c:${color}">${ic('users')}</div><div class="gift-sum win">+${S.fmt(d.money)}</div>
       <div class="mt"><b>${ic('key')} Кейс «${esc(S.CASE_BY_ID[d.caseId]?.name || '')}»</b> — безкоштовно</div>
       <div class="small muted mt">${esc(d.from || 'Друг')} запросив тебе в АВТОДРОП. На 3-му рівні отримаєш ще ${S.fmt(d.l3)}</div>`;
+  } else if (g.kind === 'bug') {
+    // «🐞 Нагорода за баг» (src/bugbounty.js): money, keys and, on the 1st / 5th find, the tester badge.
+    title = 'Дякуємо за знайдений баг 🐞';
+    color = '#30d158';
+    art = `<div class="gift-ic" style="--c:${color}">${ic('bug')}</div>${d.amount ? `<div class="gift-sum win">+${S.fmt(d.amount)}</div>` : ''}
+      ${(d.keys || []).map((k) => `<div class="mt"><b>${ic('key')} ${esc(S.CASE_BY_ID[k.caseId]?.name || '')} × ${k.count}</b></div>`).join('')}
+      ${d.badge ? `<div class="mt"><span class="lstamp" style="--bc:${BADGE_COLORS[d.badge === 'Тестувальник' ? 1 : 3]}">${ic('bug')}${esc(d.badge)}</span></div><div class="small muted">новий значок у профілі</div>` : ''}
+      <div class="small muted mt">знахідок: ${d.count || 1} · пиши ще в «Меню → Підтримка»</div>`;
   } else if (g.kind === 'thanks') {
     title = 'Дякуємо! 💛';
     color = '#ffd60a';

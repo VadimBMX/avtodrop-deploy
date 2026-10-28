@@ -7,6 +7,7 @@ import { halloweenPage, halloweenActions } from './admin-halloween.js';
 import { channelPage, channelActions } from './admin-channel.js';
 import { eventsPage, eventsActions, eventsAfter } from './admin-events.js';
 import { clubsPage, clubsActions } from './admin-clubs.js';
+import { bugsPage, bugsActions, bugChooser, bugCardLine, bugRewardText } from './admin-bugs.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -167,6 +168,7 @@ function detailsMain(a, d) {
     case 'give-plate': return `${plate(d.text)} ${cls(d.cls)} ${money(d.value)}${d.note ? ` · ${esc(d.note)}` : ''}`;
     case 'remove-plate': return plate(d.text);
     case 'support': return esc(d.text);
+    case 'bug-reward': return `🐞 ${esc({ small: 'Дрібниця', useful: 'Корисна знахідка', serious: 'Серйозний баг' }[d.preset] || 'Своя')} · <span class="win">${esc(bugRewardText(d.money, d.keys))}</span>${d.ticket ? ` · звернення #${d.ticket}` : ''}${d.note ? ` · ${esc(d.note)}` : ''}`;
     case 'role': return d.role ? ({ admin: 'видано Адмін', helper: 'видано Хелпер' }[d.role]) : 'права забрано';
     case 'luck': return d.chance ? `${d.chance}% на ${d.opens} відкр.` : 'вимкнено';
     case 'rig': case 'rig-cancel': return esc(model(d.model).name);
@@ -353,6 +355,10 @@ Object.assign(H, eventsActions({ mutate, render, esc }));
 VIEWS.clubs = () => clubsPage({ api, esc, date, userLink });
 Object.assign(H, clubsActions({ mutate }));
 Object.assign(ACTIONS, { 'clubs-reset': 'Клуб: скинуто', 'clubs-disband': 'Клуб розпущено' });
+// ---------- «🐞 Знайдені баги»: rewards for found bugs (public/admin-bugs.js, src/bugbounty.js) ----------
+VIEWS.bugs = () => bugsPage({ api, esc, date, userLink });
+Object.assign(H, bugsActions({ mutate, toast, go, state, esc, $ }));
+Object.assign(ACTIONS, { 'bug-reward': 'Нагорода за баг' });
 Object.assign(ACTIONS, { 'dayrace-set': 'Заїзд дня: машина', 'dayrace-dq': 'Заїзд дня: результат' });
 function userTable(list, rich) {
   if (!list.length) return '<div class="empty">Гравців поки немає</div>';
@@ -436,6 +442,7 @@ VIEWS.user = async () => {
       <div><span>Був у грі</span><b>${ago(u.lastSeen)}</b></div>
       <div><span>Час у грі</span><b>${playTime(u.playMs)}</b></div>
       <div><span>Досягнення</span><b>${u.achievements.claimed}/${u.achievements.total}${u.achievements.reached > u.achievements.claimed ? ` <span class="muted small">(ще ${u.achievements.reached - u.achievements.claimed} не забрано)</span>` : ''}</b></div>
+      ${bugCardLine(cur.bugs, esc)}
     </div></details>
     <div class="panel">
       <div class="tabs">${tabs.map(([k, t, n]) => `<button class="${state.userTab === k ? 'on' : ''}" data-act="userTab" data-k="${k}">${t}<span class="n">${n}</span></button>`).join('')}</div>
@@ -533,6 +540,8 @@ function controls(u) {
       <button class="btn ghost sm" data-act="message">Надіслати</button></div></div>`;
   return `<div class="actions">
     ${roleBlock(u)}
+    <div class="act"><h3>🐞 Знайдені баги <span class="muted small">нагороджено: ${cur.bugs?.count || 0}${cur.bugs?.badge ? ` · ${esc(cur.bugs.badge)}` : ''}</span></h3>
+      ${bugChooser({ esc, user: { id: u.id, name: u.name } })}</div>
     <div class="act"><h3>${ic('cash')} Гривні</h3>
       <input id="mAmount" inputmode="decimal" placeholder="Сума: 100000, 250k, 1.5m">
       <input id="mNote" placeholder="Повідомлення гравцю (необов’язково)">
@@ -872,10 +881,11 @@ VIEWS.support = async () => {
   if (n) (n.textContent = open), (n.hidden = !open);
   return `<div class="head"><h1>Підтримка</h1><span class="badge ${open ? 'red' : 'green'}">${open ? `${open} без відповіді` : 'усім відповіли'}</span>
       <label class="row small muted" style="margin-left:auto"><input type="checkbox" id="supOpen" ${state.supOpen ? 'checked' : ''} style="width:auto"> лише без відповіді</label></div>
-    ${list.length ? list.map((m) => `<div class="panel"><div class="row between"><div>${m.user ? userLink(m.user) : '—'} <span class="muted small">рів. ${m.user?.level ?? '?'} · ${date(m.at)}</span></div><span class="muted small">#${m.id}</span></div>
+    ${list.length ? list.map((m) => `<div class="panel" id="sup${m.id}"><div class="row between"><div>${m.user ? userLink(m.user) : '—'} <span class="muted small">рів. ${m.user?.level ?? '?'} · ${date(m.at)}</span></div><span class="muted small">#${m.id}</span></div>
       <div style="white-space:pre-wrap;margin:8px 0">${esc(m.text)}</div>
       ${m.answer ? `<div class="small"><b>Відповідь</b> <span class="muted">(${esc(m.by || '')}, ${date(m.answeredAt)})</span><div style="white-space:pre-wrap">${esc(m.answer)}</div></div>`
-        : `<textarea id="supA${m.id}" placeholder="Відповідь — гравець побачить її у грі й у боті"></textarea><button class="btn sm" data-act="supReply" data-id="${m.id}">Відповісти</button>`}</div>`).join('')
+        : `<textarea id="supA${m.id}" placeholder="Відповідь — гравець побачить її у грі й у боті"></textarea><button class="btn sm" data-act="supReply" data-id="${m.id}">Відповісти</button>`}
+      ${m.user && (state.role !== 'helper' || m.bug) ? bugChooser({ esc, user: m.user, ticket: m.id, done: m.bug }) : ''}</div>`).join('')
       : '<div class="panel"><div class="empty">Звернень немає</div></div>'}`;
 };
 AFTER.support = () => $('#supOpen').addEventListener('change', (e) => ((state.supOpen = e.target.checked), render()));

@@ -363,3 +363,19 @@ body.helper :is([data-act="removeCar"], [data-act="removePlate"], [data-act="dea
 .mtags .mtag-link { word-break: break-all; }
 @media (max-width: 600px) { .mtags .mtag-note { display: none; } }
 .chx-target code { background: var(--card3); padding: 0 4px; border-radius: 4px; }
+/* «🐞 Нагорода за баг» (public/admin-bugs.js): the chooser under a support ticket / in the player card, the list. */
+.bb-box { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.bb-box .bb-open { align-self: flex-start; }
+.bb-pick { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px dashed var(--line2); border-radius: var(--r-sm); background: var(--card2); }
+.bb-pick[hidden] { display: none; }
+.bb-presets { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.bb-pre { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; height: auto; min-width: 0; padding: 8px 10px; white-space: normal; }
+.bb-pre b { color: var(--text); }
+.bb-serious { border-color: color-mix(in srgb, var(--red) 55%, transparent); }
+.bb-pre span { font-size: 12px; font-weight: 500; color: var(--muted); overflow-wrap: anywhere; }
+.bb-custom { flex-wrap: wrap; gap: 6px; }
+.bb-custom select { max-width: 150px; }
+.bb-done { margin-top: 8px; color: var(--muted); }
+.bb-done b { color: var(--text); }
+.bb-hl { outline: 2px solid #f5b301; outline-offset: 2px; }
+body.helper [data-act="bugOpen"], body.helper [data-act="bugPreset"] { display: none !important; }

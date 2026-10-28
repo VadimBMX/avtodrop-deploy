@@ -14,6 +14,7 @@ import { createTgGroups } from './tggroups.js';
 import { createClubs } from './clubs.js';
 import { createTourney } from './tourney.js';
 import { createPrestige } from './prestige.js';
+import { createBugBounty } from './bugbounty.js';
 
 export class GameError extends Error {}
 const fail = (msg) => {
@@ -4302,7 +4303,8 @@ export function createGame(db, opts = {}) {
     for (const id of idList(ids, 50)) q('UPDATE gifts SET shown = 1 WHERE id = ? AND user_id = ?').run(id, uid);
     return {};
   }
-  function adminMoney(who, { id, amount, note }) {
+  // `quiet` (only from server code, e.g. the bug reward — never from the panel): no event / gift window of its own.
+  function adminMoney(who, { id, amount, note }, { quiet = false } = {}) {
     const uid = int(id, 1, Number.MAX_SAFE_INTEGER, 'ID');
     const n = int(amount, -1e13, 1e13, 'Сума');
     if (!n) fail('Вкажи суму');
@@ -4310,8 +4312,8 @@ export function createGame(db, opts = {}) {
     q('UPDATE users SET balance = MAX(0, balance + ?) WHERE id = ?').run(n, uid);
     const after = userRow(uid).balance;
     moneyFlow(after - before);
-    if (note) event(uid, `${n > 0 ? '🎁' : '⚠️'} ${String(note).slice(0, 300)} (${n > 0 ? '+' : ''}${S.fmt(after - before)})`);
-    if (n > 0) gift(uid, 'money', { amount: after - before }, note);
+    if (note && !quiet) event(uid, `${n > 0 ? '🎁' : '⚠️'} ${String(note).slice(0, 300)} (${n > 0 ? '+' : ''}${S.fmt(after - before)})`);
+    if (n > 0 && !quiet) gift(uid, 'money', { amount: after - before }, note);
     alog(who, 'money', uid, { amount: after - before, note: note || null });
     return { balance: after };
   }
@@ -4389,7 +4391,7 @@ export function createGame(db, opts = {}) {
     alog(who, 'part', uid, { type, tier, count: n > 0 ? n : -Math.min(had, -n) });
     return {};
   }
-  function adminGiveKeys(who, { id, caseId, count }) {
+  function adminGiveKeys(who, { id, caseId, count }, { quiet = false } = {}) {
     const uid = int(id, 1, Number.MAX_SAFE_INTEGER, 'ID');
     userRow(uid);
     if (!S.CASE_BY_ID[caseId]) fail('Невідомий кейс');
@@ -4398,7 +4400,7 @@ export function createGame(db, opts = {}) {
     const had = q('SELECT count FROM keys WHERE user_id = ? AND case_id = ?').get(uid, caseId)?.count || 0;
     if (n > 0) {
       addKeys(uid, caseId, n);
-      gift(uid, 'keys', { caseId, count: n });
+      if (!quiet) gift(uid, 'keys', { caseId, count: n });
     } else q('UPDATE keys SET count = MAX(0, count + ?) WHERE user_id = ? AND case_id = ?').run(n, uid, caseId);
     alog(who, 'keys', uid, { caseId, count: n > 0 ? n : -Math.min(had, -n) });
     return {};
@@ -5148,6 +5150,35 @@ export function createGame(db, opts = {}) {
     handlers.player = (uid, b) => { const p = playerBase(uid, b); return { ...p, prestige: PR.card(p.id) }; };
     handlers.upgrade = (uid, b) => (PR.noStars(b?.carIds), upBase(uid, b));
     handlers['dealer/tradein'] = (uid, b) => (PR.noStars(b?.carIds), tiBase(uid, b));
+  }
+  // «🐞 Нагорода за баг» (src/bugbounty.js, public/admin-bugs.js): the reward action, the «Знайдені баги» list, the
+  // counter on the admin player card, «нагороджено» on support tickets, the tester 🐞 in the rating.
+  {
+    const BB = createBugBounty({ q, now, fail, int, userRow, brief, adminMoney, adminGiveKeys, alog: (...a) => alog(...a), event, gift });
+    const wrap = (k, fn) => (who, body = {}) => db.tx(() => {
+      if (!canDo(actorRole(who), k)) fail('Немає прав на цю дію');
+      return fn(who, body || {});
+    });
+    admin['bug-reward'] = wrap('bug-reward', (w, b) => {
+      const r = BB.reward(w, b);
+      recalc(Number(b.id));
+      return r;
+    });
+    admin.bugs = wrap('bugs', (w, b) => BB.list(b));
+    ADMIN_MUTATING.add('bug-reward');
+    ADMIN_ON_PLAYER.add('bug-reward');
+    HELPER_ACTIONS.add('bugs'); // helpers see the list; rewarding is for the owner and admins
+    const userBase = admin.user, supportBase = admin.support, lbBase = handlers.leaderboard;
+    admin.user = (who, b) => {
+      const r = userBase(who, b);
+      return { ...r, bugs: db.tx(() => BB.forUser(r.user.id)) };
+    };
+    admin.support = (who, b) => {
+      const r = supportBase(who, b);
+      db.tx(() => BB.ticketMarks(r.list));
+      return r;
+    };
+    handlers.leaderboard = (uid, b) => ((r) => (BB.tagRows(r?.list), r))(lbBase(uid, b));
   }
   // Every call runs in one transaction, settles the weekly race and refreshes the caller's garage value — except the
   // frequent polls below (every few seconds, or several times a second in a live race), which change no cars.
