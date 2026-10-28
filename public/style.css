@@ -4824,3 +4824,8 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .prow2 .pr-act .btn { min-width: 0; }
 .btn.nowrap { white-space: nowrap; }
 .prow2 .pr-act .btn { padding-left: 8px; padding-right: 8px; white-space: nowrap; }
+/* Owner 28.10 «кнопки відкрити ще не видно»: on a fresh drop «Відкрити ще» is a real button (accent outline), not a link. */
+.drop-dock:not(.dd-sold) .btn.opencase, .drop-dock:not(.dd-sold) .btn.opencase.second { min-height: 52px; margin-top: 8px; padding: 10px 14px; border-radius: 12px;
+  background: #ffc4000f; border: 1.5px solid var(--accent); color: var(--accent); box-shadow: 0 0 18px -6px #ffc40066; }
+.drop-dock:not(.dd-sold) .opencase .oc-l { color: var(--accent); text-decoration: none; font-weight: 800; }
+.drop-dock:not(.dd-sold) .opencase .oc-p { color: var(--text); font-weight: 700; }
