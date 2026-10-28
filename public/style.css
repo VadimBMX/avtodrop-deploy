@@ -4860,3 +4860,89 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .ct-pop { text-align: center; }
 .ct-pop-img { width: 100%; aspect-ratio: 16 / 9; border-radius: 14px; display: block; box-shadow: 0 10px 30px #0008; }
 .ct-pop-h { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; font-size: 22px; color: var(--accent); }
+/* «Ніч Хелловіну» intro (public/halloween-ui.js showIntro): a night scene that plays once, then waits for a tap. */
+.hw-intro { position: fixed; inset: 0; z-index: 300; display: flex; flex-direction: column; overflow: hidden; color: #fff;
+  padding: calc(env(safe-area-inset-top) + 54px) 18px calc(env(safe-area-inset-bottom) + 18px); animation: hwiIn .4s ease-out both; }
+.hw-intro.out { animation: hwiOut .26s ease-in both; }
+.hwi-sky { position: absolute; inset: 0; background: radial-gradient(120% 60% at 78% 10%, #43206a 0, #1c0e31 45%, #07040d 100%); }
+.hwi-stars { position: absolute; inset: 0 0 45% 0; animation: hwiTw 2.6s ease-in-out infinite alternate;
+  background-image: radial-gradient(1.6px 1.6px at 23px 41px, #fff 50%, transparent 52%), radial-gradient(1.2px 1.2px at 97px 13px, #fff 50%, transparent 52%),
+    radial-gradient(1px 1px at 141px 88px, #fff 50%, transparent 52%), radial-gradient(1.4px 1.4px at 61px 121px, #ffe9c8 50%, transparent 52%),
+    radial-gradient(1px 1px at 168px 147px, #fff 50%, transparent 52%), radial-gradient(1.2px 1.2px at 12px 158px, #fff 50%, transparent 52%);
+  background-size: 180px 170px; -webkit-mask: linear-gradient(#000 40%, transparent); }
+.hwi-moon { position: absolute; top: calc(env(safe-area-inset-top) + 40px); right: 8%; width: 34vw; max-width: 160px; aspect-ratio: 1; border-radius: 50%;
+  background: radial-gradient(circle at 38% 35%, #fffbea, #f6e7bb 55%, #d8c286); box-shadow: 0 0 40px 10px #ffe9a855, 0 0 130px 50px #ff9a3c2e;
+  animation: hwiMoon 1.6s cubic-bezier(.2, .8, .2, 1) .1s both; }
+.hwi-moon i { position: absolute; inset: 0; border-radius: 50%;
+  background: radial-gradient(circle at 62% 58%, #bfa76d66 0 9%, transparent 10%), radial-gradient(circle at 40% 72%, #bfa76d55 0 6%, transparent 7%),
+    radial-gradient(circle at 30% 40%, #bfa76d44 0 5%, transparent 6%), radial-gradient(circle at 70% 30%, #bfa76d33 0 4%, transparent 5%); }
+.hwi-cloud { position: absolute; left: -70vw; height: 34px; border-radius: 40px; background: #2a1742; filter: blur(5px); opacity: .85; animation: hwiCloud 16s linear .2s infinite; }
+.hwi-cloud.c1 { top: calc(env(safe-area-inset-top) + 92px); width: 62vw; }
+.hwi-cloud.c2 { top: calc(env(safe-area-inset-top) + 150px); width: 44vw; animation-duration: 22s; animation-delay: -9s; opacity: .7; }
+.hwi-bat { position: absolute; left: -70px; width: calc(52px * var(--s)); z-index: 1; opacity: 0;
+  animation: hwiFly 3.4s cubic-bezier(.4, .1, .6, .9) var(--d) both, hwiFly 11s linear calc(var(--d) + 5s) infinite; }
+.hwi-bat svg { display: block; width: 100%; animation: hwiFlap .16s ease-in-out infinite alternate; transform-origin: 50% 40%; }
+.hwi-bat path { fill: #0b0612; }
+.hwi-hills { position: absolute; left: -15%; right: -15%; bottom: 0; height: 50%;
+  background: radial-gradient(55% 34% at 18% 22%, #150b22 99%, transparent 100%), radial-gradient(65% 38% at 86% 28%, #110920 99%, transparent 100%),
+    linear-gradient(180deg, transparent 18%, #0d0717 30%, #050209); }
+.hwi-skip { position: absolute; z-index: 6; top: calc(env(safe-area-inset-top) + 12px); right: 14px; padding: 7px 14px; border-radius: 20px;
+  background: #ffffff14; border: 1px solid #ffffff26; color: #e9dcf5; font: 600 13px var(--f-body); animation: hwiUp .3s ease-out .5s both; }
+.hwi-title { position: relative; z-index: 2; text-align: center; line-height: .86; text-transform: uppercase; font-family: var(--f-disp); font-style: italic; }
+.hwi-title b { display: block; font-size: min(30vw, 130px); font-weight: 800; color: #ff8a1f;
+  text-shadow: 0 0 16px #ff6a00, 0 0 46px #ff6a0099, 0 6px 0 #4a1a00; animation: hwiSlam .5s cubic-bezier(.2, 1.6, .4, 1) 1.45s both, hwiFlick 4.2s linear 2.4s infinite; }
+.hwi-title span { display: block; margin-top: 4px; font-size: min(14vw, 62px); font-weight: 800; color: #fff3e0; letter-spacing: 2px;
+  text-shadow: 0 0 10px #ffb35a, 0 0 28px #ff7a1a, 0 4px 0 #3a1200; animation: hwiNeon 1s steps(1) 1.8s both; }
+.hwi-scene { position: relative; z-index: 2; flex: 1; min-height: 150px; margin: 4px -18px 0; }
+.hwi-road { position: absolute; left: -20%; right: -20%; bottom: 10%; height: 30%; background: linear-gradient(180deg, #221a2b, #0c0910);
+  transform: perspective(260px) rotateX(46deg); transform-origin: bottom; box-shadow: 0 -2px 0 #ff7a1a66, 0 -10px 30px -10px #ff7a1a55; }
+.hwi-road::after { content: ''; position: absolute; left: 0; right: 0; top: 46%; height: 5px; background: repeating-linear-gradient(90deg, #ff9a3caa 0 46px, transparent 46px 100px); }
+.hwi-car { position: absolute; left: 42%; bottom: 13%; width: min(70vw, 340px); transform: translateX(-50%); z-index: 2;
+  filter: brightness(.55) contrast(2) saturate(1.15) drop-shadow(0 14px 12px #000); animation: hwiDrive 1.15s cubic-bezier(.12, .85, .25, 1) 2.1s both; }
+.hwi-beam { position: absolute; z-index: 1; left: calc(42% + min(30vw, 146px)); bottom: calc(13% + min(8.4vw, 41px) - 80px); width: 64vw; height: 160px;
+  background: linear-gradient(90deg, #fff6d6cc, #ffe9a855 45%, transparent 85%); clip-path: polygon(0 45%, 100% 0, 100% 100%, 0 55%); filter: blur(6px);
+  opacity: 0; animation: hwiBeam .6s steps(3) 3.2s both; }
+.hwi-pk { position: absolute; z-index: 3; width: 46px; filter: drop-shadow(0 0 10px #ff6a00) drop-shadow(0 0 22px #ff6a0077); opacity: 0;
+  animation: hwiPop .5s cubic-bezier(.2, 1.6, .4, 1) both, hwiGlow 1.6s ease-in-out infinite alternate; }
+.hwi-pk svg { display: block; width: 100%; }
+.hwi-pk path:last-child { fill: #ffd23f; }
+.hwi-pk.p1 { left: 5%; bottom: 2%; width: 58px; animation-delay: 2.75s, 3.3s; }
+.hwi-pk.p2 { right: 6%; bottom: 0; width: 66px; animation-delay: 2.95s, 3.5s; }
+.hwi-pk.p3 { left: 2%; bottom: 40%; width: 26px; animation-delay: 2.85s, 3.4s; }
+.hwi-fog { position: absolute; z-index: 4; left: -50%; width: 200%; height: 46%; bottom: -6%; pointer-events: none;
+  background: radial-gradient(40% 60% at 25% 60%, #c3b0e05c, transparent 70%), radial-gradient(35% 50% at 72% 50%, #c3b0e050, transparent 70%);
+  filter: blur(8px); animation: hwiFog 12s linear infinite alternate; }
+.hwi-fog.f2 { bottom: 12%; opacity: .7; animation-duration: 17s; animation-direction: alternate-reverse; }
+.hwi-list { position: relative; z-index: 2; display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.hwi-chip { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 14px; background: #1a0f27e6; border: 1px solid #ff7a1a4d;
+  box-shadow: inset 3px 0 0 #ff7a1a; opacity: 0; animation: hwiChip .4s cubic-bezier(.2, 1.2, .4, 1) calc(3.4s + var(--i) * .18s) both; }
+.hwi-chip .i { flex: none; font-size: 24px; color: #ffb35a; }
+.hwi-chip b { display: block; font: 700 15px var(--f-disp); letter-spacing: .3px; }
+.hwi-chip small { display: block; font-size: 12.5px; color: #d9cbe8b3; }
+.hwi-foot { position: relative; z-index: 2; margin-top: 12px; text-align: center; animation: hwiUp .4s ease-out 4.05s both; }
+.hwi-until { font-size: 13px; color: #d9cbe8; margin-bottom: 8px; }
+.hwi-go { width: 100%; min-height: 54px; border: 0; background: linear-gradient(180deg, #ffa53a, #ff6a00); color: #1a0800; font-size: 18px;
+  box-shadow: 0 0 28px #ff6a0088, 0 6px 0 #7a2c00; }
+.hwi-flash { position: absolute; inset: 0; z-index: 5; background: #ece2ff; opacity: 0; pointer-events: none; animation: hwiFlash .9s linear 1.25s both; }
+@keyframes hwiIn { from { opacity: 0; } }
+@keyframes hwiOut { to { opacity: 0; transform: scale(1.04); } }
+@keyframes hwiTw { from { opacity: .45; } }
+@keyframes hwiMoon { from { transform: translateY(60px) scale(.9); opacity: 0; } }
+@keyframes hwiCloud { to { transform: translateX(180vw); } }
+@keyframes hwiFly { 0% { transform: translate(0, 0) scale(.6); opacity: 0; } 8% { opacity: 1; } 100% { transform: translate(calc(100vw + 140px), -50px) scale(1.15); opacity: 1; } }
+@keyframes hwiFlap { to { transform: scaleY(.5); } }
+@keyframes hwiSlam { from { transform: scale(2.4); opacity: 0; } }
+@keyframes hwiNeon { 0% { opacity: 0; } 10% { opacity: 1; } 20% { opacity: .15; } 30% { opacity: 1; } 45% { opacity: .35; } 55%, 100% { opacity: 1; } }
+@keyframes hwiFlick { 0%, 91%, 100% { opacity: 1; } 92% { opacity: .5; } 94% { opacity: 1; } 96% { opacity: .65; } }
+@keyframes hwiDrive { from { transform: translateX(-175%); } }
+@keyframes hwiBeam { 0% { opacity: 0; } 34% { opacity: .9; } 67% { opacity: .2; } 100% { opacity: 1; } }
+@keyframes hwiPop { from { transform: translateY(30px) scale(.3); opacity: 0; } to { opacity: 1; } }
+@keyframes hwiGlow { to { filter: drop-shadow(0 0 4px #ff6a00) drop-shadow(0 0 12px #ff6a0055); } }
+@keyframes hwiFog { to { transform: translateX(22%); } }
+@keyframes hwiChip { from { transform: translateX(-30px); opacity: 0; } to { opacity: 1; } }
+@keyframes hwiUp { from { transform: translateY(20px); opacity: 0; } }
+@keyframes hwiFlash { 0% { opacity: 0; } 6% { opacity: .85; } 12% { opacity: .1; } 18% { opacity: .6; } 30%, 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .hw-intro, .hw-intro * { animation-duration: .01s !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; }
+  .hwi-flash { display: none; }
+}

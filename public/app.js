@@ -19,7 +19,7 @@ import * as G from './ghost.js';
 // The share card is drawn only when a challenge is thrown: loaded then (like the «Заїзд дня» card), not at start.
 const challengeCard = (o) => import('./challenge-card.js').then((x) => x.challengeCard(o));
 // «Ніч Хелловіну»: banner, event sheet, night drift (public/halloween-ui.js; hides itself when me.halloween is null).
-import { installHalloween, hwNight, HW_DRIFT, hwDriftPumpkins, hwDriftOverlay } from './halloween-ui.js';
+import { installHalloween, hwNight, HW_DRIFT, hwDriftPumpkins, hwDriftOverlay, hwIntroAsk, hwIntroOpen } from './halloween-ui.js';
 // «Сарайна знахідка»: the «Сарай» page, a garage row and a menu row (public/barn-ui.js).
 import { installBarn } from './barn-ui.js';
 // «Таємний покупець»: a card in «Гараж» under the income card (public/buyer-ui.js).
@@ -295,7 +295,7 @@ $('#modal').addEventListener('click', (e) => {
 });
 // popups: every window that opens by itself asks POP first (gifts, level-up, «Що нового», «Нагороди» at start,
 // «Бета-тест», «Ярлик на екрані»). Calm = nothing it must not cover; idle = no window or story open.
-const popIdle = () => $('#modal').hidden && !$('.story') && !$('.confirm');
+const popIdle = () => $('#modal').hidden && !$('.story') && !$('.confirm') && !hwIntroOpen();
 const POP = createPopups({
   idle: popIdle,
   calm: () => popIdle() && !guideOn() && !state.opening && !(state.race && state.race.phase !== 'done') && !(state.drift && state.drift.phase !== 'done') && !battleTimers.length && !WOW.isOpen(),
@@ -526,6 +526,7 @@ async function refresh(rerender = true) {
   else renderHeader();
   guideProgress();
   fuelDealAsk(); // the tank is empty: a cheaper full tank (one window per deal)
+  hwIntroAsk(); // «Ніч Хелловіну»: the animated intro once per event (public/halloween-ui.js)
   contestAsk(); // «Битва амбасадорів»: the banner once a Kyiv day while the contest runs
   packOfferAsk(); // «Мега-пропозиція» on hryvnia packs (one window per offer)
   bugAskOnce(); // «Бета-тест: знайшов баг — пиши в підтримку» (once per player, from level 2)
@@ -575,7 +576,7 @@ async function render() {
 const AFTER = {};
 const TABS = {};
 const PAGES = {};
-installHalloween({ me: () => me, state: () => state, H, ic, esc, sheet, go });
+installHalloween({ me: () => me, state: () => state, H, ic, esc, sheet, go, pop: POP });
 installClubs({ me: () => me, state: () => state, config: () => config, tg, H, PAGES, AFTER, PAGE_TITLES, api, act, toast, sheet, closeModal, confirmBox, go, render, ic, esc, initialOf,
   untilSpan: (t) => untilSpan(t), tickUntil: () => tickUntil(), emptyLine: (...a) => emptyLine(...a) });
 installPrestige({ me: () => me, state: () => state, H, ic, esc, sheet, act, api, go, toast, closeModal, carSheet: (id) => carSheet(id), serverNow: () => serverNow(), clockOffset: () => clockOffset, carInc: (c) => carInc(c) });

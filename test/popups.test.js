@@ -47,7 +47,7 @@ test('popups: the mid player on entry — «Що нового», «Нагоро�
 
 test('popups: priority order — gift > level-up > what’s new (event) > daily rewards > beta test > home screen', () => {
   const order = Object.entries(POP_PRI).sort((a, b) => b[1] - a[1]).map(([k]) => k);
-  assert.deepEqual(order, ['gift', 'level', 'fueldeal', 'contest', 'whatsnew', 'rewards', 'packoffer', 'bugask', 'homeask']);
+  assert.deepEqual(order, ['gift', 'level', 'hwintro', 'fueldeal', 'contest', 'whatsnew', 'rewards', 'packoffer', 'bugask', 'homeask']);
   for (const [kinds, win] of [[['rewards', 'level', 'bugask'], 'level'], [['rewards', 'whatsnew'], 'whatsnew'], [['homeask', 'bugask'], 'bugask']]) {
     const e = harness();
     kinds.forEach((k) => e.offer(k));

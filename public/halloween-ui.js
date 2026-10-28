@@ -110,6 +110,71 @@ export function hwDriftOverlay(ctx, W, H, now) {
   }
 }
 
+// The intro (owner 29.10): a short animated night scene once per event and player, on entering the game while the
+// event runs (the entry's one window, via popups.js — kind 'hwintro'). Pure CSS animation (style.css «hwi-»), no
+// sound, no image files except the car photo; «Пропустити» any time; prefers-reduced-motion shows the last frame.
+const HWI_KEY = 'avtodrop.hwIntro';
+export const hwIntroOpen = () => !!document.querySelector('.hw-intro');
+export function hwIntroAsk() {
+  const h = X?.me()?.halloween;
+  if (!h?.on || !X.pop) return;
+  try {
+    if (localStorage.getItem(HWI_KEY) === String(h.key)) return;
+  } catch {
+    return;
+  }
+  X.pop.offer('hwintro', () => {
+    const cur = X.me()?.halloween;
+    if (!cur?.on || hwIntroOpen()) return false;
+    try {
+      localStorage.setItem(HWI_KEY, String(cur.key));
+    } catch {}
+    showIntro(cur);
+  });
+}
+function showIntro(h) {
+  const { ic } = X;
+  const bats = [[16, 1.6, 0], [27, 1.05, 0.35], [11, 0.8, 0.7], [33, 1.3, 1.1], [21, 0.7, 1.5]]
+    .map(([top, s, d], k) => `<i class="hwi-bat b${k}" style="top:${top}%;--s:${s};--d:${0.8 + d}s">${BAT_SVG}</i>`).join('');
+  const done = h.tasks.filter((t) => t.done).length;
+  const el = document.createElement('div');
+  el.className = 'hw-intro';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-label', HW.HALLOWEEN.name);
+  el.innerHTML = `<div class="hwi-sky"></div><div class="hwi-stars"></div><div class="hwi-moon"><i></i></div>
+    <div class="hwi-cloud c1"></div><div class="hwi-cloud c2"></div>${bats}
+    <div class="hwi-hills"></div>
+    <button class="hwi-skip" data-hwi="skip">Пропустити</button>
+    <div class="hwi-title"><b>Ніч</b><span>Хелловіну</span></div>
+    <div class="hwi-scene">
+      <div class="hwi-road"></div>
+      <div class="hwi-beam"></div>
+      <img class="hwi-car" src="cars/ford-mustang-gt-2005.webp" alt="">
+      <span class="hwi-pk p1">${PUMPKIN_SVG}</span><span class="hwi-pk p2">${PUMPKIN_SVG}</span><span class="hwi-pk p3">${PUMPKIN_SVG}</span>
+      <div class="hwi-fog f1"></div><div class="hwi-fog f2"></div>
+    </div>
+    <div class="hwi-list">
+      <div class="hwi-chip" style="--i:0">${ic('box')}<span><b>Контейнер з привидом</b><small>на «Причалі» — машини наосліп</small></span></div>
+      <div class="hwi-chip" style="--i:1">${ic('ghost')}<span><b>${h.tasks.length} нічних завдань</b><small>ключі й рамка «Гарбуз»${done ? ` · виконано ${done}` : ''}</small></span></div>
+      <div class="hwi-chip" style="--i:2">${ic('flag-3')}<span><b>Тиражний Mustang №13</b><small>шанс за всі завдання · нічна траса</small></span></div>
+    </div>
+    <div class="hwi-foot"><div class="hwi-until">${untilText(h)}</div>
+      <button class="btn hwi-go" data-hwi="go">${ic('ghost')} До завдань</button></div>
+    <div class="hwi-flash"></div>`;
+  const close = (go) => {
+    el.classList.add('out');
+    setTimeout(() => {
+      el.remove();
+      if (go) openSheet();
+    }, 260);
+  };
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-hwi]');
+    if (b) close(b.dataset.hwi === 'go');
+  });
+  document.body.append(el);
+}
+
 export function installHalloween(ctx) {
   X = ctx;
   ctx.H.hwOpen = openSheet;
