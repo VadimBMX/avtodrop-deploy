@@ -255,7 +255,13 @@ async function act(name, body, ok, { rerender = true } = {}) {
 }
 function confirmBox(text) {
   return new Promise((res) => {
-    if (tg?.initData && tg.showConfirm && tg.isVersionAtLeast?.('6.2')) return tg.showConfirm(text, (ok) => res(ok));
+    // Telegram's own confirm takes at most 256 characters — a longer text throws and nothing shows (28.10: «Продати
+    // непотрібні» with a long parts list did nothing), so a long question goes to our own dialog.
+    if (tg?.initData && tg.showConfirm && tg.isVersionAtLeast?.('6.2') && String(text).length <= 250) {
+      try {
+        return tg.showConfirm(text, (ok) => res(ok));
+      } catch {}
+    }
     // Own dialog outside Telegram: window.confirm is blocked in embedded browsers and returns false at once.
     const box = document.createElement('div');
     box.className = 'confirm';
@@ -1313,7 +1319,7 @@ H.sellJunk = async () => {
   if (!junk.length) return toast('Непотрібних деталей немає');
   const n = junk.reduce((s, j) => s + j.count, 0);
   const sum = junk.reduce((s, j) => s + Math.floor(S.TIER_BY_ID[j.tier].price * S.PART_SELL_RATE) * j.count, 0);
-  const names = junk.slice(0, 8).map((j) => `${S.partLabel(j.type, j.tier)} ×${j.count}`).join(', ') + (junk.length > 8 ? ` і ще ${junk.length - 8}` : '');
+  const names = junk.slice(0, 4).map((j) => `${S.partLabel(j.type, j.tier)} ×${j.count}`).join(', ') + (junk.length > 4 ? ` і ще ${junk.length - 4}` : '');
   const merge = junk.some((j) => j.count >= 3 && S.TIER_BY_ID[j.tier].index < S.TIERS.length - 1);
   if (!(await confirmBox(`Продати ${n} ${plural(n, ['деталь', 'деталі', 'деталей'])} за ${S.fmt(sum)}? ${names}. Жодна не краща за встановлені на твоїх машинах.${merge ? ' Порада: 3 однакові можна злити в одну рівнем вище — це вигідніше.' : ''}`))) return;
   await act('parts/sell-junk', { items: junk }, (r) => `Продано ${r.count} шт: +${S.fmt(r.got)}`);

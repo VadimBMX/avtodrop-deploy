@@ -4818,3 +4818,5 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .income.inc-compact .progress.cap { margin-top: 8px; }
 .income.inc-compact .cap-line { margin-top: 4px; font-size: 12.5px; }
 .income.inc-compact .cap-more { margin-top: 4px; }
+
+.confirm-text { max-height: 60vh; overflow-y: auto; }
