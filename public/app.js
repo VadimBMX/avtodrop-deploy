@@ -1498,7 +1498,7 @@ TABS.cases = () => {
     if (free < n) return noRoomHtml(n, free);
     // Not enough money: say so on the button, with how much is missing.
     if (paid && short > 0) return `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(short)}</button>`;
-    return `<button class="btn opencase ${onDrop ? 'second' : deal.off ? 'yellow' : ''}${onDrop && state.fx?.type === 'case' ? ` lockin" style="--lk:${dropLockMs(d)}ms` : ''}" data-act="openCase">${paid ? `<span class="oc-l">${d && state.dropCase === cs.id ? 'Відкрити ще' : d ? `Відкрити «${esc(cs.name)}»` : 'Відкрити'}</span><span class="oc-p">${S.fmt(price * paid)}${deal.off ? ` <s>${S.short(cs.price * paid)}</s>` : ''}${keys ? ` + ${ic('key')}${Math.min(keys, n)}` : ''}</span>` : cs.starter ? 'Відкрити безкоштовно' : `Відкрити ключем ${ic('key')} ${n}`}</button>`;
+    return `<button class="btn opencase ${onDrop ? 'second' : deal.off ? 'yellow' : ''}${onDrop && state.fx?.type === 'case' ? ` lockin" style="--lk:${dropLockMs(d)}ms` : ''}" data-act="openCase" data-expect="${price * paid}">${paid ? `<span class="oc-l">${d && state.dropCase === cs.id ? 'Відкрити ще' : d ? `Відкрити «${esc(cs.name)}»` : 'Відкрити'}</span><span class="oc-p">${S.fmt(price * paid)}${deal.off ? ` <s>${S.short(cs.price * paid)}</s>` : ''}${keys ? ` + ${ic('key')}${Math.min(keys, n)}` : ''}</span>` : cs.starter ? 'Відкрити безкоштовно' : `Відкрити ключем ${ic('key')} ${n}`}</button>`;
   };
   let stage;
   if (d?.length === 1) {
@@ -1701,12 +1701,14 @@ H.openCase = async (d, el) => {
   el.disabled = true;
   let r;
   try {
-    r = await api('case/open', { caseId: cs.id, count: n });
+    // expect: the total this button showed — the server refuses a higher charge (the deal ended since the screen was drawn).
+    r = await api('case/open', { caseId: cs.id, count: n, ...(d?.expect != null && d.expect !== '' ? { expect: Number(d.expect) } : {}) });
   } catch (e) {
     state.opening = false;
     el.disabled = false;
     haptic('error');
-    return toast(e.message, true);
+    toast(e.message, true);
+    return refresh().catch(() => {}); // redraw the button with the price, keys and balance as they are now
   }
   if (!state.fast) {
     state.drop = null;

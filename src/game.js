@@ -869,7 +869,10 @@ export function createGame(db, opts = {}) {
     return { ...u, nonce, roll: (sub) => fairRoll(u.server_seed, u.client_seed, nonce, sub) };
   }
   // keyOnly (a reward key opened from the rewards reveal): never pays — no key left → an error, not a paid opening.
-  function openCase(uid, { caseId, count, keyOnly }) {
+  // expect (optional): the total the open button showed. A charge above it (the case of the day or an event ended, a key
+  // was spent elsewhere since the screen was drawn) is refused before any money moves, so the player never pays more
+  // than the button said; the app then redraws the button with the price as it is now.
+  function openCase(uid, { caseId, count, keyOnly, expect }) {
     const cs = own(S.CASE_BY_ID, caseId);
     if (!cs) fail('Невідомий кейс');
     const n = int(count ?? 1, 1, 6, 'Кількість');
@@ -883,6 +886,7 @@ export function createGame(db, opts = {}) {
     const deal = S.caseDeal(cs, dayOf(now()), evFx());
     const ecs = deal.weights === cs.weights ? cs : { ...cs, weights: deal.weights };
     const price = deal.price;
+    if (expect != null && Number.isFinite(Number(expect)) && price * (n - useKeys) > Number(expect)) fail(`Ціна змінилась: тепер ${S.fmt(price * (n - useKeys))}. Перевір і натисни ще раз`);
     pay(uid, price * (n - useKeys));
     if (useKeys) q('UPDATE keys SET count = count - ? WHERE user_id = ? AND case_id = ?').run(useKeys, uid, caseId);
     bank(uid);
