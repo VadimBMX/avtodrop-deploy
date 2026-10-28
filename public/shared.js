@@ -570,7 +570,11 @@ export const FRESH_SELL = { rate: 1, hours: 24 };
 // stay whole. Cars from before this change, the dealer, rewards, the starter case and the collector cars (they have
 // HOME_SELL_RATE) keep the full rate; an upgrade or trade-in result inherits the lowest share of the cars put in.
 // Owner 22.10: no per-case cut — a car from a case sells at its class rate like any other.
-export const ORIGIN_SELL = {};
+// Owner 28.10 (hotfix): several dear cases returned 1.10–1.23 on open-and-sell (1.39 on deal days) — an endless money
+// machine with fast open + «Продати все» (a newcomer made 382 млн in 1,5 h). Fresh drops from them now sell at this
+// share, so open-and-sell is ~0.86–0.92 on a plain day and under 1 on deal days (tools/sim-cases.mjs). Cars that came
+// out of these cases before the hotfix keep the full rate (their origin is cleared once, game.js ORIGIN_SELL_FIX).
+export const ORIGIN_SELL = { city: 0.79, sport: 0.76, premium: 0.75, elite: 0.8, 'c-it': 0.7, 'c-us': 0.74, 'c-gb': 0.71, 'c-ua': 0.9, tuning: 0.96 };
 export const originSellOf = (origin) => (origin && ORIGIN_SELL[origin]) || 1;
 // origin: the case id the car came out of (cars.origin), or null.
 export const sellPriceOf = (model, ageMs = Infinity, origin = null) =>

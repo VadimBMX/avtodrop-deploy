@@ -5711,6 +5711,13 @@ export function createGame(db, opts = {}) {
     return list.length;
   }
   backfillSecrets();
+  // Owner 28.10 hotfix (S.ORIGIN_SELL for the dear cases): cars that came out of those cases before it keep the full
+  // sale rate — their origin is cleared once (origin only sets the instant-sale share).
+  if (!metaGet('origin_sell_fix_1')) {
+    const keys = Object.keys(S.ORIGIN_SELL);
+    if (keys.length) q(`UPDATE cars SET origin = NULL WHERE origin IN (${keys.map(() => '?').join(',')})`).run(...keys);
+    metaSet('origin_sell_fix_1', String(now()));
+  }
   // Owner 23.10: car cases now pay xp by their price with a cap of their own. The opens before it are paid once: per
   // player and Kyiv day, the new rule (min(CASE_XP_CAP, Σ caseXp)) minus what the old one could have given (min(300,
   // 5 per open)); level rewards come as usual, the season pass is not touched.
