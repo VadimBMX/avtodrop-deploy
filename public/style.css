@@ -4857,3 +4857,6 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .ct-row { gap: 10px; }
 .ct-row.me { background: #ffc40014; box-shadow: inset 3px 0 0 var(--accent); }
 .ct-n { font: 800 18px var(--f-disp); color: var(--accent); }
+.ct-pop { text-align: center; }
+.ct-pop-img { width: 100%; aspect-ratio: 16 / 9; border-radius: 14px; display: block; box-shadow: 0 10px 30px #0008; }
+.ct-pop-h { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; font-size: 22px; color: var(--accent); }

@@ -13,7 +13,7 @@
 // - nothing opens while a race, a case opening, the first-steps focus, a story or another window is on (`calm`);
 // - a new entry: the app is reloaded, or it comes back after NEW_ENTRY_MS in the background.
 // Windows the player opens himself never come here.
-export const POP_PRI = { gift: 100, level: 80, whatsnew: 60, rewards: 50, fueldeal: 70, packoffer: 30, bugask: 20, homeask: 10 };
+export const POP_PRI = { gift: 100, level: 80, whatsnew: 60, rewards: 50, fueldeal: 70, contest: 65, packoffer: 30, bugask: 20, homeask: 10 };
 // Windows the play causes (allowed after the entry is over); the rest are entry-only announcements.
 export const POP_PLAY = new Set(['gift', 'level', 'fueldeal']); // fueldeal: the tank just ran dry in play
 export const NEW_ENTRY_MS = 30 * 60e3;

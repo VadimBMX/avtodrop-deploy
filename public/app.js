@@ -526,6 +526,7 @@ async function refresh(rerender = true) {
   else renderHeader();
   guideProgress();
   fuelDealAsk(); // the tank is empty: a cheaper full tank (one window per deal)
+  contestAsk(); // «Битва амбасадорів»: the banner once a Kyiv day while the contest runs
   packOfferAsk(); // «Мега-пропозиція» on hryvnia packs (one window per offer)
   bugAskOnce(); // «Бета-тест: знайшов баг — пиши в підтримку» (once per player, from level 2)
   homeCheck(); // «Додай на головний екран» from the 3rd day (once a session; nothing on old clients)
@@ -6800,6 +6801,35 @@ H.buyPack = async (d) => {
   } catch (e) {
     toast(e.message, true);
   }
+};
+// «Битва амбасадорів» (owner 28.10): everyone gets the contest banner once a Kyiv day on entering the game while it
+// runs (the entry's one window, via popups.js). «Взяти участь» opens the contest screen.
+const CONTEST_ASK_KEY = 'avtodrop.contestAsk';
+function contestAsk() {
+  const c = me?.contest;
+  if (!c?.on || c.end < serverNow()) return;
+  const day = S.kyivDateOf(serverNow());
+  try {
+    if (localStorage.getItem(CONTEST_ASK_KEY) === day) return;
+  } catch {
+    return;
+  }
+  POP.offer('contest', () => {
+    if (!me?.contest?.on || state.page === 'contest') return false;
+    try {
+      localStorage.setItem(CONTEST_ASK_KEY, day);
+    } catch {}
+    const sum = S.CONTEST.prizes.reduce((a, b) => a + b, 0).toLocaleString('uk-UA');
+    sheet('Конкурс', `<div class="ct-pop"><img src="promo/contest.jpg" alt="Битва амбасадорів" class="ct-pop-img">
+      <b class="disp ct-pop-h">${ic('star')} ${sum} зірок за друзів</b>
+      <div class="muted mt">Клич друзів за своїм посиланням — хто приведе найбільше гравців, забирає зірки. До кінця <b class="win">${untilSpan(c.end)}</b></div>
+      <div class="btns mt"><button class="btn yellow" data-act="contestGo">${ic('trophy')} Взяти участь</button><button class="btn ghost" data-act="closeModal">Пізніше</button></div></div>`);
+    tickUntil?.();
+  });
+}
+H.contestGo = () => {
+  closeModal();
+  go('contest');
 };
 // «Мега-пропозиція»: one window per offer (the entry's one window, via popups.js), the shop shows the timer.
 const PACK_OFFER_KEY = 'avtodrop.packOffer';
