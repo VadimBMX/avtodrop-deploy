@@ -2347,9 +2347,12 @@ export function packMult(level, garage) {
   return Math.max(1, Math.pow(PACK_SCALE.level, Math.max(0, level - 1)), Math.pow(Math.max(1, garage / PACK_SCALE.garageBase), PACK_SCALE.garagePow));
 }
 export const packAmount = (pack, level, garage) => niceRound(pack.amount * packMult(level, garage));
-// Hryvnia packs are no longer on sale (owner: stars buy looks and VIP, not progress; hryvnias only in the one starter
-// pack). The list stays for invoices made before, the payments history and refunds (creditPayment).
-export const PACKS_ON_SALE = false;
+// Hryvnia packs for Stars — back on sale (owner 28.10, reversing 22.10). Amounts grow with the player (packMult).
+export const PACKS_ON_SALE = true;
+// «Мега-пропозиція»: now and then (from level PACK_OFFER.minLevel, at most every everyDays days) a player gets
+// PACK_OFFER.hours hours in which every pack gives ×mult hryvnias for the same stars (Telegram invoices have a fixed
+// star price, so the deal is more hryvnias, not fewer stars). The amount is fixed when the invoice is made.
+export const PACK_OFFER = { minLevel: 3, everyDays: 3, hours: 6, mult: 2 };
 export const PACKS = [
   { id: 'p1', stars: 50, amount: 1500000, title: '1,5 млн ₴' },
   { id: 'p2', stars: 150, amount: 5000000, title: '5 млн ₴', tag: '+11%' },

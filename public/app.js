@@ -519,6 +519,7 @@ async function refresh(rerender = true) {
   if (rerender) render();
   else renderHeader();
   guideProgress();
+  packOfferAsk(); // «Мега-пропозиція» on hryvnia packs (one window per offer)
   bugAskOnce(); // «Бета-тест: знайшов баг — пиши в підтримку» (once per player, from level 2)
   homeCheck(); // «Додай на головний екран» from the 3rd day (once a session; nothing on old clients)
   // Let a drop's celebration play out before the level-up popup covers it.
@@ -4260,7 +4261,7 @@ TABS.menu = () => {
     hubTile({ page: 'battles', k: 'battles', icon: 'flame', c: RD, title: 'Кейс-батли', size: 'wide', info: 'кейси наввипередки' }),
     hubTile({ page: 'upgrade', k: 'upgrade', icon: 'arrow-big-up-lines', c: PU, title: 'Апгрейд', size: 'wide', info: casinoOff() || !isOpen('casino') ? 'машини → дорожча' : 'і казино · 18+' }),
   ];
-  const store = `<button class="hub-store" data-act="go" data-page="store"><span class="hub-ic">${ic('crown')}</span><span class="grow"><b>Магазин</b><span class="hub-i">${me.vip ? `VIP ще ${untilSpan(me.vipUntil)} · «Стиль»` : 'VIP-підписка, «Стиль», пропуск'}</span></span>${me.stars ? `<span class="hc">${ic('star')} ${me.stars}</span>` : ''}<span class="chev">${ic('chevron-right')}</span></button>`;
+  const store = `<button class="hub-store" data-act="go" data-page="store"><span class="hub-ic">${ic('crown')}</span><span class="grow"><b>Магазин</b><span class="hub-i">${me.packOffer ? `${ic('flame')} ×${me.packOffer.mult} гривень на пакети · ще ${untilSpan(me.packOffer.until)}` : me.vip ? `VIP ще ${untilSpan(me.vipUntil)} · «Стиль»` : 'Гривні, VIP-підписка, «Стиль»'}</span></span>${me.packOffer ? `<span class="hc pk-badge">×${me.packOffer.mult}</span>` : ''}${me.stars ? `<span class="hc">${ic('star')} ${me.stars}</span>` : ''}<span class="chev">${ic('chevron-right')}</span></button>`;
   const line = (act, page, icon, title, sub = '', count = 0) => `<button class="li" data-act="${act}" data-page="${page}"><span class="mi" style="--c:${ST}">${ic(icon)}</span><b>${title}</b>${count ? `<span class="cnt" style="margin-left:auto">${count}</span>` : `<span class="sub">${sub}</span>`}<span class="chev">${ic('chevron-right')}</span></button>`;
   const help = [
     line('go', 'promo', 'ticket', 'Промокод', 'коди — у каналі'),
@@ -6613,7 +6614,7 @@ function storeMain(sh) {
   const sub = sh.sub;
   const st = it.starter;
   const starter = sh.starterBought ? '' : `<div class="card offer st-starter"><div class="row between"><b class="disp" style="font-size:19px">${esc(st.name)}</b><span class="chip">${ic('lock')} один раз на акаунт</span></div>
-    <div class="tiny muted">Єдині гривні за зірки — невеликий поштовх на старті</div>
+    <div class="tiny muted">Поштовх на старті: гривні, кейси й VIP в одному наборі</div>
     <div class="offer-list"><span>${ic('coin')} ${S.short(st.money)}</span><span>${ic('gift')} 2 × кейс «${esc(S.CASE_BY_ID.city.name)}»</span><span>${ic('crown')} VIP на ${st.vipDays} дні</span></div>
     <div class="row between mt"><span class="tiny muted">Більше не з’явиться</span>${storeBuyBtns(st, sh)}</div></div>`;
   const perks = [['gas-station', 'Пальне відновлюється вдвічі швидше'], ['clock', `Каса гаража вміщує на ${S.VIP.extraHours} год більше`], ['gift', `+${S.short(S.VIP.daily)} до щоденного бонусу`],
@@ -6628,7 +6629,12 @@ function storeMain(sh) {
     <div class="vip-list">${perks.map(([i, t]) => `<span>${ic(i)} ${t}</span>`).join('')}</div>
     ${subBox}
     <div class="vip-once"><div class="grow"><b>Разово · ${S.VIP.days} днів</b><div class="tiny muted">${vipLeft ? 'додасться до поточного VIP' : 'без автопродовження'}</div></div>${storeBuyBtns(it.vip, sh, 'ghost')}</div></div>`;
-  return `${starter}${vip}
+  const off = sh.offer;
+  const packs = sh.packs?.length ? `<div class="h2"><span>Гривні</span>${off ? `<span class="pk-timer">${ic('flame')} ×${off.mult} · ще <span data-until="${off.until - clockOffset}"></span></span>` : '<span>зараховуються одразу</span>'}</div>
+    ${off ? `<div class="pk-hot">${ic('flame')} <b>Мега-пропозиція:</b> ×${off.mult} гривень на всі пакети за ту саму ціну</div>` : ''}
+    <div class="pk-grid">${sh.packs.map((p) => `<button class="pk${off ? ' hot' : ''}" data-act="buyPack" data-id="${p.id}" ${config.stars ? '' : 'disabled'}>
+      ${p.tag ? `<span class="pk-tag">${esc(p.tag)}</span>` : ''}<b>${S.short(p.amount)}</b>${off ? `<s>${S.short(p.amount / off.mult)}</s>` : ''}<span class="pk-st">${ic('star')} ${p.stars}</span></button>`).join('')}</div>` : '';
+  return `${starter}${packs}${vip}
   <button class="card row st-style-promo" data-act="storeView" data-k="style"><span class="ic tint" style="--c:#b48cff">${ic('sparkles')}</span><div class="grow"><b>Стиль</b><div class="tiny muted">рамки номерів, фони вітрини, лівреї, колір імені — лише вигляд, без характеристик</div></div><span class="chev">${ic('chevron-right')}</span></button>
   <div class="card row"><span class="ic tint" style="--c:#ffc400">${ic('ticket')}</span><div class="grow"><b>Преміум-пропуск · Сезон ${me.season.id}</b><div class="tiny muted">Друга доріжка нагород і машина сезону</div></div>${sh.premium ? '<span class="chip">куплено</span>' : storeBuyBtns(it.pass, sh)}</div>
   <div class="h2"><span>Зручності</span></div>
@@ -6715,6 +6721,47 @@ H.buyItem = async (d) => {
   } catch (e) {
     toast(e.message, true);
   }
+};
+// Hryvnia packs (S.PACKS): the amount is fixed in the invoice when it's made (the «мега-пропозиція» ×2 included).
+H.buyPack = async (d) => {
+  try {
+    const { link } = await api('shop/invoice', { pack: d.id });
+    if (!tg?.openInvoice) return toast('Відкрий гру в Telegram, щоб оплатити', true);
+    tg.openInvoice(link, (status) => {
+      if (status === 'paid') toast('Оплата пройшла — гривні вже на рахунку'), haptic('success'), setTimeout(refresh, 1500);
+      else if (status === 'failed') toast('Оплата не пройшла', true);
+    });
+  } catch (e) {
+    toast(e.message, true);
+  }
+};
+// «Мега-пропозиція»: one window per offer (the entry's one window, via popups.js), the shop shows the timer.
+const PACK_OFFER_KEY = 'avtodrop.packOffer';
+function packOfferAsk() {
+  const o = me?.packOffer;
+  if (!o || !config.stars) return;
+  try {
+    if (Number(localStorage.getItem(PACK_OFFER_KEY)) === o.until) return;
+  } catch {
+    return;
+  }
+  POP.offer('packoffer', () => {
+    if (!me?.packOffer || me.packOffer.until < serverNow()) return false;
+    try {
+      localStorage.setItem(PACK_OFFER_KEY, String(o.until));
+    } catch {}
+    sheet('Мега-пропозиція', `<div class="card center tg-home-ask"><div class="tg-home-ic">${ic('flame')}</div>
+      <b class="disp">×${o.mult} ГРИВЕНЬ НА ВСІ ПАКЕТИ</b>
+      <div class="muted mt">Лише зараз: за ту саму кількість зірок — удвічі більше гривень.</div>
+      <div class="small mt">Діє ще <b class="win"><span data-until="${o.until - clockOffset}"></span></b></div>
+      <div class="btns mt"><button class="btn" data-act="packOfferGo">До магазину</button><button class="btn ghost" data-act="closeModal">Пізніше</button></div></div>`);
+    tickUntil?.();
+  });
+}
+H.packOfferGo = () => {
+  closeModal();
+  state.storeView = 'shop';
+  go('store');
 };
 H.buyItemStars = async (d) => {
   if (!(await confirmBox(`Списати ${d.p} ⭐ з рахунку?`))) return;

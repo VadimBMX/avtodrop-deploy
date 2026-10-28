@@ -3938,6 +3938,7 @@ export function createGame(db, opts = {}) {
       stars: u.stars, vipUntil: u.vip_until, starterBought: !!u.starter_bought, premium: u.premium_season === cur,
       items: S.SHOP_ITEMS.map((it) => ({ ...it, price: S.shopPrice(it, u.star_slots) })),
       sub: subOut(subRow(uid)), // the VIP subscription: active, renewal cancelled, end of the paid period
+      packs: packsFor(uid), offer: packOffer(uid),
     };
   }
   // Paid from the stars on the account (season prizes).
@@ -4038,8 +4039,23 @@ export function createGame(db, opts = {}) {
     const pack = S.PACKS.find((p) => p.id === packId);
     if (!pack) fail('Невідомий пакет');
     const u = userRow(uid);
-    return S.packAmount(pack, u.level, u.total_value);
+    return S.packAmount(pack, u.level, u.total_value) * (packOfferOn(u) ? S.PACK_OFFER.mult : 1);
   }
+  // «Мега-пропозиція» (S.PACK_OFFER): starts by itself on a visit when the player's turn has come; `packOffer(uid)`
+  // is called from `me`, so the window starts when he is actually in the game.
+  const packOfferOn = (u) => S.PACKS_ON_SALE && u.pack_offer_until > now();
+  function packOffer(uid) {
+    if (!S.PACKS_ON_SALE) return null;
+    let u = userRow(uid);
+    const t = now(), O = S.PACK_OFFER;
+    if (u.pack_offer_until <= t && (u.level || 1) >= O.minLevel && t >= u.pack_offer_next) {
+      q('UPDATE users SET pack_offer_until = ?, pack_offer_next = ? WHERE id = ?').run(t + O.hours * 3600e3, t + O.everyDays * 86400e3, uid);
+      u = userRow(uid);
+    }
+    return packOfferOn(u) ? { until: u.pack_offer_until, mult: O.mult } : null;
+  }
+  // The packs as this player would get them now (shop list).
+  const packsFor = (uid) => (S.PACKS_ON_SALE ? S.PACKS.map((p) => ({ id: p.id, stars: p.stars, tag: p.tag || null, amount: packAmountFor(uid, p.id) })) : []);
   // `amount` comes from the invoice (fixed when it was made); without it the player's current amount is used.
   function creditPayment({ chargeId, userId, packId, stars, amount }) {
     return db.tx(() => {
@@ -5275,6 +5291,11 @@ export function createGame(db, opts = {}) {
       if (r.me && !hidden.has(uid)) r.me = { ...r.me, place: Math.max(1, r.me.place - before.filter((x) => x.place < r.me.place).length) };
       return r;
     };
+  }
+  // «Мега-пропозиція» on hryvnia packs: its state in `me` (the client shows the window, the shop badge and timer).
+  {
+    const meBase = handlers.me;
+    handlers.me = (uid, b) => ({ ...meBase(uid, b), packOffer: packOffer(uid) });
   }
   const api = Object.fromEntries(Object.entries(handlers).map(([k, fn]) => [k, (uid, body = {}) => db.tx(() => {
     const light = LIGHT.has(k);

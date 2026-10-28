@@ -19,10 +19,10 @@ function setup(t0 = Date.parse('2026-10-22T10:00:00Z'), extra = {}) {
 }
 const payments = (db, uid) => db.prepare('SELECT charge_id, pack, stars, amount FROM payments WHERE user_id = ? ORDER BY rowid').all(uid);
 
-test('shop: hryvnia packs are off sale, but old pack and item payments still credit (and refunds still work)', () => {
+test('shop: hryvnia packs are a separate list (not shop items); pack and item payments credit (and refunds still work)', () => {
   const { db, g, mk, call } = setup();
   mk(1);
-  assert.equal(S.PACKS_ON_SALE, false);
+  assert.equal(S.PACKS_ON_SALE, true); // owner 28.10: hryvnia packs back on sale
   const items = call(1, 'shop').items.map((i) => i.id);
   assert.ok(!items.some((id) => S.PACKS.some((p) => p.id === id)), 'no pack in the shop');
   assert.deepEqual(items.slice(0, 3), ['starter', 'vipsub', 'vip']);
@@ -226,7 +226,7 @@ async function botRun(game, updates) {
   }
 }
 
-test('bot: old packs declined at pre-checkout, the subscription accepted at its invoice price, renewals and refunds', async () => {
+test('bot: packs accepted at pre-checkout (on sale again), the subscription accepted at its invoice price, renewals and refunds', async () => {
   const { g, mk, call, at } = setup();
   mk(5);
   const from = { id: 5, first_name: 'U5' };
@@ -244,8 +244,7 @@ test('bot: old packs declined at pre-checkout, the subscription accepted at its 
     pq('q4', 'item:frame-neon:5:50', 50), // owned now: declined with the reason
   ]);
   const answers = calls.filter(([m]) => m === 'answerPreCheckoutQuery').map(([, b]) => [b.pre_checkout_query_id, b.ok, b.error_message || '']);
-  assert.deepEqual(answers.map((a) => a.slice(0, 2)), [['q1', false], ['q2', true], ['q3', true], ['q4', false]]);
-  assert.match(answers[0][2], /більше не продаються/);
+  assert.deepEqual(answers.map((a) => a.slice(0, 2)), [['q1', true], ['q2', true], ['q3', true], ['q4', false]]);
   assert.match(answers[3][2], /вже твій/);
   // Credited: the old pack's amount, VIP 30 days from the subscription, the frame; the second subscription refunded
   // and its renewal cancelled.

@@ -16,7 +16,7 @@ test('payment credits the amount fixed in the invoice; a broken amount falls bac
   const db = openDb(':memory:');
   const g = createGame(db, { now: () => Date.parse('2026-10-20T10:00:00Z'), notify: () => {} });
   g.ensureUser({ id: 1, first_name: 'A' });
-  db.prepare('UPDATE users SET balance = 0, level = 10, level_seen = 10 WHERE id = 1').run();
+  db.prepare('UPDATE users SET balance = 0, level = 10, level_seen = 10, pack_offer_next = 9e15 WHERE id = 1').run(); // no «мега-пропозиція» here
   const amount = g.packAmountFor(1, 'p1');
   assert.equal(amount, S.packAmount(S.PACKS[0], 10, 0));
   g.creditPayment({ chargeId: 'c1', userId: 1, packId: 'p1', stars: 50, amount });

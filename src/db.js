@@ -503,6 +503,9 @@ const MIGRATIONS = [
   "ALTER TABLE users ADD COLUMN push_mute TEXT NOT NULL DEFAULT ''",
   // Owner 27.10: an admin can hide a player from the ratings (and the weekly prizes) and show him again.
   'ALTER TABLE users ADD COLUMN lb_hidden INTEGER NOT NULL DEFAULT 0',
+  // «Мега-пропозиція» on hryvnia packs (S.PACK_OFFER): until when it runs and when the next one may start.
+  'ALTER TABLE users ADD COLUMN pack_offer_until INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE users ADD COLUMN pack_offer_next INTEGER NOT NULL DEFAULT 0',
   // «Більший бак» (S.TANK_UPGRADES): steps of the shared tank bought for ₴, 0 = the plain S.FUEL_MAX.
   'ALTER TABLE users ADD COLUMN tank_lvl INTEGER NOT NULL DEFAULT 0',
 ];
