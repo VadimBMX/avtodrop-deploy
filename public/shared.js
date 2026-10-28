@@ -1190,6 +1190,13 @@ export function dragReplay(stats, reaction, shiftAt, claims = []) {
 export const FUEL_MAX = 15;
 export const CAR_TANK = 5;
 export const FUEL_REGEN_MIN = 20;
+// «Більший бак» (player feedback 28.10): a permanent upgrade of the shared tank, bought in the garage with in-game ₴ only
+// (never Stars; VIP speeds the refill up but gives no tank). users.tank_lvl = how many steps are bought (0 = FUEL_MAX).
+export const TANK_UPGRADES = [{ max: 18, cost: 2000000, level: 5 }, { max: 21, cost: 10000000, level: 10 }, { max: 25, cost: 50000000, level: 15 }];
+export const fuelMaxOf = (lvl) => (lvl > 0 ? TANK_UPGRADES[Math.min(lvl, TANK_UPGRADES.length) - 1].max : FUEL_MAX);
+export const nextTank = (lvl) => TANK_UPGRADES[lvl || 0] || null;
+// «Каністра»: fuel earned by play — with the daily bonus and with every finished daily quest, never above the tank.
+export const CANISTER = { daily: 3, quest: 1 };
 // ---------- solo drag rivals (race2) ----------
 // A rival is a real car: a model of your class (a class above for a hard rival when your class has nothing faster)
 // with the parts it needs, and its shown power and time are that car's own (carStats). It is driven by RIVAL_AI.

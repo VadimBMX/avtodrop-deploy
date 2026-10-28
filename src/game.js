@@ -183,6 +183,8 @@ export function createGame(db, opts = {}) {
   // switches the speed exactly at the event's start and end, at most ×EVENT_CAPS.fuelTotal).
   const REGEN_MS = S.FUEL_REGEN_MIN * 60e3;
   const vipMult = (vip) => (vip ? S.VIP.fuelMult : 1);
+  // The player's own tank (S.TANK_UPGRADES «Більший бак»): every cap, refill and «бак повний» goes through this.
+  const fuelMax = (u) => S.fuelMaxOf(u?.tank_lvl || 0);
   // The per-car tank is gone (one shared tank): cars.tank stays unused and a car always reports a full one, so an app
   // from before never greys a car out.
   const tankState = () => ({ tank: S.CAR_TANK, next: null });
@@ -190,7 +192,7 @@ export function createGame(db, opts = {}) {
   function needFuel(f) {
     if (f.fuel >= 1) return;
     const min = f.next ? Math.max(1, Math.ceil((f.next - now()) / 60e3)) : S.FUEL_REGEN_MIN;
-    fail(`Пальне 0/${S.FUEL_MAX} — +1 через ${min} хв. Кейс нагород чи завдання можуть дати повний бак`);
+    fail(`Пальне 0/${f.max || S.FUEL_MAX} — +1 через ${min} хв. Кейс нагород чи завдання можуть дати повний бак`);
   }
   // All of one owner's cars at once (me, the garage value, income, a player card): their parts, plates and restyle ★
   // in three queries instead of three per car — the same values carParts / carPlate / restyleOf give one by one.
@@ -679,10 +681,32 @@ export function createGame(db, opts = {}) {
   }
 
   function fuelState(u) {
-    if (u.fuel >= S.FUEL_MAX) return { fuel: S.FUEL_MAX, at: now(), next: null, fullAt: u.fuel_at };
-    const r = S.regenAt(u.fuel_at, now(), REGEN_MS, S.FUEL_MAX - u.fuel, evOv, vipMult((u.vip_until || 0) > now()));
+    const max = fuelMax(u);
+    if (u.fuel >= max) return { fuel: max, max, at: now(), next: null, fullAt: u.fuel_at };
+    const r = S.regenAt(u.fuel_at, now(), REGEN_MS, max - u.fuel, evOv, vipMult((u.vip_until || 0) > now()));
     const fuel = u.fuel + r.n;
-    return { fuel, at: fuel >= S.FUEL_MAX ? now() : r.at, next: r.next, fullAt: fuel >= S.FUEL_MAX ? r.at : null };
+    return { fuel, max, at: fuel >= max ? now() : r.at, next: r.next, fullAt: fuel >= max ? r.at : null };
+  }
+  // Fuel into the shared tank (clubs' «Клубна заправка», «Каністра»), never above the player's own max (the same
+  // bookkeeping as a race start). Returns how much really went in.
+  function addFuel(uid, n) {
+    const f = fuelState(userRow(uid));
+    const v = Math.min(f.max, f.fuel + n);
+    if (v <= f.fuel) return 0;
+    q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(v, v >= f.max ? now() : f.at, uid);
+    return v - f.fuel;
+  }
+  // «Більший бак»: the next step for ₴ (from its level); what was in the tank stays, the regen goes on from where it was.
+  function tankUpgrade(uid) {
+    const u = userRow(uid);
+    const next = S.nextTank(u.tank_lvl);
+    if (!next) fail('Бак уже найбільший');
+    if (u.level < next.level) fail(`Більший бак — з ${next.level}-го рівня`);
+    const f = fuelState(u);
+    pay(uid, next.cost);
+    // A full tank starts its regen clock now (as after a race start from full); otherwise it keeps its own.
+    q('UPDATE users SET tank_lvl = tank_lvl + 1, fuel = ?, fuel_at = ? WHERE id = ?').run(f.fuel, f.fuel >= f.max ? now() : f.at, uid);
+    return { tankLvl: u.tank_lvl + 1, fuelMax: next.max };
   }
   function inventory(uid) {
     const cool = {};
@@ -725,7 +749,7 @@ export function createGame(db, opts = {}) {
       id: u.id, username: u.username, firstName: u.first_name, balance: u.balance, intro, guide,
       slots: u.slots, used: cars.filter((c) => c.status !== 'showcase').length, showcaseSlots: u.showcase_slots, capLevel: u.cap_level, fragments,
       income: { rate: Math.round(inc.rate), pending: inc.pending, capH: inc.capH, since: u.income_at, banked: u.banked, comebackUntil: u.comeback_cap_until > now() ? u.comeback_cap_until : 0 },
-      fuel: fuel.fuel, fuelNext: fuel.next, cars, keys, collection, pity, plates, parts: inventory(uid),
+      fuel: fuel.fuel, fuelNext: fuel.next, fuelMax: fuel.max, tankLvl: u.tank_lvl || 0, cars, keys, collection, pity, plates, parts: inventory(uid),
       level: u.level, levelSeen: u.level_seen, xp: u.xp, xpNeed: S.xpForLevel(u.level),
       xpToday: u.xp_day === day ? u.xp_day_capped : 0, xpCaseToday: u.xp_case_day === day ? u.xp_case_used : 0, newbie: newbieState(u),
       dailyReady: u.streak_day !== day, streak: u.streak, rewardCaseAt: u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3,
@@ -1433,7 +1457,7 @@ export function createGame(db, opts = {}) {
   function useFuel(uid) {
     const f = fuelState(userRow(uid));
     needFuel(f);
-    q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(f.fuel - 1, f.fuel >= S.FUEL_MAX ? now() : f.at, uid);
+    q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(f.fuel - 1, f.fuel >= f.max ? now() : f.at, uid);
   }
   // A race gets the car dirty (S.WASH.race / .drift, random in the range); the owner's income so far is banked first, at
   // the old dirt. Not from the game's random source (opts.random), so race rolls stay where they were.
@@ -1560,7 +1584,7 @@ export function createGame(db, opts = {}) {
     const c = carRow(car.id);
     q("UPDATE races SET status = 'expired' WHERE user_id = ? AND status = 'running'").run(uid);
     pay(uid, r.entry);
-    q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(f.fuel - 1, f.fuel >= S.FUEL_MAX ? now() : f.at, uid);
+    q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(f.fuel - 1, f.fuel >= f.max ? now() : f.at, uid);
     soil(c);
     const rr = lcg(Math.floor(rnd() * 2 ** 31));
     const rivalTime = S.rivalRun(rr, r);
@@ -1675,7 +1699,7 @@ export function createGame(db, opts = {}) {
     const money = hard ? bossHardMoney(b, car) : bossMoney(b, car, beaten);
     q("UPDATE races SET status = 'expired' WHERE user_id = ? AND status = 'running'").run(uid);
     pay(uid, money.entry);
-    q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(f.fuel - 1, f.fuel >= S.FUEL_MAX ? now() : f.at, uid);
+    q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(f.fuel - 1, f.fuel >= f.max ? now() : f.at, uid);
     q('INSERT INTO boss_runs (user_id, boss, tries) VALUES (?, ?, 1) ON CONFLICT DO UPDATE SET tries = tries + 1').run(uid, b.id);
     soil(c);
     const rivalTime = S.bossRun(lcg(Math.floor(rnd() * 2 ** 31)), hb);
@@ -2709,7 +2733,7 @@ export function createGame(db, opts = {}) {
       const rcAt = u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3;
       if (rcAt <= t) ready.push({ kind: 'rcase', at: rcAt, text: '📦 Кейс нагород готовий' });
       const fs = fuelState(u);
-      if (fs.fuel >= S.FUEL_MAX) ready.push({ kind: 'fuel', at: fs.fullAt, text: '⛽ Бак повний — час на заїзд' });
+      if (fs.fuel >= fs.max) ready.push({ kind: 'fuel', at: fs.fullAt, text: '⛽ Бак повний — час на заїзд' });
       // A game event began (one message per event, only in its first EVENT_PUSH_H hours).
       for (const e of evStarted.slice(0, 1)) ready.push({ kind: 'event', at: e.start, text: `🎉 Почалася подія «${S.eventInfo(e).title}»: ${S.EVENTS[e.id].text}` });
       const si = seasonInfo(u);
@@ -3149,7 +3173,7 @@ export function createGame(db, opts = {}) {
       got.isNew = isNew;
     }
     if (rw.caseId) addKeys(uid, rw.caseId, rw.count || 1);
-    if (rw.fuel) q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(S.FUEL_MAX, now(), uid);
+    if (rw.fuel) q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(fuelMax(userRow(uid)), now(), uid);
     if (rw.slots) q('UPDATE users SET slots = MIN(?, slots + ?) WHERE id = ?').run(S.MAX_SLOTS, rw.slots, uid);
     if (rw.seasonCar) {
       // Like a secret car it never pushes the garage over its limit: no room → it goes to the showcase.
@@ -3224,6 +3248,7 @@ export function createGame(db, opts = {}) {
     const rw = S.DAILY_BONUS[(streak - 1) % S.DAILY_BONUS.length];
     q('UPDATE users SET streak = ?, streak_day = ? WHERE id = ?').run(streak, day, uid);
     const got = grant(uid, rw);
+    got.canister = addFuel(uid, S.CANISTER.daily); // «Каністра»: +3 fuel, never above the tank
     if ((u.vip_until || 0) > now()) {
       addMoney(uid, S.VIP.daily);
       got.vip = S.VIP.daily;
@@ -3478,8 +3503,9 @@ export function createGame(db, opts = {}) {
     if (r.progress < r.target) fail('Завдання ще не виконано');
     q('UPDATE quests SET claimed = 1 WHERE user_id = ? AND day = ? AND key = ?').run(uid, day, r.key);
     addMoney(uid, r.reward);
+    const canister = addFuel(uid, S.CANISTER.quest); // «Каністра»: +1 fuel per daily quest, never above the tank
     xp(uid, 'quest');
-    return { got: r.reward };
+    return { got: r.reward, canister };
   }
 
   // ---------- weekly route (S.WEEKLY_QUESTS, S.WEEK_CHEST) ----------
@@ -3568,7 +3594,7 @@ export function createGame(db, opts = {}) {
     const big = away >= C.bigDays * D;
     // Freeze income at the normal cap first, so the longer cap never pays for the hours spent away.
     bank(uid);
-    q('UPDATE users SET fuel = ?, fuel_at = ?, comeback_at = ? WHERE id = ?').run(S.FUEL_MAX, t, t, uid);
+    q('UPDATE users SET fuel = ?, fuel_at = ?, comeback_at = ? WHERE id = ?').run(fuelMax(userRow(uid)), t, t, uid);
     q('UPDATE cars SET tank = ?, tank_at = ? WHERE owner_id = ?').run(S.CAR_TANK, t, uid);
     const keys = [{ caseId: S.comebackKey(u.level), count: 1 }];
     if (big && S.levelKey(u.level) === keys[0].caseId) keys[0].count++;
@@ -3714,16 +3740,18 @@ export function createGame(db, opts = {}) {
   function rewardsAll(uid) {
     const snap = () => {
       const u = userRow(uid);
-      return { bal: u.balance, slots: u.slots, fuel: u.fuel, parts: q('SELECT COALESCE(SUM(count), 0) n FROM parts WHERE user_id = ?').get(uid).n,
+      return { bal: u.balance, slots: u.slots, fuel: fuelState(u).fuel, parts: q('SELECT COALESCE(SUM(count), 0) n FROM parts WHERE user_id = ?').get(uid).n,
         cos: new Set(q("SELECT key FROM claims WHERE user_id = ? AND key LIKE 'cos:%'").all(uid).map((r) => r.key)) };
     };
     const before = snap();
     const reveal = [], kinds = [];
+    let canister = 0; // «Каністра» fuel of the daily bonus and the quests (apart from a full-tank reward)
     const take = (kind, fn) => {
       db.exec('SAVEPOINT rewards_all');
       try {
         const r = fn();
         db.exec('RELEASE rewards_all');
+        canister += r?.canister || r?.reward?.canister || 0;
         kinds.push(kind);
         return r;
       } catch (e) {
@@ -3800,7 +3828,7 @@ export function createGame(db, opts = {}) {
     reveal.sort((a, b) => order[a.kind] - order[b.kind]);
     return {
       n: kinds.length, kinds, money: after.bal - before.bal, parts: after.parts - before.parts, slots: after.slots - before.slots,
-      fuel: after.fuel > before.fuel, cosmetics: [...after.cos].filter((k) => !before.cos.has(k)).map((k) => S.cosmeticOf(k)?.name).filter(Boolean), reveal,
+      fuel: after.fuel - before.fuel > canister, canister, cosmetics: [...after.cos].filter((k) => !before.cos.has(k)).map((k) => S.cosmeticOf(k)?.name).filter(Boolean), reveal,
     };
   }
   function seasonBoard(uid) {
@@ -3863,7 +3891,7 @@ export function createGame(db, opts = {}) {
     if (it.once) q('UPDATE users SET starter_bought = 1 WHERE id = ?').run(uid);
     if (it.id === 'pass') q('UPDATE users SET premium_season = ? WHERE id = ?').run(S.seasonOf(now()), uid);
     if (it.id === 'refuel') {
-      q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(S.FUEL_MAX, now(), uid);
+      q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(fuelMax(u), now(), uid);
       q('UPDATE cars SET tank = ?, tank_at = ? WHERE owner_id = ?').run(S.CAR_TANK, now(), uid);
     }
     if (it.id === 'cool') q('DELETE FROM parts_cool WHERE user_id = ?').run(uid);
@@ -4512,6 +4540,7 @@ export function createGame(db, opts = {}) {
        streak = 0, streak_day = NULL, reward_case_at = 0, total_value = 0, week_id = ?, week_start_value = 0, last_week_id = NULL, last_week_growth = NULL,
        cases_opened = 0, races = 0, wins = 0, merges = 0 WHERE id = ?`)
       .run(S.START_BALANCE, S.START_SLOTS, S.SHOWCASE_START, t, S.FUEL_MAX, t, weekOf(t), uid);
+    q('UPDATE users SET tank_lvl = 0 WHERE id = ?').run(uid); // «Більший бак» goes with the rest
     addKeys(uid, 'starter', 1);
     moneyFlow(S.START_BALANCE - balanceBefore);
     const why = String(reason ?? '').trim().slice(0, 200);
@@ -4902,7 +4931,7 @@ export function createGame(db, opts = {}) {
 
   const handlers = {
     me: (u) => me(u),
-    collect, 'buy-slot': buySlot, 'upgrade-cap': upgradeCap, sell, showcase, 'buy-showcase': buyShowcaseSlot,
+    collect, 'buy-slot': buySlot, 'upgrade-cap': upgradeCap, 'tank/upgrade': tankUpgrade, sell, showcase, 'buy-showcase': buyShowcaseSlot,
     'car/paint': paintCar, 'car/livery': liveryCar, 'car/paint-reset': paintReset,
     'wash/hand': washHand, 'wash/auto': washAuto,
     'case/open': openCase, 'case/history': dropHistory,
@@ -5061,13 +5090,7 @@ export function createGame(db, opts = {}) {
   // «Заїзд дня»), collected income gets the club's perk, and the rating / battles / day's board show members' tags.
   CL = createClubs({ db, q, now, fail, int, name, addMoney, pay, event, addKeys, userRow, weekOf, dayOf,
     alog: (...a) => alog(...a), asClub: (fn) => srcWrap('club', fn)(),
-    addFuel: (uid, n) => { // the shared tank, never above full (the same bookkeeping as a race start)
-      const f = fuelState(userRow(uid));
-      const v = Math.min(S.FUEL_MAX, f.fuel + n);
-      if (v <= f.fuel) return 0;
-      q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(v, v >= S.FUEL_MAX ? now() : f.at, uid);
-      return v - f.fuel;
-    } });
+    addFuel });
   Object.assign(handlers, CL.api);
   {
     const base = { ...handlers };

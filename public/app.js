@@ -103,6 +103,8 @@ const miniCar = (model, cls = '', look = null, dirt = 0) => `<div class="mini ar
 
 let config = { dev: false, packs: [], images: {} };
 let me = null;
+// The player's own tank (S.TANK_UPGRADES «Більший бак»; an old server without it → the plain fmax()).
+const fmax = () => me?.fuelMax || S.FUEL_MAX;
 let clockOffset = 0;
 const H = {};
 const state = {
@@ -438,12 +440,21 @@ function renderHeader() {
   $('#avatar').innerHTML = `${ring(me.level, me.xp, me.xpNeed)}<span class="face${photo ? ' photo' : ''}">${photo ? `<img src="${esc(photo)}" alt="" referrerpolicy="no-referrer">` : esc(initials)}</span><span class="lvl">${me.level}</span>`;
   paintGiftBadge(); // how many rewards wait (rewards center); first steps: one thing at a time
   syncRewardBanners();
+  paintCasesDot();
   $('#menuDot').hidden = !(me.incomingTrades || me.unread || claimableCollection() || me.newbie?.ready || me.achReady || me.season?.ready || me.questReady);
   $('#title').textContent = state.page ? PAGE_TITLES[state.page] : TITLES[state.tab];
   $('#title').classList.toggle('long', $('#title').textContent.length > 8);
   for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('on', b.dataset.tab === state.tab && !state.page);
   for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('locked', !!TAB_FEATURE[b.dataset.tab] && !isOpen(TAB_FEATURE[b.dataset.tab]));
   if (tg?.initData && tg.BackButton) state.page ? tg.BackButton.show() : tg.BackButton.hide();
+}
+// «Кейси» tab: a calm tab with a dot only when something can be opened for free right now — the starter case, a key
+// for any case, or a full set of key fragments (the server turns those into a key, this is only a safety net).
+function paintCasesDot() {
+  const dot = $('#casesDot');
+  if (!dot) return;
+  const free = Object.values(me.keys || {}).some((n) => n > 0) || Object.values(me.fragments || {}).some((n) => n >= S.FRAGMENTS_PER_KEY);
+  dot.hidden = !free;
 }
 function go(page) {
   state.page = page;
@@ -824,8 +835,9 @@ async function openRewards(result, auto = false) {
       const today = r.ready && i === r.nextDay - 1;
       return `<div class="day ${d.big ? 'big' : ''} ${today ? 'today' : ''} ${i < doneUpTo ? 'done' : ''}"><small>День ${i + 1}</small><div class="e">${i < doneUpTo ? ic('check') : e}</div><b>${esc(label)}</b>${d.caseId ? `<small class="day-cls">машина ${S.caseClassSpan(d.caseId)}</small>` : ''}</div>`;
     }).join('')}</div>
-    ${r.ready ? `<div class="day-now">${ic('gift')} <b>День ${r.nextDay}</b> — ${esc(S.dailyText(r.days[r.nextDay - 1]))}</div>` : ''}
+    ${r.ready ? `<div class="day-now">${ic('gift')} <b>День ${r.nextDay}</b> — ${esc(S.dailyText(r.days[r.nextDay - 1]))} <span class="muted">+ ${ic('gas-station')}${S.CANISTER.daily}</span></div>` : ''}
     <div class="tiny muted mt">Заходь щодня: на 5-й і 10-й день — машина, на 7-й — кейс «Спорткар» (машина ${S.caseClassSpan('sport')}), на 14-й — кейс «Еліта» (машина ${S.caseClassSpan('elite')}). Кейс відкривається одразу після «Забрати». Новий день — опівночі за Києвом. Пропустив день — нічого не згорає, продовжиш з того ж місця.</div>
+    <div class="tiny muted mt tk-can">${ic('gas-station')} Щодня ще й каністра: +${S.CANISTER.daily} пального до бонусу, +${S.CANISTER.quest} за кожне виконане завдання дня (не більше за бак)</div>
     ${r.vip ? `<div class="tiny mt" style="color:var(--accent)">${ic('crown')} VIP: ще +${S.short(r.vipDaily)} щодня до бонусу</div>` : `<div class="tiny muted mt">${ic('crown')} VIP додає ще +${S.short(r.vipDaily)} щодня</div>`}
     <button class="btn mt ${liveRewardClaims().length ? 'soft' : ''}" data-act="claimDaily" ${r.ready ? '' : 'disabled'}>${r.ready ? `Забрати · день ${r.nextDay}${r.days[r.nextDay - 1].caseId ? ' · відкрити кейс' : ''}` : 'Наступний опівночі · <span data-until="' + (S.kyivMidnightOf(S.kyivDateOf(serverNow()), 1) - clockOffset) + '"></span>'}</button></div>
     <div class="h2"><span>Кейс нагород</span><span>раз на ${S.REWARD_CASE_HOURS} год</span></div>
@@ -850,11 +862,11 @@ H.claimDaily = async () => {
   pulseSoon();
   const day = ((r.streak - 1) % S.DAILY_BONUS.length) + 1, rw = r.reward;
   if (rw.carOut || rw.caseId) {
-    if (rw.vip) toast(`${ic('crown')} VIP: +${S.short(rw.vip)}`);
+    if (rw.vip || rw.canister) toast([rw.canister ? `${ic('gas-station')} Каністра: +${rw.canister} пального` : '', rw.vip ? `${ic('crown')} VIP: +${S.short(rw.vip)}` : ''].filter(Boolean).join(' · '));
     const title = `Щоденний бонус · день ${day}`;
     return revealRewards([rw.carOut ? { kind: 'car', car: rw.carOut, isNew: rw.isNew, title } : { kind: 'key', caseId: rw.caseId, count: rw.count || 1, title }]);
   }
-  openRewards({ title: `День ${day}`, text: rewardText(rw) + (rw.items ? ': ' + rw.items.map((p) => S.PARTS[p.type].name).join(', ') : '') + (rw.vip ? ` + VIP ${S.short(rw.vip)}` : '') });
+  openRewards({ title: `День ${day}`, text: rewardText(rw) + (rw.items ? ': ' + rw.items.map((p) => S.PARTS[p.type].name).join(', ') : '') + (rw.vip ? ` + VIP ${S.short(rw.vip)}` : '') + (rw.canister ? ` + каністра ${rw.canister} пального` : '') });
 };
 // The reward case: a 2-second strip of what it can give stops on what came (the coins fly only then).
 H.claimRewardCase = async () => {
@@ -945,6 +957,7 @@ TABS.garage = () => {
     ${nextCap ? `<div class="cap-up"><span class="tiny muted">Повна каса не росте — поки не забереш, дохід стоїть.</span><button class="btn outline sm" data-act="upgradeCap">${ic('clock')} Каса на ${nextCap.hours} год${capPlus} · ${S.short(nextCap.cost)}</button></div>` : ''}
     <div class="tiny muted center mt cap-more">Каса вміщує ${i.capH} год доходу${nextCap ? ` · <a data-act="upgradeCap" class="txtlink">збільшити до ${nextCap.hours} год${capPlus} — ${S.short(nextCap.cost)}</a>` : ''}</div>
   </div>
+  ${tankCard()}
   ${dreamCard()}
   ${washHint(all)}
   <div class="h2 garage-h"><span>Машини <b>${all.length}</b>/${me.slots}</span>${all.length ? `<button class="hn-gsum" data-act="honestHelp"><span>Продаж усього гаража: <b>${S.short(sellTotal(all.filter((c) => !M(c.model).secret)))}</b></span><small>колекційна ціна ${S.short(total)} ${ic('info-circle')}</small></button>` : ''}</div>
@@ -1885,24 +1898,40 @@ const RIVAL_HONEST_TEXT = `Шанс — за медіаною ${S.RACE_FORM.runs
 // Fuel: one tank for every car — 15 slanted pips like the key fragments, a race of any kind takes one.
 function fuelCard(car, extra = '') {
   if (me.fuel < 1) return fuelOut();
-  return `<div class="card fuelcard mt"><div class="row between"><span class="hook-t">${ic('gas-station')} Пальне</span><b class="fuel-n">${me.fuel}<small>/${S.FUEL_MAX}</small></b></div>
-    <div class="pips fuel">${Array.from({ length: S.FUEL_MAX }, (_, i) => `<i class="${i < me.fuel ? 'on' : ''}"></i>`).join('')}</div>
+  return `<div class="card fuelcard mt"><div class="row between"><span class="hook-t">${ic('gas-station')} Пальне</span><b class="fuel-n">${me.fuel}<small>/${fmax()}</small></b></div>
+    <div class="pips fuel">${Array.from({ length: fmax() }, (_, i) => `<i class="${i < me.fuel ? 'on' : ''}"></i>`).join('')}</div>
     <div class="row between small"><span class="muted">${me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : 'Бак повний'}</span><span class="muted">заїзд = 1 пальне</span></div>
     ${extra || `<div class="tiny muted mt">Один бак на всі машини, +1 кожні ${S.FUEL_REGEN_MIN} хв · ${car.hp} к.с. · ${dec(car.et, 2)} с на 402 м</div>`}</div>`;
 }
+// «Більший бак» in the garage: the tank now (n/max, when the next one comes) and the next step for ₴ — from its level,
+// confirmed with a second tap like the other garage purchases. Earned fuel («Каністра») is told in the rewards.
+function tankCard() {
+  if (me.level < 2) return ''; // the first minutes: cases and the first race only
+  const next = S.nextTank(me.tankLvl), f = fuelNow();
+  const when = f >= fmax() ? 'бак повний' : me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : '';
+  const up = !next ? '<span class="tk-max tiny muted">найбільший бак</span>'
+    : me.level < next.level ? `<span class="tk-lock tiny muted">${ic('lock')} ${next.max} — з ${next.level} рівня</span>`
+    : `<button class="btn sm outline tk-buy" data-act="tankUp">${ic('gas-station')} Бак ${next.max} · ${S.short(next.cost)}</button>`;
+  return `<div class="card tk-card"><div class="tk-row"><span class="tk-ic">${ic('gas-station')}</span><div class="grow tk-tx"><b>Бак <span class="tk-n">${f}<small>/${fmax()}</small></span></b><span class="tiny muted">${when}</span></div>${up}</div>
+    ${next && me.level >= next.level ? `<div class="tiny muted tk-note">Назавжди: +${next.max - fmax()} пального в баку на всі машини. Без зірок — лише за гривні.</div>` : ''}</div>`;
+}
+H.tankUp = (d, el) => {
+  const next = S.nextTank(me.tankLvl);
+  if (next && armed(el, `<b>Точно купити?</b><span>${S.short(next.cost)}</span>`)) act('tank/upgrade', {}, (r) => `Бак тепер ${r.fuelMax}`);
+};
 // D-race: the same tank as one compact row (15 pips, n/15, when the next one comes) in the rivals' header.
 function fuelRow(car) {
   return `<div class="dr-fuel" title="Один бак на всі машини, +1 кожні ${S.FUEL_REGEN_MIN} хв · ${car.hp} к.с. · ${dec(car.et, 2)} с на 402 м">${ic('gas-station')}
-    <span class="pips fuel">${Array.from({ length: S.FUEL_MAX }, (_, i) => `<i class="${i < me.fuel ? 'on' : ''}"></i>`).join('')}</span>
-    <b>${me.fuel}<small>/${S.FUEL_MAX}</small></b><span class="dr-fuel-t">${me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : 'бак повний'}</span></div>`;
+    <span class="pips fuel">${Array.from({ length: fmax() }, (_, i) => `<i class="${i < me.fuel ? 'on' : ''}"></i>`).join('')}</span>
+    <b>${me.fuel}<small>/${fmax()}</small></b><span class="dr-fuel-t">${me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : 'бак повний'}</span></div>`;
 }
 // An empty tank: the rivals below grey out (CSS .fuel-out ~ .rivals) and this card says when the next one comes and
 // what to do meanwhile — instead of an error toast on a tap. The screen redraws itself when the fuel is back.
 function fuelOut(train = true) {
   fuelBackSoon();
   const next = me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : 'скоро +1';
-  return `<div class="card fuelcard fuel-out mt" id="fuelOut"><div class="row between"><span class="hook-t">${ic('gas-station')} Пальне ${me.fuel}/${S.FUEL_MAX}</span><b class="fuel-next">${next}</b></div>
-    <div class="pips fuel">${Array.from({ length: S.FUEL_MAX }, () => '<i></i>').join('')}</div>
+  return `<div class="card fuelcard fuel-out mt" id="fuelOut"><div class="row between"><span class="hook-t">${ic('gas-station')} Пальне ${me.fuel}/${fmax()}</span><b class="fuel-next">${next}</b></div>
+    <div class="pips fuel">${Array.from({ length: fmax() }, () => '<i></i>').join('')}</div>
     ${train ? `<div class="small">Поки бак наповнюється — потренуйся в дрифті: тренування безкоштовне, без пального, з підказками над кожним поворотом.</div>
     <button class="btn mt fh-train" data-act="fuelTrain">${ic('target-arrow')} Тренування дрифту · безкоштовно</button>
     <div class="tiny muted mt">Або відкрий кейс чи забери нагороду: кейс нагород буває з повним баком.</div>
@@ -1919,12 +1948,12 @@ function fuelBackSoon() {
   }, Math.min(2 ** 31 - 1, Math.max(1000, me.fuelNext - serverNow() + 600)));
 }
 // Fuel as of now (the last `me` may be a few minutes old: the next one may have come since).
-const fuelNow = () => me.fuel + (me.fuel < S.FUEL_MAX && me.fuelNext && serverNow() >= me.fuelNext ? 1 : 0);
+const fuelNow = () => me.fuel + (me.fuel < fmax() && me.fuelNext && serverNow() >= me.fuelNext ? 1 : 0);
 // A tap on a greyed rival: point at the card instead of an error.
 function fuelNudge() {
   const card = $('#fuelOut');
   haptic('warning');
-  if (!card) return toast(`Пальне 0/${S.FUEL_MAX}`);
+  if (!card) return toast(`Пальне 0/${fmax()}`);
   card.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   FX.shake(card, 360);
 }
@@ -2574,7 +2603,7 @@ function raceResult() {
         <div class="dr-chips">${r.shifts.map((q, i) => `<span class="qchip q-${q}">${i + 1}→${i + 2} ${QLABEL[q]}</span>`).join('')}</div></div></div>
       ${tip ? `<div class="dr-tip">${ic('info-circle')}<span>${tip}</span></div>` : ''}</div>
     ${challengeCta(R)}</div>
-    <div class="dr-dock"><div class="dr-btns"><button class="btn yellow btn2" data-act="raceRetry" data-rival="${esc(R.rival.id)}" ${me.fuel < 1 ? 'disabled' : ''}><span>${ic('refresh')} Ще раз</span><small>${R.rival.label ? `${esc(R.rival.label)} · ` : ''}${ic('gas-station')}${me.fuel}/${S.FUEL_MAX}</small></button>
+    <div class="dr-dock"><div class="dr-btns"><button class="btn yellow btn2" data-act="raceRetry" data-rival="${esc(R.rival.id)}" ${me.fuel < 1 ? 'disabled' : ''}><span>${ic('refresh')} Ще раз</span><small>${R.rival.label ? `${esc(R.rival.label)} · ` : ''}${ic('gas-station')}${me.fuel}/${fmax()}</small></button>
       <button class="btn ghost" data-act="raceExit">Інший суперник</button></div></div>`;
 }
 // ---------- drift («Дрифт 2.0») ----------
@@ -2640,7 +2669,7 @@ async function driftView(car, garage) {
   const dots = S.driftDots(model);
   return `<div class="h2"><span>Твоя машина</span><span>${garage.length}</span></div>
     <div class="carpick dr-strip">${garage.map((c) => carTile(c, { act: 'pickRaceCar', sel: c.id === car.id, showTank: true })).join('')}</div>
-    ${me.fuel < 1 ? fuelOut(false) : ''}<div class="card mt"><div class="row between"><b class="disp" style="font-size:16px">${ic('gas-station')} Пальне ${me.fuel}/${S.FUEL_MAX}</b><span class="small muted">${me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}"></span>` : 'бак повний'}</span></div>
+    ${me.fuel < 1 ? fuelOut(false) : ''}<div class="card mt"><div class="row between"><b class="disp" style="font-size:16px">${ic('gas-station')} Пальне ${me.fuel}/${fmax()}</b><span class="small muted">${me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}"></span>` : 'бак повний'}</span></div>
       <div class="dfeel mt"><div class="row between"><span>Тримається в повороті</span>${dDots(dots.hold)}</div><div class="row between"><span>Швидкість</span>${dDots(dots.speed)}</div></div>
       <div class="tiny muted mt">Підвіска й диски — машина краще тримається в повороті. Потужність — більше швидкості, але занос різкіший.</div></div>
     ${train && prefGet('driftWon') ? `<div class="card mt dtrain-row"><span class="grow">${ic('target-arrow')} <b>Тренування</b> · безкоштовно</span><button class="btn sm ghost" data-act="startDrift" data-rival="train">${ic('player-play')} Тренуватися</button></div>`
@@ -3076,7 +3105,7 @@ function driftResult() {
         <div class="tiny muted">у зоні ${c.zone}% · центр ${c.ideal}% · лінія ${c.line}% · ${Math.round((c.kmh * DRIFT_KMH) / 3.6)} км/год</div></div>
       <div class="dp"><b>${dPts(c.pts)}</b><small>${c.base}${c.mult > 1 ? ' ' + dMult(c.mult) : ''}</small></div></div>`).join('')}</div>` : ''}
     </div><div class="dr-dock"><div class="dr-btns">${r.training ? '<button class="btn yellow" data-act="driftTrainAgain">Ще тренування</button>'
-      : `<button class="btn yellow btn2" data-act="driftAgain" ${me.fuel < 1 ? 'disabled' : ''}><span>${ic('refresh')} Ще дрифт</span><small>${ic('gas-station')}${me.fuel}/${S.FUEL_MAX}</small></button>`}
+      : `<button class="btn yellow btn2" data-act="driftAgain" ${me.fuel < 1 ? 'disabled' : ''}><span>${ic('refresh')} Ще дрифт</span><small>${ic('gas-station')}${me.fuel}/${fmax()}</small></button>`}
     <button class="btn ghost" data-act="driftExit">До суперників</button></div></div>`;
 }
 H.driftTrainAgain = () => {
@@ -3318,7 +3347,7 @@ function bossResult() {
     + reward
     + challengeCta(R) + '</div><div class="dr-dock"><div class="dr-btns">'
     + (nx && bo.first ? `<button class="btn yellow" data-act="bossNext" data-id="${nx.id}"><span class="ellipsis">Далі: ${esc(nx.nick)}</span></button>`
-      : `<button class="btn yellow btn2" data-act="bossAgain" data-id="${b.id}" ${hard && !r.win ? 'data-hard="1"' : ''} ${me.fuel < 1 ? 'disabled' : ''}><span>${ic('refresh')} ${r.win ? 'Реванш' : 'Ще спроба'}</span><small>${hard && !r.win ? 'складний · ' : ''}${ic('gas-station')}${me.fuel}/${S.FUEL_MAX}</small></button>`)
+      : `<button class="btn yellow btn2" data-act="bossAgain" data-id="${b.id}" ${hard && !r.win ? 'data-hard="1"' : ''} ${me.fuel < 1 ? 'disabled' : ''}><span>${ic('refresh')} ${r.win ? 'Реванш' : 'Ще спроба'}</span><small>${hard && !r.win ? 'складний · ' : ''}${ic('gas-station')}${me.fuel}/${fmax()}</small></button>`)
     + `<button class="btn ghost" data-act="raceExit">До кар’єри</button></div></div>`;
 }
 H.bossAgain = (d) => {
@@ -5308,11 +5337,12 @@ async function dailyQuests() {
   const { list } = await api('quests');
   return `${firstStepsCard()}
     <div class="h2"><span>На сьогодні</span><span>оновлюються опівночі</span></div>
-    ${list.map((x) => questCard({ text: countFix(x.text), progress: x.progress, target: x.target, claimed: x.claimed, reward: `${ic('gift')} ${S.fmt(x.reward)} · +${S.XP.quest} досвіду`,
+    ${list.map((x) => questCard({ text: countFix(x.text), progress: x.progress, target: x.target, claimed: x.claimed, reward: `${ic('gift')} ${S.fmt(x.reward)} · +${S.CANISTER.quest} ${ic('gas-station')} · +${S.XP.quest} досвіду`,
       btn: x.progress < x.target ? '' : `<button class="btn sm" data-act="questClaim" data-k="${x.key}">Забрати</button>` })).join('')}`;
 }
 H.newbieQuest = () => act('newbie/claim', {}, (r) => `+${S.fmt(r.got)}`);
-H.questClaim = (d) => act('quests/claim', { key: d.k }, (r) => `+${S.fmt(r.got)}`);
+const questClaimText = (r) => `+${S.fmt(r.got)}${r.canister ? ` · +${r.canister} пального` : ''}`;
+H.questClaim = (d) => act('quests/claim', { key: d.k }, questClaimText);
 
 // ---------- rewards center & reveal (wave E: audit №7, №8, feature 3) ----------
 // Cars and case keys from rewards (daily bonus, season pass, sets, «Забрати все», bosses, a friend's invite) come the
@@ -5392,7 +5422,7 @@ function rewardsAllCard() {
     <button class="btn yellow mt" data-act="claimAll">${ic('gift')} Забрати все (${list.length})</button>
     <div class="tiny muted center mt">Гроші, деталі й пальне — одразу; машини й ключі покажемо по черзі</div></div>`;
 }
-const claimAllText = (r) => [`Забрано: ${r.n}`, r.money > 0 ? '+' + S.short(r.money) : '', r.parts > 0 ? `деталі ×${r.parts}` : '', r.slots > 0 ? `+${r.slots} ${plural(r.slots, ['місце', 'місця', 'місць'])} в гаражі` : '', r.fuel ? 'повний бак' : '', ...(r.cosmetics || [])].filter(Boolean).join(' · ');
+const claimAllText = (r) => [`Забрано: ${r.n}`, r.money > 0 ? '+' + S.short(r.money) : '', r.parts > 0 ? `деталі ×${r.parts}` : '', r.slots > 0 ? `+${r.slots} ${plural(r.slots, ['місце', 'місця', 'місць'])} в гаражі` : '', r.fuel ? 'повний бак' : '', r.canister > 0 ? `+${r.canister} пального` : '', ...(r.cosmetics || [])].filter(Boolean).join(' · ');
 H.claimAll = async () => {
   const fromSheet = !$('#modal').hidden;
   const r = await act('rewards/all', {}, claimAllText, { rerender: false });
@@ -5537,7 +5567,7 @@ async function rvlRewardCase(it) {
   // D-reveal: each kind has its own object — a stack of notes, the part itself, a jerrycan with the 15 fuel marks.
   const big = win[0] === 'part' ? partArt(win[1].type, win[1].tier, 'lg')
     : win[0] === 'money' ? `<span class="rc-bills" aria-hidden="true"><i></i><i></i><i>₴</i></span>`
-      : `<span class="rc-big-ic">${ic('gas-station')}</span><span class="rc-ticks">${'<i></i>'.repeat(S.FUEL_MAX)}</span>`;
+      : `<span class="rc-big-ic">${ic('gas-station')}</span><span class="rc-ticks">${'<i></i>'.repeat(fmax())}</span>`;
   const name = win[0] === 'money' ? `+${S.fmt(win[1])}` : win[0] === 'fuel' ? 'Повний бак' : S.partLabel(win[1].type, win[1].tier);
   const sub = win[0] === 'money' ? 'на рахунок' : win[0] === 'fuel' ? 'загальний бак заправлено' : 'деталь — у Майстерні';
   $('#rvlStage').outerHTML = `<div class="rc-big pop k-${win[0]}" id="rvlBig" style="--c:${color}">${big}</div>`;
@@ -6518,7 +6548,7 @@ function storeMain(sh) {
   <button class="card row st-style-promo" data-act="storeView" data-k="style"><span class="ic tint" style="--c:#b48cff">${ic('sparkles')}</span><div class="grow"><b>Стиль</b><div class="tiny muted">рамки номерів, фони вітрини, лівреї, колір імені — лише вигляд, без характеристик</div></div><span class="chev">${ic('chevron-right')}</span></button>
   <div class="card row"><span class="ic tint" style="--c:#ffc400">${ic('ticket')}</span><div class="grow"><b>Преміум-пропуск · Сезон ${me.season.id}</b><div class="tiny muted">Друга доріжка нагород і машина сезону</div></div>${sh.premium ? '<span class="chip">куплено</span>' : storeBuyBtns(it.pass, sh)}</div>
   <div class="h2"><span>Зручності</span></div>
-  ${[['refuel', 'gas-station', `Пальне ${S.FUEL_MAX}/${S.FUEL_MAX} одразу`], ['cool', 'wind', 'Зняті деталі одразу готові'], ['slot', 'building-warehouse', `Зараз ${me.slots} місць · кожне наступне ×2`]].map(([id, icon, sub]) => `<div class="card row"><span class="ic tint" style="--c:#8a94a7">${ic(icon)}</span><div class="grow"><b>${esc(it[id].name)}</b><div class="tiny muted">${sub}</div></div>${storeBuyBtns(it[id], sh, 'ghost')}</div>`).join('')}`;
+  ${[['refuel', 'gas-station', `Пальне ${fmax()}/${fmax()} одразу`], ['cool', 'wind', 'Зняті деталі одразу готові'], ['slot', 'building-warehouse', `Зараз ${me.slots} місць · кожне наступне ×2`]].map(([id, icon, sub]) => `<div class="card row"><span class="ic tint" style="--c:#8a94a7">${ic(icon)}</span><div class="grow"><b>${esc(it[id].name)}</b><div class="tiny muted">${sub}</div></div>${storeBuyBtns(it[id], sh, 'ghost')}</div>`).join('')}`;
 }
 // ---- «Стиль»: classes of what a player wears (S.styleWorn ids → CSS), used on every screen that shows a player ----
 const styleCls = (prefix, id) => { const l = id && S.styleLook(id); return l ? ` ${prefix}-${l}` : ''; };
@@ -7046,7 +7076,7 @@ H.bannerClaim = async (d) => {
   if (c.kind === 'rcase') return H.claimRewardCase();
   if (c.kind === 'income') return H.collect();
   if (c.kind === 'newbie') return act('newbie/claim', {}, (r) => `+${S.fmt(r.got)}`);
-  if (c.kind === 'quest') return act('quests/claim', { key: c.id }, (r) => `+${S.fmt(r.got)}`);
+  if (c.kind === 'quest') return act('quests/claim', { key: c.id }, questClaimText);
   if (c.kind === 'weekly') return H.wkClaim({ k: c.id });
   if (c.kind === 'wchest') return H.wkChest({ d: c.id });
   if (c.kind === 'coll') return act('collection/claim', { key: c.id }, collClaimText).then(wowSecret);
@@ -7402,7 +7432,7 @@ async function challengeView(id) {
         <div class="carpick">${garage.map((c) => carTile(c, { act: 'challengePick', sel: c.id === state.chCar })).join('')}</div></div>`;
   const vs = car ? `<div class="chg-vs"><div><small>Ти</small><b class="ellipsis">${esc(M(car.model).name)}</b><span>${clsBadge(M(car.model).cls)} ${car.hp} к.с. · ~${dec(car.et, 2)} с</span></div>
       <i>VS</i><div><small>${ic('ghost')} Привид</small><b class="ellipsis">${esc(m.name)}</b><span>${clsBadge(m.cls)} ${ch.car.hp} к.с. · ${chT(ch.time)}</span></div></div>` : '';
-  const fuel = d.free ? 'перша спроба — без пального' : `спроба = 1 пальне · ${me.fuel}/${S.FUEL_MAX}`;
+  const fuel = d.free ? 'перша спроба — без пального' : `спроба = 1 пальне · ${me.fuel}/${fmax()}`;
   return hero + (my?.tries ? `<div class="card chg-my"><span>Твої заїзди: <b>${my.tries}</b></span><span>найкращий <b class="${my.won ? 'win' : ''}">${chT(my.best)}</b></span><span class="chip ${my.won ? 'chg-won' : 'chg-lost'}">${my.won ? 'побив' : 'ще не побив'}</span></div>` : '')
     + pick + vs
     + `<div class="small center mt chg-prize">${prizeTxt}</div>
@@ -7467,7 +7497,7 @@ function ghostResult() {
     + whyHtml(whyLines(R.car, { model: R.rival.model, parts: R.rival.parts || {} }, r))
     + told
     + challengeCta(R, r.win ? 'Кинути виклик у відповідь' : 'Кинути свій виклик')
-    + `<div class="dr-btns">${again ? `<button class="btn yellow btn2" data-act="challengeAgain" data-id="${esc(R.chId || R.rival.ghost)}" ${me.fuel < 1 ? 'disabled' : ''}><span>${ic('refresh')} Реванш</span><small>${ic('gas-station')}${me.fuel}/${S.FUEL_MAX}</small></button>` : ''}
+    + `<div class="dr-btns">${again ? `<button class="btn yellow btn2" data-act="challengeAgain" data-id="${esc(R.chId || R.rival.ghost)}" ${me.fuel < 1 ? 'disabled' : ''}><span>${ic('refresh')} Реванш</span><small>${ic('gas-station')}${me.fuel}/${fmax()}</small></button>` : ''}
       <button class="btn outline" data-act="challengeBack" data-id="${esc(R.chId || R.rival.ghost)}">До виклику</button></div>`;
 }
 

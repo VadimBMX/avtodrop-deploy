@@ -4577,3 +4577,22 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .dr-car.rv .ww { filter: brightness(.9); }
 .drag.ghost .dr-car.rv .ww { filter: none; }
 @media (prefers-reduced-motion: reduce) { .ww { display: none; } }
+
+/* ---------- N1 fuel: «Кейси» is a calm tab like the others (no raised yellow-outlined button that reads as «something
+   waits»); the dot (#casesDot, the same as the Menu dot) shows only when a case can be opened for free ---------- */
+.tabs button[data-tab="cases"] .i { box-sizing: border-box; width: 1.15em; height: 1.15em; padding: 0; margin: 0; border-radius: 0; color: inherit; background: none; box-shadow: none; }
+.tabs button[data-tab="cases"].on .i { background: none; }
+.tabs button[data-tab="cases"].on::before { display: block; }
+.tabs button[data-tab="cases"]:not(.on) span { color: var(--muted); }
+
+/* ---------- N1 fuel: «Більший бак» row in the garage ---------- */
+.tk-card { padding: 12px 14px; }
+.tk-row { display: flex; align-items: center; gap: 10px; }
+.tk-ic { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--r-sm, 10px); background: var(--card2); color: var(--muted); font-size: 18px; }
+.tk-tx { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.tk-tx b { font: 600 15px var(--f-disp); }
+.tk-n small { color: var(--muted); font-weight: 500; }
+.tk-buy { flex: none; white-space: nowrap; }
+.tk-lock, .tk-max { flex: none; white-space: nowrap; }
+.tk-note { margin-top: 8px; }
+@media (max-width: 370px) { .tk-buy { padding-left: 10px; padding-right: 10px; } }

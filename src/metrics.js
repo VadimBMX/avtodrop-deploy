@@ -49,7 +49,7 @@ export const MONEY_GROUPS = [
   { key: 'sales', name: 'Продаж дилеру', src: ['sell', 'parts/sell', 'parts/sell-junk', 'plate/sell', 'dealer/'] },
   { key: 'races', name: 'Гонки, дрифт, PvP', src: ['race/', 'boss/', 'drift/', 'pvp/'] },
   { key: 'garage', name: 'Дохід гаража', src: ['collect'] },
-  { key: 'upkeep', name: 'Гараж і тюнінг', src: ['buy-slot', 'upgrade-cap', 'buy-showcase', 'showcase', 'wash/', 'car/', 'plate/', 'parts/', 'upgrade', 'dream/'] },
+  { key: 'upkeep', name: 'Гараж і тюнінг', src: ['buy-slot', 'upgrade-cap', 'buy-showcase', 'showcase', 'wash/', 'car/', 'plate/', 'parts/', 'upgrade', 'dream/', 'tank/'] },
   { key: 'rewards', name: 'Нагороди', src: ['rewards', 'newbie/', 'quests/', 'weekly', 'ach/', 'sets/', 'collection/', 'season', 'promo', 'rescue/', 'gifts/', 'comeback'] },
   { key: 'levels', name: 'Рівні й реферали', src: ['level'] },
   { key: 'start', name: 'Старт новачка', src: ['signup'] },
