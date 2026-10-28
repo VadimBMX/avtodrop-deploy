@@ -3951,6 +3951,25 @@ export function createGame(db, opts = {}) {
       dayDeal: dayDealOut(u),
     };
   }
+  // Owner 28.10: every real Stars payment (a pack, VIP, the pass, «Стиль», deals — not refunds, not repeats of the same
+  // charge, not the season-prize stars on the account) is told by the bot to the owners (ADMIN_IDS) and to the admin
+  // PAY_ALERT_USERNAMES (by @username, once he has pressed /start in the bot) — nobody else.
+  const PAY_ALERT_USERNAMES = ['gavryl11uk'];
+  function payAlert(uid, what, stars) {
+    const u = q('SELECT username, first_name FROM users WHERE id = ?').get(uid) || {};
+    const ids = new Set(opts.admins || []);
+    for (const un of PAY_ALERT_USERNAMES) {
+      const r = q('SELECT id FROM users WHERE lower(username) = lower(?)').get(un);
+      if (r) ids.add(r.id);
+    }
+    const who = `${u.first_name || name(uid)}${u.username ? ` (@${u.username})` : ''}, ID ${uid}`;
+    const text = `💰 Донат! ${who} ${what} — ⭐ ${stars}`;
+    for (const id of ids) {
+      try {
+        notify(id, text);
+      } catch {}
+    }
+  }
   // Paid from the stars on the account (season prizes).
   function buyWithStars(uid, { item }) {
     if (S.SHOP_BY_ID[String(item)]?.sub) fail('Підписка оформлюється лише через Telegram Stars — з рахунку можна взяти VIP на 14 днів');
@@ -3983,6 +4002,7 @@ export function createGame(db, opts = {}) {
         out.sub = subOut(subRow(userId));
       }
       event(userId, renewal ? `⭐ VIP-підписку продовжено ще на ${S.VIP_SUB.days} днів` : `⭐ Оплата пройшла! ${it.name} — уже твоє`);
+      payAlert(userId, `${renewal ? 'продовжив підписку' : 'купив'} «${it.name}»`, stars);
       return out;
     });
   }
@@ -4096,6 +4116,7 @@ export function createGame(db, opts = {}) {
       q('INSERT INTO payments (charge_id, user_id, pack, stars, amount, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(chargeId, userId, pack.id, stars, got, now());
       addMoney(userId, got);
       event(userId, `⭐ Оплата пройшла! +${S.fmt(got)}`);
+      payAlert(userId, `купив пакет ${S.short(got)} ₴`, stars);
       return { amount: got };
     });
   }
