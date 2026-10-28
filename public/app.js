@@ -1461,7 +1461,7 @@ function brokeCard() {
 H.brokeTab = (d) => document.querySelector(`#tabs button[data-tab="${d.tab}"]`)?.click();
 H.rescueClaim = async () => {
   if (await act('rescue/claim', {}, 'Безкоштовний кейс уже чекає!', { rerender: false })) {
-    state.tab = 'cases'; state.page = null; state.caseId = 'rust'; state.count = 1; state.drop = null;
+    state.tab = 'cases'; state.page = null; state.caseId = 'rust'; state.count = 1; state.countWant = 1; state.drop = null;
     render();
   }
 };
@@ -1473,9 +1473,14 @@ TABS.cases = () => {
   // that no longer fits steps down by itself (×3 → ×1 with 2 free places); «Не вистачає місця для ×N» shows only once
   // the player picks that count after the drop (audit №13).
   const onDrop = !!state.drop?.some(dropAlive);
-  if (onDrop && !cs.starter && !state.countPicked && me.slots - me.used < state.count) {
-    const fit = [6, 3, 1].find((k) => k <= me.slots - me.used);
-    if (fit) state.count = fit;
+  // 28.10 (players: «після кожного прокруту перекидає на меншу кількість»): the step-down is only for this drop screen —
+  // the player's own pick (state.countWant) comes back by itself once the places are free again.
+  if (!cs.starter && !state.countPicked) {
+    const want = state.countWant || state.count, free = me.slots - me.used;
+    if (onDrop && free < want) {
+      const fit = [6, 3, 1].find((k) => k <= free);
+      if (fit) state.count = fit;
+    } else state.count = want;
   }
   const n = cs.starter ? 1 : state.count;
   const deal = caseNow(cs); // case of the day / game events (S.caseDeal, the same rules as the server)
@@ -1634,7 +1639,7 @@ H.sellDrops = (d, el) => {
   const sum = sellTotal(state.drop.filter(dropAlive).map((r) => r.car));
   if (armed(el, `Точно продати? · ${S.short(sum)}`)) sellDrops(ids);
 };
-H.pickCount = (d) => (state.count = Number(d.n), state.countPicked = true, render());
+H.pickCount = (d) => (state.count = state.countWant = Number(d.n), state.countPicked = true, render());
 H.toggleFast = () => (state.fast = !state.fast, render());
 // Right after a drop, «Продати все», the total and «Відкрити ще» wait until every card has flipped in (owner 23.10: with
 // the quick open you saw the money and sold before looking at the cars). Pure CSS (.lockin): hidden, then shown.
@@ -5763,7 +5768,7 @@ H.rvlToCases = () => {
     state.tab = 'cases';
     state.page = null;
     if (caseId) state.caseId = caseId;
-    state.count = 1;
+    state.count = state.countWant = 1;
     state.drop = null;
     render();
   });
@@ -7292,7 +7297,7 @@ H.bannerClaim = async (d) => {
     state.tab = 'cases';
     state.page = null;
     state.caseId = 'rust';
-    state.count = 1;
+    state.count = state.countWant = 1;
     render();
   }
 };
