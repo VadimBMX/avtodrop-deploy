@@ -506,6 +506,8 @@ const MIGRATIONS = [
   // «Мега-пропозиція» on hryvnia packs (S.PACK_OFFER): until when it runs and when the next one may start.
   'ALTER TABLE users ADD COLUMN pack_offer_until INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE users ADD COLUMN pack_offer_next INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE users ADD COLUMN fuel_deal_until INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE users ADD COLUMN fuel_deal_next INTEGER NOT NULL DEFAULT 0',
   // «Більший бак» (S.TANK_UPGRADES): steps of the shared tank bought for ₴, 0 = the plain S.FUEL_MAX.
   'ALTER TABLE users ADD COLUMN tank_lvl INTEGER NOT NULL DEFAULT 0',
 ];

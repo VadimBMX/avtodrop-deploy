@@ -3880,6 +3880,7 @@ export function createGame(db, opts = {}) {
     if (it.id === 'slot' && u.slots >= S.MAX_SLOTS) fail('Максимум місць');
     if (it.cos && q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(uid, it.cos)) fail('Цей предмет «Стилю» вже твій');
     if (it.sub && subActive(uid)) fail('VIP-підписка вже діє — керувати нею можна в магазині');
+    if (it.deal && !(u.fuel_deal_until > now())) fail('Знижка на бак уже закінчилась');
     return S.shopPrice(it, u.star_slots);
   }
   // ---------- VIP subscription (S.VIP_SUB, Telegram Stars subscription invoices) ----------
@@ -3918,7 +3919,8 @@ export function createGame(db, opts = {}) {
     for (const [caseId, n] of Object.entries(it.keys || {})) addKeys(uid, caseId, n);
     if (it.once) q('UPDATE users SET starter_bought = 1 WHERE id = ?').run(uid);
     if (it.id === 'pass') q('UPDATE users SET premium_season = ? WHERE id = ?').run(S.seasonOf(now()), uid);
-    if (it.id === 'refuel') {
+    if (it.id === 'refuel' || it.id === 'refuel_deal') {
+      if (it.id === 'refuel_deal') q('UPDATE users SET fuel_deal_until = 0 WHERE id = ?').run(uid);
       q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(fuelMax(u), now(), uid);
       q('UPDATE cars SET tank = ?, tank_at = ? WHERE owner_id = ?').run(S.CAR_TANK, now(), uid);
     }
@@ -4053,6 +4055,17 @@ export function createGame(db, opts = {}) {
       u = userRow(uid);
     }
     return packOfferOn(u) ? { until: u.pack_offer_until, mult: O.mult } : null;
+  }
+  // Owner 28.10: the tank ran dry → a full tank for fewer stars (S.FUEL_DEAL, item refuel_deal) for a while, at most
+  // once per everyH. start = the client saw an empty tank (fuel/deal); `me` only reports a running deal.
+  function fuelDeal(uid, start = false) {
+    let u = userRow(uid);
+    const t = now(), D = S.FUEL_DEAL;
+    if (start && u.fuel_deal_until <= t && t >= u.fuel_deal_next && (u.level || 1) >= D.minLevel && fuelState(u).fuel < 1) {
+      q('UPDATE users SET fuel_deal_until = ?, fuel_deal_next = ? WHERE id = ?').run(t + D.minutes * 60e3, t + D.everyH * 3600e3, uid);
+      u = userRow(uid);
+    }
+    return u.fuel_deal_until > t ? { until: u.fuel_deal_until, stars: S.SHOP_BY_ID.refuel_deal.stars, full: S.SHOP_BY_ID.refuel.stars } : null;
   }
   // The packs as this player would get them now (shop list).
   const packsFor = (uid) => (S.PACKS_ON_SALE ? S.PACKS.map((p) => ({ id: p.id, stars: p.stars, tag: p.tag || null, amount: packAmountFor(uid, p.id) })) : []);
@@ -5295,7 +5308,8 @@ export function createGame(db, opts = {}) {
   // «Мега-пропозиція» on hryvnia packs: its state in `me` (the client shows the window, the shop badge and timer).
   {
     const meBase = handlers.me;
-    handlers.me = (uid, b) => ({ ...meBase(uid, b), packOffer: packOffer(uid) });
+    handlers.me = (uid, b) => ({ ...meBase(uid, b), packOffer: packOffer(uid), fuelDeal: fuelDeal(uid) });
+    handlers['fuel/deal'] = (uid) => ({ deal: fuelDeal(uid, true) });
   }
   const api = Object.fromEntries(Object.entries(handlers).map(([k, fn]) => [k, (uid, body = {}) => db.tx(() => {
     const light = LIGHT.has(k);

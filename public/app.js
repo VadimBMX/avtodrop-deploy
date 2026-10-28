@@ -525,6 +525,7 @@ async function refresh(rerender = true) {
   if (rerender) render();
   else renderHeader();
   guideProgress();
+  fuelDealAsk(); // the tank is empty: a cheaper full tank (one window per deal)
   packOfferAsk(); // «Мега-пропозиція» on hryvnia packs (one window per offer)
   bugAskOnce(); // «Бета-тест: знайшов баг — пиши в підтримку» (once per player, from level 2)
   homeCheck(); // «Додай на головний екран» from the 3rd day (once a session; nothing on old clients)
@@ -1960,7 +1961,7 @@ function tankCard() {
   const when = f >= fmax() ? `бак повний${spareTxt()}` : me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : '';
   const up = next && me.level >= next.level
     ? `<button class="btn sm outline tk-buy" data-act="tankUp" title="Назавжди: +${next.max - fmax()} пального в баку на всі машини. Без зірок — лише за гривні.">Бак ${next.max} · ${S.short(next.cost)}</button>` : '';
-  return `<div class="card tk-card tk-slim"><div class="tk-row"><span class="tk-ic">${ic('gas-station')}</span><div class="grow tk-tx"><b>Бак <span class="tk-n">${f}<small>/${fmax()}</small></span></b><span class="tiny muted">${when}</span></div>${up}</div></div>`;
+  return `<div class="card tk-card tk-slim"><div class="tk-row"><span class="tk-ic">${ic('gas-station')}</span><div class="grow tk-tx"><b>Бак <span class="tk-n">${f}<small>/${fmax()}</small></span></b><span class="tiny muted">${when}</span></div>${up}${refuelBtn()}</div></div>`;
 }
 H.tankUp = (d, el) => {
   const next = S.nextTank(me.tankLvl);
@@ -1976,16 +1977,61 @@ function fuelRow(car) {
 // what to do meanwhile — instead of an error toast on a tap. The screen redraws itself when the fuel is back.
 function fuelOut(train = true) {
   fuelBackSoon();
+  setTimeout(fuelDealAsk, 0);
   const next = me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : 'скоро +1';
   return `<div class="card fuelcard fuel-out mt" id="fuelOut"><div class="row between"><span class="hook-t">${ic('gas-station')} Пальне ${me.fuel}/${fmax()}</span><b class="fuel-next">${next}</b></div>
     <div class="pips fuel">${Array.from({ length: fmax() }, () => '<i></i>').join('')}</div>
     ${train ? `<div class="small">Поки бак наповнюється — потренуйся в дрифті: тренування безкоштовне, без пального, з підказками над кожним поворотом.</div>
+    ${refuelBtn() ? `<div class="mt">${refuelBtn()}</div>` : ''}
     <button class="btn mt fh-train" data-act="fuelTrain">${ic('target-arrow')} Тренування дрифту · безкоштовно</button>
     <div class="tiny muted mt">Або відкрий кейс чи забери нагороду: кейс нагород буває з повним баком.</div>
     <div class="btns mt"><button class="btn sm ghost" data-act="toCases">${ic('box')} Кейси</button><button class="btn sm ghost" data-act="fuelGifts">${ic('gift')} Нагороди</button></div>${tankOffer()}</div>`
-    : `<div class="small">Поки бак наповнюється — тренування нижче безкоштовне. Або відкрий кейс чи забери нагороду: кейс нагород буває з повним баком.</div>
+    : `${refuelBtn() ? `<div style="margin-bottom:8px">${refuelBtn()}</div>` : ''}<div class="small">Поки бак наповнюється — тренування нижче безкоштовне. Або відкрий кейс чи забери нагороду: кейс нагород буває з повним баком.</div>
     <div class="btns mt"><button class="btn sm ghost" data-act="toCases">${ic('box')} Кейси</button><button class="btn sm ghost" data-act="fuelGifts">${ic('gift')} Нагороди</button></div>${tankOffer()}</div>`}`;
 }
+// Owner 28.10: a full tank for Stars right where it ran out (the same item as Магазин → Зручності).
+function refuelBtn() {
+  const it = S.SHOP_BY_ID.refuel;
+  if (!it || !config.stars || fuelNow() >= fmax()) return '';
+  const d = me.fuelDeal && me.fuelDeal.until > serverNow() ? me.fuelDeal : null;
+  if (d) return `<button class="btn sm yellow refuel-btn" data-act="buyItem" data-id="refuel_deal">${ic('gas-station')} Повний бак · ${ic('star')} ${d.stars} <s>${d.full}</s></button>`;
+  return `<button class="btn sm yellow refuel-btn" data-act="buyItem" data-id="refuel">${ic('gas-station')} Повний бак · ${ic('star')} ${it.stars}</button>`;
+}
+// Owner 28.10: when the tank hits 0 a window offers the full tank cheaper (S.FUEL_DEAL), once per deal.
+const FUEL_DEAL_KEY = 'avtodrop.fuelDeal';
+let fuelDealBusy = false;
+async function fuelDealAsk() {
+  if (!me || !config.stars || fuelDealBusy || fuelNow() >= 1 || me.level < S.FUEL_DEAL.minLevel) return;
+  fuelDealBusy = true;
+  try {
+    const { deal } = await api('fuel/deal', {});
+    me.fuelDeal = deal;
+    if (!deal) return;
+    try {
+      if (Number(localStorage.getItem(FUEL_DEAL_KEY)) === deal.until) return;
+    } catch {}
+    POP.offer('fueldeal', () => {
+      if (!me?.fuelDeal || me.fuelDeal.until < serverNow() || fuelNow() >= 1) return false;
+      try {
+        localStorage.setItem(FUEL_DEAL_KEY, String(deal.until));
+      } catch {}
+      const off = Math.round((1 - deal.stars / deal.full) * 100);
+      sheet('Бак порожній', `<div class="card center tg-home-ask"><div class="tg-home-ic">${ic('gas-station')}</div>
+        <b class="disp">ПОВНИЙ БАК −${off}%</b>
+        <div class="muted mt">Їдь далі прямо зараз: ${fmax()}/${fmax()} пального за <b>${ic('star')} ${deal.stars}</b> замість <s>${deal.full}</s>.</div>
+        <div class="small mt">Знижка діє ще <b class="win"><span data-until="${deal.until - clockOffset}"></span></b></div>
+        <div class="btns mt"><button class="btn yellow nowrap" data-act="fuelDealBuy">Заправити · ${ic('star')}${deal.stars}</button><button class="btn ghost" data-act="closeModal">Почекаю</button></div></div>`);
+      tickUntil?.();
+    });
+  } catch {
+  } finally {
+    fuelDealBusy = false;
+  }
+}
+H.fuelDealBuy = () => {
+  closeModal();
+  H.buyItem({ id: 'refuel_deal' });
+};
 // qa4: the bigger tank where the tank runs out — one quiet line, only when the next step is open and affordable.
 function tankOffer() {
   const n = S.nextTank(me.tankLvl);
@@ -4521,14 +4567,15 @@ H.setClaim = async (d) => {
 
 // ---------- plates ----------
 PAGES.plates = () => {
-  const seg = `<div class="seg">${[['gen', 'Генерація'], ['mine', `Мої · ${me.plates.length}`]].map(([k, t]) => `<button class="${state.plateView === k ? 'on' : ''}" data-act="plateView" data-k="${k}">${t}</button>`).join('')}</div>`;
+  // Owner 28.10 «треба ринок номерів»: it lives in Ринок → Номери; this button takes there straight from the plates.
+  const seg = `<div class="seg${isOpen('market') ? ' seg3' : ''}">${[['gen', 'Генерація'], ['mine', `Мої · ${me.plates.length}`]].map(([k, t]) => `<button class="${state.plateView === k ? 'on' : ''}" data-act="plateView" data-k="${k}">${t}</button>`).join('')}${isOpen('market') ? `<button data-act="plateMarket">${ic('building-store')}Ринок</button>` : ''}</div>`;
   if (state.plateView === 'mine') {
     return seg + (me.plates.length ? `<div class="list plates-list">${me.plates.map((p) => {
       const c = p.carId && me.cars.find((x) => x.id === p.carId);
       // Plate and value on top, where it is (region, car) under it, the actions as one row of equal buttons.
       return `<div class="li prow2" style="--c:${S.CLASSES[p.cls].color}">${plate(p.text)}<div class="pr-val">${clsBadge(p.cls)}<b class="disp">${S.short(p.value)}</b></div>
         <div class="pr-meta tiny"><span class="muted">${esc(S.regionOf(p.text) || '')}</span><span class="ellipsis ${c ? 'on-car' : 'muted'}">${c ? `${ic('car')} ${esc(M(c.model).name)}` : 'не встановлено'}</span></div>
-        <div class="pr-act">${c ? `<button class="btn sm ghost" data-act="plateDetach" data-pid="${p.id}">Зняти з машини</button>` : `<button class="btn sm" data-act="plateToCar" data-pid="${p.id}">${ic('car')} Повісити</button><button class="btn sm ghost" data-act="plateSell" data-pid="${p.id}">${ic('cash')} Продати · ${S.short(p.value / 2)}</button>`}</div></div>`;
+        <div class="pr-act">${c ? `<button class="btn sm ghost" data-act="plateDetach" data-pid="${p.id}">Зняти з машини</button>` : `<button class="btn sm" data-act="plateToCar" data-pid="${p.id}">${ic('car')} Повісити</button>${isOpen('market') ? `<button class="btn sm ghost" data-act="itemSellPlatePick" data-pid="${p.id}">На ринок</button>` : ''}<button class="btn sm ghost" data-act="plateSell" data-pid="${p.id}">Дилеру ${S.short(p.value / 2)}</button>`}</div></div>`;
     }).join('')}</div>` : emptyBox('license', 'Номерів поки немає', 'Згенеруй перший — кожен номер існує в одному екземплярі', '<button class="btn sm" data-act="plateView" data-k="gen">Згенерувати</button>'));
   }
   const gen = S.PLATE_GEN.find((g) => g.id === (state.plateGen || 'basic'));
@@ -4710,6 +4757,7 @@ AFTER.market = () => {
   bindItemFilters();
 };
 H.mKind = (d) => (state.marketKind = d.k, render());
+H.plateMarket = () => ((state.marketKind = 'plate'), go('market'));
 
 // ---------- market: parts and plates (S.ITEM_MARKET) ----------
 // Tabs «Купити» / «Мої лоти»; parts filter by type and tier, plates by text, region and class; a green «вигідна ціна»

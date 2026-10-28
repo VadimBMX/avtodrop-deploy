@@ -4820,3 +4820,7 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .income.inc-compact .cap-more { margin-top: 4px; }
 
 .confirm-text { max-height: 60vh; overflow-y: auto; }
+.tk-row .refuel-btn { flex: none; margin-left: 6px; }
+.prow2 .pr-act .btn { min-width: 0; }
+.btn.nowrap { white-space: nowrap; }
+.prow2 .pr-act .btn { padding-left: 8px; padding-right: 8px; white-space: nowrap; }

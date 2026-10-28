@@ -2531,6 +2531,7 @@ export const VIP = { days: 14, stars: 300, fuelMult: 2, extraHours: 4, daily: 15
 // VIP as a Telegram Stars subscription (createInvoiceLink subscription_period: Telegram allows only 30 days): renews by
 // itself every 30 days until cancelled (in the shop or in Telegram), a bit cheaper than two 14-day VIPs (600 ⭐).
 export const VIP_SUB = { days: 30, stars: 499, period: 2592000 };
+export const FUEL_DEAL = { minLevel: 2, minutes: 30, everyH: 6 };
 export const SHOP_ITEMS = [
   // The only hryvnias for stars: one modest pack per account (PACKS are off sale).
   { id: 'starter', name: 'Стартовий пакет', stars: 99, once: true, money: 1500000, keys: { city: 2 }, vipDays: 3 },
@@ -2538,6 +2539,8 @@ export const SHOP_ITEMS = [
   { id: 'vip', name: `VIP на ${VIP.days} днів`, stars: VIP.stars, vipDays: VIP.days },
   { id: 'pass', name: 'Преміум-пропуск сезону', stars: SEASON.premiumStars },
   { id: 'refuel', name: 'Повний бак', stars: 25 },
+  // Owner 28.10: the same full tank cheaper for FUEL_DEAL.minutes after the tank ran dry (window «Бак порожній»).
+  { id: 'refuel_deal', name: 'Повний бак зі знижкою', stars: 15, deal: true },
   { id: 'cool', name: 'Охолодити деталі', stars: 10 },
   { id: 'slot', name: '+1 місце в гаражі', stars: 100 },
 ];
