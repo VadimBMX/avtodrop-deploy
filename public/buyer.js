@@ -95,13 +95,14 @@ export function dropOf(cs, req) {
       if (!matches(req, m.id)) return;
       const pi = (sh[cls] * mw[i]) / sw;
       p += pi;
-      sell += pi * S.sellPriceOf(m.id);
+      sell += pi * S.sellPriceOf(m.id, Infinity, cs.id); // a fresh drop sells at the case's buy-back share (S.ORIGIN_SELL)
     });
   }
   return { p, sell: p ? sell / p : 0 };
 }
-// The cheapest a case can be (rarity cases have «Кейс дня» days) and what one open may gain from the buyer at most.
-const lowPrice = (cs) => (cs.group === 'rarity' ? cs.price * (1 - S.CASE_OF_DAY.off) : cs.price);
+// The cheapest a case can be (rarity cases have «Кейс дня» days, country cases their «Країна тижня») and what one open may
+// gain from the buyer at most.
+const lowPrice = (cs) => cs.price * (1 - (cs.group === 'rarity' ? S.CASE_OF_DAY.off : cs.group === 'country' ? Math.min(S.EVENT_CAPS.caseOff, S.EVENTS.country.off) : 0));
 export function allowedPerOpen(cs) {
   const price = lowPrice(cs), back = cs.sellEv * BUYER.safety;
   return back < price ? BUYER.lossShare * (price - back) : BUYER.abovePar * price;

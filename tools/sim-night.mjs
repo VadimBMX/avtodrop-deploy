@@ -74,7 +74,7 @@ if (process.argv[2] === 'buyer') {
             if (!B.matches(req, m.id)) return;
             const pi = (sh[cls] * w[i]) / sw;
             p += pi;
-            ps += pi * S.sellPriceOf(m.id);
+            ps += pi * S.sellPriceOf(m.id, Infinity, cs.id); // a fresh drop sells at the case's buy-back share
           });
         }
         if (!p) continue;

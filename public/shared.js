@@ -574,11 +574,51 @@ export const FRESH_SELL = { rate: 1, hours: 24 };
 // machine with fast open + «Продати все» (a newcomer made 382 млн in 1,5 h). Fresh drops from them now sell at this
 // share, so open-and-sell is ~0.86–0.92 on a plain day and under 1 on deal days (tools/sim-cases.mjs). Cars that came
 // out of these cases before the hotfix keep the full rate (their origin is cleared once, game.js ORIGIN_SELL_FIX).
-export const ORIGIN_SELL = { city: 0.79, sport: 0.76, premium: 0.75, elite: 0.8, 'c-it': 0.7, 'c-us': 0.74, 'c-gb': 0.71, 'c-ua': 0.9, tuning: 0.96 };
-export const originSellOf = (origin) => (origin && ORIGIN_SELL[origin]) || 1;
+// An entry is a number (× the class rate, every class alike) or a table { B: 0.3, A: 0.26, S: 0.45 }: the SHARE of the
+// value a drop of that class from this case sells for (instead of SELL_RATES × factor) — Option «jackpot» of the econ
+// audit (reports/econ-fable/economy.md): the red from a dear case pays ×5–8 the case, the lower classes pay for it.
+// Option «jackpot» (owner 28.10, after an Еліта ×6 with a red that paid ×3,8: «мені випала червона, а я в плюсі тільки на
+// 10 млн»): in the dear cases the red sells for 40–45% of its value (country cases: the full 30%) — ×5–8 the case price
+// (Еліта: ×2,9–5,1–10,9 for the cheapest / median / dearest red) — and the lower classes pay for it (Еліта gold 22% instead
+// of 28%, Преміум gold 22% / purple 30%, Спорткар purple 28%), while the top-class guarantee of these cases is gone (CASES
+// below). Open-and-sell stays 0,85–0,91 plain and ≤ 0,95 on every deal day; a 10-open session of Еліта ends in profit 31%
+// of the time instead of 22%, doubles 3,7% of the time instead of 0,2% (tools/econ-audit.mjs jackpot).
+export const ORIGIN_SELL = {
+  city: 0.79, tuning: 0.96, 'c-ua': 0.9,
+  sport: { B: 0.28, A: 0.266, S: 0.4 },
+  premium: { B: 0.3, A: 0.22, S: 0.4 },
+  elite: { A: 0.22, S: 0.45 },
+  'c-it': { B: 0.27, A: 0.245, S: 0.3 },
+  'c-us': { B: 0.28, A: 0.259, S: 0.3 },
+  'c-gb': { B: 0.27, A: 0.248, S: 0.3 },
+};
+// The instant-sale share of a drop of class `cls` out of case `origin` (no origin / not a case: the class rate).
+export const caseSellShare = (origin, cls) => {
+  const v = origin ? ORIGIN_SELL[origin] : null;
+  if (v == null) return SELL_RATES[cls];
+  return typeof v === 'number' ? SELL_RATES[cls] * v : v[cls] ?? SELL_RATES[cls];
+};
+// × the usual class rate: for a class when given, else the lowest factor of the case (what «the worst car in» inherits in an
+// upgrade or trade-in, and the «викуп ×k» text of a case with one factor for every class).
+export const originSellOf = (origin, cls = null) => {
+  const v = origin ? ORIGIN_SELL[origin] : null;
+  if (v == null) return 1;
+  if (typeof v === 'number') return v;
+  if (cls) return (v[cls] ?? SELL_RATES[cls]) / SELL_RATES[cls];
+  return Math.min(1, ...Object.entries(v).map(([c, s]) => s / SELL_RATES[c]));
+};
+// «золоті ×0,74 · червоні ×1,5» for a per-class table, «×0,79» for one factor, '' when the case sells at the class rates.
+export function originSellText(origin) {
+  const v = origin ? ORIGIN_SELL[origin] : null;
+  if (v == null) return '';
+  const x = (k) => '×' + k.toFixed(2).replace(/0$/, '').replace('.', ',');
+  if (typeof v === 'number') return x(v);
+  const NAMES = { D: 'сірі', C: 'сині', B: 'фіолетові', A: 'золоті', S: 'червоні' };
+  return CLASS_ORDER.filter((c) => v[c] != null).map((c) => `${NAMES[c]} ${x(v[c] / SELL_RATES[c])}`).join(' · ');
+}
 // origin: the case id the car came out of (cars.origin), or null.
 export const sellPriceOf = (model, ageMs = Infinity, origin = null) =>
-  Math.floor(MODELS[model].price * (MODELS[model].restored ? SELL_RATES[MODELS[model].cls] / R_MULT : MODELS[model].edition ? EDITION_SELL : MODELS[model].homeOnly ? HOME_SELL_RATE : SELL_RATES[MODELS[model].cls] * originSellOf(origin)) * (ageMs < FRESH_SELL.hours * 3600e3 ? FRESH_SELL.rate : 1));
+  Math.floor(MODELS[model].price * (MODELS[model].restored ? SELL_RATES[MODELS[model].cls] / R_MULT : MODELS[model].edition ? EDITION_SELL : MODELS[model].homeOnly ? HOME_SELL_RATE : caseSellShare(origin, MODELS[model].cls)) * (ageMs < FRESH_SELL.hours * 3600e3 ? FRESH_SELL.rate : 1));
 
 // ---------- honest numbers (reports/audit.md №1, №14) ----------
 // The main money figure of a car everywhere is its SALE: what the dealer pays right now (the server sends it as
@@ -652,8 +692,10 @@ export const CASES = [
   { id: 'city', name: 'Міський', icon: 'building-skyscraper', group: 'rarity', price: 300000, weights: { C: 92.61, B: 7, A: 0.35, S: 0.04 }, pity: [['B', 30]], hi: 1000 },
   { id: 'tuning', name: 'Тюнінг-ательє', icon: 'tool', group: 'rarity', price: 900000, weights: { C: 74.83, B: 24, A: 1.1, S: 0.07 }, pity: [['A', 200]], hi: 340 },
   { id: 'sport', name: 'Спорткар', icon: 'flag-3', group: 'rarity', price: 2000000, weights: { B: 92.15, A: 7.6, S: 0.25 }, pity: [['A', 30]], hi: 150 },
-  { id: 'premium', name: 'Преміум', icon: 'diamond', group: 'rarity', price: 5000000, weights: { B: 55.2, A: 43, S: 1.8 }, pity: [['S', 130]], hi: 61 },
-  { id: 'elite', name: 'Еліта', icon: 'crown', group: 'rarity', price: 10000000, weights: { A: 94.5, S: 5.5 }, pity: [['S', 30]], hi: 31 },
+  // Option «jackpot» (owner 28.10): no guarantee of the red in Преміум and Еліта any more (it was S after 130 / 30 opens and
+  // added 0,01 / 0,03 to open-and-sell) — the red is a jackpot, not a timetable. Sport keeps its gold step (the middle class).
+  { id: 'premium', name: 'Преміум', icon: 'diamond', group: 'rarity', price: 5000000, weights: { B: 55.2, A: 43, S: 1.8 }, pity: [], hi: 61 },
+  { id: 'elite', name: 'Еліта', icon: 'crown', group: 'rarity', price: 10000000, weights: { A: 94.5, S: 5.5 }, pity: [], hi: 31 },
 ];
 // Country cases start cheap and have a wider ceiling (hi), so the country's dear cars — the ones its collection needs —
 // can still drop from its own case, rarely. Ukraine's gold Soviet rarities drop only from here (homeOnly).
@@ -668,10 +710,14 @@ const COUNTRY_CASES = {
   UA: { price: 55000, weights: { D: 94.7, C: 5, A: 0.3 }, pity: [['C', 35], ['A', 300, { missing: true }]], hi: 460 },
   JP: { price: 450000, weights: { C: 92.67, B: 7, A: 0.3, S: 0.03 }, pity: [['B', 30]], hi: 400 },
   DE: { price: 400000, weights: { C: 93.68, B: 6, A: 0.3, S: 0.02 }, pity: [['B', 30]], hi: 570 },
-  CN: { price: 480000, weights: { C: 93.7, B: 6, A: 0.25, S: 0.05 }, pity: [['B', 30]], hi: 400 },
-  US: { price: 2400000, weights: { B: 83.4, A: 16, S: 0.6 }, pity: [['S', 300]], hi: 130 },
-  GB: { price: 3100000, weights: { B: 87, A: 12.4, S: 0.6 }, pity: [['S', 250]], hi: 91 },
-  IT: { price: 3200000, weights: { B: 89.5, A: 10, S: 0.5 }, pity: [['S', 250]], hi: 58 },
+  // CN (econ audit 28.10, reports/econ-fable): every Chinese C car is worth less than the case, so it sat at 0.66 on
+  // open-and-sell (0.68 on its week) while JP/DE give 0.85–0.87 — the one case that only loses. Purple ×1.5, gold ×2.4,
+  // red ×2 (never rarer than before): B+ 1 in ~9 opens, 0.81 plain / 0.83 on its week; the step moved to 25 so it still fires.
+  CN: { price: 480000, weights: { C: 90.3, B: 9, A: 0.6, S: 0.1 }, pity: [['B', 25]], hi: 400 },
+  // Option «jackpot»: the red of США / Британія / Італія has no guarantee step any more (it fired after 250–300 opens).
+  US: { price: 2400000, weights: { B: 83.4, A: 16, S: 0.6 }, pity: [], hi: 130 },
+  GB: { price: 3100000, weights: { B: 87, A: 12.4, S: 0.6 }, pity: [], hi: 91 },
+  IT: { price: 3200000, weights: { B: 89.5, A: 10, S: 0.5 }, pity: [], hi: 58 },
 };
 for (const c of MAIN_COUNTRIES) {
   const cc = COUNTRY_CASES[c];
@@ -1471,8 +1517,12 @@ export const ownShifts = (shifts) => (Array.isArray(shifts) ? shifts.filter((q) 
 // Money per race for a good driver racing a model of this price: ~10k for a 40k car, ~33k at 350k, ~130k at 4M,
 // ~350k at 23M, ~950k at 140M, ~1.45M at 300M — a full tank (15 races) is about one case of the car's class.
 export const raceEv = (value) => 10000 * Math.pow(Math.max(value, 1000) / 40000, 0.56);
+// Prizes follow the car's price up to the dearest real car (the top of class S). Only the secret cars are above it (0,5–1,5
+// млрд): without the cap the US secret car paid 2,9 млн a race — twice a Bolide — for a collection that costs ~50 млн net
+// to finish (reports/econ-fable/economy.md). With it a secret car races like the dearest hypercar.
+export const RACE_VALUE_CAP = CLASSES.S.hi;
 export function raceMoney(op, value) {
-  const ev = raceEv(value);
+  const ev = raceEv(Math.min(value, RACE_VALUE_CAP));
   if (op.share != null) {
     const easy = raceMoney(OPPONENTS[0], value).prize;
     return { prize: Math.max(500, Math.round((easy * op.share) / 100) * 100), entry: 0 };
@@ -2346,9 +2396,13 @@ export const START_BALANCE = 250000; // ~5 rusty-garage cases on top of the free
 
 // Packs grow with the player, so buying stays worth it with billions in the garage: the base amount × the larger of
 // a level multiplier (×1.25 per level) and a garage multiplier ((garage / 20M)^0.85). Fixed when the invoice is made.
-export const PACK_SCALE = { level: 1.25, garageBase: 20e6, garagePow: 0.85 };
+// max (econ audit 28.10, reports/econ-fable/economy.md): the level factor is exponential and had no ceiling — ×69 at level 20,
+// ×646 at level 30 (50 ⭐ = 970 млн ₴, 1 500 ⭐ = 42 млрд, ×2 on a «Мега-пропозиція»), i.e. a top garage for the price of a
+// coffee. Capped at ×25 (reached at level ~15 or a 900 млн garage): 50 ⭐ ≤ 38 млн, 1 500 ⭐ ≤ 1,6 млрд (×2: 3,3 млрд) —
+// still a week or two of an active late player's income per pack. The owner can lift it (Infinity = the old behaviour).
+export const PACK_SCALE = { level: 1.25, garageBase: 20e6, garagePow: 0.85, max: 25 };
 export function packMult(level, garage) {
-  return Math.max(1, Math.pow(PACK_SCALE.level, Math.max(0, level - 1)), Math.pow(Math.max(1, garage / PACK_SCALE.garageBase), PACK_SCALE.garagePow));
+  return Math.min(PACK_SCALE.max, Math.max(1, Math.pow(PACK_SCALE.level, Math.max(0, level - 1)), Math.pow(Math.max(1, garage / PACK_SCALE.garageBase), PACK_SCALE.garagePow)));
 }
 export const packAmount = (pack, level, garage) => niceRound(pack.amount * packMult(level, garage));
 // Hryvnia packs for Stars — back on sale (owner 28.10, reversing 22.10). Amounts grow with the player (packMult).

@@ -1339,7 +1339,7 @@ H.carSellMenu = (d) => {
   const c = me.cars.find((x) => x.id === Number(d.id));
   const quick = sellPrice(c);
   sheet('Продаж', `<div class="list">
-    <button class="li" data-act="sellOne" data-id="${c.id}"><span class="ic">${ic('bolt')}</span><div class="grow"><b>Продати одразу · ${S.short(quick)}</b><div class="small muted">${Math.round((quick / M(c.model).price) * 100)}% ціни моделі${S.originSellOf(c.origin) < 1 ? ` (з кейсу «${esc(S.CASE_BY_ID[c.origin]?.name || c.origin)}» — викуп ×${dec(S.originSellOf(c.origin), 2)})` : ''}. Деталі й номер повернуться тобі</div></div></button>
+    <button class="li" data-act="sellOne" data-id="${c.id}"><span class="ic">${ic('bolt')}</span><div class="grow"><b>Продати одразу · ${S.short(quick)}</b><div class="small muted">${Math.round((quick / M(c.model).price) * 100)}% ціни моделі${S.originSellOf(c.origin, M(c.model).cls) !== 1 ? ` (з кейсу «${esc(S.CASE_BY_ID[c.origin]?.name || c.origin)}» — викуп ×${dec(S.originSellOf(c.origin, M(c.model).cls), 2)})` : ''}. Деталі й номер повернуться тобі</div></div></button>
     <button class="li" data-act="listMarket" data-id="${c.id}"><span class="ic">${ic('building-store')}</span><div class="grow"><b>На ринок</b><div class="small muted">Свою ціну, комісія ${S.FEE * 100}%. Машина йде разом з деталями й номером</div></div>${isOpen('market') ? '' : lockChip('market')}</button>
     <button class="li" data-act="listAuction" data-id="${c.id}"><span class="ic">${ic('hammer')}</span><div class="grow"><b>На аукціон</b><div class="small muted">Торги 1–24 год, ставка в останню хвилину продовжує</div></div>${isOpen('auction') ? '' : lockChip('auction')}</button>
   </div>`, () => carSheet(c.id));
@@ -1557,7 +1557,7 @@ TABS.cases = () => {
     ${cs.starter ? '' : (() => {
       const fr = me.fragments?.[cs.id] || 0, need = S.FRAGMENTS_PER_KEY;
       return `<div class="card hooks mt">
-        <div class="hook"><div class="row between"><span class="hook-t">${ic('key')} Фрагменти ключа</span><b>${fr}<small>/${need}</small></b></div><div class="pips">${Array.from({ length: need }, (_, i) => `<i class="${i < fr ? 'on' : ''}"></i>`).join('')}</div><div class="tiny muted">Фрагмент дає машина, чия колекційна ціна нижча за ціну кейсу (не сума продажу) · ${need} фрагментів = безкоштовне відкриття${keys ? ` · у тебе ${ic('key')} ${keys}` : ''}${S.originSellOf(cs.id) < 1 ? `<br>Машини з цього кейсу продаються одразу за ×${dec(S.originSellOf(cs.id), 2)} звичайного викупу; у гаражі, доході й колекції — повна вартість` : ''}</div></div>
+        <div class="hook"><div class="row between"><span class="hook-t">${ic('key')} Фрагменти ключа</span><b>${fr}<small>/${need}</small></b></div><div class="pips">${Array.from({ length: need }, (_, i) => `<i class="${i < fr ? 'on' : ''}"></i>`).join('')}</div><div class="tiny muted">Фрагмент дає машина, чия колекційна ціна нижча за ціну кейсу (не сума продажу) · ${need} фрагментів = безкоштовне відкриття${keys ? ` · у тебе ${ic('key')} ${keys}` : ''}${S.originSellText(cs.id) ? `<br>Машини з цього кейсу продаються одразу за ${S.originSellText(cs.id)} звичайного викупу; у гаражі, доході й колекції — повна вартість` : ''}</div></div>
         ${S.pitySteps(cs).map(pityHook).join('')}
       </div>`;
     })()}

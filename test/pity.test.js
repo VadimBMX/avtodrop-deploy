@@ -17,8 +17,9 @@ const steps = (id) => S.pitySteps(S.CASE_BY_ID[id]).map((s) => [s.cls, s.n]);
 // The guarantee table of reports/pity.md (tools/sim-cases.mjs): change it there first.
 test('guarantee steps per case', () => {
   const want = {
-    rust: [['C', 25]], city: [['B', 30]], tuning: [['A', 200]], sport: [['A', 30]], premium: [['S', 130]], elite: [['S', 30]],
-    'c-ua': [['C', 35], ['A', 300]], 'c-jp': [['B', 30]], 'c-de': [['B', 30]], 'c-cn': [['B', 30]], 'c-us': [['S', 300]], 'c-gb': [['S', 250]], 'c-it': [['S', 250]],
+    // Option «jackpot» (owner 28.10): the red of Преміум, Еліта, США, Британія and Італія has no guarantee any more.
+    rust: [['C', 25]], city: [['B', 30]], tuning: [['A', 200]], sport: [['A', 30]], premium: [], elite: [],
+    'c-ua': [['C', 35], ['A', 300]], 'c-jp': [['B', 30]], 'c-de': [['B', 30]], 'c-cn': [['B', 25]], 'c-us': [], 'c-gb': [], 'c-it': [],
   };
   for (const cs of S.CASES) assert.deepEqual(steps(cs.id), want[cs.id] || [], cs.id);
   assert.deepEqual(S.pitySteps(S.CASE_BY_ID.rust)[0].key, 'rust:C', 'one counter per case and class');
@@ -38,7 +39,7 @@ test('the guarantee lifts the roll on the n-th open and every step resets on its
   const { db, g } = setup();
   const set = (key, n) => db.prepare('INSERT INTO pity (user_id, case_id, count) VALUES (1, ?, ?) ON CONFLICT DO UPDATE SET count = excluded.count').run(key, n);
   const get = (key) => g.api.me(1).pity[key];
-  for (const id of ['rust', 'tuning', 'premium', 'c-us']) {
+  for (const id of ['rust', 'tuning', 'sport', 'c-jp']) {
     const [st] = S.pitySteps(S.CASE_BY_ID[id]);
     for (let k = 0; k < 5; k++) {
       set(st.key, st.n - 1);
