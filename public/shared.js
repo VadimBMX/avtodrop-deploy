@@ -2149,9 +2149,39 @@ export function achRewardText(rw) {
   const r = achReward(rw), out = [];
   if (r.money) out.push(short(r.money));
   if (r.caseId) out.push(`${(r.count || 1) > 1 ? r.count + ' × ' : ''}ключ «${CASE_BY_ID[r.caseId].name}»`);
+  if (r.lateKey) out.push(`${r.lateKey.count > 1 ? r.lateKey.count + ' × ' : ''}ключ «${CASE_BY_ID[r.lateKey.caseId].name}»`);
   if (r.parts) out.push(`${r.parts > 1 ? r.parts + ' × ' : ''}деталь ${TIER_BY_ID[r.tier].name}`);
   if (r.fuel) out.push('повний бак');
   return out.join(' + ');
+}
+
+// ---------- late-game one-off rewards (owner, crit4 §3 №2 / §4 №4) ----------
+// From level LATE_REWARD.level an achievement tier, a collection milestone and a country collection pay mostly in keys:
+// the money × LATE_REWARD.money, plus keys of the «Цілі дня» ladder (goalKey of the level at claim time, or a step
+// lower when that key is too dear for the sum). The keys are never worth more than the money they replace — at the
+// case price and at its instant-sale value (sellEv; «Спорткар» is above its price) — and `cap` limits their number,
+// so a small sum (a bronze tier) stays plain money. Below the level nothing changes. Cars, slots, parts, fuel and a
+// tier's own key stay as they are.
+export const LATE_REWARD = { level: 10, money: 0.2 };
+export const ACH_LATE_KEYS = [1, 1, 2, 3]; // per achievement tier (bronze → diamond)
+export const milestoneLateKeys = (m) => (m.id === 'nall' ? 3 : m.n >= 60 ? 2 : 1);
+export const COUNTRY_LATE_KEYS = 2;
+const LATE_LADDER = ['rust', 'city', 'tuning', 'sport'];
+export function lateMoney(money, lvl, cap) {
+  if (!money || !(lvl >= LATE_REWARD.level)) return { money, key: null };
+  const budget = money * (1 - LATE_REWARD.money);
+  for (let i = LATE_LADDER.indexOf(goalKey(lvl)); i >= 0; i--) {
+    const cs = CASE_BY_ID[LATE_LADDER[i]], count = Math.min(cap, Math.floor(budget / Math.max(cs.price, cs.sellEv || 0)));
+    if (count >= 1) return { money: Math.round((money * LATE_REWARD.money) / 100) * 100, key: { caseId: cs.id, count } };
+  }
+  return { money, key: null };
+}
+// An achievement tier's reward for a player of level `lvl` ({ money, …, lateKey: { caseId, count } | undefined }).
+export function achLate(rw, tier, lvl) {
+  const r = achReward(rw), L = lateMoney(r.money, lvl, ACH_LATE_KEYS[tier] ?? 1);
+  if (!L.key) return r;
+  if (r.caseId === L.key.caseId) return { ...r, money: L.money, count: (r.count || 1) + L.key.count };
+  return { ...r, money: L.money, lateKey: L.key };
 }
 
 // Money for finishing a country collection (on top of its secret car): 4.4% of that secret car's value (the same sums

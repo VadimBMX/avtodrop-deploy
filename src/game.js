@@ -3375,7 +3375,8 @@ export function createGame(db, opts = {}) {
     });
   }
   // Money part of tiers from..to-1 (keys and parts are not summed into the banner).
-  const achMoney = (a, from, to) => a.rewards.slice(from, to).reduce((x, rw) => x + (S.achReward(rw).money || 0), 0);
+  // From level S.LATE_REWARD.level the money is cut and keys come instead (S.achLate).
+  const achMoney = (a, from, to, lvl = 0) => a.rewards.slice(from, to).reduce((x, rw, i) => x + (S.achLate(rw, from + i, lvl).money || 0), 0);
   function achievements(uid) {
     return { list: achievementState(uid) };
   }
@@ -3383,17 +3384,19 @@ export function createGame(db, opts = {}) {
   function achievementClaim(uid, { key }) {
     let got = 0, tiers = 0;
     const items = [], keys = [];
+    const lvl = userRow(uid).level; // the level the claim started at (XP below may raise it)
     for (const s of achievementState(uid)) {
       if (key && s.key !== key) continue;
       const a = S.ACH_BY_KEY[s.key];
       for (let i = 0; i < s.reached; i++) {
         if (q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(uid, `a:${a.key}:${i}`)) continue;
         q('INSERT INTO claims (user_id, key) VALUES (?, ?)').run(uid, `a:${a.key}:${i}`);
-        const rw = S.achReward(a.rewards[i]);
+        const { lateKey, ...rw } = S.achLate(a.rewards[i], i, lvl);
         grant(uid, { ...rw, money: 0 });
         got += rw.money || 0;
-        if (rw.caseId || rw.parts || rw.fuel) items.push(S.achRewardText({ ...rw, money: 0 }));
+        if (rw.caseId || rw.parts || rw.fuel || lateKey) items.push(S.achRewardText({ ...rw, lateKey, money: 0 }));
         if (rw.caseId) keys.push({ caseId: rw.caseId, count: rw.count || 1 });
+        if (lateKey) (addKeys(uid, lateKey.caseId, lateKey.count), keys.push({ ...lateKey }));
         tiers++;
         xp(uid, 'task');
       }
@@ -3440,9 +3443,15 @@ export function createGame(db, opts = {}) {
     const owned = new Set(q('SELECT model FROM collection WHERE user_id = ?').all(uid).map((r) => r.model));
     const have = new Set(q('SELECT key FROM claims WHERE user_id = ?').all(uid).map((r) => r.key));
     const regular = [...owned].filter((id) => !S.MODELS[id]?.secret).length;
-    for (const m of S.COLLECTION_MILESTONES) if (regular >= m.n && !S.milestoneTaken(m, have)) claims.push({ key: 'coll:' + S.milestoneId(m), kind: 'coll', id: S.milestoneId(m), title: 'Нагорода за колекцію', sub: m.label || `Зібрано ${m.n} машин`, money: m.money });
+    const keyTx = (k) => (k ? ` · ${S.achRewardText({ lateKey: k })}` : '');
+    for (const m of S.COLLECTION_MILESTONES) if (regular >= m.n && !S.milestoneTaken(m, have)) {
+      const L = S.lateMoney(m.money, u.level, S.milestoneLateKeys(m));
+      claims.push({ key: 'coll:' + S.milestoneId(m), kind: 'coll', id: S.milestoneId(m), title: 'Нагорода за колекцію', sub: (m.label || `Зібрано ${m.n} машин`) + keyTx(L.key), money: L.money });
+    }
     for (const c of S.MAIN_COUNTRIES) {
-      if (!have.has('c' + c) && S.countryDone(c, owned)) claims.push({ key: 'coll:c' + c, kind: 'coll', id: 'c' + c, title: `Колекція «${S.COUNTRIES[c].name}» зібрана!`, sub: 'Секретна машина й гроші', money: S.COUNTRY_REWARD[c] });
+      if (have.has('c' + c) || !S.countryDone(c, owned)) continue;
+      const L = S.lateMoney(S.COUNTRY_REWARD[c], u.level, S.COUNTRY_LATE_KEYS);
+      claims.push({ key: 'coll:c' + c, kind: 'coll', id: 'c' + c, title: `Колекція «${S.COUNTRIES[c].name}» зібрана!`, sub: (L.key ? 'Секретна машина, ключі й гроші' : 'Секретна машина й гроші') + keyTx(L.key), money: L.money });
     }
     for (const s of S.SETS) {
       if (!have.has('set:' + s.id) && S.setProgress(s, owned).done) claims.push({ key: 'set:' + s.id, kind: 'set', id: s.id, title: `Сет «${s.name}» зібрано!`, sub: `Значок ${S.SET_TIERS[s.tier].name} · ${S.setRewardText(s)}` });
@@ -3450,12 +3459,12 @@ export function createGame(db, opts = {}) {
     // Achievements: one banner per new tier, or a single "claim all" banner when several are waiting.
     const ach = achievementState(uid).filter((s) => s.reached > s.claimed);
     if (ach.length > 2) {
-      const money = ach.reduce((sum, s) => sum + achMoney(S.ACH_BY_KEY[s.key], s.claimed, s.reached), 0);
+      const money = ach.reduce((sum, s) => sum + achMoney(S.ACH_BY_KEY[s.key], s.claimed, s.reached, u.level), 0);
       claims.push({ key: 'achAll:' + ach.map((s) => s.key + s.reached).join(','), kind: 'achAll', title: `Нові досягнення: ${ach.reduce((n, s) => n + s.reached - s.claimed, 0)}`, sub: 'Забери всі нагороди одразу', money });
     } else {
       for (const s of ach) {
         const a = S.ACH_BY_KEY[s.key], tier = s.reached - 1;
-        claims.push({ key: `ach:${s.key}:${tier}`, kind: 'ach', id: s.key, tier, title: `${a.title} · ${S.ACH_TIERS[tier].name}`, sub: S.achText(a, tier), money: achMoney(a, s.claimed, s.reached) });
+        claims.push({ key: `ach:${s.key}:${tier}`, kind: 'ach', id: s.key, tier, title: `${a.title} · ${S.ACH_TIERS[tier].name}`, sub: S.achText(a, tier), money: achMoney(a, s.claimed, s.reached, u.level) });
       }
     }
     const rs = raceStreakOut(u);
@@ -3628,16 +3637,19 @@ export function createGame(db, opts = {}) {
       if (!ms) fail('Невідома нагорода');
       if (S.milestoneTaken(ms, q('SELECT key FROM claims WHERE user_id = ?').all(uid).map((r) => r.key))) fail('Нагороду вже отримано');
       if ([...owned].filter((id) => !S.MODELS[id]?.secret).length < ms.n) fail('Ще не зібрано');
-      rw = { money: ms.money, slots: ms.slots || 0 };
+      const L = S.lateMoney(ms.money, userRow(uid).level, S.milestoneLateKeys(ms));
+      rw = { money: L.money, slots: ms.slots || 0, ...(L.key ? { keys: L.key } : {}) };
     } else if (k.startsWith('c')) {
       const c = k.slice(1);
       if (!S.MAIN_COUNTRIES.includes(c)) fail('Невідома нагорода');
       if (!S.countryDone(c, owned)) fail(`Збери всі машини кейса «${S.COUNTRIES[c].name}»`);
-      rw = { money: S.COUNTRY_REWARD[c], secret: S.SECRET_BY_COUNTRY[c] };
+      const L = S.lateMoney(S.COUNTRY_REWARD[c], userRow(uid).level, S.COUNTRY_LATE_KEYS);
+      rw = { money: L.money, secret: S.SECRET_BY_COUNTRY[c], ...(L.key ? { keys: L.key } : {}) };
     } else fail('Невідома нагорода');
     q('INSERT INTO claims (user_id, key) VALUES (?, ?)').run(uid, k);
     bank(uid);
     addMoney(uid, rw.money);
+    if (rw.keys) addKeys(uid, rw.keys.caseId, rw.keys.count); // level 10+: keys instead of most of the money (S.lateMoney)
     if (rw.slots) q('UPDATE users SET slots = MIN(?, slots + ?) WHERE id = ?').run(S.MAX_SLOTS, rw.slots, uid);
     if (rw.secret) {
       const { id } = giveCar(uid, rw.secret);
@@ -3822,10 +3834,14 @@ export function createGame(db, opts = {}) {
     const owned = new Set(q('SELECT model FROM collection WHERE user_id = ?').all(uid).map((r) => r.model));
     const have = new Set(q('SELECT key FROM claims WHERE user_id = ?').all(uid).map((r) => r.key));
     const regular = [...owned].filter((id) => !S.MODELS[id]?.secret).length;
-    for (const m of S.COLLECTION_MILESTONES) if (regular >= m.n && !S.milestoneTaken(m, have)) take('coll', () => collectionClaim(uid, { key: S.milestoneId(m) }));
+    for (const m of S.COLLECTION_MILESTONES) if (regular >= m.n && !S.milestoneTaken(m, have)) {
+      const r = take('coll', () => collectionClaim(uid, { key: S.milestoneId(m) }));
+      if (r?.reward.keys) key(r.reward.keys.caseId, r.reward.keys.count, 'Нагорода за колекцію');
+    }
     for (const c of S.MAIN_COUNTRIES) {
       if (have.has('c' + c) || !S.countryDone(c, owned)) continue;
       const r = take('coll', () => collectionClaim(uid, { key: 'c' + c }));
+      if (r?.reward.keys) key(r.reward.keys.caseId, r.reward.keys.count, `Колекція «${S.COUNTRIES[c].name}»`);
       car(r?.reward.carOut, `Колекція «${S.COUNTRIES[c].name}» зібрана`);
     }
     for (const s of S.SETS) {

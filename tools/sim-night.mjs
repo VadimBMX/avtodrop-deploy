@@ -13,7 +13,8 @@
 // on the dearest case like sim-economy. The daily tasks are «finished» by setting progress = target (what they cost —
 // a wash, a plate — is not counted; upper bound for the key income).
 // Faucets: income, races (net of entry fees), tasks money, daily bonus, reward case, collections, achievements, newbie,
-// goal keys (counted at the key's case sellEv when claimed), buyer premium (the part above the dealer price).
+// goal keys (counted at the key's case sellEv when claimed), reward keys (achievement / collection keys of level 10+,
+// at sellEv), buyer premium (the part above the dealer price).
 import { pathToFileURL } from 'node:url';
 import fs from 'node:fs';
 
@@ -191,6 +192,9 @@ function claimAll(b) {
       else if (c.kind === 'rescue') r = tryCall(b, 'rescue/claim');
       else if (c.kind === 'ach' || c.kind === 'achAll') r = tryCall(b, 'ach/claim', c.kind === 'ach' ? { key: c.id } : {});
       cur(b).canister += r?.canister || r?.reward?.canister || 0;
+      // Level 10+ achievements / collection pay keys instead of most of the money (S.lateMoney): booked at sellEv.
+      const lateKeys = c.kind === 'coll' ? (r?.reward?.keys ? [r.reward.keys] : []) : c.kind === 'ach' || c.kind === 'achAll' ? r?.keys || [] : [];
+      if (lateKeys.length) book(b, 'reward keys', keyValue(lateKeys));
     });
   }
 }
@@ -312,7 +316,7 @@ for (day = 0; day < DAYS; day++) {
   }
 }
 
-const FAUCETS = ['income', 'races', 'tasks', 'daily bonus', 'reward case', 'collection', 'achievements', 'newbie', 'rescue', 'goal key', 'goal run', 'buyer premium'];
+const FAUCETS = ['income', 'races', 'tasks', 'daily bonus', 'reward case', 'collection', 'achievements', 'reward keys', 'newbie', 'rescue', 'goal key', 'goal run', 'buyer premium'];
 const med = (a) => {
   const s = [...a].sort((x, y) => x - y);
   return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : 0;

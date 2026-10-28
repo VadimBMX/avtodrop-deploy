@@ -750,7 +750,7 @@ PAGES.achievements = async () => {
         <div class="grow"><b>${esc(a.title)}</b>${s.claimed ? ` <span class="tiny" style="color:${S.ACH_TIERS[s.claimed - 1].color}">${S.ACH_TIERS[s.claimed - 1].name}</span>` : ''}
           <div class="small muted">${done ? 'Усі рівні пройдено!' : esc(countFix(S.achText(a, next)))}</div>
           <div class="ach-dots">${a.goals.map((g, i) => `<i style="${i < s.claimed ? `background:${S.ACH_TIERS[i].color}` : i < s.reached ? 'background:var(--accent)' : ''}">${!done && i === next && i >= s.reached ? `<b style="width:${prog * 100}%"></b>` : ''}</i>`).join('')}</div>
-          ${done ? '' : `<div class="row between tiny muted mt"><span>${val}</span><span>${ic('gift')} ${esc(S.achRewardText(a.rewards[next]))}</span></div>`}</div>
+          ${done ? '' : `<div class="row between tiny muted mt"><span>${val}</span><span>${ic('gift')} ${esc(S.achRewardText(S.achLate(a.rewards[next], next, me.level)))}</span></div>`}</div>
         ${s.reached > s.claimed ? `<button class="btn sm yellow" data-act="achClaim" data-k="${s.key}">Забрати</button>` : ''}</div>`;
     }).join('')}</div>`;
 };
@@ -1676,7 +1676,7 @@ function countryGoal(cs, owned) {
   const need = S.countryNeed(c), have = need.filter((m) => owned.has(m.id)).length, sec = M(S.SECRET_BY_COUNTRY[c]);
   const done = me.claims.includes('c' + c);
   const right = done ? '<span class="win">✓</span>' : have >= need.length ? `<button class="btn sm yellow" data-act="collClaim" data-k="c${c}">Забрати</button>` : `<span class="small muted">${have}/${need.length}</span>`;
-  return `<div class="li secret-goal mt"><span class="ic">${ic('trophy')}</span><div class="grow"><b>Збери весь кейс — ${done ? `секретна ${esc(sec.name)}` : 'секретна машина ❓'}</b><div class="small muted">${done ? 'Колекцію зібрано, секретна машина твоя' : `усі ${need.length} машин зі списку нижче · +${S.short(S.COUNTRY_REWARD[c])}`}</div><div class="progress mt"><i style="width:${(have / need.length) * 100}%"></i></div></div>${right}</div>`;
+  return `<div class="li secret-goal mt"><span class="ic">${ic('trophy')}</span><div class="grow"><b>Збери весь кейс — ${done ? `секретна ${esc(sec.name)}` : 'секретна машина ❓'}</b><div class="small muted">${done ? 'Колекцію зібрано, секретна машина твоя' : `усі ${need.length} машин зі списку нижче · +${countryLateText(c)}`}</div><div class="progress mt"><i style="width:${(have / need.length) * 100}%"></i></div></div>${right}</div>`;
 }
 H.openCase = async (d, el) => {
   if (state.opening) return;
@@ -4394,10 +4394,13 @@ const collectionCars = () => {
   const totalReg = S.ALL_MODELS.filter((m) => !m.secret).length;
   const ms = S.COLLECTION_MILESTONES;
   const rows = [
-    ...ms.map((m) => ({ key: S.milestoneId(m), done: S.milestoneTaken(m, me.claims), title: m.label || `Збери ${m.n} машин`, sub: rewardText({ money: m.money, slots: m.slots }), have: Math.min(n, m.n), need: m.n, ic: ic('car') })),
+    ...ms.map((m) => {
+      const L = S.lateMoney(m.money, me.level, S.milestoneLateKeys(m)); // level 10+: mostly keys
+      return { key: S.milestoneId(m), done: S.milestoneTaken(m, me.claims), title: m.label || `Збери ${m.n} машин`, sub: rewardText({ money: L.money, slots: m.slots, ...(L.key ? { caseId: L.key.caseId, count: L.key.count } : {}) }), have: Math.min(n, m.n), need: m.n, ic: ic('car') };
+    }),
     ...S.MAIN_COUNTRIES.map((c) => {
       const list = S.countryNeed(c); // the country's own case (S.countryNeed), as the server counts it
-      return { key: 'c' + c, title: `Колекція «${S.COUNTRIES[c].name}»`, sub: `усі машини кейса · +${S.short(S.COUNTRY_REWARD[c])} · ${owned.has(S.SECRET_BY_COUNTRY[c]) ? `секретна ${M(S.SECRET_BY_COUNTRY[c])?.name || 'машина'}` : 'секретна машина ❓'}`, have: list.filter((m) => owned.has(m.id)).length, need: list.length, ic: S.COUNTRIES[c].flag };
+      return { key: 'c' + c, title: `Колекція «${S.COUNTRIES[c].name}»`, sub: `усі машини кейса · +${countryLateText(c)} · ${owned.has(S.SECRET_BY_COUNTRY[c]) ? `секретна ${M(S.SECRET_BY_COUNTRY[c])?.name || 'машина'}` : 'секретна машина ❓'}`, have: list.filter((m) => owned.has(m.id)).length, need: list.length, ic: S.COUNTRIES[c].flag };
     }),
   ];
   // Every reward ready to take is shown (a finished country never hides behind milestones), then the next ones up to 3.
@@ -4448,7 +4451,9 @@ const collectionCars = () => {
     }).join('')}`;
 };
 H.collMissing = () => (state.collMissing = !state.collMissing, render());
-const collClaimText = (r) => `Отримано: ${S.short(r.reward.money)}${r.reward.secret ? (r.reward.carOut?.status === 'showcase' ? ' + секретна машина (гараж повний — вона на вітрині)' : ' + секретна машина!') : ''}`;
+// A country collection's money (and from level 10 its keys, S.lateMoney): «4,4 млн ₴ + 2 × ключ «Спорткар»».
+const countryLateText = (c) => { const L = S.lateMoney(S.COUNTRY_REWARD[c], me.level, S.COUNTRY_LATE_KEYS); return S.achRewardText({ money: L.money, lateKey: L.key || undefined }); };
+const collClaimText = (r) => `Отримано: ${S.short(r.reward.money)}${r.reward.keys ? ` + ${S.achRewardText({ lateKey: r.reward.keys })}` : ''}${r.reward.secret ? (r.reward.carOut?.status === 'showcase' ? ' + секретна машина (гараж повний — вона на вітрині)' : ' + секретна машина!') : ''}`;
 H.collClaim = (d) => act('collection/claim', { key: d.k }, collClaimText).then(wowSecret);
 H.collAll = () => (state.collAll = !state.collAll, render());
 H.collFilter = (d) => (state.collFilter = d.k, render());
