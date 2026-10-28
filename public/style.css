@@ -4831,3 +4831,29 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .drop-dock:not(.dd-sold) .opencase .oc-p { color: var(--text); font-weight: 700; }
 .st-daydeal { border: 1.5px solid var(--accent); box-shadow: 0 0 22px -8px #ffc40088; }
 .st-daydeal .dd-name { margin-top: 6px; font-weight: 700; font-size: 16px; }
+/* «Битва амбасадорів» (src/contest.js) */
+.hub-contest { display: flex; align-items: center; gap: 12px; width: 100%; margin: 10px 0 2px; padding: 12px 14px; border-radius: 14px; text-align: left; color: var(--text);
+  background: linear-gradient(110deg, #3a2a00, #1b1608 55%, #14161d); border: 1.5px solid var(--accent); box-shadow: 0 0 22px -8px #ffc40099; }
+.hub-contest .hub-ic { color: var(--accent); }
+.hub-contest b { display: block; font: 700 17px var(--f-disp); }
+.hub-contest .hub-i { font-size: 13px; color: var(--muted); }
+.hub-contest > .i:last-child { color: var(--muted); }
+.ct-hero { background: radial-gradient(120% 90% at 50% 0, #ffc40026, transparent 60%), var(--card); border: 1.5px solid #ffc40066; }
+.ct-hero .disp { font-size: 24px; letter-spacing: .5px; }
+.ct-cup { font-size: 46px; color: var(--accent); filter: drop-shadow(0 0 14px #ffc40088); }
+.ct-prizes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.ct-prize { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; border-radius: 12px; background: #ffffff0a; }
+.ct-prize b { font: 700 15px var(--f-disp); display: inline-flex; align-items: center; gap: 3px; text-align: center; }
+.ct-prize.px b { font-size: 12px; font-family: var(--f-body); font-weight: 600; color: var(--muted); }
+.ct-pl { display: inline-grid; place-items: center; min-width: 28px; height: 28px; padding: 0 6px; border-radius: 8px; font: 800 14px var(--f-disp); color: #1a1200; background: #8a94a7; }
+.ct-pl.p1 { background: linear-gradient(180deg, #ffe48a, #e2a51c); }
+.ct-pl.p2 { background: linear-gradient(180deg, #f2f5fa, #9aa8bd); }
+.ct-pl.p3 { background: linear-gradient(180deg, #f3b07a, #b5612a); }
+.ct-me-row { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; }
+.ct-me-row small { display: block; font-size: 12px; color: var(--muted); }
+.ct-me-row b { font: 800 26px var(--f-disp); }
+.ct-win { padding: 8px 10px; border-radius: 10px; background: #2fd27a1a; color: #2fd27a; font-size: 14px; }
+.ct-link { word-break: break-all; }
+.ct-row { gap: 10px; }
+.ct-row.me { background: #ffc40014; box-shadow: inset 3px 0 0 var(--accent); }
+.ct-n { font: 800 18px var(--f-disp); color: var(--accent); }

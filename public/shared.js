@@ -2390,6 +2390,10 @@ export const REF_REWARD = 1000000; // to the inviter when the friend reaches lev
 // The invited friend: money and a free «Міський» case at the start (shown as a welcome window), and a little more
 // when they reach level 3 together with the inviter's reward.
 export const REF_FRIEND_BONUS = 200000;
+// «Битва амбасадорів» (owner 28.10, src/contest.js): who brings the most new players while it runs. A friend counts
+// once he signed up by the player's link during the contest and reached CONTEST.minLevel. Prizes (Stars) are paid
+// by the owner by hand after the end; places 4..extraUpTo get the extra prize.
+export const CONTEST = { days: 14, minLevel: 3, prizes: [1000, 500, 250], extraUpTo: 10, extra: 'ключ «Еліта»', showAfterH: 72 };
 export const REF_FRIEND_KEY = 'city';
 export const REF_FRIEND_L3 = 100000;
 export const START_BALANCE = 250000; // ~5 rusty-garage cases on top of the free starter one

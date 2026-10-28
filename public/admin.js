@@ -723,11 +723,44 @@ const USER_TABS = {
 };
 
 // ---------- referrals ----------
+// «Битва амбасадорів» (src/contest.js): start / stop and who brought how many players during the contest.
+function contestPanel(c) {
+  const k = c.contest, on = k && c.now < k.end;
+  const head = on ? `<span class="badge green">йде</span> до ${date(k.end)}` : k ? `<span class="badge">завершено</span> ${date(k.start)} — ${date(k.end)}` : '<span class="muted">ще не запускали</span>';
+  const ctl = on ? '<button class="btn red sm" data-act="contestStop">Зупинити</button>'
+    : `<input id="ctDays" type="number" min="1" max="60" value="${c.rules.days}" style="width:70px"> днів <button class="btn sm" data-act="contestStart">${k ? 'Почати новий' : 'Почати конкурс'}</button>`;
+  const prize = (p) => (!p ? '' : p.stars ? `⭐ ${p.stars}` : esc(p.extra));
+  const yes = (v) => (v ? '<span class="badge green">так</span>' : '<span class="muted small">ні</span>');
+  const friends = (list) => `<div class="tbl-wrap"><table><tr><th>Друг</th><th class="num">Рівень</th><th>Прийшов</th><th>Був у грі</th><th>Зараховано</th><th>Повернувся наступного дня</th></tr>
+    ${list.map((f) => `<tr class="${f.banned ? 'warn' : ''}"><td>${userLink(f)}${f.banned ? ' <span class="badge red">бан</span>' : ''}</td><td class="num">${f.level}</td><td class="small nowrap">${date(f.createdAt)}</td><td class="small">${ago(f.lastSeen)}</td><td>${yes(f.counted)}</td><td>${yes(f.returned)}</td></tr>`).join('')}</table></div>`;
+  const rows = c.rows.length ? `<div class="tbl-wrap"><table><tr><th class="num">Місце</th><th>Гравець</th><th class="num">Зараховано</th><th class="num">З них повернулись</th><th class="num">Прийшло всього</th><th>Приз</th><th></th></tr>
+    ${c.rows.map((t, i) => `<tr class="click" data-act="ctOpen" data-i="${i}"><td class="num"><b>${t.place || '—'}</b></td><td><b>${esc(t.name)}</b> <span class="muted small">${t.id}</span></td>
+      <td class="num"><b>${t.counted}</b></td><td class="num">${t.old ? `${t.returned} з ${t.old}` : '<span class="muted small">рано</span>'}${t.suspect ? ' <span class="badge red" title="Мало хто з друзів, зареєстрованих понад добу тому, повернувся — перевір на накрутку">?</span>' : ''}</td><td class="num">${t.invited}</td><td>${prize(t.prize)}</td><td><a data-user="${t.id}">картка ›</a></td></tr>
+      <tr class="reffriends" id="ct-${i}" hidden><td colspan="7">${friends(t.friends)}</td></tr>`).join('')}</table></div>` : '<div class="empty">Ще ніхто нікого не привів</div>';
+  return `<div class="panel"><h2>${ic('trophy')} Конкурс «Битва амбасадорів» <span class="sub">${head}</span></h2>
+    <div class="row" style="gap:8px;margin-bottom:10px">${ctl}</div>
+    <div class="small muted" style="margin-bottom:10px">Рахуються друзі, які прийшли за посиланням гравця під час конкурсу й дійшли до ${c.rules.minLevel} рівня (бан і приховані з рейтингу — не рахуються). «Повернулись» — з друзів, що прийшли понад добу тому, скільки заходили в інший день, ніж реєструвались; червоний «?» — менше третини: можлива накрутка. Призи (${c.rules.prizes.map((p) => '⭐' + p).join(' / ')}, 4–${c.rules.extraUpTo} місця — ${esc(c.rules.extra)}) видаєш вручну після кінця.</div>
+    ${k ? `<div class="small" style="margin-bottom:8px">Учасників: <b>${c.totals.inviters}</b> · прийшло друзів: <b>${c.totals.invited}</b> · зараховано: <b>${c.totals.counted}</b></div>${rows}` : ''}</div>`;
+}
+H.ctOpen = (d, el, e) => {
+  if (e.target.closest('[data-user]')) return;
+  const row = $(`#ct-${d.i}`);
+  row.hidden = !row.hidden;
+};
+H.contestStart = () => {
+  const days = Number($('#ctDays').value) || 14;
+  return mutate('contest/start', { days }, { title: 'Почати «Битву амбасадорів»', button: 'Почати',
+    summary: `Конкурс триватиме ${days} дн. Гравці побачать його в «Меню» з таймером, своїм посиланням і рейтингом. Рахуються лише друзі, що прийдуть з цього моменту.` }, 'Конкурс запущено');
+};
+H.contestStop = () => mutate('contest/stop', {}, { title: 'Зупинити конкурс', danger: true, button: 'Зупинити',
+  summary: 'Рахунок зупиниться зараз, рейтинг заморозиться. Гравці ще 3 дні бачитимуть підсумки.' }, 'Конкурс зупинено');
+
 VIEWS.referrals = async () => {
-  const r = await api('referrals');
+  const [r, ct] = await Promise.all([api('referrals'), api('contest').catch(() => null)]);
   const stat = (label, value, sub = '') => `<div class="stat"><span>${label}</span><b>${value}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
   const all = r.total + r.organic;
   return `<div class="head"><h1>Реферали</h1><button class="btn ghost sm" data-act="reload">${ic('refresh')} Оновити</button></div>
+    ${ct ? contestPanel(ct) : ''}
     <div class="cards">
       ${stat('Прийшли за запрошенням', r.total, all ? `${Math.round((r.total / all) * 100)}% усіх гравців` : '')}
       ${stat('Прийшли самі', r.organic)}

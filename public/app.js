@@ -442,7 +442,7 @@ function rewardText(rw) {
 
 // ---------- header & navigation ----------
 const TITLES = { garage: 'Гараж', cases: 'Кейси', race: 'Гонки', shop: 'Майстерня', menu: 'Меню' };
-const PAGE_TITLES = { casino: 'Казино', upgrade: 'Апгрейд', collection: 'Колекція', plates: 'Номери', market: 'Ринок', trades: 'Обміни', tradeNew: 'Новий обмін', room: 'Кімната обміну', battles: 'Кейс-батли', battle: 'Батл', quests: 'Цілі дня й тижня', leaderboard: 'Рейтинг', store: 'Магазин', season: 'Сезон', tradein: 'Трейд-ін', friends: 'Друзі', promo: 'Промокоди', fair: 'Чесна гра', events: 'Сповіщення', achievements: 'Досягнення', support: 'Підтримка' };
+const PAGE_TITLES = { casino: 'Казино', upgrade: 'Апгрейд', collection: 'Колекція', plates: 'Номери', market: 'Ринок', trades: 'Обміни', tradeNew: 'Новий обмін', room: 'Кімната обміну', battles: 'Кейс-батли', battle: 'Батл', quests: 'Цілі дня й тижня', leaderboard: 'Рейтинг', store: 'Магазин', season: 'Сезон', tradein: 'Трейд-ін', friends: 'Друзі', contest: 'Битва амбасадорів', promo: 'Промокоди', fair: 'Чесна гра', events: 'Сповіщення', achievements: 'Досягнення', support: 'Підтримка' };
 function ring(level, xp, need, size = 40) {
   const r = size / 2 - 2, c = 2 * Math.PI * r, f = Math.min(1, xp / need);
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#252c39" stroke-width="3"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="${c * f} ${c}" transform="rotate(-90 ${size / 2} ${size / 2})"/></svg>`;
@@ -4331,7 +4331,7 @@ TABS.menu = () => {
   ];
   const H2 = (t, r = '') => `<div class="hub-h"><span>${t}</span>${r ? `<span>${r}</span>` : ''}</div>`;
   const nextLock = S.UNLOCKS.find((u) => !isOpen(u.key) && !(u.key === 'casino' && casinoOff()));
-  return `<div class="hub">${head}${pass}${homeCard()}
+  return `<div class="hub">${head}${contestHubCard()}${pass}${homeCard()}
     ${H2('Нагороди й прогрес')}<div class="hub-grid g2">${tiles.join('')}</div>${challengeHubRow()}${clubHub()}${prestigeHubRow()}${showroomHubRow()}${tgGroupsCard()}
     ${H2('Торгівля', nextLock && ['market', 'trades', 'tradein', 'plates'].includes(nextLock.key) ? `${ic('lock')} далі: ${nextLock.name} · рів. ${nextLock.level}` : '')}<div class="hub-grid g4">${trade.join('')}</div>
     ${H2('Ризикнути')}<div class="hub-grid g2">${risk.join('')}</div>
@@ -6886,6 +6886,35 @@ H.emojiStatus = () => {
       api('emoji/set', { kind: 'career' }).catch(() => {});
     });
   } catch {}
+};
+// ---- «Битва амбасадорів» (src/contest.js): the menu card while it runs (and 3 days after), and its screen ----
+function contestHubCard() {
+  const c = me.contest;
+  if (!c) return '';
+  return `<button class="hub-contest" data-act="go" data-page="contest"><span class="hub-ic">${ic('trophy')}</span><span class="grow"><b>Битва амбасадорів</b>
+    <span class="hub-i">${c.on ? `${ic('star')} ${S.CONTEST.prizes.reduce((a, b) => a + b, 0).toLocaleString('uk-UA')} у призах · ще ${untilSpan(c.end)}` : 'конкурс завершено — дивись підсумки'}</span></span>${ic('chevron-right')}</button>`;
+}
+PAGES.contest = async () => {
+  const [{ contest: c }, ref] = await Promise.all([api('contest'), api('ref')]);
+  if (!c) return emptyBox('trophy', 'Конкурсу зараз немає', 'Слідкуй за новинами в нашій групі');
+  const on = c.on;
+  const medal = (p) => `<span class="ct-pl p${p <= 3 ? p : 'x'}">${p}</span>`;
+  const prizes = c.prizes.map((st, i) => `<div class="ct-prize p${i + 1}">${medal(i + 1)}<b>${ic('star')} ${st}</b></div>`).join('') + `<div class="ct-prize px">${medal(`4–${c.extraUpTo}`)}<b>${esc(c.extra)}</b></div>`;
+  const my = c.me;
+  const mine = `<div class="card ct-me"><div class="ct-me-row"><div><small>твоє місце</small><b>${my.place ? '#' + my.place : '—'}</b></div><div><small>зараховано друзів</small><b>${my.counted}</b></div><div><small>прийшло всього</small><b>${my.invited}</b></div></div>
+    ${my.invited > my.counted ? `<div class="tiny muted mt">${my.invited - my.counted} ${plural(my.invited - my.counted, ['друг ще не дійшов', 'друзі ще не дійшли', 'друзів ще не дійшли'])} до ${c.minLevel} рівня — підкажи їм, як грати</div>` : ''}
+    ${my.prize ? `<div class="ct-win mt">${ic('gift')} Зараз ти в призах: <b>${my.prize.stars ? `${ic('star')} ${my.prize.stars}` : esc(my.prize.extra)}</b></div>` : ''}</div>`;
+  const link = on && ref.link ? `<div class="card"><b>Твоє посилання</b><div class="mono mt ct-link">${esc(ref.link)}</div>
+    <div class="btns mt"><button class="btn yellow" data-act="shareRef" data-link="${esc(ref.link)}" data-text="${esc('Гоу в АВТОДРОП — кейси з тачками, гонки й дрифт прямо в Telegram 🏎')}">${ic('share')} Поділитися</button><button class="btn ghost" data-act="copyRef" data-link="${esc(ref.link)}">Копіювати</button></div>
+    <div class="tiny muted mt">Кидай друзям, у сторіс, у TikTok (в опис відео чи біо) — куди завгодно.</div></div>` : '';
+  const top = c.top.length ? `<div class="list">${c.top.map((t) => `<div class="li ct-row${t.me ? ' me' : ''}">${medal(t.place)}<b class="grow ellipsis">${esc(t.name)}${t.me ? ' · ти' : ''}</b><span class="ct-n">${t.counted}</span></div>`).join('')}</div>`
+    : '<div class="empty">Поки ніхто не привів друга — стань першим!</div>';
+  return `<div class="card ct-hero center"><div class="ct-cup">${ic('trophy')}</div><b class="disp">БИТВА АМБАСАДОРІВ</b>
+    <div class="muted mt">${on ? `До кінця <b class="win">${untilSpan(c.end)}</b>` : 'Конкурс завершено — переможців нагородимо найближчим часом'}</div>
+    <div class="ct-prizes mt">${prizes}</div></div>
+    ${mine}${link}
+    <div class="h2"><span>Топ-10</span><span>${c.players} ${plural(c.players, ['учасник', 'учасники', 'учасників'])}</span></div>${top}
+    <div class="card tiny muted mt">Як рахуємо: друг має прийти за твоїм посиланням під час конкурсу й дійти до <b>${c.minLevel} рівня</b>. Боти, фейки й накрутки не рахуються — за обман бан. Призи видаємо після завершення.</div>`;
 };
 PAGES.friends = async () => {
   const r = await api('ref');

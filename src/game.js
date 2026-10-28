@@ -12,6 +12,7 @@ import { createTg } from './tg.js';
 import { createSchedule } from './schedule.js';
 import { createBarn } from './barn.js';
 import { createTgGroups } from './tggroups.js';
+import { createContest } from './contest.js';
 import { createClubs } from './clubs.js';
 import { createTourney } from './tourney.js';
 import { createPrestige } from './prestige.js';
@@ -5160,6 +5161,22 @@ export function createGame(db, opts = {}) {
     return TGG.adminSet(body || {});
   });
   ADMIN_MUTATING.add('tggroups/set');
+  // «Битва амбасадорів» (src/contest.js): the referral contest — the player's screen, the menu card, the admin panel.
+  const CTS = createContest({ db, q, now, fail, metaGet, metaSet, name, brief });
+  handlers.contest = (uid) => CTS.status(uid);
+  {
+    const meBase = handlers.me;
+    handlers.me = (uid, b) => ({ ...meBase(uid, b), contest: CTS.brief4me() });
+  }
+  for (const [k, fn] of [['contest', () => CTS.adminGet()], ['contest/start', (who, b) => CTS.adminStart(who, b)], ['contest/stop', () => CTS.adminStop()]]) {
+    admin[k] = (who, body = {}) => db.tx(() => {
+      if (!canDo(actorRole(who), k)) fail('Немає прав на цю дію');
+      return fn(who, body || {});
+    });
+  }
+  HELPER_ACTIONS.add('contest');
+  ADMIN_MUTATING.add('contest/start');
+  ADMIN_MUTATING.add('contest/stop');
   // «Автоклуби» (src/clubs.js, public/clubs.js): its calls and admin tab; wins feed the weekly league (drag, drift, boss,
   // «Заїзд дня»), collected income gets the club's perk, and the rating / battles / day's board show members' tags.
   CL = createClubs({ db, q, now, fail, int, name, addMoney, pay, event, addKeys, userRow, weekOf, dayOf,
