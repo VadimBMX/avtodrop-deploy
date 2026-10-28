@@ -175,6 +175,16 @@ CREATE TABLE IF NOT EXISTS race_streak (
   user_id INTEGER PRIMARY KEY, n INTEGER NOT NULL DEFAULT 0, day TEXT, start TEXT, best INTEGER NOT NULL DEFAULT 0,
   freeze TEXT, ready TEXT NOT NULL DEFAULT '[]'
 );
+-- «Цілі дня» (src/goals.js): a row per Kyiv day with all three daily tasks done — the key it gives (fixed at that
+-- moment) and whether it was taken; goal_streak is the run of such days, kept like race_streak (ready: [{ m, day, caseId, count }]).
+CREATE TABLE IF NOT EXISTS goal_days (
+  user_id INTEGER NOT NULL, day TEXT NOT NULL, case_id TEXT NOT NULL, claimed INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, day)
+);
+CREATE TABLE IF NOT EXISTS goal_streak (
+  user_id INTEGER PRIMARY KEY, n INTEGER NOT NULL DEFAULT 0, day TEXT, start TEXT, best INTEGER NOT NULL DEFAULT 0,
+  freeze TEXT, ready TEXT NOT NULL DEFAULT '[]'
+);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 -- Players of the first (pre-reset) version: who invited them, how many Stars they donated, whether we've thanked them.
 CREATE TABLE IF NOT EXISTS legacy (id INTEGER PRIMARY KEY, referrer_id INTEGER, stars INTEGER NOT NULL DEFAULT 0, thanked INTEGER NOT NULL DEFAULT 0);

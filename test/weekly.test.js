@@ -285,8 +285,7 @@ test('balance: a 7/7 week stays under 25% of what the week’s daily tasks pay, 
   const partsN = S.WEEK_CHEST.reduce((s, c) => s + (c.parts || 0), 0);
   // From level 3: levels 1–2 last about a day, nobody makes a 7/7 week there (and the rust key is worth ~40 k).
   for (let lvl = 3; lvl <= 60; lvl++) {
-    const q = Object.values(S.QUESTS);
-    const daily = 21 * q.reduce((s, k) => s + Math.round((8000 + 4000 * (k.range[0] + k.range[1]) / 2) * Math.pow(lvl, 1.3) / 100) * 100, 0) / q.length;
+    const daily = 21 * S.questReward(lvl); // «Цілі дня»: every task pays the same (the old tasks' average)
     const week = keyN * S.CASE_BY_ID[S.levelKey(lvl)].sellEv + partsN * S.TIER_BY_ID[S.levelPartTier(lvl)].price * S.PART_SELL_RATE;
     assert.ok(week / daily < 0.25, `level ${lvl}: ${(week / daily * 100).toFixed(1)}%`);
   }

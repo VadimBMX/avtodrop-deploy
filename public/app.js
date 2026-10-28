@@ -38,6 +38,7 @@ import { installTourney } from './tourney-ui.js';
 import { installPrestige, starsHtml, starTileCls, sellStarNote, carRestyleLi, prestigeHubRow } from './prestige-ui.js';
 // «Шоурум»: up to 3 cars on show, likes, «Шоурум тижня», the share card and sr_<id> links (public/showroom-ui.js).
 import { installShowroom, showroomHubRow, showroomStrip, showroomFromLink } from './showroom-ui.js';
+import { installGoals, goalsHead } from './goals-ui.js';
 
 const tg = window.Telegram?.WebApp;
 const $ = (s, el = document) => el.querySelector(s);
@@ -55,7 +56,7 @@ const COUNT_FORMS = {
   'кейс-батлів': ['кейс-батл', 'кейс-батли', 'кейс-батлів'], 'ідеальних перемикань': ['ідеальне перемикання', 'ідеальні перемикання', 'ідеальних перемикань'],
   'різних машин': ['різну машину', 'різні машини', 'різних машин'], 'секретних машин': ['секретну машину', 'секретні машини', 'секретних машин'],
   'кейсів': ['кейс', 'кейси', 'кейсів'], 'заїздів': ['заїзд', 'заїзди', 'заїздів'], 'днів': ['день', 'дні', 'днів'],
-  'раз': ['раз', 'рази', 'разів'], 'друзів': ['друга', 'друзів', 'друзів'],
+  'раз': ['раз', 'рази', 'разів'], 'друзів': ['друга', 'друзів', 'друзів'], 'машин': ['машину', 'машини', 'машин'],
 };
 const COUNT_RE = new RegExp(`(\\d+) (${Object.keys(COUNT_FORMS).join('|')})(?![\\p{L}-])`, 'gu');
 const countFix = (text) => String(text ?? '').replace(COUNT_RE, (_, n, w) => `${n} ${plural(Number(n), COUNT_FORMS[w])}`);
@@ -1414,7 +1415,7 @@ function brokeCard() {
     : row('box', 'Кейс нагород', 'Раз на кілька годин', `<span class="chip" data-until="${me.rewardCaseAt - clockOffset}"></span>`));
   if (me.dailyReady) rows.push(row('gift', 'Щоденний бонус', 'Забери сьогоднішній', '<button class="btn sm" data-act="claimDaily">Забрати</button>'));
   rows.push(row('flag-3', 'Гонки', 'Вигравай заїзди — отримуй гроші', '<button class="btn sm ghost" data-act="brokeTab" data-tab="race">Їхати</button>'));
-  rows.push(row('target-arrow', 'Завдання на сьогодні', 'Гроші за прості дії', '<button class="btn sm ghost" data-act="go" data-page="quests">Глянути</button>'));
+  rows.push(row('target-arrow', 'Цілі дня', 'Гроші й ключ за три прості дії', '<button class="btn sm ghost" data-act="go" data-page="quests">Глянути</button>'));
   const sellable = (me.cars || []).filter((c) => c.status === 'garage');
   if (sellable.length) {
     const best = sellable.reduce((a, c) => (sellPrice(c) > sellPrice(a) ? c : a));
@@ -5345,8 +5346,8 @@ H.wkClaim = (d) => act('weekly/claim', { key: d.k }, wkClaimText);
 H.wkChest = (d) => act('weekly/chest', { days: Number(d.d) }, (r) => 'Скриня: ' + [r.keys ? `ключ «${S.CASE_BY_ID[r.caseId].name}»` : '', r.frag ? `+${r.frag} ${fragWord(r.frag)}${r.newKeys ? ' (ключ зібрано!)' : ''}` : '', r.items ? `${r.items.length} ${plural(r.items.length, ['деталь', 'деталі', 'деталей'])}` : '', r.fuel ? 'повний бак' : ''].filter(Boolean).join(', '));
 async function dailyQuests() {
   const { list } = await api('quests');
-  return `${firstStepsCard()}
-    <div class="h2"><span>На сьогодні</span><span>оновлюються опівночі</span></div>
+  return `${firstStepsCard()}${goalsHead()}
+    <div class="h2"><span>Цілі дня</span><span>оновлюються опівночі</span></div>
     ${list.map((x) => questCard({ text: countFix(x.text), progress: x.progress, target: x.target, claimed: x.claimed, reward: `${ic('gift')} ${S.fmt(x.reward)} · +${S.CANISTER.quest} ${ic('gas-station')} · +${S.XP.quest} досвіду`,
       btn: x.progress < x.target ? '' : `<button class="btn sm" data-act="questClaim" data-k="${x.key}">Забрати</button>` })).join('')}`;
 }
@@ -7011,9 +7012,9 @@ async function pulse() {
   }
   clockOffset = p.now - Date.now();
   setRewardClaims(p.claims);
-  const qReady = p.claims.filter((c) => c.kind === 'quest' || c.kind === 'weekly' || c.kind === 'wchest').length;
+  const qReady = p.claims.filter((c) => c.kind === 'quest' || c.kind === 'weekly' || c.kind === 'wchest' || c.kind === 'goalkey' || c.kind === 'gstreak').length;
   // Where the rewards are: the «Сьогодні» / «Тиждень» tabs of Завдання get their own counters.
-  const split = { day: p.claims.filter((c) => c.kind === 'quest' || c.kind === 'newbie').length, week: p.claims.filter((c) => c.kind === 'weekly' || c.kind === 'wchest').length };
+  const split = { day: p.claims.filter((c) => c.kind === 'quest' || c.kind === 'newbie' || c.kind === 'goalkey' || c.kind === 'gstreak').length, week: p.claims.filter((c) => c.kind === 'weekly' || c.kind === 'wchest').length };
   const splitChanged = split.day !== me.questSplit?.day || split.week !== me.questSplit?.week;
   me.questSplit = split;
   if (splitChanged && state.page === 'quests') paintQuestSeg();
@@ -8661,3 +8662,7 @@ H.homeAddAsk = () => {
 // ---------- «Турнір вихідних» (public/tourney-ui.js; rules public/tourney.js, server src/tourney.js) ----------
 installTourney({ api, me: () => me, state: () => state, H, PAGES, AFTER, TABS, PAGE_TITLES, render, go, refresh, ic, esc, carArt, miniCar, clsBadge, M, plural, toast,
   untilSpan, emptyBox, raceScreen, runRace, raceSheetHtml, resultFx, hideClaimBanners, drSeen, dragCoach, carTile, prefGet, prefSet });
+
+// ---------- «Цілі дня» (public/goals-ui.js; server src/goals.js): the garage card, the head of «Завдання», the key ----------
+installGoals({ me: () => me, state: () => state, H, AFTER, ic, esc, plural, countFix, guideOn, claimQuiet, revealRewards, refresh, toast, pulseSoon, closeModal, banners, hideBanner,
+  openRewards, caseIcon, go, render: () => render(), REWARD_KINDS, REWARD_IC, PAGE_CLAIMS });

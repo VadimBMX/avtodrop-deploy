@@ -1984,19 +1984,44 @@ export const NEWBIE_TASKS = [
 ];
 export const NEWBIE_ORDER_V1 = ['open_starter', 'collect', 'part_case', 'install', 'race', 'win', 'plate', 'open_case', 'merge', 'level3'];
 export const NEWBIE_ORDER_V2 = ['open_starter', 'collect', 'race', 'win', 'open_case', 'part_case', 'install', 'merge', 'level3', 'plate'];
+// «Цілі дня» (night 28.10): three small goals a Kyiv day, picked per player and day (sha256(uid:day)) from the features
+// open at the player's level (`feature`, `minLevel`), one per `group` first so the three differ (cases / races / garage).
+// Each pays questReward(level) money + XP.quest as before; all three done → a key (goalKey), and every
+// GOAL_STREAK.every days in a row with all three → goalStreakReward (one missed day a week is covered by a freeze, the
+// same rule as the race streak). Targets are small on purpose (one visit does a goal); the money per goal is the old
+// tasks' average (test/weekly.test.js), the key and the run come on top (test/goals.test.js keeps them under +35%).
+// `off`: no longer picked (kept so rows made before the change still read).
 export const QUESTS = {
-  open: { text: 'Відкрий {n} кейсів з машинами', range: [3, 8] },
-  race: { text: 'Проїдь {n} заїздів', range: [3, 6] },
-  win: { text: 'Виграй {n} заїздів', range: [2, 4] },
-  perfect: { text: 'Зроби {n} ідеальних перемикань', range: [4, 10] },
-  parts: { text: 'Відкрий {n} кейсів з деталями', range: [3, 8], feature: 'parts' },
-  merge: { text: 'Злий деталі {n} раз', range: [1, 3], feature: 'parts' },
-  collect: { text: 'Забери дохід гаража {n} раз', range: [2, 3] },
-  pvp: { text: 'Зіграй {n} PvP-заїзд', range: [1, 2], feature: 'pvp' },
-  market: { text: 'Купи або продай авто на ринку', range: [1, 1], feature: 'market' },
-  // 3–4: three free hand washes a day do it; a cheaper task would tip the weekly-route balance (test/weekly.test.js).
-  wash: { text: 'Помий машини {n} рази', range: [3, 4], feature: 'wash' },
+  open: { text: 'Відкрий {n} кейсів з машинами', range: [2, 3], group: 'cases', icon: 'box' },
+  parts: { text: 'Відкрий {n} кейсів з деталями', range: [1, 2], feature: 'parts', group: 'cases', icon: 'tool' },
+  merge: { text: 'Злий деталі', range: [1, 1], feature: 'parts', group: 'cases', icon: 'arrows-exchange' },
+  race: { text: 'Проїдь {n} заїздів', range: [2, 3], group: 'race', icon: 'flag-3' },
+  win: { text: 'Виграй {n} заїздів', range: [1, 2], group: 'race', icon: 'trophy' },
+  perfect: { text: 'Зроби {n} ідеальних перемикань', range: [3, 5], group: 'race', icon: 'bolt' },
+  drift: { text: 'Проїдь дрифт-заїзд', range: [1, 1], feature: 'drift', group: 'race', icon: 'tornado' },
+  dayrace: { text: 'Проїдь «Заїзд дня»', range: [1, 1], feature: 'dayrace', group: 'race', icon: 'flag-3' },
+  collect: { text: 'Забери дохід гаража {n} раз', range: [1, 2], group: 'garage', icon: 'coin' },
+  wash: { text: 'Помий {n} машин', range: [1, 2], feature: 'wash', group: 'garage', icon: 'droplet' },
+  plate: { text: 'Згенеруй номерний знак', range: [1, 1], feature: 'plates', group: 'garage', icon: 'license' },
+  market: { text: 'Купи або продай авто на ринку', range: [1, 1], feature: 'market', group: 'garage', icon: 'building-store' },
+  bid: { text: 'Зроби ставку на «Причалі»', range: [1, 1], feature: 'auction', minLevel: 3, group: 'garage', icon: 'hammer' },
+  // Depends on someone else being online (and is farmable with a second account): not a goal a key should wait on.
+  pvp: { text: 'Зіграй {n} PvP-заїзд', range: [1, 2], feature: 'pvp', off: true },
 };
+export const QUEST_COUNT = 3;
+export const QUEST_PAY = 3.6; // the old formula's «target» every goal is paid as (its old average): (8000 + 4000 × 3,6) × level^1,3
+export const questReward = (lvl) => Math.round((8000 + 4000 * QUEST_PAY) * Math.pow(Math.max(1, lvl), 1.3) / 100) * 100;
+// The key for a day with all three goals: cheap early (second accounts can't farm dear cars), better with the level.
+export const goalKey = (lvl) => (lvl < 12 ? 'rust' : lvl < 25 ? 'city' : lvl < 50 ? 'tuning' : 'sport');
+const GOAL_UP = { rust: 'city', city: 'tuning', tuning: 'sport', sport: 'premium' };
+export const GOAL_STREAK = { every: 7 };
+// Every 7th day of the run: keys one step above the day's key — two in the middle, one at both ends (a fresh account
+// gets one «Міський», the top one «Преміум»).
+export function goalStreakReward(lvl) {
+  const caseId = GOAL_UP[goalKey(lvl)];
+  return { caseId, count: caseId === 'premium' || caseId === 'city' ? 1 : 2 };
+}
+export const nextGoalMilestone = (n) => (Math.floor(n / GOAL_STREAK.every) + 1) * GOAL_STREAK.every;
 
 // ---------- weekly route ----------
 // Four weekly tasks (Kyiv week, Monday 00:00), picked per player and week from this pool. Only solo actions: nothing

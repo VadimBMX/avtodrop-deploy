@@ -17,6 +17,7 @@ import { createTourney } from './tourney.js';
 import { createPrestige } from './prestige.js';
 import { createBugBounty } from './bugbounty.js';
 import { createShowroom } from './showroom.js';
+import { createGoals } from './goals.js';
 
 export class GameError extends Error {}
 const fail = (msg) => {
@@ -522,22 +523,27 @@ export function createGame(db, opts = {}) {
     const lockedTill = task.feature && !ready && !openKeys(u).includes(task.feature) ? S.unlockLevel(task.feature) : 0;
     return { step: u.newbie_step, total: S.NEWBIE_TASKS.length, ...task, ready, lockedTill };
   }
+  let GOALS = null; // «Цілі дня» (src/goals.js): the key for three goals and the run of such days, created below
+  // «Цілі дня»: three goals from the features open now (S.QUESTS), one per group first, all three paid the same.
   function ensureQuests(uid) {
     const day = dayOf(now());
     if (q('SELECT COUNT(*) n FROM quests WHERE user_id = ? AND day = ?').get(uid, day).n) return day;
     const h = sha256(`${uid}:${day}`);
-    const open = openKeys(userRow(uid));
-    const keys = Object.keys(S.QUESTS).filter((k) => !S.QUESTS[k].feature || open.includes(S.QUESTS[k].feature));
+    const u = userRow(uid), open = openKeys(u), lvl = u.level;
+    const keys = Object.keys(S.QUESTS).filter((k) => {
+      const x = S.QUESTS[k];
+      return !x.off && (!x.feature || open.includes(x.feature)) && (!x.minLevel || lvl >= x.minLevel);
+    });
+    // The pool in the order of this player's day, then the first of each group, then the rest.
+    const rank = Object.fromEntries(keys.map((k) => [k, sha256(`${uid}:${day}:${k}`)]));
+    const order = [...keys].sort((a, b) => (rank[a] < rank[b] ? -1 : 1));
     const picked = [];
-    for (let i = 0; picked.length < 3 && i < 30; i++) {
-      const k = keys[parseInt(h.slice(i * 2, i * 2 + 2), 16) % keys.length];
-      if (!picked.includes(k)) picked.push(k);
-    }
-    const lvl = q('SELECT level FROM users WHERE id = ?').get(uid).level;
+    for (const k of order) if (picked.length < S.QUEST_COUNT && !picked.some((p) => S.QUESTS[p].group === S.QUESTS[k].group)) picked.push(k);
+    for (const k of order) if (picked.length < S.QUEST_COUNT && !picked.includes(k)) picked.push(k);
     picked.forEach((k, j) => {
       const [lo, hi] = S.QUESTS[k].range;
       const target = lo + (parseInt(h.slice(40 + j * 2, 42 + j * 2), 16) % (hi - lo + 1));
-      q('INSERT OR IGNORE INTO quests (user_id, day, key, target, reward) VALUES (?, ?, ?, ?, ?)').run(uid, day, k, target, Math.round((8000 + 4000 * target) * Math.pow(lvl, 1.3) / 100) * 100);
+      q('INSERT OR IGNORE INTO quests (user_id, day, key, target, reward) VALUES (?, ?, ?, ?, ?)').run(uid, day, k, target, S.questReward(lvl));
     });
     return day;
   }
@@ -545,7 +551,7 @@ export function createGame(db, opts = {}) {
     if (key === 'race') raceStreakHit(uid); // the race streak (wave J; PvP counts where it is settled)
     HW?.track(uid, key, n); // «Ніч Хелловіну» tasks (only while it runs)
     const day = ensureQuests(uid);
-    q('UPDATE quests SET progress = MIN(target, progress + ?) WHERE user_id = ? AND day = ? AND key = ?').run(n, uid, day, key);
+    if (q('UPDATE quests SET progress = MIN(target, progress + ?) WHERE user_id = ? AND day = ? AND key = ? AND progress < target').run(n, uid, day, key).changes) GOALS?.hit(uid, day);
     if (S.WEEKLY_QUESTS[key]) {
       const week = ensureWeekly(uid);
       q('UPDATE weekly_quests SET progress = MIN(target, progress + ?) WHERE user_id = ? AND week = ? AND key = ?').run(n, uid, week, key);
@@ -5208,6 +5214,31 @@ export function createGame(db, opts = {}) {
     return BY.admin.buyer();
   });
   HELPER_ACTIONS.add('buyer'); // read-only numbers
+  // «Цілі дня» (src/goals.js): the key for the three daily tasks and the run of such days; `me.goals`, pulse claims,
+  // «Забрати все», the evening bot line. Plates, «Причал» bids and «Заїзд дня» runs count for the tasks from here.
+  GOALS = createGoals({ q, now, dayOf, weekOf, fail, addKeys, userRow, ensureQuests, freezeCover, mondayOfDay, isGameError: (e) => e instanceof GameError });
+  Object.assign(handlers, GOALS.api);
+  {
+    const meBase = handlers.me, pulseBase = handlers.pulse, allBase = handlers['rewards/all'];
+    handlers.me = (uid, b) => ({ ...meBase(uid, b), goals: GOALS.brief(uid) });
+    handlers.pulse = (uid, b) => {
+      const p = pulseBase(uid, b);
+      p.claims.push(...GOALS.claims(uid));
+      return p;
+    };
+    handlers['rewards/all'] = (uid, b) => GOALS.rewardsAll(uid, () => allBase(uid, b));
+    const after = { 'plate/generate': () => 'plate', 'containers/bid': () => 'bid', 'race/finish': (r) => (r?.dayrace?.counted ? 'dayrace' : '') };
+    for (const [k, keyOf] of Object.entries(after)) {
+      const base = handlers[k];
+      if (base) handlers[k] = (uid, b) => {
+        const r = base(uid, b);
+        const key = keyOf(r);
+        if (key) track(uid, key);
+        return r;
+      };
+    }
+  }
+  push.candidates = ((base) => (rules) => GOALS.remind(base(rules), rules))(push.candidates);
   // Every call runs in one transaction, settles the weekly race and refreshes the caller's garage value — except the
   // frequent polls below (every few seconds, or several times a second in a live race), which change no cars.
   const LIGHT = new Set(['pulse', 'pvp/progress', 'pvp/state', 'containers/lot']);
