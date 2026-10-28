@@ -80,7 +80,6 @@ export function raceWheels(R, { reduced = false } = {}) {
     el.querySelectorAll('.ww-p').forEach((p) => (p.style.backgroundImage = url));
     bod.appendChild(el);
     c.el = el;
-    c.W = bod.offsetWidth; // fixed in CSS (146 / 112 px): read once here, never in the frame loop
     c.wheels = [...el.querySelectorAll('.ww-s')].map((s, i) => ({ a: s.animate(KEYS, { duration: 1000, iterations: Infinity }), rate: 0,
       rel: Math.sqrt(d.wheels[i].a * d.wheels[i].b) / d.w, rear: i === 0 && d.wheels.length > 1 }));
     c.wheels.forEach((w) => (w.a.playbackRate = 0));
@@ -92,6 +91,10 @@ export function raceWheels(R, { reduced = false } = {}) {
     mount(E) {
       build('me', E.meB);
       build('rv', E.rvB);
+      // The box widths are fixed in CSS (146 / 112 px): read once here, after both cars are built (one layout, not
+      // two), never in the frame loop.
+      cars.me.W = E.meB.offsetWidth;
+      cars.rv.W = E.rvB.offsetWidth;
     },
     tick(myM, rvM) {
       const now = performance.now(), dt = last ? Math.min(0.1, (now - last) / 1000) : 0;

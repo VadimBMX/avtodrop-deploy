@@ -2245,9 +2245,19 @@ const drLoss = (q, car) => {
   const l = S.SHIFT_LOSS[q] ?? S.SHIFT_LOSS.miss;
   return l > 0 ? l * (1 - (car.shift || 0)) : l;
 };
+// perf2: both car photos (the wheel discs reuse them) are loaded and decoded before the lights, not in the first
+// frames of the run — the rival's photo is usually new, and decoding it mid-countdown was an 80–300 ms frame. At most
+// 0.7 s; a live PvP race starts at once (its lights follow the server's clock). Timing and replay are not touched.
+function runRace() {
+  const R = state.race;
+  const imgs = R && !R.live ? [...document.querySelectorAll('#drScene .dr-bod img')] : [];
+  if (!imgs.length) return runRaceNow();
+  Promise.race([Promise.all(imgs.map((i) => i.decode().catch(() => {}))), new Promise((r) => setTimeout(r, 700))])
+    .then(() => state.race === R && R.phase === 'lights' && runRaceNow());
+}
 // Solo race against a bot, or a live PvP race (R.live): then the lights follow the server's shared start time, the
 // rival's bar follows the other player's real progress, and the result comes once both have finished.
-function runRace() {
+function runRaceNow() {
   const R = state.race;
   let E = drEls();
   const lights = [...E.tree.children];
@@ -2491,6 +2501,10 @@ function drScene(E0, R) {
   const body = { me: { p: 0, v: 0, go: false }, rv: { p: 0, v: 0, go: false } };
   const wheels = raceWheels(R, { reduced: DR_RM }); // spinning wheels over the photos (public/race-wheels.js)
   wheels.mount(E);
+  // perf2: the exhaust flame's class comes off when its animation ends, so a shift just adds it again (no forced
+  // layout from the frame loop, where the auto «late» shift runs); a second shift within 0.28 s still restarts it.
+  const flameEnd = (e) => e.animationName === 'drFlame' && e.currentTarget.classList.remove('fl');
+  E.me.addEventListener('animationend', flameEnd);
   const measure = () => {
     W = E.scene.clientWidth;
     meW = E.me.offsetWidth;
@@ -2509,6 +2523,7 @@ function drScene(E0, R) {
       cache = new Map();
       measure();
       wheels.mount(E);
+      E.me.addEventListener('animationend', flameEnd);
     },
     launch(who) {
       if (body[who].go) return;
@@ -2518,8 +2533,10 @@ function drScene(E0, R) {
       kick(who, -3.2);
     },
     shift(q) {
-      E.me.classList.remove('fl');
-      void E.me.offsetWidth;
+      if (E.me.classList.contains('fl')) {
+        E.me.classList.remove('fl');
+        void E.me.offsetWidth;
+      }
       E.me.classList.add('fl');
       kick('me', q === 'late' ? 2 : 1.3);
     },

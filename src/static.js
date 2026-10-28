@@ -7,11 +7,14 @@
 // anything unversioned is revalidated on every use (no-cache + ETag → 304), so a new deploy reaches players on
 // their next launch and a Telegram webview can never keep old JS.
 // Compression: gzip and brotli for text types, done once per file version (keyed by mtime + size) and kept in memory.
+// Comments: CSS and JS go out without their comments (src/minify.js; ~20% fewer bytes after brotli), before the
+// rewrite above, so a commented-out import is neither versioned nor preloaded. strip: false serves them as written.
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import zlib from 'node:zlib';
 import { promisify } from 'node:util';
+import { stripCss, stripJs } from './minify.js';
 
 const gzip = promisify(zlib.gzip);
 const brotli = promisify(zlib.brotliCompress);
@@ -49,7 +52,7 @@ export function compressSmall(buf, accept) {
   return null;
 }
 
-export function createStatic({ root, mime, headers = {}, recheckMs = 1000 }) {
+export function createStatic({ root, mime, headers = {}, recheckMs = 1000, strip = true }) {
   const cache = new Map(); // rel path → entry
 
   function hashOf(buf) {
@@ -160,7 +163,11 @@ export function createStatic({ root, mime, headers = {}, recheckMs = 1000 }) {
       let body = fs.readFileSync(abs);
       const deps = new Map();
       const imports = new Set();
-      if (REWRITE.has(ext)) body = Buffer.from(rewrite(rel, body.toString('utf8'), deps, imports, stack), 'utf8');
+      if (REWRITE.has(ext)) {
+        let text = body.toString('utf8');
+        if (strip) text = ext === '.css' ? stripCss(text) : ext === '.js' || ext === '.mjs' ? stripJs(text) : text;
+        body = Buffer.from(rewrite(rel, text, deps, imports, stack), 'utf8');
+      }
       const e = { rel, ext, mtimeMs: st.mtimeMs, size: st.size, mtime: st.mtime, body, hash: hashOf(body), deps, imports, enc: {}, checked: now };
       cache.set(rel, e);
       return e;
