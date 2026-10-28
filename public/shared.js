@@ -2411,7 +2411,22 @@ export const PACKS_ON_SALE = true;
 // PACK_OFFER.hours hours in which every pack gives ×mult hryvnias for the same stars (Telegram invoices have a fixed
 // star price, so the deal is more hryvnias, not fewer stars). The amount is fixed when the invoice is made.
 export const PACK_OFFER = { minLevel: 3, everyDays: 3, hours: 6, mult: 2 };
+// Owner 28.10 «шоб донатили, дешево»: the very first Stars purchase of a pack gives ×FIRST_BUY_MULT (instead of, not on
+// top of, the «Мега-пропозиція»).
+export const FIRST_BUY_MULT = 3;
+// «Угода дня»: one cheap Stars offer a day (Kyiv day), the same for everyone, at most once a day per player (from
+// level DAY_DEAL_MIN_LEVEL). Each is its own shop item (`daily: true`); dayDealOf(t) picks today's.
+export const DAY_DEAL_MIN_LEVEL = 2;
+export const DAY_DEALS = [
+  { id: 'dd_city3', name: 'Угода дня: 3 ключі «Міський»', stars: 10, daily: true, keys: { city: 3 } },
+  { id: 'dd_fuel', name: 'Угода дня: повний бак + ключ «Міський»', stars: 5, daily: true, refill: true, keys: { city: 1 } },
+  { id: 'dd_sport', name: 'Угода дня: ключ «Спорткар»', stars: 15, daily: true, keys: { sport: 1 } },
+  { id: 'dd_vip', name: 'Угода дня: VIP на 1 день + 2 ключі «Міський»', stars: 10, daily: true, vipDays: 1, keys: { city: 2 } },
+  { id: 'dd_city5', name: 'Угода дня: 5 ключів «Міський»', stars: 15, daily: true, keys: { city: 5 } },
+];
+export const dayDealOf = (t) => DAY_DEALS[Math.floor(Date.parse(kyivDateOf(t)) / 86400e3) % DAY_DEALS.length];
 export const PACKS = [
+  { id: 'p0', stars: 15, amount: 400000, title: '400 тис ₴' }, // owner 28.10: a cheap first step
   { id: 'p1', stars: 50, amount: 1500000, title: '1,5 млн ₴' },
   { id: 'p2', stars: 150, amount: 5000000, title: '5 млн ₴', tag: '+11%' },
   { id: 'p3', stars: 500, amount: 19000000, title: '19 млн ₴', tag: '+27%' },
@@ -2534,7 +2549,7 @@ export const VIP_SUB = { days: 30, stars: 499, period: 2592000 };
 export const FUEL_DEAL = { minLevel: 2, minutes: 30, everyH: 6 };
 export const SHOP_ITEMS = [
   // The only hryvnias for stars: one modest pack per account (PACKS are off sale).
-  { id: 'starter', name: 'Стартовий пакет', stars: 99, once: true, money: 1500000, keys: { city: 2 }, vipDays: 3 },
+  { id: 'starter', name: 'Стартовий пакет', stars: 39, once: true, money: 1500000, keys: { city: 2 }, vipDays: 3 },
   { id: 'vipsub', name: `VIP-підписка · ${VIP_SUB.days} днів`, stars: VIP_SUB.stars, vipDays: VIP_SUB.days, sub: true },
   { id: 'vip', name: `VIP на ${VIP.days} днів`, stars: VIP.stars, vipDays: VIP.days },
   { id: 'pass', name: 'Преміум-пропуск сезону', stars: SEASON.premiumStars },
@@ -2609,7 +2624,7 @@ export function styleWorn(claims, style) {
 }
 // The look of a worn cosmetic for CSS classes: 'season' for a season one, else the item's look (neon, carbon…).
 export const styleLook = (id) => { const c = cosmeticOf(id); return c ? (c.season ? SEASON_THEMES[c.season]?.look || 'season' : c.look) : null; };
-export const SHOP_BY_ID = Object.fromEntries([...SHOP_ITEMS, ...STYLE_ITEMS].map((i) => [i.id, i]));
+export const SHOP_BY_ID = Object.fromEntries([...SHOP_ITEMS, ...STYLE_ITEMS, ...DAY_DEALS].map((i) => [i.id, i]));
 export const shopPrice = (item, starSlots = 0) => (item.id === 'slot' ? item.stars * Math.pow(2, starSlots) : item.stars);
 // Home-screen shortcut (WebApp.addToHomeScreen): offered from the 3rd day in the game, one key once it's added.
 export const HOME_SCREEN = { day: 3, caseId: 'city', count: 1 };

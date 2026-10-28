@@ -5,7 +5,7 @@ import { createGame } from '../src/game.js';
 import * as S from '../public/shared.js';
 
 test('packs grow with level and garage, never below the base amount', () => {
-  const p = S.PACKS[0];
+  const p = S.PACKS.find((p) => p.id === 'p1');
   assert.equal(S.packAmount(p, 1, 0), p.amount, 'a newcomer gets the base amount');
   assert.ok(S.packAmount(p, 10, 0) > p.amount * 5, 'level 10 gets several times more');
   assert.ok(S.packAmount(p, 5, 17e9) > 20 * p.amount, 'a 17B garage makes the pack worth it');
@@ -22,8 +22,9 @@ test('payment credits the amount fixed in the invoice; a broken amount falls bac
   const g = createGame(db, { now: () => Date.parse('2026-10-20T10:00:00Z'), notify: () => {} });
   g.ensureUser({ id: 1, first_name: 'A' });
   db.prepare('UPDATE users SET balance = 0, level = 10, level_seen = 10, pack_offer_next = 9e15 WHERE id = 1').run(); // no «мега-пропозиція» here
+  db.prepare("INSERT INTO payments (charge_id, user_id, pack, stars, amount, created_at) VALUES ('old1', 1, 'p1', 1, 0, 0)").run(); // paid before: no first-buy ×3 here
   const amount = g.packAmountFor(1, 'p1');
-  assert.equal(amount, S.packAmount(S.PACKS[0], 10, 0));
+  assert.equal(amount, S.packAmount(S.PACKS.find((p) => p.id === 'p1'), 10, 0));
   g.creditPayment({ chargeId: 'c1', userId: 1, packId: 'p1', stars: 50, amount });
   assert.equal(g.api.me(1).balance, amount);
   assert.deepEqual(g.creditPayment({ chargeId: 'c1', userId: 1, packId: 'p1', stars: 50, amount }), { duplicate: true });

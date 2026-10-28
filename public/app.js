@@ -6683,11 +6683,19 @@ function storeMain(sh) {
     ${subBox}
     <div class="vip-once"><div class="grow"><b>Разово · ${S.VIP.days} днів</b><div class="tiny muted">${vipLeft ? 'додасться до поточного VIP' : 'без автопродовження'}</div></div>${storeBuyBtns(it.vip, sh, 'ghost')}</div></div>`;
   const off = sh.offer;
-  const packs = sh.packs?.length ? `<div class="h2"><span>Гривні</span>${off ? `<span class="pk-timer">${ic('flame')} ×${off.mult} · ще <span data-until="${off.until - clockOffset}"></span></span>` : '<span>зараховуються одразу</span>'}</div>
-    ${off ? `<div class="pk-hot">${ic('flame')} <b>Мега-пропозиція:</b> ×${off.mult} гривень на всі пакети за ту саму ціну</div>` : ''}
-    <div class="pk-grid">${sh.packs.map((p) => `<button class="pk${off ? ' hot' : ''}" data-act="buyPack" data-id="${p.id}" ${config.stars ? '' : 'disabled'}>
-      ${p.tag ? `<span class="pk-tag">${esc(p.tag)}</span>` : ''}<b>${S.short(p.amount)}</b>${off ? `<s>${S.short(p.amount / off.mult)}</s>` : ''}<span class="pk-st">${ic('star')} ${p.stars}</span></button>`).join('')}</div>` : '';
-  return `${starter}${packs}${vip}
+  // First Stars purchase ×FIRST_BUY_MULT wins over the offer when bigger (server: packMultFor).
+  const fb = sh.firstBuy && (!off || sh.firstBuy > off.mult) ? sh.firstBuy : 0;
+  const mult = fb || off?.mult || 0;
+  const packs = sh.packs?.length ? `<div class="h2"><span>Гривні</span>${fb ? `<span class="pk-timer">${ic('gift')} перша покупка ×${fb}</span>` : off ? `<span class="pk-timer">${ic('flame')} ×${off.mult} · ще <span data-until="${off.until - clockOffset}"></span></span>` : '<span>зараховуються одразу</span>'}</div>
+    ${fb ? `<div class="pk-hot">${ic('gift')} <b>Перша покупка — ×${fb} гривень!</b> Будь-який пакет, навіть найменший. Лише один раз.</div>` : off ? `<div class="pk-hot">${ic('flame')} <b>Мега-пропозиція:</b> ×${off.mult} гривень на всі пакети за ту саму ціну</div>` : ''}
+    <div class="pk-grid">${sh.packs.map((p) => `<button class="pk${mult ? ' hot' : ''}" data-act="buyPack" data-id="${p.id}" ${config.stars ? '' : 'disabled'}>
+      ${p.tag ? `<span class="pk-tag">${esc(p.tag)}</span>` : ''}<b>${S.short(p.amount)}</b>${mult ? `<s>${S.short(p.amount / mult)}</s>` : ''}<span class="pk-st">${ic('star')} ${p.stars}</span></button>`).join('')}</div>` : '';
+  // «Угода дня» (S.DAY_DEALS): one cheap offer a day, at the top of the shop.
+  const dd = sh.dayDeal;
+  const day = dd ? `<div class="card offer st-daydeal"><div class="row between"><b class="disp" style="font-size:19px">${ic('flame')} Угода дня</b><span class="chip">${dd.taken ? 'нова через' : 'ще'} <span data-until="${dd.next - clockOffset}"></span></span></div>
+    <div class="dd-name">${esc(dd.name)}</div>
+    <div class="row between mt">${dd.taken ? '<span class="tiny muted">Сьогодні вже взято — завтра нова</span>' : `<span class="tiny muted">раз на день · лише сьогодні</span>${storeBuyBtns({ id: dd.id, price: dd.stars }, sh)}`}</div></div>` : '';
+  return `${day}${starter}${packs}${vip}
   <button class="card row st-style-promo" data-act="storeView" data-k="style"><span class="ic tint" style="--c:#b48cff">${ic('sparkles')}</span><div class="grow"><b>Стиль</b><div class="tiny muted">рамки номерів, фони вітрини, лівреї, колір імені — лише вигляд, без характеристик</div></div><span class="chev">${ic('chevron-right')}</span></button>
   <div class="card row"><span class="ic tint" style="--c:#ffc400">${ic('ticket')}</span><div class="grow"><b>Преміум-пропуск · Сезон ${me.season.id}</b><div class="tiny muted">Друга доріжка нагород і машина сезону</div></div>${sh.premium ? '<span class="chip">куплено</span>' : storeBuyBtns(it.pass, sh)}</div>
   <div class="h2"><span>Зручності</span></div>

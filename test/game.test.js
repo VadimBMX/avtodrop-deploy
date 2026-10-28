@@ -357,7 +357,7 @@ test('promo codes and stars payments', () => {
   assert.throws(() => call(2, 'promo', { code: 'start' }), /недійсний/);
   g.creditPayment({ chargeId: 'x', userId: 1, packId: 'p1', stars: 50 });
   g.creditPayment({ chargeId: 'x', userId: 1, packId: 'p1', stars: 50 });
-  assert.equal(call(1, 'me').balance, S.START_BALANCE + 5000 + S.PACKS[0].amount);
+  assert.equal(call(1, 'me').balance, S.START_BALANCE + 5000 + S.PACKS.find((p) => p.id === 'p1').amount * S.FIRST_BUY_MULT); // the first purchase ×3
 });
 
 test('referral pays when the friend reaches level 3', () => {

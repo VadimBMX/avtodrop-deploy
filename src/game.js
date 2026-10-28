@@ -3881,6 +3881,11 @@ export function createGame(db, opts = {}) {
     if (it.cos && q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(uid, it.cos)) fail('Цей предмет «Стилю» вже твій');
     if (it.sub && subActive(uid)) fail('VIP-підписка вже діє — керувати нею можна в магазині');
     if (it.deal && !(u.fuel_deal_until > now())) fail('Знижка на бак уже закінчилась');
+    if (it.daily) {
+      if (S.dayDealOf(now()).id !== it.id) fail('Ця угода дня вже минула — глянь сьогоднішню');
+      if (u.day_deal_day === S.kyivDateOf(now())) fail('Сьогоднішню угоду ти вже взяв — нова завтра');
+      if ((u.level || 1) < S.DAY_DEAL_MIN_LEVEL) fail(`Угода дня — з ${S.DAY_DEAL_MIN_LEVEL} рівня`);
+    }
     return S.shopPrice(it, u.star_slots);
   }
   // ---------- VIP subscription (S.VIP_SUB, Telegram Stars subscription invoices) ----------
@@ -3919,7 +3924,8 @@ export function createGame(db, opts = {}) {
     for (const [caseId, n] of Object.entries(it.keys || {})) addKeys(uid, caseId, n);
     if (it.once) q('UPDATE users SET starter_bought = 1 WHERE id = ?').run(uid);
     if (it.id === 'pass') q('UPDATE users SET premium_season = ? WHERE id = ?').run(S.seasonOf(now()), uid);
-    if (it.id === 'refuel' || it.id === 'refuel_deal') {
+    if (it.daily) q('UPDATE users SET day_deal_day = ? WHERE id = ?').run(S.kyivDateOf(now()), uid);
+    if (it.id === 'refuel' || it.id === 'refuel_deal' || it.refill) {
       if (it.id === 'refuel_deal') q('UPDATE users SET fuel_deal_until = 0 WHERE id = ?').run(uid);
       q('UPDATE users SET fuel = ?, fuel_at = ? WHERE id = ?').run(fuelMax(u), now(), uid);
       q('UPDATE cars SET tank = ?, tank_at = ? WHERE owner_id = ?').run(S.CAR_TANK, now(), uid);
@@ -3940,7 +3946,8 @@ export function createGame(db, opts = {}) {
       stars: u.stars, vipUntil: u.vip_until, starterBought: !!u.starter_bought, premium: u.premium_season === cur,
       items: S.SHOP_ITEMS.map((it) => ({ ...it, price: S.shopPrice(it, u.star_slots) })),
       sub: subOut(subRow(uid)), // the VIP subscription: active, renewal cancelled, end of the paid period
-      packs: packsFor(uid), offer: packOffer(uid),
+      packs: packsFor(uid), offer: packOffer(uid), firstBuy: S.PACKS_ON_SALE && firstBuy(uid) ? S.FIRST_BUY_MULT : 0,
+      dayDeal: dayDealOut(u),
     };
   }
   // Paid from the stars on the account (season prizes).
@@ -4041,11 +4048,14 @@ export function createGame(db, opts = {}) {
     const pack = S.PACKS.find((p) => p.id === packId);
     if (!pack) fail('Невідомий пакет');
     const u = userRow(uid);
-    return S.packAmount(pack, u.level, u.total_value) * (packOfferOn(u) ? S.PACK_OFFER.mult : 1);
+    return S.packAmount(pack, u.level, u.total_value) * packMultFor(u);
   }
   // «Мега-пропозиція» (S.PACK_OFFER): starts by itself on a visit when the player's turn has come; `packOffer(uid)`
   // is called from `me`, so the window starts when he is actually in the game.
   const packOfferOn = (u) => S.PACKS_ON_SALE && u.pack_offer_until > now();
+  // Never paid Stars for anything yet → the first pack gives ×FIRST_BUY_MULT (the larger of it and the offer).
+  const firstBuy = (uid) => !q("SELECT 1 FROM payments WHERE user_id = ? AND stars > 0 AND pack NOT LIKE 'refund:%' LIMIT 1").get(uid);
+  const packMultFor = (u) => Math.max(packOfferOn(u) ? S.PACK_OFFER.mult : 1, firstBuy(u.id) ? S.FIRST_BUY_MULT : 1);
   function packOffer(uid) {
     if (!S.PACKS_ON_SALE) return null;
     let u = userRow(uid);
@@ -4066,6 +4076,12 @@ export function createGame(db, opts = {}) {
       u = userRow(uid);
     }
     return u.fuel_deal_until > t ? { until: u.fuel_deal_until, stars: S.SHOP_BY_ID.refuel_deal.stars, full: S.SHOP_BY_ID.refuel.stars } : null;
+  }
+  // «Угода дня» as the client shows it: today's item, whether it is taken, when the next one comes.
+  function dayDealOut(u) {
+    if ((u.level || 1) < S.DAY_DEAL_MIN_LEVEL) return null;
+    const d = S.dayDealOf(now());
+    return { id: d.id, name: d.name.replace(/^Угода дня: /, ''), stars: d.stars, taken: u.day_deal_day === S.kyivDateOf(now()), next: S.kyivMidnightOf(S.kyivDateOf(now()), 1) };
   }
   // The packs as this player would get them now (shop list).
   const packsFor = (uid) => (S.PACKS_ON_SALE ? S.PACKS.map((p) => ({ id: p.id, stars: p.stars, tag: p.tag || null, amount: packAmountFor(uid, p.id) })) : []);

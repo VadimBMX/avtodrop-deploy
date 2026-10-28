@@ -175,7 +175,7 @@ test('admin: reset wipes progress but keeps account, referrer and payments; open
   call(2, 'auction/create', { carId: a, startPrice: 1000, hours: 6 });
   const before3 = call(3, 'me').balance;
   call(3, 'auction/bid', { id: 1, amount: 5000 });
-  g.creditPayment({ chargeId: 'x1', userId: 2, packId: S.PACKS[0].id, stars: S.PACKS[0].stars });
+  g.creditPayment({ chargeId: 'x1', userId: 2, packId: S.PACKS.find((p) => p.id === 'p1').id, stars: S.PACKS.find((p) => p.id === 'p1').stars });
 
   assert.equal(g.admin.reset('key', { id: 2, reason: 'тест' }).cars, 2);
   const me = call(2, 'me');
@@ -350,7 +350,7 @@ test('admin panel: player card has balance, cars with values, parts, plates, key
   g.adminCall('tg:2', 'part', { id: 10, type: 'turbo', tier: 'sport', count: 2, ...ok });
   g.adminCall('tg:2', 'keys', { id: 10, caseId: 'rust', count: 1, ...ok });
   g.adminCall('tg:2', 'give-plate', { id: 10, text: 'AA 0001 AA', ...ok });
-  g.creditPayment({ chargeId: 'c1', userId: 10, packId: S.PACKS[0].id, stars: S.PACKS[0].stars });
+  g.creditPayment({ chargeId: 'c1', userId: 10, packId: S.PACKS.find((p) => p.id === 'p1').id, stars: S.PACKS.find((p) => p.id === 'p1').stars });
   g.api['case/open'](10, { caseId: 'starter' });
   db.prepare('INSERT INTO legacy (id, referrer_id, stars, thanked) VALUES (10, 1, 75, 1)').run();
   advance(60e3);
@@ -362,7 +362,7 @@ test('admin panel: player card has balance, cars with values, parts, plates, key
   assert.equal(c.parts.find((p) => p.type === 'turbo').count, 2);
   assert.equal(c.plates[0].text, 'AA 0001 AA');
   assert.equal(c.keys.find((k) => k.caseId === 'rust').count, 1);
-  assert.equal(c.payments[0].stars, S.PACKS[0].stars);
+  assert.equal(c.payments[0].stars, S.PACKS.find((p) => p.id === 'p1').stars);
   assert.ok(c.drops.length >= 1);
   assert.deepEqual(c.user.invited.map((f) => f.id), [12]);
   assert.equal(g.adminCall('tg:3', 'user', { id: 12 }).user.referrer.id, 10);
@@ -382,12 +382,12 @@ test('admin panel: dashboard counts active players, new players, cases, stars an
   assert.ok(today0.newUsers >= 5);
   assert.ok(today0.created >= 5 * S.START_BALANCE, 'start money counts as created');
   g.api['case/open'](10, { caseId: 'starter' });
-  g.creditPayment({ chargeId: 'p1', userId: 11, packId: S.PACKS[0].id, stars: S.PACKS[0].stars });
+  g.creditPayment({ chargeId: 'p1', userId: 11, packId: S.PACKS.find((p) => p.id === 'p1').id, stars: S.PACKS.find((p) => p.id === 'p1').stars });
   g.adminCall('tg:2', 'money', { id: 10, amount: -1000, ...ok });
   const d1 = g.adminCall('tg:2', 'dashboard', { days: 7 });
   const t = d1.days.at(-1);
   assert.equal(t.cases, 1);
-  assert.equal(t.stars, S.PACKS[0].stars);
+  assert.equal(t.stars, S.PACKS.find((p) => p.id === 'p1').stars);
   assert.ok(t.dau >= 2, 'opened a case or paid today');
   assert.equal(t.destroyed - today0.destroyed >= 1000, true);
   assert.equal(t.supply, db.prepare('SELECT SUM(balance) n FROM users').get().n, 'money supply today');
