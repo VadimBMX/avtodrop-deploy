@@ -490,6 +490,7 @@ async function refresh(rerender = true) {
   if (rerender) render();
   else renderHeader();
   guideProgress();
+  bugAskOnce(); // «Бета-тест: знайшов баг — пиши в підтримку» (once per player, from level 2)
   homeCheck(); // «Додай на головний екран» from the 3rd day (once a session; nothing on old clients)
   // Let a drop's celebration play out before the level-up popup covers it.
   const wait = state.fx ? 2600 : 0;
@@ -4260,6 +4261,7 @@ PAGES.support = async () => {
   const { list } = await api('support/mine');
   return `<div class="card"><b>Написати в підтримку</b>
       <div class="small muted mt">Питання, помилка, оплата чи ідея — пиши сюди. Відповідь прийде прямо в гру й у бот.</div>
+      <div class="small mt">🐞 Гра в бета-тесті: <b class="win">за знайдені баги й нелогічні ціни — бонуси</b> (гроші, ключі від кейсів).</div>
       <textarea id="supText" maxlength="1000" placeholder="Опиши, що сталося" style="display:block;width:100%;box-sizing:border-box;min-height:110px;margin-top:10px"></textarea>
       <button class="btn yellow mt" data-act="supSend">${ic('arrow-right')} Надіслати</button></div>
     ${list.length ? `<div class="h2"><span>Мої звернення</span></div><div class="list">${list.map((m) => `<div class="card"><div class="small muted">${new Date(m.at).toLocaleString('uk-UA', { dateStyle: 'short', timeStyle: 'short' })}</div>
@@ -8568,6 +8570,40 @@ function homeAskOnce(tries = 0) {
       <div class="btns mt"><button class="btn" data-act="homeAddAsk">Додати ярлик</button><button class="btn ghost" data-act="closeModal">Пізніше</button></div></div>`);
   }, tries ? 4000 : 2500);
 }
+// «Бета-тест» (owner 28.10): once per player (from level 2, past the first minutes), in a calm moment — found a bug or
+// an odd price, write to support; useful finds get a bonus. The support page keeps the same line.
+const BUG_ASK_KEY = 'avtodrop.bugAsk1';
+let bugAskTimer = 0, bugAskOn = false;
+function bugAskOnce(tries = 0) {
+  if (bugAskOn && !tries) return;
+  bugAskOn = true;
+  try {
+    if (localStorage.getItem(BUG_ASK_KEY)) return;
+  } catch {
+    return;
+  }
+  clearTimeout(bugAskTimer);
+  bugAskTimer = setTimeout(() => {
+    if ((me?.level || 1) < 2 || guideOn()) return void (bugAskOn = false); // asked again after a later refresh (after «Перші кроки»)
+    if (!$('#modal').hidden || state.opening || state.race || state.page || document.querySelector('.story') || WOW.isOpen()) {
+      if (tries < 45) bugAskOnce(tries + 1);
+      else bugAskOn = false;
+      return;
+    }
+    try {
+      localStorage.setItem(BUG_ASK_KEY, '1');
+    } catch {}
+    sheet('Бета-тест', `<div class="card center tg-home-ask"><div class="tg-home-ic">${ic('tools')}</div>
+      <b class="disp">ЗНАЙШОВ БАГ? 🐞</b>
+      <div class="muted mt">Гра в бета-тесті. Помітив помилку, дивну ціну чи щось нелогічне — напиши нам у підтримку.</div>
+      <div class="small mt">За корисні знахідки — <b class="win">бонуси: гроші й ключі від кейсів</b></div>
+      <div class="btns mt"><button class="btn" data-act="bugAskGo">Написати в підтримку</button><button class="btn ghost" data-act="closeModal">Зрозуміло</button></div></div>`);
+  }, tries ? 4000 : 6000);
+}
+H.bugAskGo = () => {
+  closeModal();
+  go('support');
+};
 H.homeAddAsk = () => {
   H.closeModal?.();
   H.homeAdd();
