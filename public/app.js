@@ -22,6 +22,8 @@ const challengeCard = (o) => import('./challenge-card.js').then((x) => x.challen
 import { installHalloween, hwNight, HW_DRIFT, hwDriftPumpkins, hwDriftOverlay } from './halloween-ui.js';
 // «Сарайна знахідка»: the «Сарай» page, a garage row and a menu row (public/barn-ui.js).
 import { installBarn } from './barn-ui.js';
+// «Таємний покупець»: a card in «Гараж» under the income card (public/buyer-ui.js).
+import { installBuyer } from './buyer-ui.js';
 import { installTopStrip, raceCarChoice, garageSig, bossWall, sovietEra } from './firsthour.js';
 // «Автоклуби»: page «Клуб», [TAG] next to names, the menu row, club_<code> invite links (public/clubs-ui.js).
 import { installClubs, clubTag, clubHub, clubFromLink } from './clubs-ui.js';
@@ -563,6 +565,7 @@ const PAGE_FEATURE = { plates: 'plates', market: 'market', tradein: 'tradein', t
 const TAB_FEATURE = { shop: 'parts' };
 installBarn({ me: () => me, state: () => state, api, act, H, ic, esc, sheet, go, carArt, FX, PAGES, PAGE_TITLES, PAGE_FEATURE, isOpen, lockChip,
   untilSpan: (t) => untilSpan(t), serverNow: () => serverNow(), confirmBox: (t) => confirmBox(t), toast: (...a) => toast(...a), render: () => render(), closeModal: () => closeModal() });
+installBuyer({ me: () => me, state: () => state, act, H, ic, esc, sheet, closeModal: () => closeModal(), untilSpan: (t) => untilSpan(t), serverNow: () => serverNow() });
 installTopStrip({ state: () => state }); // firsthour: one strip on top of «Гараж»/«Меню», by priority
 function lockBody(key) {
   const u = S.UNLOCK_BY_KEY[key];

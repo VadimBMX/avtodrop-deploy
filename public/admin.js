@@ -333,6 +333,28 @@ VIEWS.overview = async () => {
     </div>`;
 };
 H.reload = () => render();
+// «Таємний покупець» (src/buyer.js): read-only numbers under «Огляд» — offers, sales, what was paid and the part above the dealer.
+AFTER.overview = async () => {
+  const main = $('#main');
+  let b;
+  try {
+    b = await api('buyer');
+  } catch {
+    return;
+  }
+  if (state.view !== 'overview' || !main || main.querySelector('#tbAdmin')) return;
+  const conv = (x) => (x.offers ? `${Math.round((x.sold / x.offers) * 100)}%` : '—');
+  const el = document.createElement('div');
+  el.className = 'panel';
+  el.id = 'tbAdmin';
+  el.innerHTML = `<h2>Таємний покупець <span class="sub">одна пропозиція на гравця на день, 3 год</span></h2>
+    <div class="cards"><div class="stat"><span>Сьогодні</span><b>${b.today.sold} / ${b.today.offers}</b><small>продано / пропозицій · ${conv(b.today)}</small></div>
+      <div class="stat"><span>Усього</span><b>${b.all.sold} / ${b.all.offers}</b><small>конверсія ${conv(b.all)}</small></div>
+      <div class="stat"><span>Виплачено</span><b>${short(b.all.paid)}</b><small>з них понад дилера ${short(b.all.bonus)}</small></div></div>
+    <div class="tbl-wrap"><table><tr><th>День</th><th class="num">Пропозицій</th><th class="num">Продано</th><th class="num">Виплачено</th><th class="num">Понад дилера</th></tr>
+      ${b.days.map((d) => `<tr><td>${esc(d.day)}</td><td class="num">${d.offers}</td><td class="num">${d.sold}</td><td class="num">${short(d.paid)}</td><td class="num">${short(d.bonus)}</td></tr>`).join('') || '<tr><td class="muted" colspan="5">Ще не було</td></tr>'}</table></div>`;
+  main.append(el);
+};
 H.days = (d) => ((state.days = Number(d.n)), render());
 // ---------- metrics for the owner (public/admin-metrics.js) ----------
 VIEWS.metrics = () => metricsPage({ api, esc, ic, short, days: state.mDays || 30 });

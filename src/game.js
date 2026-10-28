@@ -5,6 +5,7 @@ import * as T from '../public/tune.js';
 import * as G from '../public/ghost.js';
 import * as M from './metrics.js';
 import { createDayRace } from './dayrace.js';
+import { createBuyer } from './buyer.js';
 import { createContainers } from './containers.js';
 import { createHalloween } from './halloween.js';
 import { createTg } from './tg.js';
@@ -5192,6 +5193,21 @@ export function createGame(db, opts = {}) {
     settleWeek = function () { weekBase(); SRM.settle(); }; // re-pointed before srcWrap('weekly') below: one job, two prizes
     push.showroom = (oid) => db.tx(() => SRM.info(oid)); // server.js: the shared card's caption and the bot's inline answer
   }
+  // «Таємний покупець» (src/buyer.js, public/buyer.js): the offer of the day in `me.buyer`, a sale to it through the
+  // ordinary sell (never the last car, parts and plate back), the «покупець чекає ще 1 год» reminder, a read-only admin stat.
+  const BY = createBuyer({ q, now, dayOf, fail, int, isOpen, ownCar, noSecret, addMoney, metaGet, metaSet, sellCar: (uid, id) => sell(uid, { carIds: [id] }) });
+  Object.assign(GATES, BY.gates);
+  Object.assign(handlers, BY.api);
+  {
+    const meBase = handlers.me;
+    handlers.me = (uid, b) => ({ ...meBase(uid, b), buyer: BY.brief(uid) });
+  }
+  push.candidates = ((base) => (rules) => BY.remind(base(rules), rules))(push.candidates);
+  admin.buyer = (who) => db.tx(() => {
+    if (!canDo(actorRole(who), 'buyer')) fail('Немає прав на цю дію');
+    return BY.admin.buyer();
+  });
+  HELPER_ACTIONS.add('buyer'); // read-only numbers
   // Every call runs in one transaction, settles the weekly race and refreshes the caller's garage value — except the
   // frequent polls below (every few seconds, or several times a second in a live race), which change no cars.
   const LIGHT = new Set(['pulse', 'pvp/progress', 'pvp/state', 'containers/lot']);

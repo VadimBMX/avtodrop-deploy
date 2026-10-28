@@ -4659,3 +4659,29 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .srm-note .i { color: #ff5a7a; vertical-align: -2px; }
 /* The winners' plate frame (S.EVENT_COSMETICS «cos:e:sr-week»): rose gold with a warm glow. */
 .plate.pf-showroom { box-shadow: 0 0 0 max(1.5px, calc(var(--h) * .06)) #ffb3c1, 0 0 0 max(3px, calc(var(--h) * .12)) #2a0f17, 0 0 0 max(4px, calc(var(--h) * .16)) #ff5a7a, 0 0 max(6px, calc(var(--h) * .45)) #ff5a7a66; }
+/* «Таємний покупець» (public/buyer-ui.js): a card in «Гараж» under the income card — not a strip on top (firsthour.js);
+   a green 3 px edge (money coming in), the action is a secondary button (the yellow stays with «Забрати»). */
+.tb-card { position: relative; padding: 12px 14px 12px 17px; margin-bottom: 12px; overflow: hidden; }
+.tb-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--green, #2fd27a); }
+.tb-head { display: flex; align-items: center; gap: 8px; font-size: var(--t-md, 14.5px); }
+.tb-who { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.tb-who small { font-size: var(--t-xs, 11px); color: var(--muted, #8a94a7); font-weight: 600; }
+.tb-ic { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--r-sm, 10px); background: var(--card2, #1c2330); color: var(--text, #eef1f6); flex: none; }
+.tb-ic .i { width: 16px; height: 16px; }
+.tb-time { display: inline-flex; align-items: center; gap: 4px; flex: none; font: 600 var(--t-xs, 11px) / 1 var(--f-disp, inherit); color: var(--muted, #8a94a7); font-variant-numeric: tabular-nums; }
+.tb-time .i { width: 13px; height: 13px; }
+.tb-line { margin-top: 6px; font-size: var(--t-sm, 12.5px); color: var(--muted, #8a94a7); font-style: italic; }
+.tb-row { margin-top: 6px; font-size: var(--t-sm, 12.5px); line-height: 1.35; }
+.tb-plus { color: var(--green, #2fd27a); font-weight: 700; white-space: nowrap; }
+.tb-note { margin-top: 8px; font-size: var(--t-sm, 12.5px); color: var(--muted, #8a94a7); }
+.tb-card .tb-btn { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; margin-top: 10px; min-height: 40px; }
+.tb-card .tb-btn > span { min-width: 0; }
+.tb-card .tb-btn b { flex: none; color: var(--green, #2fd27a); }
+.tb-sold .tb-row { margin-top: 8px; }
+.tb-sheet { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; padding: 4px 0 8px; }
+.tb-sheet .tb-art { width: 180px; max-width: 60%; aspect-ratio: 16 / 9; position: relative; }
+.tb-name { font: 700 var(--t-lg, 17px) / 1.2 var(--f-disp, inherit); margin-top: 4px; }
+.tb-sum { font: 800 var(--t-2xl, 30px) / 1.1 var(--f-disp, inherit); color: var(--green, #2fd27a); font-variant-numeric: tabular-nums; }
+.tb-sheet .btns { display: flex; gap: 10px; width: 100%; }
+.tb-sheet .btns .btn { flex: 1; }
+.tb-list .li { width: 100%; text-align: left; }

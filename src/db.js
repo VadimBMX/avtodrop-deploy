@@ -356,6 +356,13 @@ CREATE INDEX IF NOT EXISTS event_plan_end ON event_plan (end);
 CREATE TABLE IF NOT EXISTS car_restyle (car_id INTEGER PRIMARY KEY, stars INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL DEFAULT 0, spent INTEGER NOT NULL DEFAULT 0);
 CREATE TRIGGER IF NOT EXISTS car_restyle_gone AFTER DELETE ON cars BEGIN DELETE FROM car_restyle WHERE car_id = old.id; END;
 CREATE TABLE IF NOT EXISTS trophies (user_id INTEGER NOT NULL, k INTEGER NOT NULL, cost INTEGER NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (user_id, k)) WITHOUT ROWID;
+-- «Таємний покупець» (src/buyer.js, public/buyer.js): one offer per player per Kyiv day. req: JSON { model } or
+-- { cls, country }; prem: the premium share; expires_at = created_at + 3 h. Sold: the car, its model, what was paid in
+-- all (paid) and the part above the dealer's price (bonus).
+CREATE TABLE IF NOT EXISTS buyer_offers (user_id INTEGER NOT NULL, day TEXT NOT NULL, kind TEXT NOT NULL, req TEXT NOT NULL, prem REAL NOT NULL,
+  city TEXT NOT NULL, line TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, sold_at INTEGER, car_id INTEGER, sold_model TEXT,
+  paid INTEGER NOT NULL DEFAULT 0, bonus INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, day)) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS buyer_offers_open ON buyer_offers(expires_at, sold_at);
 -- Lookups by player that had no index of their own (EXPLAIN QUERY PLAN showed a full scan): incoming trades and room
 -- invites (every me / pulse), parts cooling down (inventory), barn finds (me), who is online (the trade hall).
 CREATE INDEX IF NOT EXISTS trades_to ON trades(to_id, status);
