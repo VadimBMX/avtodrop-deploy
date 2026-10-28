@@ -2458,6 +2458,7 @@ export const STYLE_ITEMS = [
 export const EVENT_COSMETICS = [
   { id: 'hw-pumpkin', kind: 'frame', look: 'pumpkin', name: 'Рамка «Гарбуз»', hint: 'нагорода «Ночі Хелловіну»', event: 'halloween' },
   { id: 'tr-champ', kind: 'frame', look: 'champ', name: 'Рамка «Чемпіон»', hint: 'лише для переможців «Турніру вихідних»', event: 'tourney' },
+  { id: 'sr-week', kind: 'frame', look: 'showroom', name: 'Рамка «Шоурум тижня»', hint: 'лише для переможців «Шоуруму тижня»', event: 'showroom' },
 ].map((it) => ({ ...it, cos: 'cos:e:' + it.id }));
 const STYLE_BY_COS = Object.fromEntries([...STYLE_ITEMS, ...EVENT_COSMETICS].map((it) => [it.cos, it]));
 // A «Стиль» item as a cosmetic (same shape as a season one; season 0).

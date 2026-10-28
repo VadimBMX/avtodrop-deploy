@@ -4601,3 +4601,61 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .lb-bug.t3 { color: #f5b301; }
 .lb-bug .i { width: 14px; height: 14px; }
 .pod-ava .lb-bug { position: absolute; bottom: -6px; right: -6px; margin: 0; padding: 2px; border-radius: 50%; background: var(--bg, #0b0f16); }
+/* ---------- «Шоурум» (public/showroom-ui.js): my showroom, the week's prize line, the list with hearts, a player's
+   showroom sheet, the pick list, the share preview, the menu row and the player-card strip. Prefix srm-. ---------- */
+.srm-mine { padding-bottom: 12px; }
+.srm-h { display: inline-flex; align-items: center; gap: 6px; font: 700 17px/1.2 var(--f-disp); letter-spacing: .3px; }
+.srm-h .i { color: #ff5a7a; }
+.srm-likes { display: inline-flex; align-items: baseline; gap: 5px; font: 700 15px/1.2 var(--f-disp); color: #ff7a93; white-space: nowrap; }
+.srm-likes b { color: var(--text); font-size: 17px; }
+.srm-likes small { color: var(--muted); font: 600 12.5px/1.2 var(--f-body); }
+/* the stage: the first car big across the row, the next two under it (on the «Фон вітрини» backdrop when worn) */
+.grid.srm-stage { margin-top: 10px; }
+.grid.srm-stage > :first-child { grid-column: 1 / -1; }
+.grid.srm-stage > .car:first-child { min-height: 190px; }
+.grid.srm-stage > .car:first-child .art { height: 112px; }
+.srm-slot { min-height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--muted); }
+.srm-acts { display: flex; gap: 8px; align-items: stretch; margin-top: 12px; }
+.srm-acts .btn:first-child { flex: 1; }
+.srm-acts .btn.sm { padding-left: 16px; padding-right: 16px; }
+.srm-week { margin: 12px 2px 10px; display: grid; gap: 6px; }
+.srm-week b { font: 700 15px/1.2 var(--f-disp); }
+.srm-week .tiny b { font: inherit; font-weight: 700; color: var(--text); }
+.srm-last { font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+.srm-last .i { color: #f5c84a; }
+.srm-last .txtlink { font: inherit; color: var(--text); padding: 0; background: none; border: 0; text-decoration: underline; text-underline-offset: 2px; }
+.srm-seg { margin-bottom: 8px; }
+.srm-list { display: grid; gap: 6px; }
+.srm-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: var(--card); border: 1px solid var(--line, #1f2633); cursor: pointer; min-height: 64px; }
+.srm-row.me { border-color: color-mix(in srgb, #ff5a7a 45%, var(--line, #1f2633)); }
+.srm-pl { flex: none; width: 24px; text-align: center; font: 800 16px/1 var(--f-disp); color: var(--muted); }
+.srm-pl.prize { color: #f5c84a; }
+.srm-who { min-width: 0; display: grid; gap: 4px; }
+.srm-who b { font: 700 15px/1.2 var(--f-disp); }
+.srm-th { display: flex; gap: 4px; }
+.srm-th .art { width: 58px; height: 26px; display: flex; align-items: flex-end; justify-content: center; }
+.srm-th .art img, .srm-th .art svg { max-width: 100%; max-height: 100%; object-fit: contain; filter: drop-shadow(0 3px 3px #0008); }
+.srm-n { flex: none; display: grid; justify-items: end; line-height: 1.1; }
+.srm-n b { font: 700 16px/1.1 var(--f-disp); }
+.srm-n small { font-size: 11.5px; color: var(--muted); }
+.srm-heart { flex: none; width: 44px; height: 44px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--card2); color: #ff7a93; border: 1px solid #ff5a7a40; }
+.srm-heart .i { width: 22px; height: 22px; }
+.srm-heart.on, .srm-heart[disabled] { background: #ff5a7a26; color: #ff5a7a; border-color: transparent; }
+.srm-heart.on .i { fill: currentColor; }
+.srm-heart:active { transform: scale(.92); }
+.srm-sh-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 4px; }
+.srm-badge { color: #f5c84a; border-color: currentColor; }
+.btn.srm-card { display: flex; width: 100%; margin-top: 8px; }
+.srm-picklist .li.on { border-color: #ff5a7a80; background: #ff5a7a12; }
+.srm-ck { flex: none; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--line2, #2a3242); display: inline-flex; align-items: center; justify-content: center; font: 800 14px/1 var(--f-disp); }
+.srm-pick.on .srm-ck { background: #ff5a7a; border-color: #ff5a7a; color: #fff; }
+.srm-save { position: sticky; bottom: 0; padding: 10px 0 2px; background: linear-gradient(180deg, #0000, var(--bg, #0a0d14) 35%); }
+.srm-prev img { aspect-ratio: 1080 / 1350; }
+.srm-hub .hub-ic { color: #ff5a7a; }
+.srm-strip { display: flex; width: 100%; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: var(--card2); color: var(--text); text-align: left; }
+.srm-strip b { display: block; font: 700 14.5px/1.2 var(--f-disp); }
+.srm-strip small { display: block; color: #ff7a93; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.srm-strip .grow { min-width: 0; }
+.srm-note .i { color: #ff5a7a; vertical-align: -2px; }
+/* The winners' plate frame (S.EVENT_COSMETICS «cos:e:sr-week»): rose gold with a warm glow. */
+.plate.pf-showroom { box-shadow: 0 0 0 max(1.5px, calc(var(--h) * .06)) #ffb3c1, 0 0 0 max(3px, calc(var(--h) * .12)) #2a0f17, 0 0 0 max(4px, calc(var(--h) * .16)) #ff5a7a, 0 0 max(6px, calc(var(--h) * .45)) #ff5a7a66; }

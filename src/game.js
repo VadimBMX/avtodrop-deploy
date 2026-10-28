@@ -15,6 +15,7 @@ import { createClubs } from './clubs.js';
 import { createTourney } from './tourney.js';
 import { createPrestige } from './prestige.js';
 import { createBugBounty } from './bugbounty.js';
+import { createShowroom } from './showroom.js';
 
 export class GameError extends Error {}
 const fail = (msg) => {
@@ -624,7 +625,7 @@ export function createGame(db, opts = {}) {
       addKeys(uid, 'starter', 1);
       moneyFlow(S.START_BALANCE);
       if (legacyWelcome(uid)) return { created: true };
-      const m = /^ref_(\d{1,20})$/.exec(startParam || '');
+      const m = /^(?:ref|sr)_(\d{1,20})$/.exec(startParam || ''); // sr_<id>: a shared «Шоурум» invites like a ref link
       const ch = m ? null : challengeRef(startParam); // a ghost challenge's link invites like a ref link (its creator)
       const ref = m ? Number(m[1]) : ch ? ch.creator_id : null;
       if (ref && ref !== uid && q('SELECT id FROM users WHERE id = ?').get(ref)) {
@@ -5179,6 +5180,17 @@ export function createGame(db, opts = {}) {
       return r;
     };
     handlers.leaderboard = (uid, b) => ((r) => (BB.tagRows(r?.list), r))(lbBase(uid, b));
+  }
+  // «Шоурум» (src/showroom.js, public/showroom.js): up to 3 cars on show, likes, «Шоурум тижня» paid with the weekly race.
+  const SRM = createShowroom({ db, q, now, fail, int, name, addMoney, event, userRow, weekOf, dayOf, carExtras, carOut, styleOf, badgesOf, grantCosmetic,
+    asPrize: (fn) => srcWrap('weekly/showroom', fn)() });
+  Object.assign(handlers, SRM.api);
+  {
+    const meBase = handlers.me, playerBase = handlers.player, weekBase = settleWeek;
+    handlers.me = (uid, b) => ({ ...meBase(uid, b), showroom: SRM.brief(uid) });
+    handlers.player = (uid, b) => { const p = playerBase(uid, b); return { ...p, showroom: SRM.card(p.id) }; };
+    settleWeek = function () { weekBase(); SRM.settle(); }; // re-pointed before srcWrap('weekly') below: one job, two prizes
+    push.showroom = (oid) => db.tx(() => SRM.info(oid)); // server.js: the shared card's caption and the bot's inline answer
   }
   // Every call runs in one transaction, settles the weekly race and refreshes the caller's garage value — except the
   // frequent polls below (every few seconds, or several times a second in a live race), which change no cars.

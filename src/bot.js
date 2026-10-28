@@ -228,9 +228,13 @@ export function createBot({ token, webappUrl, admins = [], game, inline = null, 
       // A club invite (/start club_<code>): the button opens the game on the invite (?club=<code>, public/clubs-ui.js).
       const clubM = /^club_([a-z0-9]{8})$/.exec(args[0] || '');
       const clubUrl = clubM && canButton && !chUrl ? `${webappUrl}${webappUrl.includes('?') ? '&' : '?'}club=${clubM[1]}` : null;
+      // A shared «Шоурум» (/start sr_<id>): the button opens the game on that player's showroom (?sr=<id>, public/showroom-ui.js).
+      const srM = /^sr_(\d{1,20})$/.exec(args[0] || '');
+      const srUrl = srM && canButton && !chUrl && !clubUrl ? `${webappUrl}${webappUrl.includes('?') ? '&' : '?'}sr=${srM[1]}` : null;
       await send(m.chat.id, startText({ name: m.from.first_name, created: !!u.created, ref: !!u.ref, pushBack: wasOff, canButton, challenge }),
         chUrl && !challenge.expired ? { reply_markup: { inline_keyboard: [[{ text: '🏁 Прийняти виклик', web_app: { url: chUrl } }]] } }
-          : clubUrl ? { reply_markup: { inline_keyboard: [[{ text: '🏁 Вступити в автоклуб', web_app: { url: clubUrl } }]] } } : {});
+          : clubUrl ? { reply_markup: { inline_keyboard: [[{ text: '🏁 Вступити в автоклуб', web_app: { url: clubUrl } }]] } }
+            : srUrl ? { reply_markup: { inline_keyboard: [[{ text: '♥ Дивитися шоурум', web_app: { url: srUrl } }]] } } : {});
     } else if (cmd === '/help') {
       await send(m.chat.id, HELP_TEXT.replace('{bot}', username || 'bot'));
     } else if (cmd === '/garage') {

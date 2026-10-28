@@ -34,6 +34,8 @@ import { driftEnv, grassTile, speedLines } from './drift-env.js';
 import { installTourney } from './tourney-ui.js';
 // «Престиж»: restyle ★ on cars, the restyle sheet, «Трофейна зала» (public/prestige-ui.js).
 import { installPrestige, starsHtml, starTileCls, sellStarNote, carRestyleLi, prestigeHubRow } from './prestige-ui.js';
+// «Шоурум»: up to 3 cars on show, likes, «Шоурум тижня», the share card and sr_<id> links (public/showroom-ui.js).
+import { installShowroom, showroomHubRow, showroomStrip, showroomFromLink } from './showroom-ui.js';
 
 const tg = window.Telegram?.WebApp;
 const $ = (s, el = document) => el.querySelector(s);
@@ -546,6 +548,10 @@ installHalloween({ me: () => me, state: () => state, H, ic, esc, sheet, go });
 installClubs({ me: () => me, state: () => state, config: () => config, tg, H, PAGES, AFTER, PAGE_TITLES, api, act, toast, sheet, closeModal, confirmBox, go, render, ic, esc, initialOf,
   untilSpan: (t) => untilSpan(t), tickUntil: () => tickUntil(), emptyLine: (...a) => emptyLine(...a) });
 installPrestige({ me: () => me, state: () => state, H, ic, esc, sheet, act, api, go, toast, closeModal, carSheet: (id) => carSheet(id), serverNow: () => serverNow(), clockOffset: () => clockOffset, carInc: (c) => carInc(c) });
+installShowroom({ me: () => me, state: () => state, config: () => config, tg, H, PAGES, AFTER, PAGE_TITLES, api, toast, sheet, closeModal, go, render, ic, esc,
+  carTile: (...a) => carTile(...a), showcaseBackdrop: (s) => showcaseBackdrop(s), withFrame: (c, s) => withFrame(c, s), nameHtml: (n, s) => nameHtml(n, s), haptic: (k) => haptic(k),
+  shareCaps: () => shareCaps(), authHeaders: (t) => authHeaders(t), copyText: (t, ok) => copyText(t, ok), untilSpan: (t) => untilSpan(t), tickUntil: () => tickUntil(),
+  emptyBox: (...a) => emptyBox(...a), tgAt: (v) => tgAt(v) });
 
 // ---------- progressive unlock (S.UNLOCKS; the server says what is open in me.unlocked) ----------
 // Locked things stay in sight with a lock and the level they open at, so there's something to look forward to.
@@ -923,7 +929,8 @@ TABS.garage = () => {
     const cars = me.cars.filter((c) => c.status === 'showcase');
     const free = me.showcaseSlots - cars.length;
     return seg + `<div class="card"><div class="row between"><b class="disp" style="font-size:17px;letter-spacing:.5px">${ic('building-arch')} ВІТРИНА</b><span class="muted">${cars.length}/${me.showcaseSlots}</span></div>
-      <div class="small muted mt">Улюблені машини на постаменті. Тут вони не їздять і не приносять доходу, зате не займають місця в гаражі. Твою вітрину бачать інші гравці з рейтингу.</div></div>
+      <div class="small muted mt">Улюблені машини на постаменті. Тут вони не їздять і не приносять доходу, зате не займають місця в гаражі. Твою вітрину бачать інші гравці з рейтингу.</div>
+      <div class="tiny muted mt srm-note">${ic('heart')} За лайки змагаються в <a class="txtlink" data-act="go" data-page="showroom">«Шоурумі»</a>: до 3 машин на показ, і вони не мусять стояти тут — з гаража теж заробляють.</div></div>
       <div class="grid${showcaseBackdrop()}">${cars.map((c) => carTile(c)).join('')}${Array.from({ length: free }, () => '<button class="slot" data-act="showcasePick">+ Виставити машину</button>').join('')}
       ${me.showcaseSlots < S.SHOWCASE_MAX ? `<button class="slot buy" data-act="buyShowcase">+<span>Місце на вітрині</span><b>${S.short(S.showcaseCost(me.showcaseSlots))}</b></button>` : ''}</div>`;
   }
@@ -4199,7 +4206,7 @@ TABS.menu = () => {
   const H2 = (t, r = '') => `<div class="hub-h"><span>${t}</span>${r ? `<span>${r}</span>` : ''}</div>`;
   const nextLock = S.UNLOCKS.find((u) => !isOpen(u.key) && !(u.key === 'casino' && casinoOff()));
   return `<div class="hub">${head}${pass}${homeCard()}
-    ${H2('Нагороди й прогрес')}<div class="hub-grid g2">${tiles.join('')}</div>${challengeHubRow()}${clubHub()}${prestigeHubRow()}${tgGroupsCard()}
+    ${H2('Нагороди й прогрес')}<div class="hub-grid g2">${tiles.join('')}</div>${challengeHubRow()}${clubHub()}${prestigeHubRow()}${showroomHubRow()}${tgGroupsCard()}
     ${H2('Торгівля', nextLock && ['market', 'trades', 'tradein', 'plates'].includes(nextLock.key) ? `${ic('lock')} далі: ${nextLock.name} · рів. ${nextLock.level}` : '')}<div class="hub-grid g4">${trade.join('')}</div>
     ${H2('Ризикнути')}<div class="hub-grid g2">${risk.join('')}</div>
     ${H2('Магазин')}${store}
@@ -6053,6 +6060,7 @@ H.playerCard = async (d, el, e, showcase) => {
       value: p.value, cases: p.stats?.cases, wins: p.stats?.wins, coll: collPct(p.collection) })}
     <div class="row between small muted mt" style="padding:0 2px"><span>${p.carCount} ${plural(p.carCount, ['машина', 'машини', 'машин'])} · ${p.collection} у колекції</span><span>${p.stats?.races ? `${Math.round((p.stats.wins / p.stats.races) * 100)}% перемог` : ''}</span></div>
     ${p.prestige?.trophies || p.prestige?.best ? `<div class="small mt pr-card-line">${p.prestige.best ? `${p.prestige.best.stars >= 5 ? 'Легенда' : 'Рестайлінг'}: <b>${esc(M(p.prestige.best.model)?.name || '')}</b> ${starsHtml(p.prestige.best)}` : ''}${p.prestige.trophies ? `<span class="muted">${p.prestige.best ? ' · ' : ''}трофеї ${p.prestige.trophies}/10</span>` : ''}</div>` : ''}
+    ${showroomStrip(p)}
     <div class="btns mt"><button class="btn ${p.self ? '' : 'ghost'}" data-act="playerShowcase" data-id="${p.id}">${ic('building-arch')} Вітрина · ${p.showcase.length}</button>
     ${p.self ? '' : `<button class="btn" data-act="tradeWith" data-id="${p.id}">${ic('arrows-exchange')} Обмін</button>`}</div>`);
 };
@@ -7185,7 +7193,7 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide', 'toggleChannel']) {
     const story = S.storyFor(me, whatsNewSeenHere());
     const st = guideOn() && S.GUIDE_STEPS.find((s) => s.key === me.guide);
     if (st?.tab) state.tab = st.tab; // back in the middle of the first steps: open where the next one is
-    const fromLink = challengeFromLink() || clubFromLink(); // a ghost challenge's / club invite's link opens on it (over the intro's end too)
+    const fromLink = challengeFromLink() || clubFromLink() || showroomFromLink(); // a ghost challenge's / club invite's link opens on it (over the intro's end too)
     render();
     // A new player gets neither the rewards window nor banners over the first steps: the guide brings them to the gift.
     if (me.dailyReady && !guideOn() && !me.intro && !fromLink) {

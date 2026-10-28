@@ -14,6 +14,7 @@ import { PACKS, PACKS_ON_SALE, REF_REWARD, MODELS, shareCaption, short } from '.
 import { createShareStore, SHARE } from './src/share.js';
 import { createChannel, START_PARAM as CHANNEL_START } from './src/channel.js';
 import * as G from './public/ghost.js';
+import * as SRR from './public/showroom.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
@@ -311,6 +312,36 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     const preparedId = await bot.prepareShare(uid, { photoUrl: `${httpsOrigin()}/share/${body.card}.jpg`, caption: `${G.challengeCaption(info)}\n${link}`, link, button: '🏁 Прийняти виклик' });
     return send(res, 200, { preparedId, link });
   }
+  // POST showroom/prepare { card }: the player's own «Шоурум» as a photo message for WebApp.shareMessage — the card
+  // picture (uploaded with share/card) and «Дивитися шоурум» (a deep link sr_<id> that opens it; a newcomer who comes
+  // in through it becomes the player's referral). The card is kept for the bot's inline answer (@bot sr_<id>).
+  const showroomCards = new Map(); // uid → share card id
+  async function handleShowroomShare(req, res, uid) {
+    const body = await readBody(req);
+    const info = game.push.showroom(uid);
+    if (!info) throw new GameError('Спершу постав машини в шоурум');
+    if (!bot?.username) throw new GameError('Поширення стане доступним після підключення бота');
+    if (!httpsOrigin()) throw new GameError('Потрібна https-адреса гри (WEBAPP_URL)');
+    if (!shares.get(body.card)) throw new GameError('Картка застаріла, спробуй ще раз');
+    if (showroomCards.size > 5000) showroomCards.clear();
+    showroomCards.set(uid, body.card);
+    const link = SRR.showroomLink(bot.username, tgApp(), uid);
+    const caption = SRR.showroomCaption({ who: info.name, names: info.models.map((m) => MODELS[m]?.name), likes: info.likes });
+    const preparedId = await bot.prepareShare(uid, { photoUrl: `${httpsOrigin()}/share/${body.card}.jpg`, caption: `${caption}\n${link}`, link, button: '♥ Дивитися шоурум' });
+    return send(res, 200, { preparedId, link });
+  }
+  function showroomResult(info) {
+    const link = SRR.showroomLink(bot.username, tgApp(), info.id);
+    const caption = SRR.showroomCaption({ who: info.name, names: info.models.map((m) => MODELS[m]?.name), likes: info.likes });
+    const reply_markup = { inline_keyboard: [[{ text: '♥ Дивитися шоурум', url: link }]] };
+    const cardId = showroomCards.get(info.id);
+    const card = cardId && shares.get(cardId) && httpsOrigin() ? `${httpsOrigin()}/share/${cardId}.jpg` : '';
+    const title = `Шоурум ${info.name}`;
+    if (card) return { type: 'photo', id: 'sr_' + info.id, photo_url: card, thumbnail_url: card, title, caption, reply_markup };
+    const thumb = carThumb(info.models[0]);
+    return { type: 'article', id: 'sr_' + info.id, title, description: `${info.models.map((m) => MODELS[m]?.name).filter(Boolean).join(', ')} · ♥ ${info.likes}`,
+      ...(thumb ? { thumbnail_url: thumb } : {}), input_message_content: { message_text: `${caption}\n${link}` }, reply_markup };
+  }
   // The bot's inline mode (@bot ch_<id> in any chat, or WebApp.switchInlineQuery from the challenge sheet): a live
   // challenge as its card (an article when the card is gone) with «Прийняти виклик». An empty query (or anything else):
   // the invitation with the player's own referral link, then up to 3 of their live challenges and their latest
@@ -335,6 +366,9 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     const m = G.CH_PARAM.exec(qs);
     const info = m ? game.challengeInfo(m[1]) : null;
     if (info && !info.expired) return [challengeResult(info)];
+    const srm = SRR.SR_PARAM.exec(qs);
+    const sr = srm ? game.push.showroom(Number(srm[1])) : null;
+    if (sr) return [showroomResult(sr)];
     const uid = Number(from?.id) || 0;
     const link = `https://t.me/${bot.username}?start=ref_${uid}`;
     const play = (text = '🏎 Грати в АВТОДРОП') => ({ inline_keyboard: [[{ text, url: link }]] });
@@ -386,6 +420,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     if (game.isBanned(uid)) return send(res, 403, { error: 'Акаунт заблоковано адміністрацією' });
     if (name === 'share/card' || name === 'share/prepare') return await handleShare(req, res, name, uid);
     if (name === 'challenge/prepare') return await handleChallengeShare(req, res, uid);
+    if (name === 'showroom/prepare') return await handleShowroomShare(req, res, uid);
     const body = await readBody(req);
     // «Показувати мене в каналі» (src/channel.js): opt-in, off by default.
     if (name === 'settings/channel') return send(res, 200, channel.setShow(uid, !!body.on));
