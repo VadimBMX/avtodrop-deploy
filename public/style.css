@@ -4763,3 +4763,12 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 
 /* fix5: the canister reserve next to the tank count in the race header («15/15 +3») */
 .dr-fuel .dr-spare { color: #30d158; font-weight: 700; }
+/* ---------- popups · garage diet (N3, crit4 №4): the dream as one line; «Сьогодні» without its caption ---------- */
+.dream-line { display: flex; align-items: center; gap: 8px; width: 100%; margin: 12px 0; padding: 10px 12px; border-radius: var(--r, 16px); background: var(--card); border: 1px solid var(--line); color: var(--text); font-size: var(--t-sm, 13px); line-height: 1.25; text-align: left; cursor: pointer; }
+.dream-line > .i { flex: none; width: 18px; height: 18px; color: var(--c, #ff6b8b); }
+.dream-line .grow { flex: 1; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.dream-line .dl-open { flex: none; display: inline-flex; color: var(--muted); transform: rotate(90deg); }
+.dream-line .dl-open .i, .dream-line > .i:last-child { width: 16px; height: 16px; color: var(--muted); }
+.dream-line:active { opacity: .85; }
+.card.dream .dream-h > span[data-act] { cursor: pointer; }
+.card.today::before { content: none; display: none; }

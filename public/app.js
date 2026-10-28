@@ -25,6 +25,8 @@ import { installBarn } from './barn-ui.js';
 // «Таємний покупець»: a card in «Гараж» under the income card (public/buyer-ui.js).
 import { installBuyer } from './buyer-ui.js';
 import { installTopStrip, raceCarChoice, garageSig, bossWall, sovietEra } from './firsthour.js';
+// popups (crit4 №5): one self-opening window per app entry, by priority (public/popups.js).
+import { createPopups } from './popups.js';
 // «Автоклуби»: page «Клуб», [TAG] next to names, the menu row, club_<code> invite links (public/clubs-ui.js).
 import { installClubs, clubTag, clubHub, clubFromLink } from './clubs-ui.js';
 // D-race: the boss's fight-poster intro before the lights; «scene mode» (no tab bar) while a run is on screen.
@@ -285,6 +287,15 @@ H.sheetBack = () => sheetBack?.();
 $('#modal').addEventListener('click', (e) => {
   if (e.target.id === 'modal' && !state.opening) closeModal();
 });
+// popups: every window that opens by itself asks POP first (gifts, level-up, «Що нового», «Нагороди» at start,
+// «Бета-тест», «Ярлик на екрані»). Calm = nothing it must not cover; idle = no window or story open.
+const popIdle = () => $('#modal').hidden && !$('.story') && !$('.confirm');
+const POP = createPopups({
+  idle: popIdle,
+  calm: () => popIdle() && !guideOn() && !state.opening && !(state.race && state.race.phase !== 'done') && !(state.drift && state.drift.phase !== 'done') && !battleTimers.length && !WOW.isOpen(),
+});
+document.addEventListener('click', () => POP.touch(), true); // capture: the tap that closes the window doesn't count yet
+document.addEventListener('visibilitychange', () => POP.visibility(document.hidden));
 // Money fields keep digit groups while typing ("21 829 500"); the caret stays after the same number of digits.
 document.addEventListener('input', (e) => {
   const el = e.target;
@@ -484,6 +495,7 @@ document.querySelectorAll('#tabs button').forEach((b) =>
     haptic('light');
     // Opening «Гонки» from the bottom bar always starts on the drag races (drift and PvP are the tabs next to it).
     if (b.dataset.tab === 'race' && state.tab !== 'race') state.raceView = 'race';
+    if (b.dataset.tab === 'garage' && state.tab !== 'garage') garageVisits++; // popups: the dream card's «once a session»
     state.tab = b.dataset.tab;
     state.page = null;
     state.selling = null;
@@ -511,10 +523,16 @@ async function refresh(rerender = true) {
   homeCheck(); // «Додай на головний екран» from the 3rd day (once a session; nothing on old clients)
   // Let a drop's celebration play out before the level-up popup covers it.
   const wait = state.fx ? 2600 : 0;
-  setTimeout(() => {
-    if (me.level > me.levelSeen && guideOn()) return levelToast();
-    if (me.level > me.levelSeen && $('#modal').hidden && !state.opening && !state.race && !battleTimers.length && !WOW.isOpen()) showLevelUp();
-  }, wait);
+  setTimeout(autoLevel, wait);
+}
+// The level-up window goes through POP: at the start it waits for the entry's choice; lost (or not allowed this
+// entry) it becomes the toast «Рівень N! …» — seen, nothing stacks.
+function autoLevel() {
+  if (!(me.level > me.levelSeen)) return;
+  if (guideOn()) return levelToast();
+  if (!$('#modal').hidden || state.opening || state.race || battleTimers.length || WOW.isOpen()) return;
+  const r = POP.offer('level', () => (me.level > me.levelSeen ? showLevelUp() : false), () => me.level > me.levelSeen && levelToast());
+  if (r === 'denied' && me.level > me.levelSeen) levelToast();
 }
 // During the first steps a level-up doesn't open a window over the path: a toast says it, the gift is already given.
 async function levelToast() {
@@ -974,7 +992,7 @@ TABS.garage = () => {
     ${i.comebackUntil ? `<div class="tiny center mt" style="color:#30d158">${ic('gift')} Подарунок повернення: +${S.COMEBACK.capHours} год сховища ще <span data-until="${i.comebackUntil - clockOffset}"></span></div>` : ''}
     ${idle ? `<div class="tiny center mt cap-idle">${ic('clock')} Каса стояла повна ${idle} год — <a data-act="upgradeCap" class="txtlink">збільш її до ${nextCap.hours} год за ${S.short(nextCap.cost)}</a></div>` : ''}
     ${nextCap ? `<div class="cap-up"><span class="tiny muted">Повна каса не росте — поки не забереш, дохід стоїть.</span><button class="btn outline sm" data-act="upgradeCap">${ic('clock')} Каса на ${nextCap.hours} год${capPlus} · ${S.short(nextCap.cost)}</button></div>` : ''}
-    <div class="tiny muted center mt cap-more">Каса вміщує ${i.capH} год доходу${nextCap ? ` · <a data-act="upgradeCap" class="txtlink">збільшити до ${nextCap.hours} год${capPlus} — ${S.short(nextCap.cost)}</a>` : ''}</div>
+    ${nextCap ? `<div class="tiny muted center mt cap-more">Каса вміщує ${i.capH} год · <a data-act="upgradeCap" class="txtlink">збільшити до ${nextCap.hours} год${capPlus} — ${S.short(nextCap.cost)}</a></div>` : ''}
   </div>
   <div class="card today" id="todayCard"></div>
   ${tankCard()}
@@ -6992,6 +7010,9 @@ function showGift() {
     // «🐞 Нагорода за баг» (src/bugbounty.js): money, keys and, on the 1st / 5th find, the tester badge.
     title = 'Дякуємо за знайдений баг 🐞';
     color = '#30d158';
+    try {
+      localStorage.setItem(BUG_ASK_KEY, '1'); // popups: he already writes to support — no «Бета-тест: знайшов баг?» after this
+    } catch {}
     art = `<div class="gift-ic" style="--c:${color}">${ic('bug')}</div>${d.amount ? `<div class="gift-sum win">+${S.fmt(d.amount)}</div>` : ''}
       ${(d.keys || []).map((k) => `<div class="mt"><b>${ic('key')} ${esc(S.CASE_BY_ID[k.caseId]?.name || '')} × ${k.count}</b></div>`).join('')}
       ${d.badge ? `<div class="mt"><span class="lstamp" style="--bc:${BADGE_COLORS[d.badge === 'Тестувальник' ? 1 : 3]}">${ic('bug')}${esc(d.badge)}</span></div><div class="small muted">новий значок у профілі</div>` : ''}
@@ -7084,8 +7105,9 @@ async function pulse() {
   }
   // (Re)start from the server's list whenever no window is open: a gift closed by tapping outside comes back.
   if (p.gifts.length && $('#modal').hidden) {
-    giftQueue = p.gifts;
-    return showGift();
+    const gifts = p.gifts;
+    const r = POP.offer('gift', () => ((giftQueue = gifts), showGift()));
+    if (r === 'shown' || r === 'queued') return;
   }
   // First steps: the hint card leads to these rewards itself, banners would only cover it.
   if (claimsBlocked() || guideOn()) hideClaimBanners();
@@ -7234,7 +7256,11 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide', 'toggleChannel']) {
     // A new player gets neither the rewards window nor banners over the first steps: the guide brings them to the gift.
     if (me.dailyReady && !guideOn() && !me.intro && !fromLink) {
       skipDailyBanner = true;
-      openRewards(null, true).then((shown) => shown === false && (skipDailyBanner = false)); // not shown: the daily banner stays
+      const r = POP.offer('rewards', () => {
+        if (!me.dailyReady) return (skipDailyBanner = false); // claimed meanwhile: nothing to show
+        openRewards(null, true).then((shown) => shown === false && (skipDailyBanner = false)); // not shown: the daily banner stays
+      }, () => (skipDailyBanner = false)); // another window won this entry: the daily banner instead
+      if (r === 'denied' || r === 'busy') skipDailyBanner = false;
     }
     if (story === 'intro') {
       const seen = api('intro/seen').catch(() => {}); // once, even if the app is closed in the middle
@@ -7249,11 +7275,12 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide', 'toggleChannel']) {
           await refresh();
         } catch {}
       });
-    } else if (story === 'whatsnew') whatsNew();
+    } else if (story === 'whatsnew') POP.offer('whatsnew', () => (whatsNewSeenHere() ? false : whatsNew())); // the event intro; lost → the next entry
   } catch (e) {
     $('#view').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
   }
-  setTimeout(pulse, 2500);
+  // The first pulse tells about gifts (the bug-reward thanks, a comeback, an admin gift): then POP picks the entry's one window.
+  setTimeout(() => pulse().catch(() => {}).finally(() => POP.ready()), 800);
   setInterval(pulse, 4000);
   setInterval(async () => {
     if (document.hidden || state.opening || state.race || !$('#modal').hidden) return;
@@ -7578,9 +7605,7 @@ function wowDrop() {
     if (state.drop !== d) return;
     if (state.tab === 'cases' && !state.page) AFTER.cases();
     else state.fx = null;
-    setTimeout(() => {
-      if (me.level > me.levelSeen && $('#modal').hidden && !state.opening && !state.race && !WOW.isOpen()) guideOn() ? levelToast() : showLevelUp();
-    }, 2600);
+    setTimeout(autoLevel, 2600);
   });
   return true;
 }
@@ -7713,6 +7738,23 @@ H.shareSave = async (d, el) => {
 // (dreamOutlookHtml: openings expected and the chance with the money there is) and the best case for it with the
 // chance; got it → a trophy and «Нова мрія».
 const DREAM_HIDE = 'avtodrop-dream-hide';
+// popups (crit4 №4, garage diet): the big «Яка машина — твоя мрія?» card only on the first visit of «Гараж» in a
+// session (until a dream is picked); later visits and a picked dream get one line, a tap opens the full card.
+let garageVisits = 0, dreamSugVisit = -1;
+function dreamLine(d) {
+  if (!d.model) return `<button class="dream-line" data-act="dreamPick" style="--c:${S.CLASSES[M(d.suggest).cls].color}">${ic('heart')}<span class="grow"><b>Мрія:</b> обери машину-ціль</span>${ic('chevron-right')}</button>`;
+  const m = M(d.model);
+  let tail;
+  if (d.got) tail = '<b class="win">здійснено!</b>';
+  else if (me.balance >= m.price) tail = 'вистачає грошей · ринок';
+  else {
+    const ch = S.dreamChances(m.id)[0];
+    const o = ch && S.dreamOutlook(m.id, { balance: me.balance, keys: me.keys });
+    tail = o ? `ще ~${grp(o.opens)} ${plural(o.opens, ['кейс', 'кейси', 'кейсів'])}` : 'шукай на ринку'; // which case — in the full card
+  }
+  return `<button class="dream-line" data-act="dreamFold" style="--c:${S.CLASSES[m.cls].color}">${ic(d.got ? 'trophy' : 'heart')}<span class="grow"><b>Мрія:</b> ${esc(m.name)} — ${tail}</span><span class="dl-open">${ic('chevron-right')}</span></button>`;
+}
+H.dreamFold = () => ((state.dreamOpen = !state.dreamOpen), render());
 function dreamCard() {
   const d = me.dream;
   if (!d) return '';
@@ -7723,18 +7765,21 @@ function dreamCard() {
       hidden = Number(localStorage.getItem(DREAM_HIDE)) || 0;
     } catch {}
     if (!sm || Date.now() - hidden < 3 * 86400e3) return '';
+    if (dreamSugVisit < 0) dreamSugVisit = garageVisits;
+    if (dreamSugVisit !== garageVisits) return dreamLine(d);
     return `<div class="card dream sug" style="--c:${S.CLASSES[sm.cls].color}">
       <div class="dream-h"><span>${ic('heart')} Яка машина — твоя мрія?</span><button class="dream-x" data-act="dreamHide" aria-label="Сховати">${ic('x')}</button></div>
       <div class="dream-row"><div class="dream-art">${carArt(sm.id, { glow: true, thumb: true })}</div><div class="grow"><b class="dream-nm">${esc(sm.name)}</b>
         <div class="small muted">${clsBadge(sm.cls)} ${S.short(sm.price)}</div><div class="tiny muted">Обери ціль — гараж показуватиме, скільки лишилось і де її шукати</div></div></div>
       <div class="btns dream-acts"><button class="btn ghost" data-act="dreamSet" data-id="${sm.id}">${ic('heart')} Хочу її</button><button class="txtlink" data-act="dreamPick">Обрати іншу</button></div></div>`;
   }
+  if (!state.dreamOpen) return dreamLine(d);
   const m = M(d.model);
   const color = S.CLASSES[m.cls].color;
   if (d.got) {
     const own = me.cars.find((c) => c.model === m.id);
     return `<div class="card dream got" style="--c:${color}">
-      <div class="dream-h"><span>${ic('trophy')} Мрію здійснено!</span></div>
+      <div class="dream-h"><span data-act="dreamFold">${ic('trophy')} Мрію здійснено!</span></div>
       <div class="dream-row"><div class="dream-art">${carArt(m.id, { glow: true, look: own?.look, thumb: true })}</div><div class="grow"><b class="dream-nm">${esc(m.name)}</b><div class="small muted">${clsBadge(m.cls)} у твоєму гаражі</div></div></div>
       <div class="btns">${own ? `<button class="btn ghost" data-act="shareCar" data-id="${own.id}">${ic('share')} Поділитися</button>` : ''}<button class="btn soft" data-act="dreamPick">${ic('heart')} Нова мрія</button></div></div>`;
   }
@@ -7742,7 +7787,7 @@ function dreamCard() {
   const cs = ch && S.CASE_BY_ID[ch.caseId];
   const o = S.dreamOutlook(m.id, { balance: me.balance, keys: me.keys });
   return `<div class="card dream" style="--c:${color}">
-    <div class="dream-h"><span>${ic('heart')} Машина мрії</span><button class="dream-edit" data-act="dreamPick">Змінити</button></div>
+    <div class="dream-h"><span data-act="dreamFold">${ic('heart')} Машина мрії</span><button class="dream-edit" data-act="dreamPick">Змінити</button></div>
     <div class="dream-row"><div class="dream-art">${carArt(m.id, { glow: true, thumb: true })}</div><div class="grow"><b class="dream-nm">${esc(m.name)}</b><div class="small muted">${clsBadge(m.cls)} ${m.hp} к.с. · колекційна ${S.short(m.price)}</div></div></div>
     ${o && cs ? dreamOutlookHtml(o, cs) : ''}
     ${me.balance >= m.price ? `<div class="tiny mt" style="color:var(--green)">${ic('check')} Грошей більше за її колекційну ціну — пошукай її на ринку чи аукціоні</div>` : ''}
@@ -8642,14 +8687,18 @@ function homeAskOnce(tries = 0) {
       if (tries < 45) homeAskOnce(tries + 1);
       return;
     }
-    try {
-      localStorage.setItem(HOME_ASK_KEY, '1');
-    } catch {}
-    sheet('Ярлик на екрані', `<div class="card center tg-home-ask"><div class="tg-home-ic">${ic('layout-grid')}</div>
+    // popups: an announcement — only when it is the entry's one window; otherwise the next entry (the key stays unset).
+    const r = POP.offer('homeask', () => {
+      try {
+        localStorage.setItem(HOME_ASK_KEY, '1');
+      } catch {}
+      sheet('Ярлик на екрані', `<div class="card center tg-home-ask"><div class="tg-home-ic">${ic('layout-grid')}</div>
       <b class="disp">АВТОДРОП ОДНИМ ТАПОМ</b>
       <div class="muted mt">Додай гру на головний екран телефона — гараж і кейси відкриватимуться без пошуку бота.</div>
       <div class="small mt">Подарунок: <b class="win">+${S.HOME_SCREEN.count} ключ «${esc(S.CASE_BY_ID[S.HOME_SCREEN.caseId].name)}»</b></div>
       <div class="btns mt"><button class="btn" data-act="homeAddAsk">Додати ярлик</button><button class="btn ghost" data-act="closeModal">Пізніше</button></div></div>`);
+    });
+    if (r === 'busy' && tries < 45) homeAskOnce(tries + 1);
   }, tries ? 4000 : 2500);
 }
 // «Бета-тест» (owner 28.10): once per player (from level 2, past the first minutes), in a calm moment — found a bug or
@@ -8674,14 +8723,21 @@ function bugAskOnce(tries = 0) {
       else bugAskOn = false;
       return;
     }
-    try {
-      localStorage.setItem(BUG_ASK_KEY, '1');
-    } catch {}
-    sheet('Бета-тест', `<div class="card center tg-home-ask"><div class="tg-home-ic">${ic('tools')}</div>
+    // popups: an announcement — only as the entry's one window; lost or not allowed → asked again on a later entry.
+    const r = POP.offer('bugask', () => {
+      try {
+        localStorage.setItem(BUG_ASK_KEY, '1');
+      } catch {}
+      sheet('Бета-тест', `<div class="card center tg-home-ask"><div class="tg-home-ic">${ic('tools')}</div>
       <b class="disp">ЗНАЙШОВ БАГ? 🐞</b>
       <div class="muted mt">Гра в бета-тесті. Помітив помилку, дивну ціну чи щось нелогічне — напиши нам у підтримку.</div>
       <div class="small mt">За корисні знахідки — <b class="win">бонуси: гроші й ключі від кейсів</b></div>
       <div class="btns mt"><button class="btn" data-act="bugAskGo">Написати в підтримку</button><button class="btn ghost" data-act="closeModal">Зрозуміло</button></div></div>`);
+    }, () => (bugAskOn = false));
+    if (r === 'busy') {
+      if (tries < 45) bugAskOnce(tries + 1);
+      else bugAskOn = false;
+    } else if (r === 'denied') bugAskOn = false;
   }, tries ? 4000 : 6000);
 }
 H.bugAskGo = () => {
