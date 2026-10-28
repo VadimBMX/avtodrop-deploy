@@ -17,6 +17,7 @@ export const CHANNEL_DEFAULTS = Object.freeze({
 export const CHANNEL_KINDS = { drop: 'Міфічні дропи (S)', secret: 'Секретні авто', edition: 'Тиражні авто', jackpot: 'Джекпоти контейнерів', boss: 'Бос усіх босів', weekly: 'Топ тижня' };
 const LIMITS = { maxPerHour: [1, 20], digestMin: [15, 360], jackpotX: [1.5, 20] };
 const PRIORITY = { weekly: 0, boss: 1, jackpot: 2, secret: 3, edition: 4, drop: 5, test: 6 };
+export const NEWS_MAX_AGE_D = 7;
 export const STALE_MS = 12 * 3600e3; // an event that waited longer is dropped (old news)
 const DIGEST_FLUSH = 8; // this many S drops go out as a digest without waiting for digestMin
 const DIGEST_LINES = 10;
@@ -249,9 +250,42 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
     }
   }
 
+  // Big updates for the group (owner 28.10: only the global ones people wait for, not every patch). A changelog entry
+  // with `news` (an array of player-facing lines; true = use its `short`) goes once to the posting target (the /here
+  // topic or the channel), whether the event auto-posts are on or not. Waits while nothing is set up; an entry older
+  // than NEWS_MAX_AGE_D days (by the date in its id) is never posted.
+  let newsLog = [];
+  async function postNews(log) {
+    if (Array.isArray(log)) newsLog = log;
+    if (!configured()) return { sent: 0 };
+    let sent = 0;
+    for (const e of newsLog.slice().reverse()) {
+      if (!e?.id || !e.news) continue;
+      const lines = Array.isArray(e.news) ? e.news : Array.isArray(e.short) ? e.short : [];
+      const day = Date.parse(String(e.id).slice(0, 10));
+      if (!lines.length || !(day > now() - NEWS_MAX_AGE_D * 86400e3)) continue;
+      if (q("SELECT 1 FROM channel_posts WHERE kind = 'news' AND ref = ?").get(String(e.id))) continue;
+      const title = String(e.newsTitle || e.title || '').replace(/^\d{1,2}\.\d{1,2}\s*[—-]\s*/, '');
+      const text = [`📣 <b>${escHtml(title)}</b>`, '', ...lines.map((l) => `• ${escHtml(l)}`)].join('\n').slice(0, 3900);
+      const reply_markup = button();
+      try {
+        await api('sendMessage', { chat_id: chId(), ...thread(), text, parse_mode: 'HTML', link_preview_options: { is_disabled: true }, ...(reply_markup ? { reply_markup } : {}) });
+        once('news', e.id);
+        q('INSERT INTO channel_log (at, kind, n, ok, test, text) VALUES (?, ?, 1, 1, 0, ?)').run(now(), 'news', text.slice(0, 1500));
+        sent++;
+      } catch (err) {
+        q('INSERT INTO channel_log (at, kind, n, ok, test, text, error) VALUES (?, ?, 1, 0, 0, ?, ?)').run(now(), 'news', text.slice(0, 1500), String(err.message).slice(0, 300));
+        log('channel news:', err.message);
+        break;
+      }
+    }
+    return { sent };
+  }
+
   let busy = false, pauseUntil = 0;
   async function tick() {
     if (!configured() || busy || now() < pauseUntil) return;
+    if (newsLog.length) await postNews().catch(() => {});
     const c = cfg();
     if (!c.on) return void (pending = []);
     busy = true;
@@ -335,7 +369,7 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
   }
 
   return {
-    configured, shows, setShow, scan, tick, admin, status, planPosts, setTarget,
+    configured, shows, setShow, scan, tick, postNews, admin, status, planPosts, setTarget,
     get pending() {
       return pending;
     },
@@ -345,7 +379,8 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
       cards.set(`${uid}:${model}`, id);
     },
     start(ms = 60e3) {
-      if (!configured() || timer) return;
+      // Runs even when nothing is set up yet: the owner's /here later needs no restart (tick checks configured()).
+      if (!api || timer) return;
       timer = setInterval(() => tick(), ms);
       timer.unref?.();
     },

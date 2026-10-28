@@ -570,6 +570,11 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
         }
       }
       channel.start();
+      try {
+        channel.postNews(JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'changelog.json'), 'utf8'))).catch((e) => log('news:', e.message));
+      } catch (e) {
+        log('news:', e.message);
+      }
       await new Promise((r) => server.listen(port, r));
       return server.address().port;
     },
