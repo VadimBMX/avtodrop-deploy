@@ -5,6 +5,7 @@
 // ever gets that insert, so prizes are paid exactly once.
 import crypto from 'node:crypto';
 import * as C from '../public/clubs.js';
+import { CASE_BY_ID } from '../public/shared.js';
 
 const R = C.CLUB;
 const SCHEMA = `
@@ -25,6 +26,10 @@ CREATE TABLE IF NOT EXISTS club_weeks (week TEXT PRIMARY KEY, settled_at INTEGER
 CREATE TABLE IF NOT EXISTS club_log (id INTEGER PRIMARY KEY, club_id INTEGER NOT NULL, user_id INTEGER, kind TEXT NOT NULL, amount INTEGER NOT NULL DEFAULT 0,
   note TEXT, at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS club_log_club ON club_log(club_id, id);
+CREATE TABLE IF NOT EXISTS club_wins (week TEXT NOT NULL, club_id INTEGER NOT NULL, user_id INTEGER NOT NULL, n INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (week, club_id, user_id)) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS club_goal (week TEXT NOT NULL, club_id INTEGER NOT NULL, target INTEGER NOT NULL, done INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (week, club_id)) WITHOUT ROWID;
 `;
 // Words a club may not take as a name or tag: they would pass for the game's own staff.
 const RESERVED = /avtodrop|автодроп|admin|адмін|админ|модер|moder|support|підтримк/i;
@@ -130,14 +135,53 @@ export function createClubs(ctx) {
       log(club.id, null, 'prize', prize * who.length, `${club.prizePlace} місце · ${who.length} учасн.`);
       result.push({ place: club.prizePlace, id: club.id, tag: club.tag, name: club.name, pts: club.pts, paid: who.length, prize });
     }
-    q('UPDATE club_weeks SET result = ? WHERE week = ?').run(JSON.stringify({ top: result, paid }), prev);
+    const goals = settleGoals(prev);
+    q('UPDATE club_weeks SET result = ? WHERE week = ?').run(JSON.stringify({ top: result, paid, goals }), prev);
     // Old daily counters and point rows are not needed after a few weeks.
     const old = prevWeek(prevWeek(prevWeek(prev)));
     q('DELETE FROM club_points WHERE week < ?').run(old);
     q('DELETE FROM club_perks WHERE week < ?').run(old);
     q('DELETE FROM club_day WHERE day < ?').run(old);
+    q('DELETE FROM club_wins WHERE week < ?').run(old);
+    q('DELETE FROM club_goal WHERE week < ?').run(old);
     settledWeek = cur;
     return result.length;
+  }
+
+  // ---------- the weekly goal (C.CLUB.goal) ----------
+  const G = R.goal;
+  const clubWins = (cid, w = week()) => q('SELECT COALESCE(SUM(n), 0) s FROM club_wins WHERE week = ? AND club_id = ?').get(w, cid).s;
+  const myWins = (uid, cid, w = week()) => q('SELECT n FROM club_wins WHERE week = ? AND club_id = ? AND user_id = ?').get(w, cid, uid)?.n || 0;
+  // The week's target: at its highest of the week (raised when members join, never lowered by kicks).
+  function goalTarget(cid, w = week(), raise = w === week()) {
+    const row = q('SELECT target FROM club_goal WHERE week = ? AND club_id = ?').get(w, cid);
+    const t = raise ? Math.max(row?.target || 0, C.goalOf(membersN(cid))) : row?.target || C.goalOf(membersN(cid));
+    if (raise && t !== row?.target) q('INSERT INTO club_goal (week, club_id, target) VALUES (?, ?, ?) ON CONFLICT DO UPDATE SET target = excluded.target').run(w, cid, t);
+    return t;
+  }
+  function goalView(uid, cid) {
+    const target = goalTarget(cid), wins = clubWins(cid);
+    return { target, wins, myWins: myWins(uid, cid), caseId: G.caseId, minWins: G.minWins, done: wins >= target };
+  }
+  // At the Monday settlement (inside settleNow: once per week): a key to each member with his own wins.
+  function settleGoals(w) {
+    const out = [];
+    for (const r of q('SELECT club_id, SUM(n) wins FROM club_wins WHERE week = ? GROUP BY club_id').all(w)) {
+      const c = clubRow(r.club_id);
+      if (!c) continue;
+      const target = goalTarget(c.id, w, false);
+      if (r.wins < target) continue;
+      q('INSERT INTO club_goal (week, club_id, target, done) VALUES (?, ?, ?, 1) ON CONFLICT DO UPDATE SET done = 1').run(w, c.id, target);
+      const who = q('SELECT p.user_id, p.n FROM club_wins p JOIN club_members m ON m.user_id = p.user_id AND m.club_id = p.club_id WHERE p.week = ? AND p.club_id = ? AND p.n >= ?')
+        .all(w, c.id, G.minWins);
+      for (const m of who) {
+        addKeys(m.user_id, G.caseId, 1);
+        tell(m.user_id, `🎯 Ціль клубу ${C.tagText(c.tag)} виконано: разом ${r.wins} з ${target} перемог! Тобі ключ «${CASE_BY_ID[G.caseId]?.name || G.caseId}» (твої перемоги: ${m.n})`);
+      }
+      log(c.id, null, 'goal', 0, `${r.wins}/${target} · ключ ${who.length} учасн.`);
+      out.push({ id: c.id, tag: c.tag, wins: r.wins, target, paid: who.length });
+    }
+    return out;
   }
 
   // ---------- fed by the game ----------
@@ -154,6 +198,8 @@ export function createClubs(ctx) {
     if (n <= 0) return 0;
     q('UPDATE club_day SET pts = pts + ?, dr = MAX(dr, ?) WHERE user_id = ? AND day = ?').run(n, kind === 'dayrace' ? 1 : 0, uid, day);
     q('INSERT INTO club_points (week, club_id, user_id, pts) VALUES (?, ?, ?, ?) ON CONFLICT DO UPDATE SET pts = pts + excluded.pts').run(week(), m.club_id, uid, n);
+    q('INSERT INTO club_wins (week, club_id, user_id, n) VALUES (?, ?, ?, 1) ON CONFLICT DO UPDATE SET n = n + 1').run(week(), m.club_id, uid);
+    goalTarget(m.club_id);
     return n;
   }
   // «Клубний дохід»: +pct% of the income just collected, at most `cap` a day per member.
@@ -212,7 +258,7 @@ export function createClubs(ctx) {
     return {
       ...clubPublic(c, w), invite: c.invite, treasury: c.treasury, donated: c.donated, spent: c.spent,
       role: m.role, staff, joinedAt: m.joined_at, counts: counts(m), countsAt: m.joined_at + R.waitH * 3600e3, myPts: pts[uid] || 0, myDonated: m.donated,
-      members, perks: shop, claims: claimsOf(uid, m, perks), week: w, weekEnd: weekEnd(w),
+      members, perks: shop, claims: claimsOf(uid, m, perks), week: w, weekEnd: weekEnd(w), goal: goalView(uid, c.id),
       log: q('SELECT user_id, kind, amount, note, at FROM club_log WHERE club_id = ? ORDER BY id DESC LIMIT 30').all(c.id)
         .map((r) => ({ who: r.user_id ? name(r.user_id) : null, kind: r.kind, amount: r.amount, note: r.note, at: r.at })),
     };
@@ -306,10 +352,13 @@ export function createClubs(ctx) {
   function drop(uid, cid) {
     q('DELETE FROM club_members WHERE user_id = ?').run(uid);
     q('DELETE FROM club_points WHERE week = ? AND club_id = ? AND user_id = ?').run(week(), cid, uid);
+    q('DELETE FROM club_wins WHERE week = ? AND club_id = ? AND user_id = ?').run(week(), cid, uid);
   }
   function disband(cid) {
     q('DELETE FROM club_points WHERE club_id = ?').run(cid);
     q('DELETE FROM club_perks WHERE club_id = ?').run(cid);
+    q('DELETE FROM club_wins WHERE club_id = ?').run(cid);
+    q('DELETE FROM club_goal WHERE club_id = ?').run(cid);
     q('DELETE FROM club_members WHERE club_id = ?').run(cid);
     q('DELETE FROM club_log WHERE club_id = ?').run(cid);
     q('DELETE FROM clubs WHERE id = ?').run(cid);

@@ -7893,7 +7893,7 @@ function dayRaceTile() {
   if (!d || !M(d.model)) return '';
   const m = M(d.model);
   const stat = d.time != null ? `твій час <b>${DRS.fmtTime(d.time)}</b>${d.place ? ` · <b>${d.place}-й</b> з ${drN(d.total)}` : ''}`
-    : d.total ? `уже проїхали: ${drN(d.total)} · ${d.left ? 'твоя черга' : 'спроби закінчились'}` : 'ще ніхто не проїхав — будь першим';
+    : d.total ? `уже проїхали: ${drN(d.total)} · ${d.left ? 'твоя черга' : 'спроби закінчились'}` : d.ghosts ? `👻 ${d.ghosts} ${plural(d.ghosts, ['привид чекає', 'привиди чекають', 'привидів чекають'])} — обжени й стань першим` : 'ще ніхто не проїхав — будь першим';
   const tag = d.ready ? '<em class="rw">нагорода</em>' : !prefGet(DR_SEEN) ? '<em>нове</em>' : '';
   return `<button class="drt" data-act="drOpen" style="--c:${S.CLASSES[m.cls].color}">
     <span class="drt-tx"><span class="drt-h">${ic('flag-3')} Заїзд дня${tag}</span><b class="drt-car ellipsis">${esc(m.name)}</b><span class="drt-st">${stat}</span>
@@ -7962,9 +7962,26 @@ function drMeHtml(v) {
   const btn = a.left ? `<button class="btn yellow btn2" data-act="drStart"><span>${ic('flag-3')} ${mine ? 'Ще спроба' : 'Їхати'}</span><small>спроба ${a.used + 1} з ${a.max} · без пального</small></button>`
     : `<button class="btn" disabled>Спроби закінчились · нова машина через ${untilSpan(v.endsAt)}</button>`;
   const share = mine && !mine.dq ? `<button class="drs-share" data-act="drShare">${ic('share')} Поділитися часом</button>` : '';
-  return `<div class="row between"><span class="hook-t">${ic('trophy')} Твій найкращий час</span>${drPips(a.left, a.max)}</div><div class="drs-row">${line}</div>${btn}${share}`;
+  const gh = v.ghosts?.length && mine && !mine.dq ? `<div class="dr-ghline">👻 ${drGhostsText(DRS.ghostsBeaten(v.ghosts, mine.time), v.ghosts.length)}</div>` : '';
+  return `<div class="row between"><span class="hook-t">${ic('trophy')} Твій найкращий час</span>${drPips(a.left, a.max)}</div><div class="drs-row">${line}</div>${gh}${btn}${share}`;
 }
 const drRow = (r, extra = '') => `<button class="lb ${r.me ? 'me' : ''}" data-act="playerCard" data-id="${r.id}"><span class="pl">${r.place <= 3 ? `<span class="medal m${r.place}">${r.place}</span>` : r.place}</span><span class="lb-ava">${esc(initialOf(r.name))}</span><span class="grow ellipsis">${clubTag(r)}${esc(r.name)}</span>${extra}<b class="nw drb-t">${drT(r.time)}</b></button>`;
+// Ghosts (DRS.DAYRACE.ghosts): rows without a place or a player card, only on the «Усі» board while it is nearly empty.
+const drGhostsText = (b, n) => (b >= n ? `Ти обігнав усіх ${n} привидів!` : b ? `Ти обігнав ${b} з ${n} ${plural(n, ['привида', 'привидів', 'привидів'])}` : `Жодного привида ще не обігнав — їх ${n}`);
+const drGhostRow = (g) => `<div class="lb dr-gh" title="${g.src === 'yday' ? 'Час гравця з учорашнього Заїзду дня (без імені), перерахований на сьогоднішню машину' : 'Час з моделі водія гри'}"><span class="pl"></span><span class="lb-ava">👻</span><span class="grow dr-gh-nm"><span class="ellipsis">${esc(g.name)}</span><small>не гравець · без місця</small></span><b class="nw drb-t">${drT(g.time)}</b></div>`;
+function drWithGhosts(v) {
+  const G = v.ghosts;
+  // interleave by time: a ghost goes above the first real row slower than it
+  const rows = [];
+  let gi = 0;
+  for (const r of v.board) {
+    while (gi < G.length && G[gi].time < r.time) rows.push(drGhostRow(G[gi++]));
+    rows.push(drRow(r));
+  }
+  while (gi < G.length) rows.push(drGhostRow(G[gi++]));
+  const head = v.board.length ? '' : `<div class="tiny muted center dr-gh-head">Ще ніхто не проїхав — обжени привидів і стань першим</div>`;
+  return `${head}<div class="list drb">${rows.join('')}</div><div class="tiny muted dr-gh-note">👻 Привиди — лише орієнтир, не гравці: без місця й без нагород, у таблицю й підсумки не йдуть. Зникнуть, коли проїдуть ${DRS.DAYRACE.ghosts.below} гравців.</div>`;
+}
 function drBoardHtml(v) {
   if ((state.drTab || 'all') === 'friends') {
     const f = v.friends;
@@ -7973,6 +7990,7 @@ function drBoardHtml(v) {
     const wait = f.waiting ? `<div class="tiny muted center mt">Ще не проїхали: ${f.waiting} ${plural(f.waiting, ['друг', 'друзі', 'друзів'])}</div>` : '';
     return (rows ? `<div class="list drb">${rows}</div>` : '') + empty + wait;
   }
+  if (v.ghosts?.length) return drWithGhosts(v);
   if (!v.board.length) return emptyBox('flag-3', 'Таблиця поки порожня', 'Проїдь першим — і твоє ім’я буде вгорі');
   // Folded: the top 10 and your neighbours (2 above, 2 below); «Весь топ-100» unfolds it.
   const list = v.board, mine = list.find((r) => r.me), fold = !state.drAll && list.length > 15;
@@ -7999,7 +8017,7 @@ async function drLive() {
     const v = await api('dayrace');
     if (state.page !== 'dayrace' || state.race) return;
     if (v.day !== drData?.day) return render(); // midnight passed while the screen was open: the new car
-    const key = JSON.stringify([v.board, v.friends, v.me, v.attempts, v.total]);
+    const key = JSON.stringify([v.board, v.friends, v.me, v.attempts, v.total, v.ghosts]);
     if (key === drKey) return;
     drKey = key;
     drData = v;
@@ -8055,10 +8073,11 @@ function drResult() {
     : dr.lead ? `<div class="drres-gap lead">${ic('crown')}<span><span>Ти перший! Відрив: <b>${dec(dr.lead.gap, 3)} с</b></span><small class="ellipsis">2-й — ${esc(dr.lead.name)} · ${drT(dr.lead.time)}</small></span></div>`
     : dr.place === 1 ? `<div class="drres-gap lead">${ic('crown')}<span>Ти перший у таблиці дня</span></div>` : '';
   const a = dr.attempts, beat = r.time < r.rivalTime, tie = r.time === r.rivalTime;
+  const gh = dr.ghosts ? `<div class="drres-gap dr-ghres"><span class="dr-ghic">👻</span><span><span>${drGhostsText(dr.ghosts.beaten, dr.ghosts.n)}${dr.ghosts.beaten > dr.ghosts.before ? ` <span class="up">+${dr.ghosts.beaten - dr.ghosts.before}</span>` : ''}</span><small>привиди — орієнтир, не гравці й не місця</small></span></div>` : '';
   const again = a.left ? `<button class="btn yellow btn2" data-act="drAgain"><span>${ic('refresh')} Ще спроба</span><small>залишилось ${a.left} з ${a.max}</small></button>` : '';
   return `<div class="rhero drres ${best ? 'win' : 'flat'}"><div class="rhero-tag">${ic('flag-3')} Заїзд дня · ${esc(m.name)}</div><div class="rhero-t">${title}</div>
       <div class="rhero-sub">${sub}</div><div class="rhero-amt">${drT(r.time)}</div>${placeLine}</div>
-    ${gap}
+    ${gap}${gh}
     <div class="dr-times">
       <div class="${beat ? 'won' : ''}"><small>Ти</small><b>${dec(r.time, 3)} с</b><span class="ellipsis">${esc(m.name)}</span></div>
       <div class="${beat || tie ? '' : 'won'}"><small class="ellipsis">Привид · ${esc(dr.ghostName || R.rival.name)}</small><b>${dec(r.rivalTime, 3)} с</b><span class="ellipsis">${beat ? 'обігнав' : tie ? 'так само' : 'попереду'}</span></div></div>

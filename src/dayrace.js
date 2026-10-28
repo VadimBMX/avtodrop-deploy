@@ -90,12 +90,35 @@ export function createDayRace(ctx) {
     return { list: rows.map((r, i) => ({ ...rowOut(r, i + 1, uid), global: placeOf({ day, ...r }) })), friends: ids.length, waiting: ids.length - raced };
   }
 
+  // ---------- ghosts (public/dayrace.js DAYRACE.ghosts) ----------
+  // Shown next to the board while it has fewer than `below` real times; never stored, never ranked, never paid. One
+  // list per day (kept in memory): yesterday's real times when yesterday's car was of today's class (anonymous, scaled
+  // to today's car), the rest from the driver model. Yesterday is over, so its times no longer change.
+  const ghostDays = new Map();
+  function ghostsOf(day, model = carOf(day)) {
+    const G = D.DAYRACE.ghosts;
+    if (!G?.n || totalOf(day) >= G.below) return [];
+    const key = day + '|' + model;
+    if (!ghostDays.has(key)) {
+      const y = D.addDays(day, -1);
+      const rows = q(`SELECT b.model, b.time ${BOARD} AND b.time < 99 ORDER BY b.time, b.at, b.user_id LIMIT 200`).all(y);
+      const same = rows.length && S.MODELS[rows[0].model]?.cls === S.MODELS[model]?.cls;
+      const real = same ? D.spread(rows, G.n).map((r) => ({ ghost: true, src: 'yday', name: 'Привид · вчорашній заїзд', time: D.scaleGhost(r.time, r.model, model) })) : [];
+      const list = [...real, ...D.aiGhosts(day, model, G.n - real.length)].sort((a, b) => a.time - b.time);
+      if (ghostDays.size > 4) ghostDays.clear();
+      ghostDays.set(key, list);
+    }
+    return ghostDays.get(key);
+  }
+
   // ---------- the player's screen and the «Гонки» tile ----------
   const attemptsOf = (used) => ({ used, left: Math.max(0, MAX - used), max: MAX });
   function brief(uid) {
     settle();
     const day = dayOf(now()), model = carOf(day), mine = bestOf(uid, day);
-    return { day, model, ...attemptsOf(triesOf(uid, day)), time: mine?.time ?? null, place: placeOf(mine), total: totalOf(day), endsAt: S.kyivMidnightOf(day, 1), ready: pending(uid).length };
+    const ghosts = ghostsOf(day, model);
+    return { day, model, ...attemptsOf(triesOf(uid, day)), time: mine?.time ?? null, place: placeOf(mine), total: totalOf(day), endsAt: S.kyivMidnightOf(day, 1), ready: pending(uid).length,
+      ghosts: ghosts.length, ghostsBeaten: D.ghostsBeaten(ghosts, mine?.time) };
   }
   function view(uid) {
     settle();
@@ -105,7 +128,7 @@ export function createDayRace(ctx) {
       day, endsAt: S.kyivMidnightOf(day, 1), car: stockOf(model), tomorrow: D.dayCar(D.addDays(day, 1), loadCars()),
       attempts: attemptsOf(triesOf(uid, day)),
       me: mine ? { time: mine.time, place: placeOf(mine), at: mine.at, dq: !!mine.dq } : null,
-      total, topN: D.topCount(total), board: topList(day, uid), friends: friendsBoard(uid, day),
+      total, topN: D.topCount(total), board: topList(day, uid), friends: friendsBoard(uid, day), ghosts: ghostsOf(day, model),
       yesterday: yRow?.place ? { day: y, model: yRow.model, time: yRow.time, place: yRow.place, field: yRow.field, prize: JSON.parse(yRow.prize || 'null'), claimed: !!yRow.claimed_at }
         : yDay ? { day: y, model: yDay.model, field: yDay.total } : null,
       ready: pending(uid).length,
@@ -172,6 +195,7 @@ export function createDayRace(ctx) {
     // A run started before midnight and finished after it belongs to a day that is over: shown, not counted.
     const counted = !expired && day === dayOf(t);
     const before = bestOf(uid, day);
+    const ghosts = counted ? ghostsOf(day, rv.model) : []; // the ones this run was chasing (they leave at the 5th real time)
     const prevPlace = counted ? placeOf(before) : null;
     let newBest = false;
     if (counted && (!before || time < before.time)) {
@@ -197,7 +221,7 @@ export function createDayRace(ctx) {
       win: time < rv.time, time, rivalTime: rv.time, diff: round3(Math.abs(time - rv.time)), prize: 0, entry: 0,
       jump: run.jump, perfectStart: run.perfectStart, reaction: run.reaction, shifts: run.shifts, corrected: run.corrected,
       dayrace: { day, model: rv.model, counted, expired, late: !expired && !counted, newBest, best: mine?.time ?? null, prevBest: before?.time ?? null,
-        place, prevPlace, total, next, lead, ghost: rv.ghost, ghostName: rv.name, attempts: attemptsOf(triesOf(uid, day)) },
+        place, prevPlace, total, next, lead, ghost: rv.ghost, ghosts: ghosts.length ? { n: ghosts.length, beaten: D.ghostsBeaten(ghosts, mine?.time), before: D.ghostsBeaten(ghosts, before?.time) } : null, ghostName: rv.name, attempts: attemptsOf(triesOf(uid, day)) },
     };
     q("UPDATE races SET status = 'done', result = ? WHERE id = ?").run(JSON.stringify(result), race.id);
     // A real drag run: it counts as a race (XP, the «заїзди» tasks), never as a win; no money moves.

@@ -37,6 +37,11 @@ export const CLUB = {
     chest: { name: 'Клубна скриня', icon: 'key', per: 300000, caseId: 'city' }, // one key per member per week
     fuel: { name: 'Клубна заправка', icon: 'gas-station', per: 250000, n: 3 }, // +3 fuel per member per day
   },
+  // Weekly goal (owner decision, crit4 §3 №8): «разом N перемог за тиждень → кожному ключ». Wins = the ones that
+  // brought league points (so the daily cap and the 24 h rule apply). N = perMember × members (min..max), fixed at its
+  // highest for the week (kicking members doesn't lower it). Paid at the Monday settlement: a key to every member who
+  // is still in the club and won at least minWins himself.
+  goal: { perMember: 15, min: 30, max: 300, caseId: 'city', minWins: 1 },
 };
 export const ROLES = { owner: 'Власник', officer: 'Офіцер', member: 'Учасник' };
 export const PERK_KEYS = Object.keys(CLUB.perks);
@@ -79,6 +84,7 @@ export function perkCost(perk, level, members, have = 0) {
   return perkPrice(L.per, members) - (have ? perkPrice(p.levels[have - 1].per, members) : 0);
 }
 export const prizeOf = (place) => CLUB.prizes[place - 1] || 0;
+export const goalOf = (members) => Math.min(CLUB.goal.max, Math.max(CLUB.goal.min, CLUB.goal.perMember * Math.max(1, members)));
 export const plural = (n, [one, few, many]) => {
   const a = Math.abs(n) % 100, b = a % 10;
   return a > 10 && a < 20 ? many : b === 1 ? one : b >= 2 && b <= 4 ? few : many;

@@ -107,6 +107,7 @@ function clubView(v) {
       ${c.about ? `<div class="small muted mt">${esc(c.about)}</div>` : ''}
       <div class="clb-stats"><div><b>${c.place ? '#' + c.place : '—'}</b><span>місце з ${c.clubs}</span></div><div><b>${n0(c.pts)}</b><span>очок тижня</span></div><div><b>${n0(c.myPts)}</b><span>твої очки</span></div><div><b>${S.short(c.treasury)}</b><span>у касі</span></div></div>
       <div class="tiny muted">${ic('clock')} Тиждень ліги закінчиться через ${X.untilSpan(c.weekEnd)}</div></div>
+    ${goalHtml(c)}
     ${c.counts ? '' : `<div class="card clb-note">${ic('clock')}<span>Твої перемоги почнуть приносити клубу очки, а бонуси — діяти через ${X.untilSpan(c.countsAt)}: 24 год після вступу, щоб ніхто не «стрибав» між клубами.</span></div>`}
     ${claimRows.length ? `<div class="h2"><span>Бонуси клубу для тебе</span></div><div class="list">${claimRows.join('')}</div>` : ''}
     <div class="seg clb-tabs mt">${tabs.map(([k, t]) => `<button class="${st.clubTab === k ? 'on' : ''}" data-act="clubTab" data-k="${k}">${t}</button>`).join('')}</div>
@@ -114,6 +115,19 @@ function clubView(v) {
     <button class="btn clb-cta" data-act="clubInvite">${ic('users')} Запросити в клуб</button>
     <div class="clb-foot">${c.role === 'owner' ? `<button class="btn outline sm" data-act="clubEditOpen">${ic('settings')} Налаштування</button>` : ''}
       <button class="btn outline sm clb-leave" data-act="clubLeave">${c.role === 'owner' && c.members.length === 1 ? 'Розпустити клуб' : 'Вийти з клубу'}</button></div>`;
+}
+
+// «Ціль тижня» (C.CLUB.goal): the club's wins together against the target; a key to each member at Monday 00:00.
+function goalHtml(c) {
+  const g = c.goal;
+  if (!g) return '';
+  const { ic, esc } = X, pct = Math.min(100, Math.round((g.wins / g.target) * 100));
+  const key = esc(S.CASE_BY_ID[g.caseId]?.name || g.caseId);
+  const mine = g.myWins >= g.minWins ? `твої: ${n0(g.myWins)} ${C.plural(g.myWins, ['перемога', 'перемоги', 'перемог'])}` : 'потрібна хоч одна твоя перемога';
+  return `<div class="card clb-goal ${g.done ? 'done' : ''}"><div class="row between"><b>${ic('target-arrow')} Ціль тижня</b><span class="tiny muted">${n0(g.wins)} / ${n0(g.target)}</span></div>
+    <div class="small">Разом ${n0(g.target)} ${C.plural(g.target, ['перемога', 'перемоги', 'перемог'])} за тиждень → кожному ключ «${key}»</div>
+    <div class="clb-goal-bar"><i style="width:${pct}%"></i></div>
+    <div class="tiny muted">${g.done ? `${ic('check')} Виконано! Ключі прийдуть у понеділок о 00:00 · ` : ''}${mine} · ціль: ${R.goal.perMember} на учасника</div></div>`;
 }
 
 function membersHtml(c) {
@@ -140,7 +154,7 @@ function perkRow(c, k) {
   if (!state && !btns) state = `<span class="chip">не куплено</span>`;
   return `<div class="li clb-perk"><span class="clb-mi">${ic(p.icon)}</span><div class="grow"><b>${p.name}</b><div class="tiny muted">${sub}</div>${btns ? `<div class="clb-btns">${btns}</div>` : ''}</div>${state}</div>`;
 }
-const LOG = { donate: 'вніс у касу', perk: 'купив', create: 'створив клуб', join: 'вступив', leave: 'вийшов', kick: 'виключив', role: 'змінив роль:', transfer: 'передав клуб', edit: 'змінив', invite: 'оновив запрошення', prize: 'Приз ліги:', admin: 'Адміністрація змінила' };
+const LOG = { donate: 'вніс у касу', perk: 'купив', create: 'створив клуб', join: 'вступив', leave: 'вийшов', kick: 'виключив', role: 'змінив роль:', transfer: 'передав клуб', edit: 'змінив', invite: 'оновив запрошення', prize: 'Приз ліги:', goal: 'Ціль тижня виконано:', admin: 'Адміністрація змінила' };
 const EDIT = { name: 'назву', about: 'опис', tg_url: 'посилання на групу', open: 'доступ' };
 const noteOf = (l) => (l.kind === 'edit' ? String(l.note || '').split(',').map((k) => EDIT[k] || k).join(', ') : l.kind === 'perk' ? `«${l.note}»` : l.note || '');
 function bankHtml(c) {

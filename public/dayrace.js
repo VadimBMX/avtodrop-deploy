@@ -1,7 +1,7 @@
 // «Заїзд дня» (audit §4 feature 1, ideas 6.1): every Kyiv day one stock car for everyone, three free drag runs, the
 // best time goes on the board; prizes at Kyiv midnight for the day before. The rules shared by the server
 // (src/dayrace.js) and the app (the «Гонки» tile and the day's screen): the car of a day, the prizes for a place.
-import { MODELS, seededRand } from './shared.js';
+import { MODELS, seededRand, carStats, humanRun, raceTime, DRIVERS, RIVAL_AI, START, SHIFTS } from './shared.js';
 
 export const DAYRACE = {
   attempts: 3, // free runs a day; no fuel, and more are never sold
@@ -13,6 +13,11 @@ export const DAYRACE = {
   flagMargin: 0.03, // a time within this of the car's best possible run is flagged for the admins to look at
   ghostMin: 3, // finishers needed before the first run's ghost is the board's median (else the car's typical time)
   keepDays: 30, // an unclaimed prize stays in the rewards center this long
+  // Ghosts (owner decision, crit4 §3 №8): while fewer than `below` players have a time today, the board also shows `n`
+  // clearly marked ghosts — times only, to have something to beat. They are not players: no place, no prize, not in
+  // the field size, the rewards, club points, channel posts or ratings. Times come from yesterday's real runs when
+  // yesterday's car was of the same class (scaled to today's car, anonymous), the rest from the game's driver model.
+  ghosts: { n: 5, below: 5 },
 };
 
 // ~30 iconic cars across classes and countries: D is the classic street, S the hypercars. Order doesn't matter, the
@@ -79,6 +84,46 @@ export function prizeOf(place, field) {
 export const topCount = (field) => (field >= DAYRACE.minField ? Math.max(1, Math.floor(field * DAYRACE.topShare)) : 0);
 export const badgeTitle = (place) => `Заїзд дня: №${place}`;
 export const badgeTier = (place) => (place === 1 ? 3 : place === 2 ? 2 : 1);
+
+// ---------- ghosts ----------
+// The driver-model ghosts of a day: one run each of the game's own drivers (shared.js DRIVERS and the solo rivals' AI)
+// in the day's stock car, on a generator seeded by the day and the car — the same five for everyone all day.
+export const GHOST_DRIVERS = [
+  { d: 'perfect', label: 'профі' },
+  { d: 'good', label: 'досвідчений' },
+  { d: 'rival', label: 'вуличний' },
+  { d: 'average', label: 'аматор' },
+  { d: 'average', label: 'новачок' },
+];
+export function aiGhosts(day, model, n = DAYRACE.ghosts.n) {
+  const st = carStats({ model });
+  const stats = { base: st.base, shift: 0 };
+  const rand = seededRand((Math.imul(dayNum(day) + 101, 2246822519) ^ model.length * 7919) >>> 0);
+  for (let k = 0; k < 3; k++) rand();
+  const times = GHOST_DRIVERS.map((g) => {
+    const drv = g.d === 'rival' ? RIVAL_AI : DRIVERS[g.d];
+    // a ghost that jumped the light is no target: one more go (same generator, still deterministic)
+    let t = humanRun(stats, drv, rand);
+    for (let k = 0; k < 3 && t > stats.base * START.jumpPenalty; k++) t = humanRun(stats, drv, rand);
+    return t;
+  }).sort((a, b) => a - b);
+  // the labels follow the times (one run each is noisy: a «новачок» faster than a «вуличний» would read wrong);
+  // with fewer than five, the slowest ones are dropped (yesterday's real times take the top of the list)
+  return times.slice(0, n).map((t, i) => ({ ghost: true, src: 'ai', name: `Привид · ${GHOST_DRIVERS[i].label}`, time: t }));
+}
+// Yesterday's real times moved to today's car: time × today's base / yesterday's base, never under today's best possible run.
+export function scaleGhost(time, fromModel, toModel) {
+  const a = carStats({ model: fromModel }), b = carStats({ model: toModel });
+  const ideal = raceTime({ base: b.base, shift: 0 }, START.minReaction, Array(SHIFTS).fill('perfect'));
+  return Math.max(ideal + 0.01, Math.round(((time * b.base) / a.base) * 1000) / 1000);
+}
+// Up to n of a sorted list, spread from the best to the slowest.
+export function spread(list, n) {
+  if (list.length <= n) return list.slice();
+  return Array.from({ length: n }, (_, i) => list[Math.round((i * (list.length - 1)) / (n - 1))]);
+}
+// How many ghosts a time beats (strictly faster).
+export const ghostsBeaten = (ghosts, time) => (time == null ? 0 : (ghosts || []).filter((g) => time < g.time).length);
 
 // 12.1041 → '12,104'; 99 (a run left hanging) → '—'.
 export const fmtTime = (t) => (t == null || !(t < 99) ? '—' : Number(t).toFixed(3).replace('.', ','));
