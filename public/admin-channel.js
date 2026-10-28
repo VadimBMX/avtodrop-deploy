@@ -2,11 +2,25 @@
 // 'channel/test'). The switch, the hourly limit and digest, which events go out, a test post and the last posts.
 const KIND_NAME = { drop: 'Міфічний дроп', secret: 'Секретне', edition: 'Тиражне', jackpot: 'Джекпот', boss: 'Бос босів', weekly: 'Топ тижня', digest: 'Дайджест', test: 'Тест' };
 
+// «Куди йдуть автопости»: a topic of the players' group (the owner's /here, meta channel_target) or the channel.
+export function targetPanel(v, { esc, date }) {
+  const t = v.target;
+  const where = t
+    ? `<b>Тема групи:</b> «${esc(t.title || String(t.chat))}» → ${t.thread ? (t.topic ? `«${esc(t.topic)}»` : `тема #${t.thread}`) : 'загальна тема (General)'}
+       <div class="small muted">чат ${esc(String(t.chat))}${t.thread ? ` · тема ${t.thread}` : ''} · вибрано ${date(t.at)}</div>`
+    : v.channel ? `<b>Канал:</b> ${esc(v.channel)}` : '<span class="bad">нікуди — не вибрано</span>';
+  const after = v.channel ? `далі пости підуть у канал ${esc(v.channel)}` : 'далі постити не буде куди, доки не вибереш знову';
+  return `<div class="panel chx-target"><h2>Куди йдуть автопости</h2>
+      <div class="row" style="gap:10px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap"><div>${where}</div>
+        ${t ? `<button class="btn ghost sm" data-act="chTargetClear" title="${after}">Скинути</button>` : ''}</div>
+      <p class="small muted" style="margin-top:8px">Щоб постити в тему чату (напр. «📣 Новини та оновлення»): відкрий цю тему в Telegram і напиши <code>/here</code> (лише власник). Бот відповість «✅ Сюди йтимуть автопости» й за кілька секунд прибере обидва повідомлення, тоді натисни «Оновити». Тема групи важливіша за канал; «Скинути» — ${after}.</p></div>`;
+}
+
 export async function channelPage({ api, esc, date }) {
   const v = await api('channel');
   const g = await api('tggroups');
   const c = v.cfg;
-  const warn = !v.hasChannel ? 'Канал не задано — впиши його нижче в «Наші групи» (або змінна TG_CHANNEL_ID). Без нього автопости вимкнені.'
+  const warn = !v.hasChannel ? 'Не задано, куди постити: напиши /here у потрібній темі групи або впиши канал нижче в «Наші групи» (чи змінна TG_CHANNEL_ID). Без цього автопости вимкнені.'
     : !v.hasBot ? 'Бот не підключено (BOT_TOKEN) — постити нікому.' : '';
   const kinds = Object.entries(v.kinds).map(([k, t]) => `<label class="row" style="gap:6px;margin:4px 0"><input type="checkbox" data-kind="${k}" ${c.kinds[k] ? 'checked' : ''}> ${esc(t)}</label>`).join('');
   const num = (id, val, min, max, step = 1) => `<input id="${id}" type="number" min="${min}" max="${max}" step="${step}" value="${val}" style="width:90px">`;
@@ -15,6 +29,7 @@ export async function channelPage({ api, esc, date }) {
       <td class="small">${esc(String(r.text || '').replace(/<[^>]+>/g, '').slice(0, 160))}${r.error ? `<div class="small bad">${esc(r.error)}</div>` : ''}</td></tr>`).join('')}</table></div>` : '<div class="empty">Постів ще не було</div>';
   return `<div class="head"><h1>Канал</h1><button class="btn ghost sm" data-act="reload">Оновити</button></div>
     ${warn ? `<div class="panel"><div class="bad">${esc(warn)}</div></div>` : ''}
+    ${targetPanel(v, { esc, date })}
     <div class="grid2">
       <div class="panel"><h2>Автопости <span class="sub">${c.on ? 'увімкнено' : 'вимкнено'} · за годину: ${v.lastHour}/${c.maxPerHour} · у черзі: ${v.pending}</span></h2>
         <p class="small muted">Раз на хвилину гра шукає нові події й постить їх у канал. Ім’я гравця — лише якщо він сам увімкнув «Показувати мене в каналі» (увімкнули: ${v.optins}); інакше «Хтось із гравців». Джекпот контейнера йде в канал лише після того, як переможець його відкрив. Після вмикання постяться тільки нові події.</p>
@@ -69,6 +84,8 @@ export function channelActions({ mutate, $, api }) {
         el.textContent = 'Помилка: ' + e.message;
       }
     },
+    chTargetClear: () => mutate('channel/target-clear', {}, { title: 'Скинути тему для автопостів', danger: true, button: 'Скинути',
+      summary: 'Автопости перестануть іти в тему групи. Якщо в «Наші групи» задано канал — підуть туди. Вибрати тему знову: /here у ній.' }, 'Тему скинуто'),
     chTest: () => mutate('channel/test', { text: $('#chTest').value }, { title: 'Тестовий пост у канал', button: 'Надіслати', summary: 'Пост одразу з’явиться в каналі — його бачитимуть підписники.' }, 'Тест надіслано'),
   };
 }

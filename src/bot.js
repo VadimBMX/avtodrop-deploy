@@ -6,6 +6,8 @@ import fs from 'node:fs';
 const outbox = () => { try { return JSON.parse(fs.readFileSync(new URL('./outbox.json', import.meta.url), 'utf8')); } catch { return []; } };
 
 export const ME_EVERY = 3600e3; // getMe again every hour
+export const HERE_CLEAN_MS = 5000; // /here: the command and the bot's «✅» go away after this
+export const HERE_TEXT = '✅ Сюди йтимуть автопости';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const CARS = ALL_MODELS.filter((m) => !m.secret).length;
@@ -102,7 +104,8 @@ export function settingsText({ off = false, mute = [], groups = [] } = {}) {
 }
 
 // inline(query, from) → results for the bot's inline mode (server.js: a ghost challenge card or an invite), or null.
-export function createBot({ token, webappUrl, admins = [], game, inline = null, log = console.error }) {
+// here({ chat, thread, title, topic, forum, by }) → the owner's /here in a group: store it as the auto-post target.
+export function createBot({ token, webappUrl, admins = [], game, inline = null, here = null, hereCleanMs = HERE_CLEAN_MS, log = console.error }) {
   const base = `https://api.telegram.org/bot${token}/`;
   const canButton = /^https:\/\//.test(webappUrl || '');
   let username = null, inlineOn = false, meTimer = null;
@@ -180,13 +183,31 @@ export function createBot({ token, webappUrl, admins = [], game, inline = null, 
     const [cmd, ...args] = text.trim().split(/\s+/);
     const isAdmin = admins.includes(m.from.id);
     // Groups (the players' chat, owner 28.10): the bot answers nothing there — only the owner's /welcome, written in a
-    // topic, makes it post the welcome message into that topic, pin it and remove the command.
+    // topic, makes it post the welcome message into that topic, pin it and remove the command (and /here, below).
     if (m.chat.type !== 'private') {
       if (isAdmin && cmd.split('@')[0] === '/welcome') {
         const thread = m.is_topic_message ? { message_thread_id: m.message_thread_id } : {};
         const posted = await call('sendMessage', { chat_id: m.chat.id, text: WELCOME_TEXT, link_preview_options: { is_disabled: true }, ...thread });
         await call('pinChatMessage', { chat_id: m.chat.id, message_id: posted.message_id, disable_notification: true }).catch((e) => log('welcome pin:', e.message));
         await call('deleteMessage', { chat_id: m.chat.id, message_id: m.message_id }).catch(() => {});
+      }
+      // The owner's /here in a topic: the auto-posts (src/channel.js) go to this chat and topic. The Bot API can't list
+      // a group's topics, so the topic is picked by writing the command in it. Short «✅», then both messages go.
+      if (isAdmin && cmd.split('@')[0] === '/here' && here) {
+        const thread = m.is_topic_message ? m.message_thread_id : 0;
+        const topic = m.is_topic_message ? m.reply_to_message?.forum_topic_created?.name || '' : '';
+        let ok = false;
+        try {
+          ok = !!here({ chat: m.chat.id, thread, title: m.chat.title || '', topic, forum: !!m.chat.is_forum, by: m.from.id });
+        } catch (e) {
+          log('here:', e.message);
+        }
+        const reply = await call('sendMessage', { chat_id: m.chat.id, text: ok ? HERE_TEXT : '⚠️ Не вдалося зберегти — спробуй ще раз', ...(thread ? { message_thread_id: thread } : {}) }).catch((e) => log('here reply:', e.message));
+        const clean = () => {
+          call('deleteMessage', { chat_id: m.chat.id, message_id: m.message_id }).catch(() => {});
+          if (reply?.message_id) call('deleteMessage', { chat_id: m.chat.id, message_id: reply.message_id }).catch(() => {});
+        };
+        setTimeout(clean, hereCleanMs).unref?.();
       }
       return;
     }

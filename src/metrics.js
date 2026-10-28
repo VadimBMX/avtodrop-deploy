@@ -120,6 +120,41 @@ export function signupSource({ startParam, referrerId, legacy }) {
   return referrerId ? 'ref' : 'organic'; // players from before start_param was stored
 }
 
+// «Мітки посилань»: new players per Kyiv day by the raw start parameter, for the last TAG_DAYS days. Personal links
+// fold into one row each (ref_<id> → ref_…, ch_<id> → ch_…, club_<code> → club_…); no parameter → '' (без мітки).
+export const TAG_DAYS = 30;
+export const TAG_ROWS = 25; // the rest go into «інші мітки»
+export const TAG_RE = /^[A-Za-z0-9_]{1,64}$/; // what the owner may put after ?start= (Telegram: A–Z a–z 0–9 _ -)
+export const TAG_NOTES = { tgchannel: 'кнопка «Грати» в автопостах', 'ref_…': 'посилання друга / картка дропу', 'ch_…': 'виклик-привид', 'club_…': 'запрошення в автоклуб', '': 'пошук бота, пряме посилання' };
+export function startTag(p) {
+  const s = p || '';
+  if (/^ref_\d+$/.test(s)) return 'ref_…';
+  if (/^ch_/.test(s)) return 'ch_…';
+  if (/^club_/.test(s)) return 'club_…';
+  return s;
+}
+// rows [{ day (number), param }] → { days: ['YYYY-MM-DD'…] oldest first, tags: [{ tag, note, byDay: [n…], d7, d30 }] }.
+export function startTags({ rows, today, days = TAG_DAYS }) {
+  const first = today - days + 1, list = [];
+  for (let d = first; d <= today; d++) list.push(d);
+  const by = new Map();
+  for (const r of rows) {
+    if (r.day < first || r.day > today) continue;
+    const tag = startTag(r.param);
+    let x = by.get(tag);
+    if (!x) by.set(tag, (x = new Array(days).fill(0)));
+    x[r.day - first]++;
+  }
+  let tags = [...by].map(([tag, byDay]) => ({ tag, note: TAG_NOTES[tag] || '', byDay, d7: byDay.slice(-7).reduce((a, n) => a + n, 0), d30: byDay.reduce((a, n) => a + n, 0) }))
+    .sort((a, b) => b.d7 - a.d7 || b.d30 - a.d30 || a.tag.localeCompare(b.tag));
+  if (tags.length > TAG_ROWS) {
+    const rest = tags.slice(TAG_ROWS - 1), byDay = new Array(days).fill(0);
+    for (const t of rest) t.byDay.forEach((n, i) => (byDay[i] += n));
+    tags = [...tags.slice(0, TAG_ROWS - 1), { tag: '*', note: `інші мітки (${rest.length})`, byDay, d7: byDay.slice(-7).reduce((a, n) => a + n, 0), d30: byDay.reduce((a, n) => a + n, 0) }];
+  }
+  return { days: list.map(dayStr), tags };
+}
+
 export function groupOf(src) {
   const s = String(src || '');
   for (const g of MONEY_GROUPS) if (g.src.some((p) => s === p || s.startsWith(p.endsWith('/') ? p : p + '/'))) return g.key;

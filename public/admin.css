@@ -350,3 +350,16 @@ table.money td { vertical-align: middle; }
 body.helper :is([data-act="removeCar"], [data-act="removePlate"], [data-act="dealerRefresh"], [data-act="unlist"], [data-act="ctToggle"], [data-act="ctClose"],
   [data-act="hwMode"], [data-act="evpNew"], [data-act="evpEdit"], [data-act="evpDel"], [data-act="evpStop"], [data-act="evpSeed"], [data-act="evpSave"],
   [data-act="drDq"], [data-act="drClear"], [data-act="drSet"], [data-act="clubReset"], [data-act="clubDisband"], [data-act="chSave"], [data-act="chTest"]) { display: none !important; }
+
+/* ---------- «Мітки посилань» (public/admin-metrics.js tagsPanel): 7/30-day switch on two hidden radios ---------- */
+.mtags > input[type='radio'] { position: absolute; opacity: 0; pointer-events: none; }
+.mtags .mtag-seg { margin: 0 0 8px; display: inline-flex; }
+.mtags .mtag-seg label { cursor: pointer; padding: 5px 10px; border-radius: 8px; color: var(--muted); font: 600 13.5px var(--f-disp); }
+.mtags .mtag-30 { display: none; }
+.mtags #mtag30:checked ~ .mtag-7 { display: none; }
+.mtags #mtag30:checked ~ .mtag-30 { display: block; }
+.mtags #mtag7:checked ~ .mtag-seg label[for='mtag7'], .mtags #mtag30:checked ~ .mtag-seg label[for='mtag30'] { background: var(--card3); color: var(--accent); }
+.mtags td code { white-space: nowrap; }
+.mtags .mtag-link { word-break: break-all; }
+@media (max-width: 600px) { .mtags .mtag-note { display: none; } }
+.chx-target code { background: var(--card3); padding: 0 4px; border-radius: 4px; }

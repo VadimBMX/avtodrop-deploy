@@ -5437,7 +5437,12 @@ export function createGame(db, opts = {}) {
     const activity = q('SELECT day, user_id, sessions FROM user_days WHERE day >= ?').all(M.dayStr(first - 6));
     const marks = q('SELECT f.user_id, f.step, f.at FROM users u JOIN funnel f ON f.user_id = u.id WHERE u.created_at >= ?').all(Math.max(since, funnelSince));
     const money = q('SELECT day, src, created, destroyed FROM money_src WHERE day >= ?').all(M.dayStr(first));
-    return M.buildMetrics({ today: T, first, users, activity, marks, money, now: t, funnelSince });
+    const out = M.buildMetrics({ today: T, first, users, activity, marks, money, now: t, funnelSince });
+    // «Мітки посилань»: always the last 30 days, whatever the window (src/metrics.js startTags).
+    const tFirst = T - M.TAG_DAYS + 1, tSince = Date.parse(M.dayStr(tFirst) + 'T00:00:00Z') - 3 * 3600e3;
+    const tagRows = q('SELECT created_at, start_param FROM users WHERE created_at >= ? AND id > 0').all(tSince).map((r) => ({ day: M.dayNum(kday(r.created_at)), param: r.start_param }));
+    out.tags = M.startTags({ rows: tagRows, today: T });
+    return out;
   }
   // Owner and admins (not helpers); read-only, so no confirm or reason.
   admin.metrics = (who, body = {}) => db.tx(() => {

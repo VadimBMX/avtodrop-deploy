@@ -1,4 +1,5 @@
-// Auto-posts of notable events to the game's Telegram channel (env TG_CHANNEL_ID; empty = the whole thing is off).
+// Auto-posts of notable events to the game's Telegram channel (env TG_CHANNEL_ID; empty = the whole thing is off) or to
+// a topic of the players' group picked by the owner's /here (meta channel_target; it wins over the channel).
 // Events: a «Міфічний» (S) drop from a case, a secret car, a «тиражна» car, a container jackpot on «Причал» (posted only
 // after the winner opened it — no spoilers), the «Бос усіх босів» beaten, the weekly race results.
 // It only reads the database (a scan once a minute from cursors kept in `meta`), so the game code has no hooks.
@@ -137,7 +138,15 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
     }
   };
   const metaSet = (k, v) => q('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(k, JSON.stringify(v));
-  const chId = () => (typeof channelId === 'function' ? channelId() : channelId) || '';
+  // Where the posts go: a group topic picked by the owner's /here (meta channel_target, see setTarget), otherwise the
+  // channel (TG_CHANNEL_ID or «Наші групи» in the admin panel). thread 0 = the group's general topic (no thread id).
+  const target = () => {
+    const t = metaGet('channel_target');
+    return t && t.chat ? t : null;
+  };
+  const fallbackId = () => (typeof channelId === 'function' ? channelId() : channelId) || '';
+  const chId = () => target()?.chat || fallbackId();
+  const thread = () => (target()?.thread > 0 ? { message_thread_id: target().thread } : {});
   const configured = () => !!(chId() && api);
   const cfg = () => normalizeCfg(metaGet('channel_cfg') || {});
   const maxId = (t) => q(`SELECT COALESCE(MAX(id), 0) m FROM ${t}`).get().m;
@@ -226,8 +235,8 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
     const pic = p.type === 'single' ? pictureOf(e) : { photo: '', preview: '' };
     const reply_markup = button();
     const params = pic.photo
-      ? { chat_id: chId(), photo: pic.photo, caption: text.slice(0, 1024), parse_mode: 'HTML', ...(reply_markup ? { reply_markup } : {}) }
-      : { chat_id: chId(), text, parse_mode: 'HTML', link_preview_options: pic.preview ? { url: pic.preview, prefer_large_media: true, show_above_text: true } : { is_disabled: true }, ...(reply_markup ? { reply_markup } : {}) };
+      ? { chat_id: chId(), ...thread(), photo: pic.photo, caption: text.slice(0, 1024), parse_mode: 'HTML', ...(reply_markup ? { reply_markup } : {}) }
+      : { chat_id: chId(), ...thread(), text, parse_mode: 'HTML', link_preview_options: pic.preview ? { url: pic.preview, prefer_large_media: true, show_above_text: true } : { is_disabled: true }, ...(reply_markup ? { reply_markup } : {}) };
     const kind = p.type === 'digest' ? 'digest' : e.kind;
     try {
       await api(pic.photo ? 'sendPhoto' : 'sendMessage', params);
@@ -274,7 +283,7 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
   function status() {
     const c = cfg();
     return {
-      configured: configured(), hasChannel: !!chId(), hasBot: !!api, cfg: c, defaults: normalizeCfg({}), kinds: CHANNEL_KINDS,
+      configured: configured(), hasChannel: !!chId(), hasBot: !!api, target: target(), channel: String(fallbackId()), cfg: c, defaults: normalizeCfg({}), kinds: CHANNEL_KINDS,
       pending: pending.length, optins: q('SELECT COUNT(*) n FROM channel_optin').get().n,
       lastHour: q('SELECT COUNT(*) n FROM channel_log WHERE ok = 1 AND test = 0 AND at > ?').get(now() - 3600e3).n,
       log: q('SELECT at, kind, n, ok, test, text, error FROM channel_log ORDER BY id DESC LIMIT 20').all(),
@@ -283,9 +292,17 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
   function alog(who, action, details) {
     q('INSERT INTO admin_log (admin, action, target, details, created_at) VALUES (?, ?, NULL, ?, ?)').run(String(who), action, JSON.stringify(details), now());
   }
+  // The owner's /here in a group topic (src/bot.js): auto-posts go to that chat and topic from now on.
+  function setTarget({ chat, thread: th = 0, title = '', topic = '', forum = false, by = null } = {}) {
+    if (!/^-?\d{5,20}$/.test(String(chat ?? ''))) return null;
+    const t = { chat: Number(chat), thread: Math.max(0, Math.floor(Number(th)) || 0), title: String(title).slice(0, 128), topic: String(topic).slice(0, 128), forum: !!forum, at: now(), by };
+    metaSet('channel_target', t);
+    alog(by ? `tg:${by}` : '?', 'channel-target', t);
+    return t;
+  }
   async function admin(name, body = {}, { who = '?', role = null } = {}) {
     if (name === 'channel') return status();
-    if (name !== 'channel/set' && name !== 'channel/test') return undefined;
+    if (name !== 'channel/set' && name !== 'channel/test' && name !== 'channel/target-clear') return undefined;
     if (role !== 'owner' && role !== 'admin') return { error: 'Немає прав на цю дію', code: 403 };
     const reason = String(body.reason ?? '').trim().slice(0, 300);
     if (body.confirm !== true) return { error: 'Дію не підтверджено', code: 400 };
@@ -300,8 +317,14 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
       alog(who, 'channel-set', { from: old, to: next, reason });
       return status();
     }
+    if (name === 'channel/target-clear') {
+      const old = target();
+      q("DELETE FROM meta WHERE key = 'channel_target'").run();
+      alog(who, 'channel-target-clear', { from: old, reason });
+      return status();
+    }
     if (name === 'channel/test') {
-      if (!configured()) return { error: chId() ? 'Бот не підключено (BOT_TOKEN)' : 'Не задано TG_CHANNEL_ID', code: 400 };
+      if (!configured()) return { error: chId() ? 'Бот не підключено (BOT_TOKEN)' : 'Не задано, куди постити: канал у «Наші групи» (чи TG_CHANNEL_ID) або тема групи — /here у ній', code: 400 };
       const ev = { kind: 'test', at: now(), text: String(body.text || '').trim().slice(0, 500) || 'Тестовий пост: автопости АВТОДРОПу підключено ✅' };
       const r = await post({ type: 'single', events: [ev] }, { test: true });
       alog(who, 'channel-test', { ok: r.ok, error: r.error || null, reason });
@@ -312,7 +335,7 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
   }
 
   return {
-    configured, shows, setShow, scan, tick, admin, status, planPosts,
+    configured, shows, setShow, scan, tick, admin, status, planPosts, setTarget,
     get pending() {
       return pending;
     },

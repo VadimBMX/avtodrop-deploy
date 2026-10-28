@@ -32,7 +32,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
   };
   const game = createGame(db, { notify: (uid, text) => sender?.enqueue(uid, text, { urgent: true }), admins, broadcast, seedSchedule: true });
   if (token) {
-    bot = createBot({ token, webappUrl, admins, game, log, inline: (query, from) => inlineAnswer(query, from) });
+    bot = createBot({ token, webappUrl, admins, game, log, inline: (query, from) => inlineAnswer(query, from), here: (t) => channel.setTarget(t) });
     sender = createSender({ send: bot.sendMessage, onBlocked: game.push.block, isBlocked: game.push.isBlocked, log });
     game.flushStartupNotes(); // bot messages from start-up fixes (secret cars handed out by backfillSecrets)
     reminders = createReminders({ game, sender, markup: () => bot.playButton('🎁 Відкрити гру'), log });

@@ -344,7 +344,7 @@ Object.assign(H, halloweenActions({ mutate }));
 // ---------- «Канал»: auto-posts to the Telegram channel (public/admin-channel.js, src/channel.js) ----------
 VIEWS.channel = () => channelPage({ api, esc, date });
 Object.assign(H, channelActions({ mutate, $, api }));
-Object.assign(ACTIONS, { 'channel-set': 'Канал: налаштування', 'channel-test': 'Канал: тестовий пост' });
+Object.assign(ACTIONS, { 'channel-set': 'Канал: налаштування', 'channel-test': 'Канал: тестовий пост', 'channel-target': 'Автопости: тема (/here)', 'channel-target-clear': 'Автопости: тему скинуто' });
 // ---------- «Події»: what runs now, the next 8 weeks and the events scheduler (public/admin-events.js) ----------
 VIEWS.events = () => eventsPage({ api, esc, ic });
 AFTER.events = () => eventsAfter({ $ });

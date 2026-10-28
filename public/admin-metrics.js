@@ -48,6 +48,43 @@ export function spark(values, { days = [], fmt = String, w = 132, h = 30, zero =
     <path d="${d}"/><circle cx="${x(last).toFixed(1)}" cy="${y(values[last]).toFixed(1)}" r="3.5"/><g class="hit">${tips}</g></svg>`;
 }
 
+// «Мітки посилань» (m.tags, src/metrics.js startTags): new players per day by the raw start parameter. A 7/30-day switch
+// without a round trip (two radio inputs + CSS), a small link maker for tagged links.
+export const BOT_LINK = 'https://t.me/avtodrop2026_bot?start=';
+const TAG_OK = /^[A-Za-z0-9_]{1,64}$/;
+export function tagLink(tag) {
+  const t = String(tag || '').trim();
+  return TAG_OK.test(t) ? BOT_LINK + t : null;
+}
+export function tagsPanel(T, { esc }) {
+  if (!T) return '';
+  const name = (t) => (t.tag === '' ? '<span class="muted">без мітки</span>' : t.tag === '*' ? '<span class="muted">інші</span>' : `<code>${esc(t.tag)}</code>`);
+  const note = (t) => (t.note ? `<div class="muted small mtag-note">${esc(t.note)}</div>` : '');
+  const d7 = T.days.slice(-7);
+  const total = (k) => T.tags.reduce((a, t) => a + t[k], 0);
+  const rows7 = T.tags.filter((t) => t.d7).map((t) => `<tr><td>${name(t)}${note(t)}</td>${t.byDay.slice(-7).map((n) => `<td class="num${n ? '' : ' muted'}">${n || '·'}</td>`).join('')}<td class="num"><b>${t.d7}</b></td></tr>`).join('');
+  const sum7 = d7.map((_, i) => T.tags.reduce((a, t) => a + t.byDay[t.byDay.length - 7 + i], 0));
+  const rows30 = T.tags.map((t) => `<tr><td>${name(t)}${note(t)}</td><td class="hide-m">${spark(t.byDay, { days: T.days, fmt: String, esc, w: 180, h: 26 })}</td><td class="num">${t.d7}</td><td class="num"><b>${t.d30}</b></td></tr>`).join('');
+  return `<div class="panel mtags"><h2>Мітки посилань <span class="sub">нові гравці за параметром старту</span></h2>
+      <input type="radio" name="mtagw" id="mtag7" checked><input type="radio" name="mtagw" id="mtag30">
+      <div class="seg mtag-seg"><label for="mtag7">7 дн</label><label for="mtag30">30 дн</label></div>
+      <div class="mtag-7">${rows7 ? `<div class="tbl-wrap"><table><tr><th>Мітка</th>${d7.map((d) => `<th class="num">${dayLabel(d)}</th>`).join('')}<th class="num">Разом</th></tr>${rows7}
+        <tr class="avg"><td>Усього</td>${sum7.map((n) => `<td class="num">${n}</td>`).join('')}<td class="num"><b>${total('d7')}</b></td></tr></table></div>` : '<div class="empty">За 7 днів нових гравців немає</div>'}</div>
+      <div class="mtag-30">${T.tags.length ? `<div class="tbl-wrap"><table><tr><th>Мітка</th><th class="hide-m">По днях</th><th class="num">7 дн</th><th class="num">30 дн</th></tr>${rows30}
+        <tr class="avg"><td>Усього</td><td class="hide-m"></td><td class="num">${total('d7')}</td><td class="num"><b>${total('d30')}</b></td></tr></table></div>` : '<div class="empty">За 30 днів нових гравців немає</div>'}</div>
+      <div class="small muted mt">Як зробити посилання з міткою: <code class="mtag-link">${BOT_LINK}&lt;мітка&gt;</code> — мітка лише з латинських літер, цифр і <code>_</code> (до 64 знаків), напр. <code>tiktok</code>, <code>insta_gavr</code>, <code>tiktok_okt2</code>. Своя мітка на кожне джерело/рекламу — і тут видно, скільки людей вона привела. Рахується лише перший вхід гравця.</div>
+      <div class="row mt" style="gap:8px;flex-wrap:wrap;align-items:center"><input id="mtagIn" placeholder="мітка, напр. insta_gavr" maxlength="64" style="width:200px"><code id="mtagOut" class="small muted mtag-link">${BOT_LINK}…</code></div></div>`;
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('input', (e) => {
+    if (e.target?.id !== 'mtagIn') return;
+    const out = document.getElementById('mtagOut'), v = e.target.value.trim(), link = tagLink(v);
+    out.textContent = !v ? BOT_LINK + '…' : link || 'лише латиниця, цифри й _';
+    out.classList.toggle('bad', !!v && !link);
+    out.classList.toggle('muted', !v);
+  });
+}
+
 export async function metricsPage({ api, esc, ic, short, days }) {
   const m = await api('metrics', { days });
   const R = m.retention, F = m.funnel, s = m.series, last = s[s.length - 1];
@@ -123,7 +160,7 @@ export async function metricsPage({ api, esc, ic, short, days }) {
 
       <div class="panel"><h2>Звідки прийшли <span class="sub">нові гравці за ${days} дн</span></h2>
         <div class="tbl-wrap"><table class="sources"><tr><th>Джерело</th><th class="num">Гравців</th><th>Частка</th><th class="num">D1</th><th class="num">L4 за добу</th></tr>${srcRows}</table></div>
-        <div class="small muted mt">«Посилання друга» — ref_ (його ж несе картка дропу), «Виклик» — startapp=ch_…, «Інше посилання» — будь-який інший параметр старту, «Органіка» — без параметра.</div></div>
+        <div class="small muted mt">«Посилання друга» — ref_ (його ж несе картка дропу), «Виклик» — startapp=ch_…, «Інше посилання» — будь-який інший параметр старту, «Органіка» — без параметра. Окремі мітки (tiktok, insta_…) — нижче в «Мітки посилань».</div></div>
 
     </div><div>
       <div class="panel"><h2>Перша доба новачка <span class="sub">${F.users ? `${F.mature} новачків старші за добу` : 'ще немає даних'}</span></h2>
@@ -132,6 +169,7 @@ export async function metricsPage({ api, esc, ic, short, days }) {
         <div class="small muted mt">Відсоток — від новачків, яким уже минула доба: скільки зробили крок за перші 24 год; «≈» — медіанний час від реєстрації.${fsince ? ` Кроки записуються з ${fsince}.` : ''}</div></div>
 
     </div></div>
+      ${tagsPanel(m.tags, { esc })}
       <div class="panel"><h2>Гроші за джерелом <span class="sub">${m.money.since ? `з ${dayLabel(m.money.since)}` : 'записуються з цього оновлення'}</span></h2>
         ${m.money.groups.length ? `<div class="tbl-wrap"><table class="money"><tr><th>Звідки</th><th class="num hide-m">Створено</th><th class="num hide-m">Вилучено</th><th class="num">Різниця</th><th class="hide-m">По днях</th></tr>${moneyRows}
           <tr class="avg"><td>Усього<div class="muted small show-m">+${short(mt.created)} · −${short(mt.destroyed)}</div></td><td class="num hide-m">+${short(mt.created)}</td><td class="num hide-m">−${short(mt.destroyed)}</td><td class="num"><b>${signed(mt.created - mt.destroyed)}</b></td><td class="hide-m"></td></tr></table></div>` : '<div class="empty">Ще немає записів</div>'}
