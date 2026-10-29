@@ -105,7 +105,7 @@ export function settingsText({ off = false, mute = [], groups = [] } = {}) {
 
 // inline(query, from) → results for the bot's inline mode (server.js: a ghost challenge card or an invite), or null.
 // here({ chat, thread, title, topic, forum, by }) → the owner's /here in a group: store it as the auto-post target.
-export function createBot({ token, webappUrl, admins = [], game, inline = null, here = null, hereCleanMs = HERE_CLEAN_MS, log = console.error }) {
+export function createBot({ token, webappUrl, admins = [], game, inline = null, here = null, promoHere = null, hereCleanMs = HERE_CLEAN_MS, log = console.error }) {
   const base = `https://api.telegram.org/bot${token}/`;
   const canButton = /^https:\/\//.test(webappUrl || '');
   let username = null, inlineOn = false, meTimer = null;
@@ -193,6 +193,21 @@ export function createBot({ token, webappUrl, admins = [], game, inline = null, 
       }
       // The owner's /here in a topic: the auto-posts (src/channel.js) go to this chat and topic. The Bot API can't list
       // a group's topics, so the topic is picked by writing the command in it. Short «✅», then both messages go.
+      // The owner's /promohere in a topic: «Автопромо» (src/autopromo.js) posts its codes into this chat and topic.
+      if (isAdmin && cmd.split('@')[0] === '/promohere' && promoHere) {
+        const thread = m.is_topic_message ? m.message_thread_id : 0;
+        let ok = false;
+        try {
+          ok = !!promoHere({ chat: m.chat.id, thread, title: m.chat.title || '', by: m.from.id });
+        } catch (e) {
+          log('promohere:', e.message);
+        }
+        const reply = await call('sendMessage', { chat_id: m.chat.id, text: ok ? '✅ Сюди падатимуть промокоди' : '⚠️ Не вдалося зберегти — спробуй ще раз', ...(thread ? { message_thread_id: thread } : {}) }).catch((e) => log('promohere reply:', e.message));
+        setTimeout(() => {
+          call('deleteMessage', { chat_id: m.chat.id, message_id: m.message_id }).catch(() => {});
+          if (reply?.message_id) call('deleteMessage', { chat_id: m.chat.id, message_id: reply.message_id }).catch(() => {});
+        }, hereCleanMs).unref?.();
+      }
       if (isAdmin && cmd.split('@')[0] === '/here' && here) {
         const thread = m.is_topic_message ? m.message_thread_id : 0;
         const topic = m.is_topic_message ? m.reply_to_message?.forum_topic_created?.name || '' : '';

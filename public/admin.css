@@ -479,3 +479,6 @@ body.helper :is([data-act="removeCar"], [data-act="removePlate"], [data-act="dea
 .bb-done b { color: var(--text); }
 .bb-hl { outline: 2px solid #f5b301; outline-offset: 2px; }
 body.helper [data-act="bugOpen"], body.helper [data-act="bugPreset"] { display: none !important; }
+
+.apgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.apgrid .field input[type=checkbox] { width: 24px; height: 24px; }

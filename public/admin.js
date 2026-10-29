@@ -975,9 +975,35 @@ H.ctClose = (d) => mutate('containers/close', { id: Number(d.id) }, { title: `З
   summary: 'Лот буде скасовано (лідеру-гравцю гроші повернуться), замість нього з’явиться новий контейнер цього рівня.' }, 'Лот закрито, новий уже на причалі');
 
 // ---------- promo codes ----------
+// «Автопромо» (src/autopromo.js): codes into the players' chat a few times a day.
+function autoPromoPanel(a) {
+  if (!a) return '';
+  const c = a.cfg, t = a.target;
+  const where = t ? `${esc(t.title || 'чат')}${t.thread ? ' · тема' : ''}` : '<b class="bad">не вибрано</b> — напиши <code>/promohere</code> у темі «Чат» групи';
+  const log = a.log.length ? `<div class="tbl-wrap"><table class="stack"><tr><th>Коли</th><th>Код</th><th class="num">Сума</th><th class="num">Активацій</th><th class="num">Лишилось</th><th></th></tr>
+    ${a.log.map((l) => `<tr><td class="small nowrap" data-label="Коли">${date(l.at)}</td><td data-label="Код"><b>${esc(l.code)}</b></td><td class="num" data-label="Сума">${money(l.amount)}</td><td class="num" data-label="Активацій">${l.uses}</td><td class="num" data-label="Лишилось">${l.ok ? l.left : '—'}</td><td data-label="">${l.ok ? (l.by === 'auto' ? '<span class="badge">сам</span>' : '<span class="badge amber">вручну</span>') : `<span class="badge red" title="${esc(l.error || '')}">помилка</span>`}</td></tr>`).join('')}</table></div>` : '<div class="empty">Ще нічого не кидав</div>';
+  return `<div class="panel"><h2>${ic('ticket')} Автопромо в чат <span class="sub">${c.on && t ? `<span class="badge green">увімкнено</span>${a.nextAt ? ` · наступний ${date(a.nextAt)}` : ''}` : (c.on ? '<span class="badge amber">чекає /promohere</span>' : '<span class="badge">вимкнено</span>')}</span></h2>
+    <div class="small muted" style="margin-bottom:10px">Бот сам кидає новий промокод у чат кілька разів на день у випадковий час (${c.from}:00–${c.to}:00 за Києвом). Куди: ${where}.</div>
+    <div class="grid2 apgrid">
+      <label class="field"><span>Увімкнено</span><input type="checkbox" id="apOn" ${c.on ? 'checked' : ''}></label>
+      <label class="field"><span>Разів на день</span><input id="apPer" inputmode="numeric" value="${c.perDay}"></label>
+      <label class="field"><span>Сума від, ₴</span><input id="apMin" inputmode="numeric" value="${c.min}"></label>
+      <label class="field"><span>Сума до, ₴</span><input id="apMax" inputmode="numeric" value="${c.max}"></label>
+      <label class="field"><span>Активацій від</span><input id="apUmin" inputmode="numeric" value="${c.usesMin}"></label>
+      <label class="field"><span>Активацій до</span><input id="apUmax" inputmode="numeric" value="${c.usesMax}"></label>
+      <label class="field"><span>Діє, хв</span><input id="apTtl" inputmode="numeric" value="${c.ttlMin}"></label>
+    </div>
+    <div class="row" style="gap:8px;margin:10px 0"><button class="btn" data-act="apSave">${ic('check')} Зберегти</button><button class="btn ghost" data-act="apNow" ${t && a.hasBot ? '' : 'disabled'}>${ic('share')} Кинути зараз</button></div>
+    ${log}</div>`;
+}
+H.apSave = () => mutate('autopromo/set', { on: $('#apOn').checked, perDay: num('#apPer'), min: num('#apMin'), max: num('#apMax'), usesMin: num('#apUmin'), usesMax: num('#apUmax'), ttlMin: num('#apTtl') },
+  { title: 'Автопромо: зберегти', button: 'Зберегти', summary: 'Нові налаштування діють з наступного промокоду.' }, 'Збережено');
+H.apNow = () => mutate('autopromo/now', {}, { title: 'Кинути промокод зараз', button: 'Кинути', summary: 'Бот одразу напише новий промокод у вибрану тему чату.' }, 'Промокод у чаті');
+
 VIEWS.promos = async () => {
-  const { list } = await api('promos');
+  const [{ list }, ap] = await Promise.all([api('promos'), api('autopromo').catch(() => null)]);
   return `<div class="head"><h1>Промокоди</h1></div>
+    ${autoPromoPanel(ap)}
     <div class="panel"><h2>Новий промокод</h2>
       <form class="row pform" id="promoForm">
         <input id="pcCode" placeholder="КОД" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;width:160px">

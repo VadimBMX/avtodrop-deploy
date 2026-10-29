@@ -13,6 +13,7 @@ import { createStatic, compressSmall } from './src/static.js';
 import { PACKS, PACKS_ON_SALE, REF_REWARD, MODELS, shareCaption, short } from './public/shared.js';
 import { createShareStore, SHARE } from './src/share.js';
 import { createChannel, START_PARAM as CHANNEL_START } from './src/channel.js';
+import { createAutoPromo } from './src/autopromo.js';
 import * as G from './public/ghost.js';
 import * as SRR from './public/showroom.js';
 
@@ -33,7 +34,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
   };
   const game = createGame(db, { notify: (uid, text) => sender?.enqueue(uid, text, { urgent: true }), admins, broadcast, seedSchedule: true });
   if (token) {
-    bot = createBot({ token, webappUrl, admins, game, log, inline: (query, from) => inlineAnswer(query, from), here: (t) => channel.setTarget(t) });
+    bot = createBot({ token, webappUrl, admins, game, log, inline: (query, from) => inlineAnswer(query, from), here: (t) => channel.setTarget(t), promoHere: (t) => autoPromo.setTarget(t) });
     sender = createSender({ send: bot.sendMessage, onBlocked: game.push.block, isBlocked: game.push.isBlocked, log });
     game.flushStartupNotes(); // bot messages from start-up fixes (secret cars handed out by backfillSecrets)
     reminders = createReminders({ game, sender, markup: () => bot.playButton('🎁 Відкрити гру'), log });
@@ -98,6 +99,8 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     imageUrl: (model) => (httpsOrigin() && carImages()[model] ? httpsOrigin() + '/' + carImages()[model] : ''),
     cardUrl: (id) => (httpsOrigin() && shares.get(id) ? `${httpsOrigin()}/share/${id}.jpg` : ''),
     playUrl: () => (bot?.username ? (tgApp() ? `https://t.me/${bot.username}/${tgApp()}?startapp=${CHANNEL_START}` : `https://t.me/${bot.username}?start=${CHANNEL_START}`) : '') });
+  // «Автопромо» (src/autopromo.js): promo codes into the players' chat a few times a day.
+  const autoPromo = createAutoPromo({ db, api: channelApi || (bot ? bot.call : null), log });
   const authCache = new Map(); // initData → { uid, until }
   const hits = new Map(); // uid → [windowStart, count]
 
@@ -169,6 +172,11 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     if (id.error) return send(res, id.code, { error: id.error });
     if (limited('admin:' + id.who)) return send(res, 429, { error: 'Забагато запитів, зачекай секунду' });
     const body = await readBody(req);
+    if (name === 'autopromo' || name.startsWith('autopromo/')) {
+      const r = await autoPromo.admin(name, body, { who: id.who, role: id.who.startsWith('tg:') ? game.roleOf(Number(id.who.slice(3))) : 'owner' });
+      if (r === undefined) return send(res, 404, { error: 'Невідомий метод' });
+      return r.error ? send(res, r.code || 400, { error: r.error }) : send(res, 200, r);
+    }
     if (name === 'channel' || name.startsWith('channel/')) {
       const r = await channel.admin(name, body, { who: id.who, role: id.who.startsWith('tg:') ? game.roleOf(Number(id.who.slice(3))) : 'owner' });
       if (r === undefined) return send(res, 404, { error: 'Невідомий метод' });
@@ -570,6 +578,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
         }
       }
       channel.start();
+      autoPromo.start();
       try {
         channel.postNews(JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'changelog.json'), 'utf8'))).catch((e) => log('news:', e.message));
       } catch (e) {
@@ -581,6 +590,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     close() {
       clearInterval(sweeper);
       channel.stop();
+      autoPromo.stop();
       reminders?.stop();
       bot?.stop();
       server.close();
