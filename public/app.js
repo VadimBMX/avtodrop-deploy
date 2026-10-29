@@ -526,6 +526,7 @@ async function refresh(rerender = true) {
   else renderHeader();
   guideProgress();
   fuelDealAsk(); // the tank is empty: a cheaper full tank (one window per deal)
+  vipSaleAsk(); // «VIP −40%»: the offer window once, then the player's 30 minutes
   hwIntroAsk(); // «Ніч Хелловіну»: the animated intro once per event (public/halloween-ui.js)
   contestAsk(); // «Битва амбасадорів»: the banner once a Kyiv day while the contest runs
   packOfferAsk(); // «Мега-пропозиція» on hryvnia packs (one window per offer)
@@ -959,7 +960,7 @@ function pendingNow() {
   return Math.floor(Math.max(Math.min(i.banked + i.rate * elapsed, i.rate * i.capH), i.banked));
 }
 TABS.garage = () => {
-  const seg = `<div class="seg">${[['cars', 'Машини'], ['showcase', 'Вітрина']].map(([k, t]) => `<button class="${state.garageView === k ? 'on' : ''}" data-act="gView" data-k="${k}">${t}</button>`).join('')}</div>`;
+  const seg = vipSaleBanner() + `<div class="seg">${[['cars', 'Машини'], ['showcase', 'Вітрина']].map(([k, t]) => `<button class="${state.garageView === k ? 'on' : ''}" data-act="gView" data-k="${k}">${t}</button>`).join('')}</div>`;
   if (state.garageView === 'showcase') {
     const cars = me.cars.filter((c) => c.status === 'showcase');
     const free = me.showcaseSlots - cars.length;
@@ -1543,7 +1544,7 @@ TABS.cases = () => {
   const fromStarter = onDrop && S.CASE_BY_ID[state.dropCase]?.starter;
   const hc = fromStarter ? S.CASE_BY_ID[state.dropCase] : cs;
   const top = S.CLASS_ORDER.filter((c) => hc.weights[c]).pop();
-  return `<div class="feed" id="dropFeed"></div>${eventStrip(['luck', 'country', 'plates'])}
+  return `<div class="feed" id="dropFeed"></div>${onDrop ? '' : vipSaleBanner()}${eventStrip(['luck', 'country', 'plates'])}
     <div class="casebar"><button class="picker" data-act="casePicker" style="--c:${S.CLASSES[top].color}"><span class="picker-ic">${caseIcon(hc)}</span>
       <span class="picker-tx"><b>${esc(hc.name)}</b><span class="picker-sub">${fromStarter ? '<span class="tiny muted">Подарунок новачку · відкрито</span>' : `${oddsBar(deal.weights)}${dayCase ? `<span class="chip dayc">${ic('flame')} Кейс дня −${S.CASE_OF_DAY.off * 100}%</span>` : ''}${caseEvChip(deal)}`}</span></span>
       <span class="picker-chev">${ic('chevron-right')}</span></button>
@@ -4335,7 +4336,7 @@ TABS.menu = () => {
   ];
   const H2 = (t, r = '') => `<div class="hub-h"><span>${t}</span>${r ? `<span>${r}</span>` : ''}</div>`;
   const nextLock = S.UNLOCKS.find((u) => !isOpen(u.key) && !(u.key === 'casino' && casinoOff()));
-  return `<div class="hub">${head}${contestHubCard()}${pass}${homeCard()}
+  return `<div class="hub">${head}${vipSaleBanner()}${contestHubCard()}${pass}${homeCard()}
     ${H2('Нагороди й прогрес')}<div class="hub-grid g2">${tiles.join('')}</div>${challengeHubRow()}${clubHub()}${prestigeHubRow()}${showroomHubRow()}${tgGroupsCard()}
     ${H2('Торгівля', nextLock && ['market', 'trades', 'tradein', 'plates'].includes(nextLock.key) ? `${ic('lock')} далі: ${nextLock.name} · рів. ${nextLock.level}` : '')}<div class="hub-grid g4">${trade.join('')}</div>
     ${H2('Ризикнути')}<div class="hub-grid g2">${risk.join('')}</div>
@@ -6681,16 +6682,17 @@ function storeMain(sh) {
     <div class="row between mt"><span class="tiny muted">Більше не з’явиться</span>${storeBuyBtns(st, sh)}</div></div>`;
   const perks = [['gas-station', 'Пальне відновлюється вдвічі швидше'], ['clock', `Каса гаража вміщує на ${S.VIP.extraHours} год більше`], ['gift', `+${S.short(S.VIP.daily)} до щоденного бонусу`],
     ['droplet', 'Автомийка — безкоштовно'], ['building-store', `${S.ITEM_MARKET.vipLots} лотів деталей і номерів на ринку замість ${S.ITEM_MARKET.lots}`], ['crown', 'Корона в рейтингу й профілі']];
+  const vs = sh.vipSale?.until > serverNow() ? sh.vipSale : null; // «VIP −40%» (owner 29.10)
   const subBox = sub ? (sub.canceled
     ? `<div class="vip-sub off"><div class="grow"><b>Автопродовження вимкнено</b><div class="tiny muted">VIP діє до ${kyivDate(sh.vipUntil)}, далі зірки не списуються</div></div><button class="btn sm yellow" data-act="vipSub" data-cancel="0">Відновити</button></div>`
     : `<div class="vip-sub"><div class="grow"><b>${ic('check')} Підписка діє</b><div class="tiny muted">Наступне списання ${kyivDate(sub.expiresAt)} · ${ic('star')} ${sub.stars}</div></div><button class="btn sm ghost" data-act="vipSub" data-cancel="1">Скасувати</button></div>`)
-    : `<div class="row between mt vip-buy"><div><b class="vip-price">${ic('star')} ${it.vipsub.price}<small> / ${S.VIP_SUB.days} днів</small></b><div class="tiny muted">дешевше, ніж 2 × ${S.VIP.days} днів (${it.vip.price * 2} ⭐)</div></div>
+    : `${vs ? `<div class="vs-store">${ic('flame')} <b>−${vs.pct}% тільки зараз</b> · ще <span data-until="${vs.until - clockOffset}">${left(vs.until - serverNow())}</span></div>` : ''}<div class="row between mt vip-buy"><div><b class="vip-price">${ic('star')} ${it.vipsub.price}${vs ? ` <s class="vs-old">${it.vipsub.full}</s>` : ''}<small> / ${S.VIP_SUB.days} днів</small></b><div class="tiny muted">${vs ? 'ціна зберігається на продовження' : `дешевше, ніж 2 × ${S.VIP.days} днів (${it.vip.price * 2} ⭐)`}</div></div>
         <button class="btn sm yellow" data-act="buyItem" data-id="vipsub" ${config.stars ? '' : 'disabled'}>Оформити</button></div>
       <div class="tiny muted mt">Продовжується сама кожні ${S.VIP_SUB.days} днів. Скасувати можна будь-коли — тут або в Telegram: Налаштування → Мої зірки. Оплачений строк лишається.</div>`;
-  const vip = `<div class="card vip-card"><div class="row between"><b class="disp" style="font-size:19px;color:var(--accent)">${ic('crown')} VIP-підписка</b>${vipLeft ? `<span class="chip">ще <span data-until="${sh.vipUntil - clockOffset}"></span></span>` : ''}</div>
+  const vip = `<div class="card vip-card${vs ? ' vs-on' : ''}"><div class="row between"><b class="disp" style="font-size:19px;color:var(--accent)">${ic('crown')} VIP-підписка</b>${vipLeft ? `<span class="chip">ще <span data-until="${sh.vipUntil - clockOffset}"></span></span>` : ''}</div>
     <div class="vip-list">${perks.map(([i, t]) => `<span>${ic(i)} ${t}</span>`).join('')}</div>
     ${subBox}
-    <div class="vip-once"><div class="grow"><b>Разово · ${S.VIP.days} днів</b><div class="tiny muted">${vipLeft ? 'додасться до поточного VIP' : 'без автопродовження'}</div></div>${storeBuyBtns(it.vip, sh, 'ghost')}</div></div>`;
+    <div class="vip-once"><div class="grow"><b>Разово · ${S.VIP.days} днів${vs ? ` <s class="vs-old">${it.vip.full}⭐</s>` : ''}</b><div class="tiny muted">${vipLeft ? 'додасться до поточного VIP' : 'без автопродовження'}</div></div>${storeBuyBtns(it.vip, sh, 'ghost')}</div></div>`;
   const off = sh.offer;
   // First Stars purchase ×FIRST_BUY_MULT wins over the offer when bigger (server: packMultFor).
   const fb = sh.firstBuy && (!off || sh.firstBuy > off.mult) ? sh.firstBuy : 0;
@@ -6804,6 +6806,42 @@ H.buyPack = async (d) => {
   } catch (e) {
     toast(e.message, true);
   }
+};
+// «VIP −40%» (owner 29.10, S.VIP_SALE): the window once per player; showing it starts his minutes on the server
+// (vip/sale). While they run, a glowing banner on «Гараж» and «Меню» and the crossed-out price in the shop.
+const vipSaleOn = () => !!(me?.vipSale?.until && me.vipSale.until > serverNow());
+function vipSaleBanner() {
+  if (!vipSaleOn()) return '';
+  return `<button class="vs-banner" data-act="vipSaleGo"><span class="vs-ic">${ic('crown')}</span><span class="vs-tx"><b>VIP −${me.vipSale.pct}% · тільки зараз</b><small>ще <span data-until="${me.vipSale.until - clockOffset}">${left(me.vipSale.until - serverNow())}</span></small></span><span class="vs-go">${ic('chevron-right')}</span></button>`;
+}
+function vipSaleAsk() {
+  if (!me?.vipSale?.can || !config.stars) return;
+  POP.offer('vipsale', () => {
+    if (!me?.vipSale?.can) return false;
+    const pct = me.vipSale.pct, until = serverNow() + S.VIP_SALE.minutes * 60e3;
+    const sub = S.SHOP_BY_ID.vipsub, one = S.SHOP_BY_ID.vip;
+    me.vipSale = { until, pct };
+    api('vip/sale', {}).then((r) => {
+      me.vipSale = r.sale;
+      render();
+    }).catch(() => {});
+    sheet('VIP зі знижкою', `<div class="card center vs-pop"><div class="vs-crown">${ic('crown')}</div>
+      <div class="vs-pct">−${pct}%</div><b class="disp">VIP-ПІДПИСКА · ТІЛЬКИ ЗАРАЗ</b>
+      <div class="vs-price"><s>${ic('star')} ${sub.stars}</s><b>${ic('star')} ${S.vipSalePrice(sub.stars)}</b><small>/ ${S.VIP_SUB.days} днів</small></div>
+      <div class="small muted">Ціна зі знижкою лишається й на продовження, поки підписка діє. Або разово на ${S.VIP.days} днів — ${ic('star')} ${S.vipSalePrice(one.stars)} замість ${one.stars}.</div>
+      <div class="vs-list">${[['gas-station', 'Пальне вдвічі швидше'], ['clock', `Каса +${S.VIP.extraHours} год`], ['gift', `+${S.short(S.VIP.daily)} щодня`], ['crown', 'Корона в рейтингу']].map(([i, t]) => `<span>${ic(i)} ${t}</span>`).join('')}</div>
+      <div class="small mt">Знижка згорить через <b class="win"><span data-until="${until - clockOffset}">${left(until - serverNow())}</span></b></div>
+      <div class="btns mt"><button class="btn yellow nowrap" data-act="vipSaleBuy">Оформити · ${ic('star')} ${S.vipSalePrice(sub.stars)}</button><button class="btn ghost" data-act="closeModal">Пізніше</button></div></div>`);
+    tickUntil?.();
+  });
+}
+H.vipSaleBuy = () => {
+  closeModal();
+  H.buyItem({ id: 'vipsub' });
+};
+H.vipSaleGo = () => {
+  state.storeView = 'shop';
+  go('store');
 };
 // «Битва амбасадорів» (owner 28.10): everyone gets the contest banner once a Kyiv day on entering the game while it
 // runs (the entry's one window, via popups.js). «Взяти участь» opens the contest screen.

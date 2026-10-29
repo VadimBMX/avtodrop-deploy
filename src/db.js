@@ -509,6 +509,7 @@ const MIGRATIONS = [
   'ALTER TABLE users ADD COLUMN fuel_deal_until INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE users ADD COLUMN fuel_deal_next INTEGER NOT NULL DEFAULT 0',
   "ALTER TABLE users ADD COLUMN day_deal_day TEXT NOT NULL DEFAULT ''",
+  'ALTER TABLE users ADD COLUMN vip_sale_until INTEGER NOT NULL DEFAULT 0',
   // «Більший бак» (S.TANK_UPGRADES): steps of the shared tank bought for ₴, 0 = the plain S.FUEL_MAX.
   'ALTER TABLE users ADD COLUMN tank_lvl INTEGER NOT NULL DEFAULT 0',
 ];

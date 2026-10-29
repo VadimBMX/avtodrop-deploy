@@ -2551,6 +2551,11 @@ export const VIP = { days: 14, stars: 300, fuelMult: 2, extraHours: 4, daily: 15
 // itself every 30 days until cancelled (in the shop or in Telegram), a bit cheaper than two 14-day VIPs (600 ⭐).
 export const VIP_SUB = { days: 30, stars: 499, period: 2592000 };
 export const FUEL_DEAL = { minLevel: 2, minutes: 30, everyH: 6 };
+// Owner 29.10 «VIP −40%, тільки зараз»: every player gets the offer window once (while the campaign is open — till
+// the end of VIP_SALE.until, Kyiv) and from that moment VIP_SALE.minutes of −pct on the VIP subscription (its renewals
+// keep the invoice price) and the one-time VIP. Players with a running subscription don't get it.
+export const VIP_SALE = { pct: 40, minutes: 30, until: '2026-11-02', items: ['vipsub', 'vip'] };
+export const vipSalePrice = (stars) => Math.round(stars * (1 - VIP_SALE.pct / 100));
 export const SHOP_ITEMS = [
   // The only hryvnias for stars: one modest pack per account (PACKS are off sale).
   { id: 'starter', name: 'Стартовий пакет', stars: 39, once: true, money: 1500000, keys: { city: 2 }, vipDays: 3 },

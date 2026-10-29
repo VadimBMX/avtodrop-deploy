@@ -3885,6 +3885,7 @@ export function createGame(db, opts = {}) {
     if (it.id === 'slot' && u.slots >= S.MAX_SLOTS) fail('Максимум місць');
     if (it.cos && q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(uid, it.cos)) fail('Цей предмет «Стилю» вже твій');
     if (it.sub && subActive(uid)) fail('VIP-підписка вже діє — керувати нею можна в магазині');
+    if (S.VIP_SALE.items.includes(it.id) && u.vip_sale_until > now()) return S.vipSalePrice(S.shopPrice(it, u.star_slots));
     if (it.deal && !(u.fuel_deal_until > now())) fail('Знижка на бак уже закінчилась');
     if (it.daily) {
       if (S.dayDealOf(now()).id !== it.id) fail('Ця угода дня вже минула — глянь сьогоднішню');
@@ -3949,7 +3950,8 @@ export function createGame(db, opts = {}) {
     const cur = S.seasonOf(now());
     return {
       stars: u.stars, vipUntil: u.vip_until, starterBought: !!u.starter_bought, premium: u.premium_season === cur,
-      items: S.SHOP_ITEMS.map((it) => ({ ...it, price: S.shopPrice(it, u.star_slots) })),
+      items: S.SHOP_ITEMS.map((it) => ({ ...it, price: S.VIP_SALE.items.includes(it.id) && u.vip_sale_until > now() ? S.vipSalePrice(S.shopPrice(it, u.star_slots)) : S.shopPrice(it, u.star_slots), full: S.shopPrice(it, u.star_slots) })),
+      vipSale: vipSaleOut(uid),
       sub: subOut(subRow(uid)), // the VIP subscription: active, renewal cancelled, end of the paid period
       packs: packsFor(uid), offer: packOffer(uid), firstBuy: S.PACKS_ON_SALE && firstBuy(uid) ? S.FIRST_BUY_MULT : 0,
       dayDeal: dayDealOut(u),
@@ -4101,6 +4103,19 @@ export function createGame(db, opts = {}) {
       u = userRow(uid);
     }
     return u.fuel_deal_until > t ? { until: u.fuel_deal_until, stars: S.SHOP_BY_ID.refuel_deal.stars, full: S.SHOP_BY_ID.refuel.stars } : null;
+  }
+  // «VIP −40%» (S.VIP_SALE): { until, pct } while the player's window runs; { can: true } when he may still get it
+  // (the app shows the window, then calls vip/sale which starts his minutes); null otherwise.
+  function vipSaleOut(uid, start = false) {
+    let u = userRow(uid);
+    const t = now(), V = S.VIP_SALE;
+    const open = t < S.kyivMidnightOf(V.until, 1);
+    if (start && !u.vip_sale_until && open && !subActive(uid)) {
+      q('UPDATE users SET vip_sale_until = ? WHERE id = ?').run(t + V.minutes * 60e3, uid);
+      u = userRow(uid);
+    }
+    if (u.vip_sale_until > t) return { until: u.vip_sale_until, pct: V.pct };
+    return !u.vip_sale_until && open && !subActive(uid) && (u.level || 1) >= 2 ? { can: true, pct: V.pct } : null;
   }
   // «Угода дня» as the client shows it: today's item, whether it is taken, when the next one comes.
   function dayDealOut(u) {
@@ -5366,7 +5381,8 @@ export function createGame(db, opts = {}) {
   // «Мега-пропозиція» on hryvnia packs: its state in `me` (the client shows the window, the shop badge and timer).
   {
     const meBase = handlers.me;
-    handlers.me = (uid, b) => ({ ...meBase(uid, b), packOffer: packOffer(uid), fuelDeal: fuelDeal(uid) });
+    handlers.me = (uid, b) => ({ ...meBase(uid, b), packOffer: packOffer(uid), fuelDeal: fuelDeal(uid), vipSale: vipSaleOut(uid) });
+    handlers['vip/sale'] = (uid) => ({ sale: vipSaleOut(uid, true) });
     handlers['fuel/deal'] = (uid) => ({ deal: fuelDeal(uid, true) });
   }
   const api = Object.fromEntries(Object.entries(handlers).map(([k, fn]) => [k, (uid, body = {}) => db.tx(() => {
