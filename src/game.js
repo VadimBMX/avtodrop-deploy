@@ -2670,7 +2670,9 @@ export function createGame(db, opts = {}) {
   function postChat(uid, roomId, text) {
     const t = chatText(text);
     if (!t) fail('Порожнє повідомлення');
-    const last = q('SELECT created_at FROM trade_chat WHERE user_id = ? ORDER BY id DESC LIMIT 1').get(uid);
+    const last = q('SELECT room_id, text, created_at FROM trade_chat WHERE user_id = ? ORDER BY id DESC LIMIT 1').get(uid);
+    // the same text again within 10 s is a double tap / a retried request: keep the first, quietly (no error toast)
+    if (last && last.room_id === roomId && last.text === t && now() - last.created_at < 10e3) return {};
     if (last && now() - last.created_at < 1200) fail('Не так швидко');
     q('INSERT INTO trade_chat (room_id, user_id, text, created_at) VALUES (?, ?, ?, ?)').run(roomId, uid, t, now());
     return {};

@@ -106,6 +106,10 @@ test('hall: leaving, host timeout, invites, chat limits', () => {
 
   call(1, 'room/chat', { id, text: 'привіт' });
   assert.throws(() => call(1, 'room/chat', { id, text: 'ще' }), /швидко/);
+  // a double tap with the same text is swallowed quietly (bug 29.10: the message went out several times)
+  advance(1500);
+  call(1, 'room/chat', { id, text: 'привіт' });
+  assert.equal(call(1, 'room/state', { id }).chat.filter((m) => m.text === 'привіт').length, 1);
   advance(2000);
   assert.throws(() => call(1, 'hall/chat', { text: '   ' }), /Порожнє/);
   call(1, 'hall/chat', { text: 'Продаю Ланос' });

@@ -5155,11 +5155,20 @@ async function roomCall(name, body) {
     return null;
   }
 }
+// One message per tap (bug 29.10: fast taps while the answer was on its way sent the same text several times): the box is
+// emptied at once and further taps wait for the answer; on an error the text comes back.
+let roomSending = false;
 H.roomSend = async () => {
   const inp = $('#chatText');
   const text = inp.value.trim();
-  if (!text) return;
-  if (await roomCall('room/chat', { text })) inp.value = '';
+  if (!text || roomSending) return;
+  roomSending = true;
+  inp.value = '';
+  try {
+    if (!(await roomCall('room/chat', { text })) && !inp.value) inp.value = text;
+  } finally {
+    roomSending = false;
+  }
 };
 H.roomAddCar = () => {
   const inOffer = new Set(state.room.me.cars.map((c) => c.id));
