@@ -1267,6 +1267,18 @@ VIEWS.payments = async () => {
     </table></div>${pager(state.offset, 100, list.length, total.n)}` : '<div class="empty">Платежів ще не було</div>'}</div>`;
 };
 
+// ---------- «Ідеї гравців»: answers to the «Що додати в гру?» window (S.IDEA_ASK) ----------
+VIEWS.ideas = async () => {
+  const { list, total, players, tags } = await api('ideas', { offset: state.offset });
+  const TAGS = { cars: '🚘 Нові машини', mech: '⚙️ Механіки', econ: '💰 Ціни й баланс', events: '🎉 Івенти', ui: '📱 Зручність', other: '💬 Інше' };
+  const top = Object.entries(tags).sort((a, b) => b[1] - a[1]);
+  return `<div class="head"><h1>Ідеї гравців</h1><span class="badge amber">${total} ідей · ${players} гравців</span></div>
+    ${top.length ? `<div class="panel"><div class="row" style="gap:8px;flex-wrap:wrap">${top.map(([k, n]) => `<span class="badge">${esc(TAGS[k] || k)} · ${n}</span>`).join('')}</div></div>` : ''}
+    ${list.length ? list.map((m) => `<div class="panel"><div class="row between"><div>${m.user ? userLink(m.user) : '—'} <span class="muted small">рів. ${m.user?.level ?? '?'} · ${date(m.at)}</span></div><span class="muted small">#${m.id}</span></div>
+      ${m.tags.length ? `<div class="row small mt" style="gap:6px;flex-wrap:wrap">${m.tags.map((k) => `<span class="badge">${esc(TAGS[k] || k)}</span>`).join('')}</div>` : ''}
+      <div style="white-space:pre-wrap;margin-top:8px">${esc(m.text)}</div></div>`).join('') + pager(state.offset, 100, list.length, total)
+      : '<div class="panel"><div class="empty">Ідей ще немає — вікно «Що додати в гру?» показується гравцям від 2-го рівня</div></div>'}`;
+};
 // ---------- support: players' messages from the game; the answer pops up in their game ----------
 VIEWS.support = async () => {
   const { list, open } = await api('support', { open: state.supOpen });

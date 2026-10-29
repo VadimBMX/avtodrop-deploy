@@ -782,6 +782,7 @@ export function createGame(db, opts = {}) {
       luck: luckOf(u.id), rescueAt: rescueNext(u),
       stars: u.stars, vipUntil: u.vip_until, vip: u.vip_until > now(), starterBought: !!u.starter_bought,
       style: styleOf(uid, claims.filter((k) => k.startsWith('cos:'))), // «Стиль»: what is worn (owned ones are in claims)
+      ideaAsk: ideaAsk(u), // «Що додати в гру?» window due
       homeOffer: !claims.includes('home-screen') && daysPlayed(uid) >= S.HOME_SCREEN.day, // offer the home-screen shortcut
       season: (({ claimed, ...s }) => s)(seasonInfo(u)), badges: badgesOf(uid),
       legacy: isLegacy(uid), // played the first version: «Гравець з перших днів» badge in the profile
@@ -4409,7 +4410,7 @@ export function createGame(db, opts = {}) {
   // ---------- roles in the admin panel ----------
   // owner: in ADMIN_IDS (Railway variable) — can't be changed from the panel; admin: everything; helper: only
   // looking at players, answering support and writing messages (HELPER_ACTIONS).
-  const HELPER_ACTIONS = new Set(['overview', 'dashboard', 'users', 'user', 'search', 'check-plate', 'referrals', 'support', 'support/reply', 'support/close', 'message', 'market', 'log', 'game-events']);
+  const HELPER_ACTIONS = new Set(['overview', 'dashboard', 'users', 'user', 'search', 'check-plate', 'referrals', 'support', 'support/reply', 'support/close', 'ideas', 'message', 'market', 'log', 'game-events']);
   function roleOf(uid) {
     if (!uid) return null;
     if ((opts.admins || []).includes(uid)) return 'owner';
@@ -4448,6 +4449,36 @@ export function createGame(db, opts = {}) {
       } catch {}
     }
     return { id };
+  }
+  // ---------- «Що додати в гру?»: players' ideas (S.IDEA_ASK); the admin reads them in «Ідеї гравців» ----------
+  const ideaAsk = (u) => !u.idea_done && u.level >= S.IDEA_ASK.minLevel && u.idea_shows < S.IDEA_ASK.maxShows && now() - u.idea_at >= S.IDEA_ASK.gapH * 3600e3;
+  function ideaSeen(uid) {
+    q('UPDATE users SET idea_shows = idea_shows + 1, idea_at = ? WHERE id = ?').run(now(), uid);
+    return {};
+  }
+  function ideaSend(uid, { text, tags }) {
+    const u = userRow(uid);
+    const t = String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, S.IDEA_ASK.maxLen);
+    const tg = [...new Set((Array.isArray(tags) ? tags : []).map(String).filter((k) => S.IDEA_TAGS[k]))].join(',');
+    if (t.length < 3 && !tg) fail('Напиши, що додати чи змінити');
+    if (t.length < 3) fail('Допиши кілька слів — що саме?');
+    if (q('SELECT COUNT(*) n FROM ideas WHERE user_id = ? AND created_at > ?').get(uid, now() - 86400e3).n >= S.IDEA_ASK.perDay) fail('На сьогодні досить ідей — дякуємо! Пиши завтра');
+    q('INSERT INTO ideas (user_id, text, tags, created_at) VALUES (?, ?, ?, ?)').run(uid, t, tg, now());
+    let reward = 0;
+    if (!u.idea_done && t.length >= S.IDEA_ASK.minLen) {
+      reward = S.IDEA_ASK.reward;
+      addMoney(uid, reward);
+    }
+    if (!u.idea_done && (reward || t.length >= 3)) q('UPDATE users SET idea_done = 1 WHERE id = ?').run(uid);
+    return { reward };
+  }
+  function adminIdeas({ offset } = {}) {
+    const off = Math.max(0, Math.floor(Number(offset) || 0));
+    const rows = q('SELECT * FROM ideas ORDER BY id DESC LIMIT 100 OFFSET ?').all(off);
+    const tags = {};
+    for (const r of q("SELECT tags FROM ideas WHERE tags <> ''").all()) for (const k of r.tags.split(',')) tags[k] = (tags[k] || 0) + 1;
+    return { list: rows.map((r) => ({ id: r.id, user: brief(r.user_id), text: r.text, tags: r.tags ? r.tags.split(',') : [], at: r.created_at })),
+      total: q('SELECT COUNT(*) n FROM ideas').get().n, players: q('SELECT COUNT(DISTINCT user_id) n FROM ideas').get().n, tags };
   }
   function supportMine(uid) {
     return { list: q('SELECT id, text, created_at at, answer, answered_at answeredAt FROM support WHERE user_id = ? ORDER BY id DESC LIMIT 20').all(uid) };
@@ -5079,7 +5110,7 @@ export function createGame(db, opts = {}) {
     market: () => adminMarket(), 'market/remove': (w, b) => adminMarketRemove(w, b),
     'dealer/refresh': (w) => (restockDealer(true), alog(w, 'dealer-refresh', null, null), {}),
     promos: () => adminPromos(), 'promo/create': adminPromoCreate, 'promo/delete': adminPromoDelete,
-    payments: (w, b) => adminPayments(b), 'payalert/test': adminPayAlertTest, log: (w, b) => adminLog(b), referrals: () => adminReferrals(),
+    payments: (w, b) => adminPayments(b), 'payalert/test': adminPayAlertTest, ideas: (w, b) => adminIdeas(b), log: (w, b) => adminLog(b), referrals: () => adminReferrals(),
     support: (w, b) => adminSupport(b), 'support/reply': adminSupportReply, 'support/close': adminSupportClose, role: adminSetRole,
     dashboard: (w, b) => adminDashboard(b), 'broadcast/preview': (w, b) => adminBroadcastPreview(b), broadcast: adminBroadcast,
     'game-events': () => adminGameEvents(), 'game-events/start': adminEventStart, 'game-events/stop': adminEventStop,
@@ -5152,7 +5183,7 @@ export function createGame(db, opts = {}) {
     'casino/mines/start': minesStart, 'casino/mines/reveal': minesReveal, 'casino/mines/cashout': minesCashout, 'casino/mines/state': minesState,
     'pvp/list': pvpList, 'pvp/create': pvpCreate, 'pvp/accept': pvpAccept, 'pvp/cancel': pvpCancel,
     'pvp/request': pvpRequest, 'pvp/withdraw': pvpWithdraw, 'pvp/answer': pvpAnswer, 'pvp/state': pvpState, 'pvp/progress': pvpProgress, 'pvp/finish': pvpFinish,
-    achievements, 'ach/claim': achievementClaim, 'support/send': supportSend, 'support/mine': supportMine,
+    achievements, 'ach/claim': achievementClaim, 'support/send': supportSend, 'support/mine': supportMine, 'idea/seen': ideaSeen, 'idea/send': ideaSend,
     pulse, 'settings/invites': setNoInvites, 'settings/push': setPushOn,'room/decline': roomDecline, 'gifts/seen': giftsSeen, 'rescue/claim': rescueClaim,
     'market/list': marketList, 'market/sell': marketSell, 'market/buy': marketBuy, 'market/cancel': marketCancel,
     'market/items': marketItems, 'market/item-sell': marketItemSell, 'market/item-buy': marketItemBuy, 'market/item-cancel': marketItemCancel,

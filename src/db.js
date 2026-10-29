@@ -212,6 +212,9 @@ CREATE TABLE IF NOT EXISTS support (
   answer TEXT, answered_at INTEGER, answered_by TEXT
 );
 CREATE INDEX IF NOT EXISTS support_user ON support(user_id, id);
+-- «Ідеї гравців» (owner 29.10): what players want added or changed — the «Що додати в гру?» window; topics are S.IDEA_TAGS keys.
+CREATE TABLE IF NOT EXISTS ideas (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, text TEXT NOT NULL, tags TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS ideas_user ON ideas(user_id, id);
 -- «🐞 Нагорода за баг» (src/bugbounty.js): one row per rewarded find — preset, what was paid, the ticket it came from.
 CREATE TABLE IF NOT EXISTS bug_rewards (
   id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, ticket_id INTEGER, preset TEXT NOT NULL, money INTEGER NOT NULL DEFAULT 0,
@@ -551,6 +554,10 @@ const MIGRATIONS = [
   // «Обнулити прогрес»: when the player was last reset — achievements count PvP / battle wins and invited friends only
   // from then on (that history stays in its tables), so the tiers can't be claimed a second time.
   'ALTER TABLE users ADD COLUMN reset_at INTEGER NOT NULL DEFAULT 0',
+  // «Що додати в гру?» (S.IDEA_ASK): how many times the window was shown, when, and whether the player has answered.
+  'ALTER TABLE users ADD COLUMN idea_shows INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE users ADD COLUMN idea_at INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE users ADD COLUMN idea_done INTEGER NOT NULL DEFAULT 0',
 ];
 
 export function openDb(file) {

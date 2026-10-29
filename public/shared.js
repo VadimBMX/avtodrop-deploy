@@ -2426,6 +2426,11 @@ export const REF_FRIEND_BONUS = 200000;
 // «Битва амбасадорів» (owner 28.10, src/contest.js): who brings the most new players while it runs. A friend counts
 // once he signed up by the player's link during the contest and reached CONTEST.minLevel. Prizes (Stars) are paid
 // by the owner by hand after the end; places 4..extraUpTo get the extra prize.
+// «Що додати в гру?» (owner 29.10: «шоб всім висвітилось … не можна закрити 5 секунд»): a window for every player from
+// level 2, the ✕ unlocks after lockSec; skipped → asked again after gapH, at most maxShows times; the first answer of at
+// least minLen characters pays `reward` once.
+export const IDEA_ASK = { minLevel: 2, lockSec: 5, maxShows: 2, gapH: 20, minLen: 15, maxLen: 1000, perDay: 5, reward: 100000 };
+export const IDEA_TAGS = { cars: '🚘 Нові машини', mech: '⚙️ Механіки', econ: '💰 Ціни й баланс', events: '🎉 Івенти', ui: '📱 Зручність', other: '💬 Інше' };
 export const CONTEST = { days: 14, minLevel: 3, prizes: [1000, 500, 250], extraUpTo: 10, extra: 'ключ «Еліта»', showAfterH: 72 };
 export const REF_FRIEND_KEY = 'city';
 export const REF_FRIEND_L3 = 100000;

@@ -4596,6 +4596,17 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .pa-pop-h { display: block; font-size: 20px; line-height: 1.2; }
 @media (prefers-reduced-motion: reduce) { .pa-live { animation: none; } }
 
+/* ===== «Що додати в гру?» 2026-10-29: the ideas window (app.js ideaAskOnce); ✕ shows a countdown while locked ===== */
+.idea-pop { text-align: center; padding: 4px 2px 6px; }
+.idea-ic { font-size: 44px; line-height: 1; }
+.idea-h { display: block; font-size: 22px; margin-top: 6px; text-transform: uppercase; }
+.idea-tags { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.idea-tag { padding: 7px 11px; border-radius: 999px; border: 1px solid var(--line2); background: var(--card); color: var(--txt, #fff); font: 600 13px var(--f-ui, inherit); }
+.idea-tag.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--card)); color: var(--accent); }
+.idea-pop textarea { display: block; width: 100%; box-sizing: border-box; min-height: 96px; margin-top: 12px; }
+.idea-pop .btn { width: 100%; }
+#sheet .x:disabled { opacity: .55; font: 700 15px var(--f-disp); }
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */

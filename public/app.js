@@ -285,14 +285,17 @@ function sheet(title, html, back = null) {
   hideClaimBanners();
 }
 function closeModal() {
+  if (Date.now() < modalLockUntil) return;
   $('#modal').hidden = true;
   $('#sheet').innerHTML = '';
   sheetBack = null;
 }
 H.closeModal = closeModal;
 H.sheetBack = () => sheetBack?.();
+// A window that can't be closed for a few seconds («Що додати в гру?»): until then neither a tap outside nor ✕ closes it.
+let modalLockUntil = 0;
 $('#modal').addEventListener('click', (e) => {
-  if (e.target.id === 'modal' && !state.opening) closeModal();
+  if (e.target.id === 'modal' && !state.opening && Date.now() >= modalLockUntil) closeModal();
 });
 // popups: every window that opens by itself asks POP first (gifts, level-up, «Що нового», «Нагороди» at start,
 // «Бета-тест», «Ярлик на екрані»). Calm = nothing it must not cover; idle = no window or story open.
@@ -532,6 +535,7 @@ async function refresh(rerender = true) {
   contestAsk(); // «Битва амбасадорів»: the banner once a Kyiv day while the contest runs
   paAsk(); // «Аукціон номера»: one window per auction per player while it runs
   packOfferAsk(); // «Мега-пропозиція» on hryvnia packs (one window per offer)
+  ideaAskOnce(); // «Що додати в гру?»: every player from level 2, ✕ after 5 s, asked again once next day if skipped
   bugAskOnce(); // «Бета-тест: знайшов баг — пиши в підтримку» (once per player, from level 2)
   homeCheck(); // «Додай на головний екран» from the 3rd day (once a session; nothing on old clients)
   // Let a drop's celebration play out before the level-up popup covers it.
@@ -9052,6 +9056,56 @@ function bugAskOnce(tries = 0) {
     } else if (r === 'denied') bugAskOn = false;
   }, tries ? 4000 : 6000);
 }
+// ---------- «Що додати в гру?» (S.IDEA_ASK; owner 29.10: nobody wrote ideas under the post) ----------
+function ideaAskOnce() {
+  if (!me?.ideaAsk) return;
+  POP.offer('ideaask', () => {
+    if (!me?.ideaAsk || state.page) return false;
+    me.ideaAsk = false;
+    api('idea/seen').catch(() => {});
+    const A = S.IDEA_ASK;
+    sheet('Твоя ідея', `<div class="idea-pop"><div class="idea-ic">💡</div>
+      <b class="disp idea-h">Що додати чи змінити в грі?</b>
+      <div class="muted small mt">Готуємо велике оновлення — напиши, чого тобі бракує. Читаємо кожну відповідь.</div>
+      <div class="idea-tags mt">${Object.entries(S.IDEA_TAGS).map(([k, t]) => `<button class="idea-tag" data-act="ideaTag" data-k="${k}">${t}</button>`).join('')}</div>
+      <textarea id="ideaText" maxlength="${A.maxLen}" placeholder="Наприклад: більше японських машин, турніри кланів, дешевший бензин…"></textarea>
+      <button class="btn yellow mt" data-act="ideaSend">${ic('arrow-right')} Надіслати${A.reward ? ` · +${S.short(A.reward)}` : ''}</button>
+      <div class="tiny muted center mt">${A.reward ? `Бонус — за першу відповідь від ${A.minLen} символів` : ''}</div></div>`);
+    // ✕ unlocks after lockSec: a countdown in its place, taps outside do nothing until then
+    modalLockUntil = Date.now() + A.lockSec * 1000;
+    const x = $('#sheet .x');
+    if (x) {
+      x.disabled = true;
+      const tick = () => {
+        const left = Math.ceil((modalLockUntil - Date.now()) / 1000);
+        if (!x.isConnected) return;
+        if (left > 0) {
+          x.textContent = String(left);
+          setTimeout(tick, 250);
+        } else {
+          x.textContent = '✕';
+          x.disabled = false;
+        }
+      };
+      tick();
+    }
+  });
+}
+H.ideaTag = (d, el) => (el || document.querySelector(`.idea-tag[data-k="${d.k}"]`))?.classList.toggle('on');
+H.ideaSend = async () => {
+  const text = ($('#ideaText')?.value || '').trim();
+  const tags = [...document.querySelectorAll('.idea-tag.on')].map((b) => b.dataset.k);
+  if (text.length < 3) return toast(tags.length ? 'Допиши кілька слів — що саме?' : 'Напиши, що додати чи змінити', true);
+  try {
+    const r = await api('idea/send', { text, tags });
+    modalLockUntil = 0;
+    closeModal();
+    toast(r.reward ? `Дякуємо! +${S.fmt(r.reward)} 💛` : 'Дякуємо! Ми прочитаємо 💛');
+    if (r.reward) refresh(false).then(() => renderHeader());
+  } catch (e) {
+    toast(e.message, true);
+  }
+};
 H.bugAskGo = () => {
   closeModal();
   go('support');
