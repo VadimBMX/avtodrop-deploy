@@ -7,6 +7,7 @@ import { halloweenPage, halloweenActions } from './admin-halloween.js';
 import { channelPage, channelActions } from './admin-channel.js';
 import { eventsPage, eventsActions, eventsAfter } from './admin-events.js';
 import { clubsPage, clubsActions } from './admin-clubs.js';
+import { plateAuctionPanel, plateAuctionAfter, plateAuctionActions } from './admin-plate-auction.js';
 import { bugsPage, bugsActions, bugChooser, bugCardLine, bugRewardText } from './admin-bugs.js';
 import { logsPage, logsAfter, logsActions, logsFromHash } from './admin-logs.js';
 import { hideChartTip, liveSkeleton, livePanels, liveCharts, playerMoney, playerSuspicious, economyPage, economyCharts, dbPage, dbFilterRow, readFilters, setupInstall } from './admin-pc.js';
@@ -152,7 +153,7 @@ const caseName = (id) => S.CASE_BY_ID[id]?.name || id;
 const tierCls = (tier) => S.TIER_BY_ID[tier]?.cls || 'D';
 const ACTIONS = {
   money: 'Гроші', 'give-car': 'Видано авто', 'remove-car': 'Вилучено авто', part: 'Деталі', keys: 'Ключі', set: 'Параметр',
-  ban: 'Бан', unban: 'Розбан', 'lb-hide': 'Приховано з рейтингу', 'lb-show': 'Повернуто в рейтинг', reset: 'Обнулено', 'dealer-refresh': 'Нові лоти дилера', 'give-plate': 'Видано номер', 'remove-plate': 'Забрано номер', message: 'Повідомлення', 'market-remove': 'Знято лот', promo: 'Промокод', 'promo-delete': 'Видалено промокод', support: 'Відповідь підтримки', 'support-close': 'Закрито звернення', role: 'Права',
+  ban: 'Бан', unban: 'Розбан', 'lb-hide': 'Приховано з рейтингу', 'lb-show': 'Повернуто в рейтинг', reset: 'Обнулено', 'dealer-refresh': 'Нові лоти дилера', 'give-plate': 'Видано номер', 'remove-plate': 'Забрано номер', 'plate-auction': 'Аукціон номера', 'plate-auction-cancel': 'Скасовано аукціон номера', message: 'Повідомлення', 'market-remove': 'Знято лот', promo: 'Промокод', 'promo-delete': 'Видалено промокод', support: 'Відповідь підтримки', 'support-close': 'Закрито звернення', role: 'Права',
   luck: 'Підкрутка', rig: 'Гарантована машина', 'rig-cancel': 'Скасовано гарантовану машину', broadcast: 'Розсилка', 'casino-mode': 'Режим казино',
   'containers-toggle': 'Причал: перемикач', 'containers-close': 'Причал: лот закрито',
   'db-browse': 'База: перегляд', 'db-export': 'База: експорт CSV',
@@ -188,6 +189,8 @@ function detailsMain(a, d) {
     case 'promo-delete': return esc(d.code);
     case 'give-plate': return `${plate(d.text)} ${cls(d.cls)} ${money(d.value)}${d.note ? ` · ${esc(d.note)}` : ''}`;
     case 'remove-plate': return plate(d.text);
+    case 'plate-auction': return `${plate(d.text)} ${cls(d.cls)} старт ${money(d.start)} · крок ${money(d.step)} · ${esc(String(d.hours).replace('.', ','))} год`;
+    case 'plate-auction-cancel': return `${plate(d.text)}${d.refund ? ` · повернуто ${money(d.refund)}` : ''}`;
     case 'support': return esc(d.text);
     case 'bug-reward': return `🐞 ${esc({ small: 'Дрібниця', useful: 'Корисна знахідка', serious: 'Серйозний баг' }[d.preset] || 'Своя')} · <span class="win">${esc(bugRewardText(d.money, d.keys))}</span>${d.ticket ? ` · звернення #${d.ticket}` : ''}${d.note ? ` · ${esc(d.note)}` : ''}`;
     case 'role': return d.role ? ({ admin: 'видано Адмін', helper: 'видано Хелпер' }[d.role]) : 'права забрано';
@@ -607,6 +610,7 @@ Object.assign(H, eventsActions({ mutate, render, esc }));
 // ---------- «Автоклуби»: clubs, treasuries, league weeks, moderation (public/admin-clubs.js) ----------
 VIEWS.clubs = () => clubsPage({ api, esc, date, userLink });
 Object.assign(H, clubsActions({ mutate }));
+Object.assign(H, plateAuctionActions({ mutate, toast, esc, plate, money }));
 Object.assign(ACTIONS, { 'clubs-reset': 'Клуб: скинуто', 'clubs-disband': 'Клуб розпущено' });
 // ---------- «🐞 Знайдені баги»: rewards for found bugs (public/admin-bugs.js, src/bugbounty.js) ----------
 VIEWS.bugs = () => bugsPage({ api, esc, date, userLink });
@@ -1086,7 +1090,8 @@ VIEWS.search = async () => {
   const verdict = e ? (e.error ? `<div class="verdict taken">${plate(e.text)}<div><b class="bad">Такого номера не буває</b><div class="small">${esc(e.error)}</div></div></div>`
     : `<div class="verdict ${e.owner ? 'taken' : 'free'}">${plate(e.text)}<div><b class="${e.owner ? 'bad' : 'win'}">${e.owner ? 'Зайнятий' : 'Вільний — ще ніхто не вибив'}</b>
       <div class="small">${e.owner ? `Власник: ${userLink(e.owner)} · ` : ''}${cls(e.cls)} ${esc(e.label)} · ${esc(e.region)}</div></div></div>`) : '';
-  return `<div class="head"><h1>Пошук номерів і авто</h1></div>
+  const pa = await plateAuctionPanel({ api, esc, ic, plate, money, short, date, userLink, role: state.role });
+  return `<div class="head"><h1>Пошук номерів і авто</h1></div>${pa}
     <div class="panel">
       <form class="row" id="invSearch" style="margin-bottom:12px">
         <input class="grow" id="sq" placeholder="Номер (AA 1234 BC, частина «7777» або «КА») чи назва машини" value="${esc(q)}" autocomplete="off">
@@ -1107,13 +1112,14 @@ VIEWS.search = async () => {
       </table></div>` : '<div class="empty">Таких машин ні в кого немає</div>'}</div>` : ''}`;
 };
 AFTER.search = () => {
+  plateAuctionAfter({ api, esc, plate, money });
   const f = $('#invSearch');
   f.addEventListener('submit', (e) => {
     e.preventDefault();
     state.search = $('#sq').value.trim();
     render();
   });
-  if (!state.search) $('#sq').focus();
+  if (!state.search && !$('#paText')) $('#sq').focus();
 };
 H.backToGame = () => {
   let back = '/';

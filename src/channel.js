@@ -116,6 +116,16 @@ export function eventText(e) {
   return `✨ ${escHtml(e.text || 'Тестовий пост АВТОДРОП')}`;
 }
 
+// «🔨 Аукціон номера» (src/plate-auction.js): the start and the result with a winner, for the group / channel.
+const kyivHm = (t) => new Date(t).toLocaleString('uk-UA', { timeZone: 'Europe/Kyiv', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+export function plateAuctionText(kind, a) {
+  const plate = `<b>${escHtml(a.text)}</b>`;
+  if (kind === 'start') {
+    return `🔨 <b>Аукціон номера ${escHtml(a.text)}</b>\n\nАдміністрація виставила номер ${plate} — ${escHtml(S.plateInfo(a.text).label.toLowerCase())}, клас ${escHtml(a.cls)}.\n💰 Старт ${S.short(a.start_price)} · крок ${S.short(a.step)}\n⏱ До ${kyivHm(a.ends_at)} (Київ)\n\nХто дасть більше — забирає номер собі. Ставки в грі: Меню → «Аукціон номера» 👇\n\n#аукціон`;
+  }
+  return `🔨 <b>Номер ${escHtml(a.text)} продано!</b>\n\n${who(a)} забирає ${plate} за ${S.short(a.top_bid)} — ${a.bids} ${a.bids % 10 === 1 && a.bids % 100 !== 11 ? 'ставка' : [2, 3, 4].includes(a.bids % 10) && ![12, 13, 14].includes(a.bids % 100) ? 'ставки' : 'ставок'} за весь аукціон.\n\nСлідкуй за групою — наступний номер може бути твоїм 🏁\n\n#аукціон`;
+}
+
 export function digestText(events) {
   const lines = events.slice(0, DIGEST_LINES).map(eventLine);
   const more = events.length - lines.length;
@@ -282,10 +292,49 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
     return { sent };
   }
 
+  // «🔨 Аукціон номера»: once when it starts and once when it ends with a winner, like the news — whether the event
+  // auto-posts are on or not; nothing older than STALE_MS goes out (a target set later doesn't post old auctions).
+  async function postPlateAuctions() {
+    if (!configured()) return { sent: 0 };
+    let rows;
+    try {
+      rows = [
+        ...q("SELECT * FROM plate_auctions WHERE status = 'open' AND created_at > ? ORDER BY id").all(now() - STALE_MS).map((a) => ['start', a]),
+        ...q("SELECT * FROM plate_auctions WHERE status = 'done' AND top_bidder IS NOT NULL AND settled_at > ? ORDER BY id").all(now() - STALE_MS).map((a) => ['end', a]),
+      ];
+    } catch {
+      return { sent: 0 }; // no such table (a database without the game module)
+    }
+    let sent = 0;
+    for (const [kind, a] of rows) {
+      const ref = `${kind}:${a.id}`;
+      if (q("SELECT 1 FROM channel_posts WHERE kind = 'plate-auction' AND ref = ?").get(ref)) continue;
+      const name = kind === 'end' ? shownName(a.top_bidder) : null;
+      if (name === undefined) {
+        once('plate-auction', ref); // a banned winner: no post
+        continue;
+      }
+      const text = plateAuctionText(kind, { ...a, name });
+      const reply_markup = button();
+      try {
+        await api('sendMessage', { chat_id: chId(), ...thread(), text, parse_mode: 'HTML', link_preview_options: { is_disabled: true }, ...(reply_markup ? { reply_markup } : {}) });
+        once('plate-auction', ref);
+        q('INSERT INTO channel_log (at, kind, n, ok, test, text) VALUES (?, ?, 1, 1, 0, ?)').run(now(), 'plate-auction', text.slice(0, 1500));
+        sent++;
+      } catch (err) {
+        q('INSERT INTO channel_log (at, kind, n, ok, test, text, error) VALUES (?, ?, 1, 0, 0, ?, ?)').run(now(), 'plate-auction', text.slice(0, 1500), String(err.message).slice(0, 300));
+        log('channel plate auction:', err.message);
+        break;
+      }
+    }
+    return { sent };
+  }
+
   let busy = false, pauseUntil = 0;
   async function tick() {
     if (!configured() || busy || now() < pauseUntil) return;
     if (newsLog.length) await postNews().catch(() => {});
+    await postPlateAuctions().catch(() => {});
     const c = cfg();
     if (!c.on) return void (pending = []);
     busy = true;
@@ -369,7 +418,7 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
   }
 
   return {
-    configured, shows, setShow, scan, tick, postNews, admin, status, planPosts, setTarget,
+    configured, shows, setShow, scan, tick, postNews, postPlateAuctions, admin, status, planPosts, setTarget,
     get pending() {
       return pending;
     },

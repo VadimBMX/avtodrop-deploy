@@ -4529,6 +4529,73 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 #stage[data-bg="c-cn"] { --scene: url(case-bg/c-cn.svg); --bn: #ffde00; --bh: #de2910; }
 #stage[data-bg]:not(.lit), #stage[data-bg].lit:has(> .reel-wrap) { --neon: var(--bn); --haze: var(--bh); }
 
+/* «🔨 Аукціон номера» (public/plate-auction-ui.js): the «Меню» card, the strip on «Гараж» / «Кейси», the page, the window.
+   --c: the plate class colour. Shown only while an admin-launched auction runs. */
+.pa-hub { display: flex; flex-direction: column; gap: 10px; width: 100%; margin: 10px 0 2px; padding: 12px 14px; border-radius: 16px; text-align: left; color: var(--text);
+  background: radial-gradient(120% 140% at 100% 0, color-mix(in srgb, var(--c) 22%, transparent), transparent 60%), linear-gradient(115deg, #24190a, #15161b 60%);
+  border: 1.5px solid color-mix(in srgb, var(--c) 70%, #ffc400); box-shadow: 0 0 24px -10px var(--c); }
+.pa-hub:active { transform: scale(.985); }
+.pa-hub-h { display: flex; align-items: center; gap: 8px; }
+.pa-hub-h b { flex: 1; min-width: 0; font: 700 17px var(--f-disp); }
+.pa-hub-h > .i { color: var(--muted); }
+.pa-live { flex: none; padding: 2px 7px; border-radius: 999px; background: var(--red); color: #fff; font: 800 10px/1.4 var(--f-body); text-transform: uppercase; letter-spacing: .4px; animation: paBlink 1.4s ease-in-out infinite; }
+.pa-more { flex: none; padding: 1px 7px; border-radius: 999px; background: #ffffff1a; font-size: 12px; font-weight: 700; }
+.pa-hub-b { display: flex; align-items: center; gap: 14px; }
+.pa-hub-b .plate { --h: 34px; }
+.pa-hub-i { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.pa-hub-i small { font-size: 12px; color: var(--muted); }
+.pa-hub-i b { font: 800 22px var(--f-disp); color: var(--accent); }
+.pa-hub-i small .i { vertical-align: -2px; }
+.pa-hub-f { font-size: 13px; color: #e8dcc0; }
+.pa-hub.lead .pa-hub-f { color: var(--green); font-weight: 700; }
+@keyframes paBlink { 50% { opacity: .55; } }
+.pa-strip { display: flex; align-items: center; gap: 10px; width: 100%; margin: 0 0 10px; padding: 7px 12px; border-radius: 12px; text-align: left; color: var(--text);
+  background: linear-gradient(100deg, #2b1f08, #16171c 70%); border: 1px solid #ffc40080; }
+.pa-strip-ic { flex: none; font-size: 18px; }
+.pa-strip .plate { --h: 22px; }
+.pa-strip-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.15; }
+.pa-strip-tx b { font: 700 14px var(--f-disp); color: #ffd23f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pa-strip-tx small { font-size: 12px; color: var(--muted); }
+.pa-strip-tx small .i, .pa-strip > .i { vertical-align: -2px; color: var(--muted); }
+.pa-card { position: relative; overflow: hidden; border: 1.5px solid color-mix(in srgb, var(--c) 55%, var(--line)); margin-bottom: 12px; }
+.pa-card::before { content: ''; position: absolute; inset: 0 0 auto; height: 150px; pointer-events: none; background: radial-gradient(70% 100% at 50% 0, color-mix(in srgb, var(--c) 26%, transparent), transparent 70%); }
+.pa-stand { position: relative; display: flex; justify-content: center; padding: 18px 0 10px; }
+.pa-stand .plate { --h: 58px; box-shadow: 0 0 26px -4px var(--c), 0 6px 14px #000a; }
+.pa-meta { position: relative; text-align: center; font-size: 13px; color: var(--muted); }
+.pa-meta .cls { display: inline-grid; place-items: center; min-width: 20px; padding: 0 5px; border-radius: 5px; background: var(--c); color: #111; font-weight: 800; font-size: 12px; }
+.pa-stats { display: grid; grid-template-columns: 1.1fr 1.2fr .9fr; gap: 8px; margin: 14px 0 8px; }
+.pa-stats > div { min-width: 0; padding: 8px 10px; border-radius: 10px; background: var(--card2); display: flex; flex-direction: column; }
+.pa-stats small { font-size: 11px; color: var(--muted); }
+.pa-stats b { font: 800 17px var(--f-disp); }
+.pa-stats > div:first-child b { color: var(--accent); }
+.pa-me { margin: 6px 0 2px; padding: 8px 10px; border-radius: 10px; font-size: 13px; font-weight: 700; }
+.pa-me.lead { background: #2fbf7122; color: var(--green); }
+.pa-me.out { background: #e5484d22; color: #ff8a8d; }
+.pa-form { margin-top: 10px; }
+.pa-quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.pa-q { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px 4px; border-radius: 10px; background: var(--card2); border: 1px solid var(--line2); font-weight: 700; font-size: 13px; line-height: 1.15; }
+.pa-q small { font-size: 11px; color: var(--muted); font-weight: 600; }
+.pa-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-top: 8px; }
+.pa-amt { text-align: center; font-weight: 800; font-size: 17px; padding: 10px; }
+.pa-go { white-space: nowrap; padding-left: 14px; padding-right: 14px; }
+.pa-hint { margin-top: 6px; text-align: center; }
+.pa-hist { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
+.pa-hh { margin-bottom: 4px; }
+.pa-b { display: grid; grid-template-columns: minmax(0, 1fr) auto 42px; gap: 8px; align-items: center; padding: 5px 0; font-size: 13px; border-bottom: 1px solid #ffffff0a; }
+.pa-b small { color: var(--muted); text-align: right; font-size: 11px; }
+.pa-b.first b { color: var(--accent); }
+.pa-b.me span { color: var(--green); }
+.pa-none { padding: 6px 0; }
+.pa-rules { line-height: 1.45; }
+.pa-rules .i { vertical-align: -2px; }
+.pa-card.done .pa-meta { padding-bottom: 12px; font-size: 14px; color: var(--text); }
+.pa-done { gap: 10px; }
+.pa-pop { text-align: center; padding: 4px 4px 2px; }
+.pa-pop-stand { display: flex; justify-content: center; padding: 18px 0 14px; }
+.pa-pop-stand .plate { box-shadow: 0 0 30px -2px var(--c), 0 6px 14px #000a; }
+.pa-pop-h { display: block; font-size: 20px; line-height: 1.2; }
+@media (prefers-reduced-motion: reduce) { .pa-live { animation: none; } }
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */

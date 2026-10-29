@@ -22,6 +22,7 @@ import { createPrestige } from './prestige.js';
 import { createBugBounty } from './bugbounty.js';
 import { createShowroom } from './showroom.js';
 import { createGoals } from './goals.js';
+import { createPlateAuction } from './plate-auction.js';
 
 export class GameError extends Error {}
 const fail = (msg) => {
@@ -1302,7 +1303,7 @@ export function createGame(db, opts = {}) {
         else s = r;
       }
       const text = `${r} ${d} ${s}`;
-      if (S.plateInfo(text).cls === cls && !q('SELECT 1 FROM plates WHERE text = ?').get(text)) return text;
+      if (S.plateInfo(text).cls === cls && !q('SELECT 1 FROM plates WHERE text = ?').get(text) && !plateOnAuction(text)) return text;
     }
     fail('Не вдалося згенерувати номер, спробуй ще');
   }
@@ -2372,12 +2373,14 @@ export function createGame(db, opts = {}) {
   let HW = null; // «Ніч Хелловіну» (src/halloween.js), created below with the game's helpers
   let CT = null; // the container auction («Причал», src/containers.js), created below with the game's helpers
   let CL = null; // «Автоклуби» (src/clubs.js), created below with the game's helpers
+  let PA = null; // «Аукціон номера» (src/plate-auction.js), created below with the game's helpers
   function sweepContainers() {
     return CT ? db.tx(() => CT.sweep()) : 0;
   }
   function settleAuctions() {
     sweepContainers(); // lots of «Причал» with live bidding: the bots' answers and endings, even when nobody looks
     if (CL) db.tx(() => CL.settle()); // «Автоклуби»: the weekly league pays out at Monday 00:00 Kyiv, even when nobody looks
+    if (PA) db.tx(() => PA.sweep()); // «Аукціон номера»: the winner gets the plate when the time is up, even when nobody looks
     const due = q("SELECT * FROM auctions WHERE status = 'open' AND ends_at <= ?").all(now());
     for (const a of due) {
       db.tx(() => {
@@ -4589,6 +4592,8 @@ export function createGame(db, opts = {}) {
   const USER_FIELDS = {
     level: [1, 999], slots: [1, S.MAX_SLOTS], showcase_slots: [0, S.SHOWCASE_MAX], cap_level: [0, S.CAP_LEVELS.length - 1], xp: [0, 1e9],
   };
+  // A plate text on an open «Аукціон номера» is reserved: the generator skips it and give-plate refuses it.
+  const plateOnAuction = (text) => !!q("SELECT 1 FROM plate_auctions WHERE text = ? AND status = 'open'").get(text);
   // Plates are unique across the game, so a requested plate is only issued if nobody owns it yet.
   function checkPlate(raw) {
     const text = S.normalizePlate(raw);
@@ -4597,7 +4602,7 @@ export function createGame(db, opts = {}) {
     if (!S.REGIONS[m[1]]) return { text, error: `Регіону ${m[1]} не існує` };
     if (![...m[3]].every((c) => S.PLATE_LETTERS.includes(c))) return { text, error: `На номерах є лише літери ${S.PLATE_LETTERS}` };
     const owner = q('SELECT owner_id FROM plates WHERE text = ?').get(text);
-    return { text, region: S.REGIONS[m[1]], ...S.plateInfo(text), owner: owner ? { id: owner.owner_id, name: name(owner.owner_id) } : null };
+    return { text, region: S.REGIONS[m[1]], ...S.plateInfo(text), owner: owner ? { id: owner.owner_id, name: name(owner.owner_id) } : null, auction: plateOnAuction(text) };
   }
   function adminGivePlate(who, { id, text, value, carId, note }) {
     const uid = int(id, 1, Number.MAX_SAFE_INTEGER, 'ID');
@@ -4605,6 +4610,7 @@ export function createGame(db, opts = {}) {
     const p = checkPlate(text);
     if (p.error) fail(p.error);
     if (p.owner) fail(`Номер ${p.text} уже має ${p.owner.name}`);
+    if (p.auction) fail(`Номер ${p.text} зараз на аукціоні`);
     const [lo, hi] = S.PLATE_VALUE[p.cls];
     const v = value ? int(value, 0, 1e12, 'Вартість') : Math.round((lo + hi) / 2 / 100) * 100;
     bank(uid);
@@ -4669,6 +4675,7 @@ export function createGame(db, opts = {}) {
       for (const l of q('SELECT id FROM listings WHERE seller_id = ?').all(uid)) adminMarketRemove(who, { kind: 'listing', id: l.id }, false);
       for (const a of q("SELECT id FROM auctions WHERE seller_id = ? AND status = 'open'").all(uid)) adminMarketRemove(who, { kind: 'auction', id: a.id }, false);
       for (const l of q('SELECT * FROM item_listings WHERE seller_id = ?').all(uid)) closeItemLot(l);
+      PA?.dropLeader(uid); // «Аукціон номера»: a frozen account can't win a plate (his bid comes back)
     }
     alog(who, banned ? 'ban' : 'unban', uid, r ? { reason: r } : null);
     return {};
@@ -4699,6 +4706,7 @@ export function createGame(db, opts = {}) {
     }
     // Their leading bids on other people's auctions are dropped; the money was already taken and the balance resets anyway.
     q("UPDATE auctions SET top_bid = NULL, top_bidder = NULL WHERE top_bidder = ? AND status = 'open'").run(uid);
+    q("UPDATE plate_auctions SET top_bid = NULL, top_bidder = NULL WHERE top_bidder = ? AND status = 'open'").run(uid); // the same on «Аукціон номера»
     q("UPDATE pvp SET status = 'cancelled' WHERE creator_id = ? AND status = 'open'").run(uid);
     q("UPDATE battles SET status = 'cancelled', finished_at = ? WHERE creator_id = ? AND status = 'open'").run(t, uid);
     q("UPDATE trades SET status = 'cancelled', updated_at = ? WHERE status = 'open' AND (from_id = ? OR to_id = ?)").run(t, uid, uid);
@@ -5441,9 +5449,24 @@ export function createGame(db, opts = {}) {
     }
   }
   push.candidates = ((base) => (rules) => GOALS.remind(base(rules), rules))(push.candidates);
+  // «🔨 Аукціон номера» (src/plate-auction.js, public/plate-auction-ui.js): admins put up a free plate, players bid;
+  // `me.plateAuction` shows the tile / banner while one runs. Create / cancel: owner and admins only (not helpers).
+  PA = createPlateAuction({ db, q, now, fail, int, name, addMoney, pay, event, gift, alog: (...a) => alog(...a), checkPlate, isBanned });
+  Object.assign(handlers, PA.api);
+  {
+    const meBase = handlers.me;
+    handlers.me = (uid, b) => ({ ...meBase(uid, b), plateAuction: PA.brief(uid) });
+  }
+  for (const [k, fn] of Object.entries(PA.admin)) {
+    admin[k] = (who, body = {}) => db.tx(() => {
+      if (!canDo(actorRole(who), k)) fail('Немає прав на цю дію');
+      return fn(who, body || {});
+    });
+  }
+  for (const k of PA.mutating) ADMIN_MUTATING.add(k);
   // Every call runs in one transaction, settles the weekly race and refreshes the caller's garage value — except the
   // frequent polls below (every few seconds, or several times a second in a live race), which change no cars.
-  const LIGHT = new Set(['pulse', 'pvp/progress', 'pvp/state', 'containers/lot']);
+  const LIGHT = new Set(['pulse', 'pvp/progress', 'pvp/state', 'containers/lot', 'plateAuction']);
   const WEEKLY_AFTER = { 'drift/finish': 'drift' };
   // Players hidden from the ratings by an admin (users.lb_hidden): every board skips them, the places close up. The
   // lists take a few extra rows so a hidden top player doesn't leave the board one short.

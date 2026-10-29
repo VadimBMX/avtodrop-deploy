@@ -41,6 +41,7 @@ import { installPrestige, starsHtml, starTileCls, sellStarNote, carRestyleLi, pr
 // «Шоурум»: up to 3 cars on show, likes, «Шоурум тижня», the share card and sr_<id> links (public/showroom-ui.js).
 import { installShowroom, showroomHubRow, showroomStrip, showroomFromLink } from './showroom-ui.js';
 import { installGoals, goalsHead } from './goals-ui.js';
+import { installPlateAuction, paHubCard, paBanner, paAsk } from './plate-auction-ui.js';
 import { tankShown, idleCapHours } from './garage-calm.js';
 
 const tg = window.Telegram?.WebApp;
@@ -529,6 +530,7 @@ async function refresh(rerender = true) {
   vipSaleAsk(); // «VIP −40%»: the offer window once, then the player's 30 minutes
   hwIntroAsk(); // «Ніч Хелловіну»: the animated intro once per event (public/halloween-ui.js)
   contestAsk(); // «Битва амбасадорів»: the banner once a Kyiv day while the contest runs
+  paAsk(); // «Аукціон номера»: one window per auction per player while it runs
   packOfferAsk(); // «Мега-пропозиція» on hryvnia packs (one window per offer)
   bugAskOnce(); // «Бета-тест: знайшов баг — пиши в підтримку» (once per player, from level 2)
   homeCheck(); // «Додай на головний екран» from the 3rd day (once a session; nothing on old clients)
@@ -585,6 +587,9 @@ installShowroom({ me: () => me, state: () => state, config: () => config, tg, H,
   carTile: (...a) => carTile(...a), showcaseBackdrop: (s) => showcaseBackdrop(s), withFrame: (c, s) => withFrame(c, s), nameHtml: (n, s) => nameHtml(n, s), haptic: (k) => haptic(k),
   shareCaps: () => shareCaps(), authHeaders: (t) => authHeaders(t), copyText: (t, ok) => copyText(t, ok), untilSpan: (t) => untilSpan(t), tickUntil: () => tickUntil(),
   emptyBox: (...a) => emptyBox(...a), tgAt: (v) => tgAt(v) });
+installPlateAuction({ me: () => me, state: () => state, H, PAGES, AFTER, PAGE_TITLES, api, act, toast, go, render, ic, esc, plate: (...a) => plate(...a),
+  untilSpan: (t) => untilSpan(t), tickUntil: () => tickUntil(), serverNow: () => serverNow(), sheet, closeModal, confirmBox: (t) => confirmBox(t),
+  emptyBox: (...a) => emptyBox(...a), pop: POP });
 
 // ---------- progressive unlock (S.UNLOCKS; the server says what is open in me.unlocked) ----------
 // Locked things stay in sight with a lock and the level they open at, so there's something to look forward to.
@@ -960,7 +965,7 @@ function pendingNow() {
   return Math.floor(Math.max(Math.min(i.banked + i.rate * elapsed, i.rate * i.capH), i.banked));
 }
 TABS.garage = () => {
-  const seg = vipSaleBanner() + `<div class="seg">${[['cars', 'Машини'], ['showcase', 'Вітрина']].map(([k, t]) => `<button class="${state.garageView === k ? 'on' : ''}" data-act="gView" data-k="${k}">${t}</button>`).join('')}</div>`;
+  const seg = vipSaleBanner() + paBanner() + `<div class="seg">${[['cars', 'Машини'], ['showcase', 'Вітрина']].map(([k, t]) => `<button class="${state.garageView === k ? 'on' : ''}" data-act="gView" data-k="${k}">${t}</button>`).join('')}</div>`;
   if (state.garageView === 'showcase') {
     const cars = me.cars.filter((c) => c.status === 'showcase');
     const free = me.showcaseSlots - cars.length;
@@ -1544,7 +1549,7 @@ TABS.cases = () => {
   const fromStarter = onDrop && S.CASE_BY_ID[state.dropCase]?.starter;
   const hc = fromStarter ? S.CASE_BY_ID[state.dropCase] : cs;
   const top = S.CLASS_ORDER.filter((c) => hc.weights[c]).pop();
-  return `<div class="feed" id="dropFeed"></div>${onDrop ? '' : vipSaleBanner()}${eventStrip(['luck', 'country', 'plates'])}
+  return `<div class="feed" id="dropFeed"></div>${onDrop ? '' : vipSaleBanner() + paBanner()}${eventStrip(['luck', 'country', 'plates'])}
     <div class="casebar"><button class="picker" data-act="casePicker" style="--c:${S.CLASSES[top].color}"><span class="picker-ic">${caseIcon(hc)}</span>
       <span class="picker-tx"><b>${esc(hc.name)}</b><span class="picker-sub">${fromStarter ? '<span class="tiny muted">Подарунок новачку · відкрито</span>' : `${oddsBar(deal.weights)}${dayCase ? `<span class="chip dayc">${ic('flame')} Кейс дня −${S.CASE_OF_DAY.off * 100}%</span>` : ''}${caseEvChip(deal)}`}</span></span>
       <span class="picker-chev">${ic('chevron-right')}</span></button>
@@ -4379,7 +4384,7 @@ TABS.menu = () => {
   ];
   const H2 = (t, r = '') => `<div class="hub-h"><span>${t}</span>${r ? `<span>${r}</span>` : ''}</div>`;
   const nextLock = S.UNLOCKS.find((u) => !isOpen(u.key) && !(u.key === 'casino' && casinoOff()));
-  return `<div class="hub">${head}${vipSaleBanner()}${contestHubCard()}${pass}${homeCard()}
+  return `<div class="hub">${head}${paHubCard()}${vipSaleBanner()}${contestHubCard()}${pass}${homeCard()}
     ${H2('Нагороди й прогрес')}<div class="hub-grid g2">${tiles.join('')}</div>${challengeHubRow()}${clubHub()}${prestigeHubRow()}${showroomHubRow()}${tgGroupsCard()}
     ${H2('Торгівля', nextLock && ['market', 'trades', 'tradein', 'plates'].includes(nextLock.key) ? `${ic('lock')} далі: ${nextLock.name} · рів. ${nextLock.level}` : '')}<div class="hub-grid g4">${trade.join('')}</div>
     ${H2('Ризикнути')}<div class="hub-grid g2">${risk.join('')}</div>

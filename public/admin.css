@@ -663,3 +663,10 @@ svg.pcsvg .br.err { fill: var(--red); }
   .lg-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px 2px; }
   .lg-chip { flex: none; }
 }
+
+/* «🔨 Аукціон номера» in «Номери і авто» (public/admin-plate-auction.js) */
+.pa-form-a { display: grid; grid-template-columns: 1.4fr 1fr 1fr .8fr; gap: 10px; margin: 10px 0; }
+.pa-prev { margin: 4px 0 10px; }
+.pa-prev .verdict { margin-bottom: 0; }
+.pa-admin .row.end { margin-bottom: 12px; }
+@media (max-width: 860px) { .pa-form-a { grid-template-columns: 1fr 1fr; } .pa-form-a label:first-child { grid-column: 1 / -1; } }
