@@ -181,7 +181,10 @@ export function createBot({ token, webappUrl, admins = [], game, inline = null, 
     }
     const text = m.text || '';
     const [cmd, ...args] = text.trim().split(/\s+/);
-    const isAdmin = admins.includes(m.from.id);
+    // Owner 29.10: in the group the owner writes «анонімно» (as the group): Telegram then sends from = GroupAnonymousBot
+    // and sender_chat = the group itself — only the group's admins can post like that, so it counts as an admin there.
+    const anonAdmin = m.chat.type !== 'private' && m.sender_chat?.id === m.chat.id;
+    const isAdmin = admins.includes(m.from.id) || anonAdmin;
     // Groups (the players' chat, owner 28.10): the bot answers nothing there — only the owner's /welcome, written in a
     // topic, makes it post the welcome message into that topic, pin it and remove the command (and /here, below).
     if (m.chat.type !== 'private') {

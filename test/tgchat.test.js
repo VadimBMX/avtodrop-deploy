@@ -137,6 +137,14 @@ test('bot /here: owner only, groups only; stores chat + topic, «✅» in the to
     assert.equal(got[1].topic, '');
     const r2 = calls.filter((c) => c.method === 'sendMessage' && c.params.chat_id === G.id)[1];
     assert.equal('message_thread_id' in r2.params, false);
+    // Owner 29.10: an admin writing «анонімно» (as the group: GroupAnonymousBot + sender_chat = the group) counts.
+    updates.push({ update_id: 5, message: { message_id: 70, from: { id: 1087968824, first_name: 'Group', username: 'GroupAnonymousBot' }, sender_chat: { id: G.id, type: 'supergroup', title: G.title }, chat: G, text: '/here', ...topic } });
+    // …but a post as some other channel/chat does not.
+    updates.push({ update_id: 6, message: { message_id: 71, from: { id: 136817688, first_name: 'Channel' }, sender_chat: { id: -100999, type: 'channel', title: 'чужий' }, chat: G, text: '/here', ...topic } });
+    await wait(() => got.length >= 3);
+    await new Promise((r) => setTimeout(r, 60));
+    assert.equal(got.length, 3, 'the anonymous group admin, not the foreign channel');
+    assert.equal(got[2].thread, 7);
   } finally {
     bot.stop();
     await new Promise((r) => setTimeout(r, 30));
