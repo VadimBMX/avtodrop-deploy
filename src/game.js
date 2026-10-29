@@ -3993,7 +3993,7 @@ export function createGame(db, opts = {}) {
   // Owner 28.10: every real Stars payment (a pack, VIP, the pass, «Стиль», deals — not refunds, not repeats of the same
   // charge, not the season-prize stars on the account) is told by the bot to the owners (ADMIN_IDS) and to the admin
   // PAY_ALERT_USERNAMES (by @username, once he has pressed /start in the bot) — nobody else.
-  const PAY_ALERT_USERNAMES = ['gavryl11uk', 'gavrylliuk', 'gavryliuk']; // the same person: the handle is spelled with «11» or «ll»
+  const PAY_ALERT_USERNAMES = ['gavry11uik', 'gavryl11uk', 'gavrylliuk']; // the admin's real handle is @gavry11uik (owner 29.10); the other spellings are kept just in case
   function payAlert(uid, what, stars) {
     const u = q('SELECT username, first_name FROM users WHERE id = ?').get(uid) || {};
     const ids = new Set(opts.admins || []);
