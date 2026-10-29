@@ -3614,7 +3614,8 @@ TABS.shop = () => {
   if (d) {
     stage = `<div class="multi parts ${d.length === 1 ? 'one' : ''}">${d.map((p, i) => {
       const t = S.TIER_BY_ID[p.tier];
-      const sell = p.sold ? '<div class="dropsell done">Продано</div>' : p.put ? '' : `<button class="dropsell" data-act="sellDropPart" data-i="${i}">${ic('cash')}${S.short(t.price * S.PART_SELL_RATE)}</button>`;
+      const sell = p.auto ? `<div class="dropsell done auto">Продано <b>+${S.short(p.auto)}</b></div>` : p.sold ? '<div class="dropsell done">Продано</div>'
+        : p.put ? '' : `<button class="dropsell" data-act="sellDropPart" data-i="${i}">${ic('cash')}${S.short(t.price * S.PART_SELL_RATE)}</button>`;
       return `<div class="${fresh ? 'flip-in' : ''} ${p.sold ? 'sold' : ''}" style="animation-delay:${i * 140}ms"><div class="car pcard r${t.index}" style="--c:${S.CLASSES[t.cls].color}">${clsBadge(t.cls, 'tl')}
         <div class="art">${partArt(p.type, p.tier, 'lg')}</div><div class="nm ellipsis">${S.PARTS[p.type].name}</div><div class="meta">${t.name} · ${S.partEffect(p.type, p.tier)}</div>${S.partPoolFor(me.cars.map((c) => c.model)).includes(p.type) ? '' : `<div class="meta ptype-tag">${S.PARTS[p.type].ev ? 'для електро' : 'для бензинових'}</div>`}</div>${dropPutBtn(p, i, d.length === 1)}${sell}</div>`;
     }).join('')}</div>`;
@@ -3625,6 +3626,9 @@ TABS.shop = () => {
   const sum = alive.reduce((s, p) => s + Math.floor(S.TIER_BY_ID[p.tier].price * S.PART_SELL_RATE), 0);
   const myPool = S.partPoolFor(me.cars.map((c) => c.model)); // what fits the player's cars (the server's random pool)
   const fitTag = (k) => (myPool.includes(k) ? '' : `<small class="ptype-tag">${S.PARTS[k].ev ? 'для електро' : 'для бензинових'}</small>`);
+  const autoGot = d ? d.reduce((s, p) => s + (p.auto || 0), 0) : 0; // «Автопродаж» of this drop (the server sold them)
+  const nextAt = Math.max(state.partNext || 0, me.partsNextAt || 0), wait = nextAt - serverNow(); // the pause after an opening
+  const autoSel = me.partsAutosell || [];
   return seg + `
     <div class="ptypes">${[[null, 'Будь-яка'], ...S.PART_KEYS.map((k) => [k, S.PARTS[k].name])].map(([k, n]) => `<button class="ptype ${state.partType === k ? 'on' : ''}" data-act="pickPartType" data-k="${k ?? ''}">
       ${k ? partArt(k, null, 'sm') : `<span class="part sm">${ic('adjustments')}</span>`}<span>${n}</span>${k ? fitTag(k) : ''}</button>`).join('')}</div>
@@ -3636,15 +3640,54 @@ TABS.shop = () => {
         <span class="pprice">${off ? 'лише випадкові' : S.fmt(partCasePrice(c.id))}</span></button>`;
     }).join('')}</div>
     <div class="stage pstage" style="${d?.length > 3 ? 'height:auto;min-height:200px' : d ? 'height:auto;min-height:170px' : ''}">${stage}</div>
+    ${autoGot ? `<div class="dropauto">${ic('cash')}<span>Автопродаж: <b>+${S.fmt(autoGot)}</b></span><small>${d.filter((p) => p.auto).length} з ${d.length}</small></div>` : ''}
     ${d?.length > 1 ? dropSummary(d) : ''}
     <div class="seg">${[1, 3, 5, 10].map((k) => `<button class="${k === state.partCount ? 'on' : ''}" data-act="partCount" data-n="${k}">×${k}</button>`).join('')}</div>
     ${price * state.partCount > me.balance ? `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(price * state.partCount - me.balance)}</button>`
-      : state.partCount === 1 && (state.partNext || 0) > serverNow()
-        ? `<button class="btn pwait" disabled style="--d:${S.PART_COOLDOWN_MS}ms;--o:${Math.min(0, state.partNext - serverNow() - S.PART_COOLDOWN_MS)}ms">Наступне ×1 через <span data-until="${state.partNext - clockOffset}"></span></button>`
+      : wait > 0
+        ? `<button class="btn pwait" disabled style="--d:${S.PART_COOLDOWN_MS}ms;--o:${Math.min(0, wait - S.PART_COOLDOWN_MS)}ms"><span>${d ? 'Відкрити ще' : 'Відкрити'} · <span data-secs="${nextAt - clockOffset}">${Math.ceil(wait / 1000)}</span> с…</span></button>`
         : `<button class="btn" data-act="openParts" ${state.opening ? 'disabled' : ''}>${d ? 'Відкрити ще' : 'Відкрити'}${state.partCount > 1 ? ' ×' + state.partCount : ''} · ${S.fmt(price * state.partCount)}</button>`}
     ${d ? `<div class="btns mt"><button class="btn outline" data-act="shopView" data-k="stock">На склад</button>${alive.length ? `<button class="btn ghost btn2" data-act="sellDropParts"><span>${ic('cash')} Продати все</span><small>${S.short(sum)}</small></button>` : ''}</div>` : ''}
+    <div class="card autosell mt"><div class="row between"><span>Автопродаж</span><small class="${autoSel.length ? 'on' : 'muted'}">${autoSel.length ? `${ic('cash')} продаються одразу` : 'вимкнено'}</small></div>
+      <div class="chips gfilter as-chips">${S.PART_DROP_TIERS.map((id) => {
+        const t = S.TIER_BY_ID[id], on = autoSel.includes(id);
+        return `<button class="${on ? 'on' : ''}" data-act="autoSell" data-k="${id}" style="--c:${S.CLASSES[t.cls].color}" aria-pressed="${on}"><i></i>${t.name}</button>`;
+      }).join('')}</div>
+      <div class="tiny muted">${autoSel.length ? `${autoSel.map((id) => S.TIER_BY_ID[id].name).join(', ')} — одразу дилеру за ${S.PART_SELL_RATE * 100}% ціни, як вручну. На склад не потрапляють.` : 'Обери кольори деталей, які продавати дилеру одразу, як випадуть.'}</div></div>
     <div class="card row between mt"><span>Швидке відкриття</span><button class="toggle ${state.fast ? 'on' : ''}" data-act="toggleFast"></button></div>
-    <div class="tiny muted center">${state.partType ? `Випадає лише «${S.PARTS[state.partType].name}», кейс на ${S.PICK_PART_EXTRA * 100}% дорожчий.` : 'Випадає випадкова деталь з тих, що підходять твоїм машинам. Обери конкретну вгорі, щоб збирати лише її.'} Три однакові деталі зливаються в одну рівнем вище на складі. Пауза ${S.PART_COOLDOWN_MS / 1000} с — лише між відкриттями ×1; ×3–×10 відкриваються одразу.</div>`;
+    <div class="tiny muted center">${state.partType ? `Випадає лише «${S.PARTS[state.partType].name}», кейс на ${S.PICK_PART_EXTRA * 100}% дорожчий.` : 'Випадає випадкова деталь з тих, що підходять твоїм машинам. Обери конкретну вгорі, щоб збирати лише її.'} Три однакові деталі зливаються в одну рівнем вище на складі. Після кожного відкриття — пауза ${S.PART_COOLDOWN_MS / 1000} с.</div>`;
+};
+// «Відкрити · 9 с…»: the seconds of the part-case pause, 4× a second while that button is on screen; at zero the
+// screen is drawn again and the button comes back by itself (after a reload too — me.partsNextAt).
+let secsTimer = 0;
+function tickSecs() {
+  const els = document.querySelectorAll('[data-secs]');
+  if (!els.length) return void (clearInterval(secsTimer), (secsTimer = 0));
+  for (const el of els) {
+    const ms = Number(el.dataset.secs) - Date.now();
+    if (ms > 0) el.textContent = Math.ceil(ms / 1000);
+    else {
+      el.removeAttribute('data-secs');
+      if (!state.opening) render();
+    }
+  }
+}
+// «Автопродаж»: a chip on/off at once on the screen, then the whole choice to the server (the last tap wins). Race —
+// the top tier — goes on only with a second tap, so it is never switched on by a slip.
+H.autoSell = async (d, el) => {
+  const cur = new Set(me.partsAutosell || []);
+  const on = !cur.has(d.k);
+  if (on && S.TIER_BY_ID[d.k].index === S.TIERS.length - 1 && !armed(el, 'Точно?')) return;
+  on ? cur.add(d.k) : cur.delete(d.k);
+  me.partsAutosell = S.PART_DROP_TIERS.filter((id) => cur.has(id));
+  haptic('light');
+  render();
+  try {
+    await api('parts/autosell', { tiers: me.partsAutosell });
+  } catch (e) {
+    toast(e.message, true);
+    await refresh();
+  }
 };
 const partCasePrice = (id) => Math.round(S.PART_CASE_BY_ID[id].price * (state.partType ? 1 + S.PICK_PART_EXTRA : 1) / 100) * 100;
 function randomPartFor(pc) {
@@ -3669,6 +3712,7 @@ AFTER.shop = () => {
     if (on && strip && (on.offsetLeft < strip.scrollLeft || on.offsetLeft + on.offsetWidth > strip.scrollLeft + strip.clientWidth)) strip.scrollLeft = on.offsetLeft - 16;
     return;
   }
+  if (!secsTimer && $('[data-secs]')) secsTimer = setInterval(tickSecs, 250);
   if (state.fx?.type !== 'parts' || !state.partDrop) return;
   state.fx = null;
   // Cards flip in one by one with a few sparkles in their tier colour.
@@ -3734,10 +3778,8 @@ H.openParts = async (d, el) => {
   let r;
   try {
     r = await api('parts/open', { caseId: state.partCase, type: state.partType, count: state.partCount });
-    // The server allows the next part case only after a pause; the button counts down and comes back by itself.
+    // The server allows the next part case only after a pause; the button counts down and comes back by itself (tickSecs).
     state.partNext = r.nextAt;
-    clearTimeout(state.partTimer);
-    state.partTimer = setTimeout(() => !state.opening && render(), Math.max(0, r.nextAt - serverNow()) + 100);
   } catch (e) {
     state.opening = false;
     el.disabled = false;
@@ -3756,7 +3798,8 @@ H.openParts = async (d, el) => {
     await spinPart(r.results[0]);
   }
   state.opening = false;
-  state.partDrop = r.results.map((p) => ({ ...p }));
+  // A drop the server sold by «Автопродаж» comes as sold (dimmed, «Продано +X»), with what it brought.
+  state.partDrop = r.results.map(({ autoSold, ...p }) => (autoSold ? { ...p, sold: true, auto: autoSold } : p));
   state.fx = { type: 'parts' };
   await refresh();
 };

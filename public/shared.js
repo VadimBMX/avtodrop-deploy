@@ -919,8 +919,11 @@ for (const pc of PART_CASES) {
 }
 export const PART_CASE_BY_ID = Object.fromEntries(PART_CASES.map((c) => [c.id, c]));
 export const PICK_PART_EXTRA = 0.15;
-// Pause between two openings of part cases (server-checked), so the whole stock can't be emptied in seconds.
+// Pause after every opening of part cases (×1…×10, server-checked, users.parts_open_at), so the whole stock can't be
+// emptied in seconds; the open button counts it down.
 export const PART_COOLDOWN_MS = 10000;
+// «Автопродаж»: the tiers any part case can drop — one chip each on the part-cases screen.
+export const PART_DROP_TIERS = TIERS.filter((t) => PART_CASES.some((c) => c.weights[t.id])).map((t) => t.id);
 
 // ---------- plates (Ukrainian format "AA 1234 BC") ----------
 // Official Ukrainian region codes: the 2004 series and the additional 2013 series for each region.

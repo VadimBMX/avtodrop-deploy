@@ -512,6 +512,10 @@ const MIGRATIONS = [
   'ALTER TABLE users ADD COLUMN vip_sale_until INTEGER NOT NULL DEFAULT 0',
   // «Більший бак» (S.TANK_UPGRADES): steps of the shared tank bought for ₴, 0 = the plain S.FUEL_MAX.
   'ALTER TABLE users ADD COLUMN tank_lvl INTEGER NOT NULL DEFAULT 0',
+  // Part cases: the tiers sold to the dealer right as they drop (S.TIERS ids, comma-separated; '' = none) and the
+  // last opening (the S.PART_COOLDOWN_MS pause is counted from it).
+  "ALTER TABLE users ADD COLUMN parts_autosell TEXT NOT NULL DEFAULT ''",
+  'ALTER TABLE users ADD COLUMN parts_open_at INTEGER NOT NULL DEFAULT 0',
 ];
 
 export function openDb(file) {

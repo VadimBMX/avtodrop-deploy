@@ -46,7 +46,7 @@ export const SOURCES = [
 // its sub-calls ('weekly' → 'weekly', 'weekly/claim'). The first matching group wins.
 export const MONEY_GROUPS = [
   { key: 'cases', name: 'Кейси й батли', src: ['case/open', 'parts/open', 'battle/'] },
-  { key: 'sales', name: 'Продаж дилеру', src: ['sell', 'parts/sell', 'parts/sell-junk', 'plate/sell', 'dealer/', 'buyer/'] },
+  { key: 'sales', name: 'Продаж дилеру', src: ['sell', 'parts/sell', 'parts/sell-junk', 'parts/autosell', 'plate/sell', 'dealer/', 'buyer/'] },
   { key: 'races', name: 'Гонки, дрифт, PvP', src: ['race/', 'boss/', 'drift/', 'pvp/'] },
   { key: 'garage', name: 'Дохід гаража', src: ['collect'] },
   { key: 'upkeep', name: 'Гараж і тюнінг', src: ['buy-slot', 'upgrade-cap', 'buy-showcase', 'showcase', 'wash/', 'car/', 'plate/', 'parts/', 'upgrade', 'dream/', 'tank/'] },

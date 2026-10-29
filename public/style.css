@@ -2876,6 +2876,19 @@ button.li:active { background-color: #ffffff08; }
 .btn.pwait::before { content: ''; position: absolute; inset: 0; background: color-mix(in srgb, var(--accent) 22%, transparent); transform-origin: left; transform: scaleX(0); animation: pwait var(--d) linear var(--o) forwards; }
 .btn.pwait > * { position: relative; }
 @keyframes pwait { to { transform: scaleX(1); } }
+/* Part cases: «Автопродаж» — one chip per tier colour, all five in view at once — and what it sold on the drop screen. */
+.autosell { padding: 12px 14px; }
+.autosell .row > small { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; }
+.autosell .row > small.on { color: var(--green); font-weight: 600; }
+.autosell .row > small .i { width: 14px; height: 14px; }
+.chips.as-chips { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 10px 0 8px; padding: 0; overflow: visible; }
+.chips.as-chips button { justify-content: center; min-width: 0; padding: 0 4px; }
+.chips.as-chips button.armed { background: #c62828; color: #fff; box-shadow: none; animation: armpulse .6s ease-in-out infinite alternate; }
+.dropauto { display: flex; align-items: center; gap: 6px; margin: -4px 2px 10px; font-size: 13.5px; color: #c4c9d2; }
+.dropauto .i { width: 16px; height: 16px; color: var(--green); }
+.dropauto b { color: var(--green); font: 700 14px var(--f-disp); }
+.dropauto small { margin-left: auto; color: var(--muted); font-size: 12px; }
+.dropsell.done.auto b { color: var(--green); font-weight: 700; }
 /* Склад */
 .stock-sum { display: flex; align-items: center; gap: 10px; padding: 12px; }
 .stock-sum b { font: 700 16px var(--f-disp); }

@@ -1,6 +1,6 @@
 // Workshop without grind (audit §2 №9): «Встановити найкраще» (T.bestTune + parts/install-best), the real effect of a
 // part on the 402 m time (wheelspin included), «Продати непотрібні» (T.junkParts + parts/sell-junk) and the part-case
-// pause for ×1 only.
+// pause after every opening.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { openDb } from '../src/db.js';
@@ -156,15 +156,19 @@ test('junkParts + parts/sell-junk: only parts no car needs, at the dealer rate, 
   assert.throws(() => call(1, 'parts/sell-junk', { items: [{ type: 'eng', tier: 'sport', count: 1 }] }), /не зайві/);
 });
 
-test('part cases: the 10 s pause is for ×1 only; ×5 and ×10 open at once and do not hold up ×1', () => {
+test('part cases: the 10 s pause follows every opening — ×1, ×5 and ×10 alike', () => {
   const { call, advance } = setup({ partCooldownMs: undefined });
   const r1 = call(1, 'parts/open', { caseId: 'scrap', count: 1 });
   assert.equal(r1.nextAt, T0 + S.PART_COOLDOWN_MS);
   assert.throws(() => call(1, 'parts/open', { caseId: 'scrap', count: 1 }), /Зачекай/);
+  assert.throws(() => call(1, 'parts/open', { caseId: 'scrap', count: 5 }), /Зачекай/);
+  advance(S.PART_COOLDOWN_MS);
   assert.equal(call(1, 'parts/open', { caseId: 'scrap', count: 5 }).results.length, 5);
+  advance(S.PART_COOLDOWN_MS);
   const r10 = call(1, 'parts/open', { caseId: 'scrap', count: 10 });
   assert.equal(r10.results.length, 10);
-  assert.equal(r10.nextAt, T0 + S.PART_COOLDOWN_MS); // still the ×1 pause, not moved
+  assert.equal(r10.nextAt, T0 + 3 * S.PART_COOLDOWN_MS); // ×10 starts the pause too
+  assert.throws(() => call(1, 'parts/open', { caseId: 'scrap', count: 1 }), /Зачекай/);
   advance(S.PART_COOLDOWN_MS);
   call(1, 'parts/open', { caseId: 'scrap', count: 1 });
 });

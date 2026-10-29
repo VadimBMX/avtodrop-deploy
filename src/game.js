@@ -763,6 +763,7 @@ export function createGame(db, opts = {}) {
       slots: u.slots, used: cars.filter((c) => c.status !== 'showcase').length, showcaseSlots: u.showcase_slots, capLevel: u.cap_level, fragments,
       income: { rate: Math.round(inc.rate), pending: inc.pending, capH: inc.capH, since: u.income_at, banked: u.banked, comebackUntil: u.comeback_cap_until > now() ? u.comeback_cap_until : 0 },
       fuel: Math.min(fuel.fuel, fuel.max), fuelSpare: Math.max(0, fuel.fuel - fuel.max), fuelNext: fuel.next, fuelMax: fuel.max, tankLvl: u.tank_lvl || 0, cars, keys, collection, pity, plates, parts: inventory(uid),
+      partsAutosell: autoSellOf(u), partsNextAt: partNextAt(u) > now() ? partNextAt(u) : 0, // part cases: «Автопродаж», the pause
       level: u.level, levelSeen: u.level_seen, xp: u.xp, xpNeed: S.xpForLevel(u.level),
       xpToday: u.xp_day === day ? u.xp_day_capped : 0, xpCaseToday: u.xp_case_day === day ? u.xp_case_used : 0, newbie: newbieState(u),
       dailyReady: u.streak_day !== day, streak: u.streak, rewardCaseAt: u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3,
@@ -1034,9 +1035,13 @@ export function createGame(db, opts = {}) {
   const revealedSeeds = (uid) => q('SELECT seed, seed_hash seedHash, revealed_at at FROM revealed_seeds WHERE user_id = ? ORDER BY revealed_at DESC LIMIT 20').all(uid);
 
   // ---------- parts ----------
-  // Last part-case opening per player (in memory: a restart only forgives one pause).
-  const partOpenedAt = new Map();
+  // The pause after every part-case opening (×1…×10) runs from users.parts_open_at (opts.partCooldownMs: tests only).
   const partCooldown = opts.partCooldownMs ?? S.PART_COOLDOWN_MS;
+  const partNextAt = (u) => (u.parts_open_at || 0) + partCooldown;
+  // What the dealer pays for one piece of this tier — by hand, «Продати непотрібні» and «Автопродаж» alike.
+  const partSale = (tier) => Math.floor(S.TIER_BY_ID[tier].price * S.PART_SELL_RATE);
+  // «Автопродаж»: the tiers this player sells right as they drop (in S.TIERS order; unknown ids are dropped).
+  const autoSellOf = (u) => { const ids = String(u.parts_autosell || '').split(','); return S.PART_DROP_TIERS.filter((t) => ids.includes(t)); };
   function openParts(uid, { caseId, type, count }) {
     const pc = own(S.PART_CASE_BY_ID, caseId);
     if (!pc) fail('Невідомий кейс');
@@ -1044,30 +1049,52 @@ export function createGame(db, opts = {}) {
     if (type && pc.randomOnly) fail('У цьому кейсі лише випадкові деталі');
     const n = int(count ?? 1, 1, 10, 'Кількість');
     if (![1, 3, 5, 10].includes(n)) fail('Можна відкрити 1, 3, 5 або 10');
-    // The pause is for ×1 only (its reel plays meanwhile); ×3/×5/×10 open at once and show one combined reveal.
-    const wait = n === 1 ? (partOpenedAt.get(uid) || 0) + partCooldown - now() : 0;
-    if (wait > 0) fail(`Зачекай ${Math.ceil(wait / 1000)} с перед наступним відкриттям`);
+    const u = userRow(uid);
+    const wait = partNextAt(u) - now();
+    if (wait > 0) fail(`Зачекай ще ${Math.ceil(wait / 1000)} с`);
     const price = Math.round(pc.price * (type ? 1 + S.PICK_PART_EXTRA : 1) / 100) * 100;
     pay(uid, price * n);
     const tiers = Object.entries(pc.weights);
     const pool = partPool(uid);
+    const auto = autoSellOf(u);
     const results = [];
+    let soldN = 0, soldGot = 0;
     for (let i = 0; i < n; i++) {
       const f = nextNonce(uid);
       const tier = pickWeighted(tiers, f.roll(0));
       // A random part is one the player's cars can take (no battery for a petrol-only garage — S.partPoolFor).
       const t = type || pool[Math.floor(f.roll(1) * pool.length)];
-      addPart(uid, t, tier);
       q('INSERT INTO drops (user_id, case_id, item, cls, seed_hash, client_seed, nonce, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
         .run(uid, caseId, `${t}:${tier}`, S.TIER_BY_ID[tier].cls, sha256(f.server_seed), f.client_seed, f.nonce, now());
-      results.push({ type: t, tier });
+      // A tier picked for «Автопродаж» never reaches the warehouse: the dealer's price goes to the balance below, in
+      // this same transaction (nothing to sell twice, nothing left if the call fails).
+      if (auto.includes(tier)) {
+        const got = partSale(tier);
+        soldN++;
+        soldGot += got;
+        results.push({ type: t, tier, autoSold: got });
+      } else {
+        addPart(uid, t, tier);
+        results.push({ type: t, tier });
+      }
     }
+    // The owner's money metrics count it as a dealer sale (M.MONEY_GROUPS 'sales'), not as a cheaper case.
+    if (soldGot) srcWrap('parts/autosell', addMoney)(uid, soldGot);
+    // Opened is opened: xp, the «Відкрий N кейсів з деталями» tasks and the first-steps flag count every case.
     xp(uid, 'partcase', n);
     track(uid, 'parts', n);
     flag(uid, 'part_case');
-    if (n === 1) partOpenedAt.set(uid, now());
-    // nextAt: when the next ×1 may open (a multi-open doesn't move it).
-    return { results, price: price * n, nextAt: Math.max(now(), (partOpenedAt.get(uid) || 0) + partCooldown) };
+    q('UPDATE users SET parts_open_at = ? WHERE id = ?').run(now(), uid);
+    // nextAt: when the next part case may open; autoSold: how many drops went to the dealer and for how much.
+    return { results, price: price * n, nextAt: now() + partCooldown, autoSold: { count: soldN, got: soldGot } };
+  }
+  // «Автопродаж» on the part-cases screen: tiers = the S.TIERS ids to sell as they drop ([] = keep everything).
+  function setAutoSell(uid, { tiers }) {
+    if (!Array.isArray(tiers) || tiers.length > S.PART_DROP_TIERS.length) fail('Обери рівні деталей');
+    for (const t of tiers) if (typeof t !== 'string' || !S.PART_DROP_TIERS.includes(t)) fail('Невідомий рівень деталі');
+    const list = S.PART_DROP_TIERS.filter((t) => tiers.includes(t));
+    q('UPDATE users SET parts_autosell = ? WHERE id = ?').run(list.join(','), uid);
+    return { tiers: list };
   }
   function merge(uid, { type, tier }) {
     if (!S.PART_KEYS.includes(type) || !S.TIER_BY_ID[tier]) fail('Невідома деталь');
@@ -1088,7 +1115,7 @@ export function createGame(db, opts = {}) {
     if (!S.PART_KEYS.includes(type) || !S.TIER_BY_ID[tier]) fail('Невідома деталь');
     const n = int(count ?? 1, 1, 10000, 'Кількість');
     takePart(uid, type, tier, n);
-    const got = Math.floor(S.TIER_BY_ID[tier].price * S.PART_SELL_RATE) * n;
+    const got = partSale(tier) * n;
     addMoney(uid, got);
     return { got };
   }
@@ -1159,7 +1186,7 @@ export function createGame(db, opts = {}) {
       const n = Math.min(j.count, int(it.count ?? j.count, 1, 10000, 'Кількість'));
       takePart(uid, j.type, j.tier, n);
       j.count -= n;
-      got += Math.floor(S.TIER_BY_ID[j.tier].price * S.PART_SELL_RATE) * n;
+      got += partSale(j.tier) * n;
       count += n;
       sold.push({ type: j.type, tier: j.tier, count: n });
     }
@@ -5051,7 +5078,7 @@ export function createGame(db, opts = {}) {
     'wash/hand': washHand, 'wash/auto': washAuto,
     'case/open': openCase, 'case/history': dropHistory,
     'fair/seed': setClientSeed, 'fair/rotate': rotateSeed, 'fair/revealed': revealedSeeds,
-    'parts/open': openParts, 'parts/merge': merge, 'parts/sell': sellParts, 'parts/install': install, 'parts/uninstall': uninstall, 'parts/install-best': installBest, 'parts/sell-junk': sellJunk,
+    'parts/open': openParts, 'parts/autosell': setAutoSell, 'parts/merge': merge, 'parts/sell': sellParts, 'parts/install': install, 'parts/uninstall': uninstall, 'parts/install-best': installBest, 'parts/sell-junk': sellJunk,
     'plate/generate': generatePlate, 'plate/attach': attachPlate, 'plate/detach': detachPlate, 'plate/sell': sellPlate,
     'race/rivals': rivals, 'race/start': raceStart, 'race/finish': raceFinish,
     'boss/list': bossList, 'boss/start': bossStart,

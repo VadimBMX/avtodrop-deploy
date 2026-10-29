@@ -411,9 +411,9 @@ test('part cases: a 10 s pause between openings, checked by the server', () => {
   const pc = S.PART_CASES.find((c) => !c.randomOnly) || S.PART_CASES[0];
   const r = g.api['parts/open'](1, { caseId: pc.id, count: 1 });
   assert.equal(r.nextAt, t + S.PART_COOLDOWN_MS);
-  assert.throws(() => g.api['parts/open'](1, { caseId: pc.id, count: 1 }), /Зачекай 10 с/);
+  assert.throws(() => g.api['parts/open'](1, { caseId: pc.id, count: 1 }), /Зачекай ще 10 с/);
   t += 9000;
-  assert.throws(() => g.api['parts/open'](1, { caseId: pc.id, count: 1 }), /Зачекай 1 с/);
+  assert.throws(() => g.api['parts/open'](1, { caseId: pc.id, count: 1 }), /Зачекай ще 1 с/);
   t += 1000;
   g.api['parts/open'](1, { caseId: pc.id, count: 1 });
 });
