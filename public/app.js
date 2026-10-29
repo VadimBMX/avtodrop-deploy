@@ -5263,7 +5263,8 @@ AFTER.battles = () => {
 };
 H.bCount = (d) => (state.bCount = Number(d.n), render());
 H.battleCreate = async () => {
-  const cs = S.CASE_BY_ID[state.bCase || 'rust'], n = state.bCount || 3;
+  // the same defaults the form shows (bug 29.10: the form said ×1, the button created ×3 until ×1 was tapped)
+  const cs = S.CASE_BY_ID[state.bCase || battleDefaultCase()], n = state.bCount || 1;
   if (!(await confirmBox(`Створити батл: ${cs.name} ×${n} за ${S.fmt(cs.price * n)}?`))) return;
   try {
     const { id } = await api('battle/create', { caseId: cs.id, count: n, botOk: state.bBot !== false });
