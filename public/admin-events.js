@@ -50,7 +50,7 @@ function previewHtml() {
 export async function eventsPage({ api, esc, ic }) {
   const [v, ge] = await Promise.all([api('schedule'), api('game-events')]);
   last = v;
-  const act = ge.active.length ? `<table>${ge.active.map((e) => `<tr><td>${chip(e, esc, ic)}${e.planned ? ' <span class="badge">план</span>' : e.forced ? ' <span class="badge">вручну</span>' : ''}</td>
+  const act = ge.active.length ? `<table class="stack evp-now">${ge.active.map((e) => `<tr><td>${chip(e, esc, ic)}${e.planned ? ' <span class="badge">план</span>' : e.forced ? ' <span class="badge">вручну</span>' : ''}</td>
       <td class="small muted nowrap">${esc(endText(S.kyivLocal(e.end)))}</td><td class="num"><button class="btn red sm" data-act="evpStop" data-key="${esc(e.key)}" data-title="${esc(e.title)}">Зупинити</button></td></tr>`).join('')}</table>`
     : '<div class="empty">Зараз нічого не йде</div>';
   const weeks = v.weeks.map((w) => `<div class="evp-week ${w.mode}"><div class="evp-wh"><b>${esc(w.monday.slice(8, 10))}.${esc(w.monday.slice(5, 7))}</b><span class="badge ${w.mode === 'plan' ? 'green' : ''}">${w.mode === 'plan' ? 'за планом' : 'авто-ротація'}</span></div>

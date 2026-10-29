@@ -16,7 +16,7 @@ export async function clubsPage({ api, esc, date, userLink }) {
   return `<div class="head"><h1>Автоклуби</h1><button class="btn ghost sm" data-act="reload">Оновити</button></div>
     <div class="panel"><h2>Підсумок <span class="sub">клубів ${t.n} · учасників ${v.members}</span></h2>
       <p class="small muted">У касах зараз ${S.short(t.treasury)} · внесено за весь час ${S.short(t.donated)} · витрачено на бонуси ${S.short(t.spent)}. Гроші з кас не повертаються (стік). Ліга підбивається в понеділок о 00:00 (Київ).</p></div>
-    <div class="panel"><h2>Клуби</h2>${rows ? `<div class="tbl-wrap"><table><tr><th>Клуб</th><th class="num">Людей</th><th class="num">Очки тижня</th><th class="num">Каса</th><th></th></tr>${rows}</table></div>` : '<div class="empty">Клубів ще немає</div>'}</div>
+    <div class="panel"><h2>Клуби</h2>${rows ? `<div class="tbl-wrap"><table class="stack"><tr><th>Клуб</th><th class="num">Людей</th><th class="num">Очки тижня</th><th class="num">Каса</th><th></th></tr>${rows}</table></div>` : '<div class="empty">Клубів ще немає</div>'}</div>
     <div class="panel"><h2>Ліга: останні тижні</h2>${weeks}</div>`;
 }
 

@@ -13,9 +13,18 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
+  <!-- phone: a top bar (menu + section name, player search); the side bar below turns into a drawer (admin.css «phone») -->
+  <header class="topbar">
+    <button class="menu-btn" data-act="navOpen" aria-controls="side" aria-expanded="false" aria-label="Розділи адмінки"><svg class="i"><use href="icons.svg#i-menu-2"/></svg><span id="tbTitle">Адмінка</span><span class="badge red" id="supN2" hidden></span></button>
+    <form class="qsearch" role="search" hidden>
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" stroke-width="2"/><path d="m15.5 15.5 5 5" stroke-width="2" stroke-linecap="round"/></svg>
+      <input type="search" placeholder="Гравець: ID, @нік" autocomplete="off" enterkeyhint="search" aria-label="Знайти гравця">
+    </form>
+  </header>
+  <div class="scrim" data-act="navClose" hidden></div>
   <div class="shell">
-    <aside class="side">
-      <div class="brand"><span class="logo">A</span><div><b>АВТОДРОП</b><small>адмін-панель</small></div></div>
+    <aside class="side" id="side">
+      <div class="brand"><span class="logo">A</span><div><b>АВТОДРОП</b><small>адмін-панель</small></div><button class="drawer-x" data-act="navClose" aria-label="Закрити меню"><svg class="i"><use href="icons.svg#i-x"/></svg></button></div>
       <form id="qsearch" class="qsearch" role="search" hidden>
         <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" stroke-width="2"/><path d="m15.5 15.5 5 5" stroke-width="2" stroke-linecap="round"/></svg>
         <input id="qs" type="search" placeholder="ID, @username, ім’я" autocomplete="off" enterkeyhint="search" aria-label="Знайти гравця">

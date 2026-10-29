@@ -78,10 +78,21 @@ function confirmDialog({ title, summary = '', danger = false, button = 'Підт
     const check = () => (ok.disabled = !owner && r.value.trim().length < 3);
     check();
     r.addEventListener('input', check);
+    // On a phone the dialog is a bottom sheet: keep it inside the visible part of the screen, so the on-screen
+    // keyboard (the reason field) never covers the buttons, and don't let the page behind it scroll.
+    const vv = window.visualViewport;
+    const fit = () => {
+      m.style.top = `${vv.offsetTop}px`;
+      m.style.height = `${vv.height}px`;
+    };
     const done = (v) => {
       m.hidden = true;
       d.innerHTML = '';
       document.removeEventListener('keydown', onKey);
+      vv?.removeEventListener('resize', fit);
+      vv?.removeEventListener('scroll', fit);
+      m.style.top = m.style.height = '';
+      document.body.classList.remove('modal-open');
       resolve(v);
     };
     const onKey = (e) => e.key === 'Escape' && done(null);
@@ -92,7 +103,14 @@ function confirmDialog({ title, summary = '', danger = false, button = 'Підт
     };
     m.onclick = (e) => e.target === m && done(null);
     $('#toast').hidden = true;
+    if (vv) {
+      vv.addEventListener('resize', fit);
+      vv.addEventListener('scroll', fit);
+      fit();
+    }
+    document.body.classList.add('modal-open');
     m.hidden = false;
+    d.scrollTop = 0;
     if (owner && !custom) ok.focus(); else r.focus();
   });
 }
@@ -196,16 +214,55 @@ function fromHash() {
   if (v === 'user' && id) Object.assign(state, { view: 'user', userId: Number(id) });
   else if (VIEWS[v]) state.view = v;
 }
-window.addEventListener('popstate', () => (fromHash(), render()));
+window.addEventListener('popstate', () => (navOpen(false), fromHash(), render()));
+// ---------- phone (admin.css «phone»): the side bar is a drawer behind the top bar's menu button ----------
+const narrow = () => window.matchMedia?.('(max-width: 860px)').matches;
+function navOpen(open) {
+  if (open === document.body.classList.contains('nav-open')) return;
+  document.body.classList.toggle('nav-open', open);
+  $('.scrim').hidden = !open;
+  $('.menu-btn').setAttribute('aria-expanded', String(open));
+  const side = $('#side'), on = $('#nav button.on');
+  if (open) {
+    if (on) side.scrollTop = on.offsetTop - side.clientHeight / 2;
+    (on || $('.drawer-x')).focus({ preventScroll: true });
+  } else if (side.contains(document.activeElement)) $('.menu-btn').focus({ preventScroll: true });
+}
+document.addEventListener('keydown', (e) => e.key === 'Escape' && navOpen(false));
+// Tables marked .stack turn into one card per row on a narrow screen: every cell gets its column name as data-l
+// (shown above the value by admin.css); the header row is hidden there. Rows of another shape (colspan) are left alone.
+function labelTables(root) {
+  for (const t of root.querySelectorAll('table.stack:not([data-l])')) {
+    t.dataset.l = '1';
+    const head = [...t.rows].find((r) => r.cells[0]?.tagName === 'TH');
+    if (!head) continue;
+    head.classList.add('hd');
+    const names = [...head.cells].map((c) => c.textContent.trim());
+    for (const r of t.rows) if (r !== head && r.cells.length === names.length) [...r.cells].forEach((c, i) => names[i] && c.setAttribute('data-l', names[i]));
+  }
+}
+const navText = (b) => [...b.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim();
 let renderSeq = 0;
 async function render() {
   const seq = ++renderSeq;
-  document.querySelectorAll('#nav button').forEach((b) => b.classList.toggle('on', b.dataset.go === (state.view === 'user' ? 'users' : state.view)));
-  document.querySelector('#nav button.on')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  const navKey = state.view === 'user' ? 'users' : state.view;
+  document.querySelectorAll('#nav button').forEach((b) => {
+    b.classList.toggle('on', b.dataset.go === navKey);
+    if (b.dataset.go === navKey) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  });
+  const onBtn = document.querySelector('#nav button.on');
+  if (onBtn) $('#tbTitle').textContent = navText(onBtn);
+  if (!narrow()) onBtn?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   try {
     const html = await VIEWS[state.view]();
     if (seq !== renderSeq) return;
-    $('#main').innerHTML = html;
+    const main = $('#main');
+    main.innerHTML = html;
+    labelTables(main);
+    // the player card's tab strip scrolls sideways: keep the open tab in sight
+    const tabs = $('.tabs', main), tab = tabs && $('button.on', tabs);
+    if (tab) tabs.scrollLeft += tab.getBoundingClientRect().left - tabs.getBoundingClientRect().left - (tabs.clientWidth - tab.offsetWidth) / 2;
     AFTER[state.view]?.();
   } catch (e) {
     if (seq !== renderSeq) return;
@@ -216,7 +273,7 @@ async function render() {
 const AFTER = {};
 document.addEventListener('click', (e) => {
   const nav = e.target.closest('[data-go]');
-  if (nav) return go(nav.dataset.go);
+  if (nav) return navOpen(false), go(nav.dataset.go);
   const u = e.target.closest('[data-user]');
   if (u) return go('user', { userId: Number(u.dataset.user), userTab: 'cars' });
   const p = e.target.closest('[data-page]');
@@ -228,6 +285,8 @@ document.addEventListener('click', (e) => {
   if (a && !a.disabled && H[a.dataset.act]) H[a.dataset.act](a.dataset, a, e);
 });
 const H = {};
+H.navOpen = () => navOpen(true);
+H.navClose = () => navOpen(false);
 
 // ---------- login ----------
 function login(msg) {
@@ -242,18 +301,20 @@ function login(msg) {
     start();
   });
 }
-// Quick search from the side bar: an exact ID / @username (or a single match) opens the card, otherwise the list.
+// Quick search (side bar on a computer, top bar on a phone): an exact ID / @username (or a single match) opens the card,
+// otherwise the list.
 document.addEventListener('submit', async (e) => {
-  if (e.target.id !== 'qsearch') return;
+  if (!e.target.classList?.contains('qsearch')) return;
   e.preventDefault();
-  const q = $('#qs').value.trim();
+  const inp = e.target.querySelector('input');
+  const q = inp.value.trim();
   if (!q) return;
   const r = await act('users', { query: q, sort: 'seen' });
   if (!r) return;
   const low = q.replace(/^@/, '').toLowerCase();
   const hit = r.list.find((u) => String(u.id) === low || (u.username || '').toLowerCase() === low) || (r.list.length === 1 ? r.list[0] : null);
-  $('#qs').value = '';
-  $('#qs').blur();
+  inp.value = '';
+  inp.blur();
   if (hit) go('user', { userId: hit.id, userTab: 'cars' });
   else go('users', { query: q, sort: 'seen' });
 });
@@ -395,8 +456,8 @@ VIEWS.users = async () => {
   return `<div class="head"><h1>Гравці <span class="muted" style="font-size:16px">${total}</span></h1></div>
     <div class="panel">
       <form class="row" id="userSearch" style="margin-bottom:12px">
-        <input class="grow" id="q" placeholder="ID, @username або ім’я" value="${esc(state.query)}">
-        <select id="sort">${[['value', 'За вартістю'], ['balance', 'За гривнями'], ['seen', 'Нещодавно в грі'], ['new', 'Нові'], ['level', 'За рівнем'], ['play', 'За часом у грі']].map(([k, t]) => `<option value="${k}" ${state.sort === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
+        <input class="grow m-full" id="q" type="search" enterkeyhint="search" placeholder="ID, @username або ім’я" value="${esc(state.query)}">
+        <select id="sort" class="m-grow">${[['value', 'За вартістю'], ['balance', 'За гривнями'], ['seen', 'Нещодавно в грі'], ['new', 'Нові'], ['level', 'За рівнем'], ['play', 'За часом у грі']].map(([k, t]) => `<option value="${k}" ${state.sort === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
         <button class="btn">Знайти</button>
       </form>
       ${list.length ? `<div class="tbl-wrap"><table>
@@ -439,6 +500,7 @@ VIEWS.user = async () => {
       <div class="hero-num"><span>Зірки (оплати)</span><b>⭐ ${starsPaid}</b></div>
       <div class="hero-num"><span>Був у грі</span><b>${ago(u.lastSeen)}</b></div>
     </div>
+    ${quickActs(u)}
     <details class="panel" ${state.userInfo ? 'open' : ''} data-remember="userInfo"><summary>Профіль і статистика</summary><div class="kv">
       <div><span>Telegram ID</span><b>${u.id}</b></div>
       <div><span>Username</span><b>${u.username ? '@' + esc(u.username) : '—'}</b></div>
@@ -471,7 +533,7 @@ VIEWS.user = async () => {
       ${USER_TABS[state.userTab]()}
     </div>
     <details class="panel" ${state.userAct ? 'open' : ''} data-remember="userAct"><summary>${ic('gauge')} Активність</summary>${activityHtml(cur.activity)}</details>
-    <div class="panel"><h2>${ic('adjustments')} Керування</h2>
+    <div class="panel" id="controls"><h2>${ic('adjustments')} Керування</h2>
       <div class="small muted" style="margin-bottom:10px">Кожна зміна просить причину й підтвердження та записується в журнал дій.</div>${controls(u)}</div>`;
 };
 document.addEventListener('toggle', (e) => {
@@ -543,9 +605,9 @@ H.userTab = (d) => {
 const ROLE_NAMES = { owner: 'Власник', admin: 'Адмін', helper: 'Хелпер' };
 // Rights block: the owner gives Admin or Helper; an admin can give and take Helper.
 function roleBlock(u) {
-  if (u.role === 'owner') return `<div class="act"><h3>${ic('shield-check')} Права</h3><div class="small muted">Власник гри (ADMIN_IDS на сервері) — змінюється тільки там.</div></div>`;
+  if (u.role === 'owner') return `<div class="act" id="act-role"><h3>${ic('shield-check')} Права</h3><div class="small muted">Власник гри (ADMIN_IDS на сервері) — змінюється тільки там.</div></div>`;
   const opts = [['', 'Гравець'], ['helper', 'Хелпер — гравці, підтримка, повідомлення'], ...(state.role === 'owner' ? [['admin', 'Адмін — усе, крім видачі адмінки']] : [])];
-  return `<div class="act"><h3>${ic('shield-check')} Права в адмін-панелі</h3>
+  return `<div class="act" id="act-role"><h3>${ic('shield-check')} Права в адмін-панелі</h3>
     <div class="small muted">Зараз: <b>${ROLE_NAMES[u.role] || 'гравець'}</b>. Адмін-панель з’явиться в меню гри.</div>
     <select id="roleSel">${opts.map(([v, t]) => `<option value="${v}" ${(u.role || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
     <button class="btn sm" data-act="setRole">${ic('check')} Зберегти</button></div>`;
@@ -557,60 +619,82 @@ H.setRole = () => {
 function controls(u) {
   const models = [...S.ALL_MODELS].sort((a, b) => S.CLASS_ORDER.indexOf(a.cls) - S.CLASS_ORDER.indexOf(b.cls) || a.price - b.price);
   // A helper only writes messages to players.
-  if (state.role === 'helper') return `<div class="actions"><div class="act"><h3>${ic('bell')} Повідомлення</h3>
+  if (state.role === 'helper') return `<div class="actions"><div class="act" id="act-msg"><h3>${ic('bell')} Повідомлення</h3>
       <textarea id="msgText" placeholder="Текст прийде в сповіщення гри та в бот"></textarea>
       <button class="btn ghost sm" data-act="message">Надіслати</button></div></div>`;
   return `<div class="actions">
     ${roleBlock(u)}
-    <div class="act"><h3>🐞 Знайдені баги <span class="muted small">нагороджено: ${cur.bugs?.count || 0}${cur.bugs?.badge ? ` · ${esc(cur.bugs.badge)}` : ''}</span></h3>
+    <div class="act" id="act-bug"><h3>🐞 Знайдені баги <span class="muted small">нагороджено: ${cur.bugs?.count || 0}${cur.bugs?.badge ? ` · ${esc(cur.bugs.badge)}` : ''}</span></h3>
       ${bugChooser({ esc, user: { id: u.id, name: u.name } })}</div>
-    <div class="act"><h3>${ic('cash')} Гривні</h3>
+    <div class="act" id="act-money"><h3>${ic('cash')} Гривні</h3>
       <input id="mAmount" inputmode="decimal" placeholder="Сума: 100000, 250k, 1.5m">
       <input id="mNote" placeholder="Повідомлення гравцю (необов’язково)">
       <div class="row"><button class="btn green sm grow" data-act="money" data-sign="1">${ic('plus')} Нарахувати</button><button class="btn red sm grow" data-act="money" data-sign="-1">${ic('minus')} Списати</button></div></div>
-    ${state.role === 'owner' ? `<div class="act"><h3>${ic('crown')} Пропуск і VIP <span class="muted small">лише власник</span></h3>
+    ${state.role === 'owner' ? `<div class="act" id="act-vip"><h3>${ic('crown')} Пропуск і VIP <span class="muted small">лише власник</span></h3>
       <div class="small muted">Пропуск: ${u.premiumSeason === S.seasonOf(Date.now()) ? '<b class="win">є в цьому сезоні</b>' : 'немає'} · VIP: ${u.vipUntil > Date.now() ? `до ${date(u.vipUntil)}` : 'немає'}</div>
       <div class="row"><button class="btn sm grow" data-act="grantPass" ${u.premiumSeason === S.seasonOf(Date.now()) ? 'disabled' : ''}>${ic('gift')} Преміум-пропуск</button></div>
       <div class="row"><input id="vipDays" class="grow" inputmode="numeric" value="7" placeholder="Днів"><button class="btn sm" data-act="grantVip">${ic('crown')} VIP на N днів</button></div></div>` : ''}
-    <div class="act"><h3>${ic('car')} Видати машину</h3>
+    <div class="act" id="act-car"><h3>${ic('car')} Видати машину</h3>
       <select id="gModel">${S.CLASS_ORDER.map((c) => `<optgroup label="Клас ${c} · ${S.CLASSES[c].name}">${models.filter((m) => m.cls === c).map((m) => `<option value="${m.id}">${esc(m.name)} — ${short(m.price)}${m.secret ? ' (секретна)' : ''}</option>`).join('')}</optgroup>`).join('')}</select>
-      <label class="row small muted"><input type="checkbox" id="gNotify" checked style="width:auto"> Повідомити гравця</label>
+      <label class="row small muted check-l"><input type="checkbox" id="gNotify" checked style="width:auto"> Повідомити гравця</label>
       <button class="btn sm" data-act="giveCar">${ic('gift')} Видати</button></div>
-    <div class="act"><h3>${ic('tool')} Деталі</h3>
+    <div class="act" id="act-parts"><h3>${ic('tool')} Деталі</h3>
       <div class="row"><select id="pType" class="grow">${S.PART_KEYS.map((k) => `<option value="${k}">${esc(S.PARTS[k].name)}</option>`).join('')}</select>
         <select id="pTier" class="grow">${S.TIERS.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div>
-      <div class="row"><input id="pCount" class="grow" inputmode="numeric" value="1"><button class="btn green sm" data-act="part" data-sign="1">${ic('plus')}</button><button class="btn red sm" data-act="part" data-sign="-1">${ic('minus')}</button></div></div>
-    <div class="act"><h3>${ic('key')} Ключі від кейсів</h3>
+      <div class="row"><input id="pCount" class="grow" inputmode="numeric" value="1"><button class="btn green sm sq" data-act="part" data-sign="1" aria-label="Видати">${ic('plus')}</button><button class="btn red sm sq" data-act="part" data-sign="-1" aria-label="Забрати">${ic('minus')}</button></div></div>
+    <div class="act" id="act-keys"><h3>${ic('key')} Ключі від кейсів</h3>
       <select id="kCase">${S.CASES.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
-      <div class="row"><input id="kCount" class="grow" inputmode="numeric" value="1"><button class="btn green sm" data-act="keys" data-sign="1">${ic('plus')}</button><button class="btn red sm" data-act="keys" data-sign="-1">${ic('minus')}</button></div></div>
-    <div class="act"><h3>${ic('license')} Видати номер</h3>
+      <div class="row"><input id="kCount" class="grow" inputmode="numeric" value="1"><button class="btn green sm sq" data-act="keys" data-sign="1" aria-label="Видати">${ic('plus')}</button><button class="btn red sm sq" data-act="keys" data-sign="-1" aria-label="Забрати">${ic('minus')}</button></div></div>
+    <div class="act" id="act-plate"><h3>${ic('license')} Видати номер</h3>
       <input id="plText" placeholder="AA 1234 BC" autocomplete="off" style="text-transform:uppercase">
       <div class="check" id="plCheck"><span class="muted">Можна писати кирилицею і без пробілів</span></div>
       <div class="row"><input id="plValue" class="grow" inputmode="numeric" placeholder="Вартість (авто за класом)">
         <select id="plCar" class="grow"><option value="">на склад</option>${cur.cars.filter((c) => !c.plate).map((c) => `<option value="${c.id}">на ${esc(model(c.model).name)} #${c.id}</option>`).join('')}</select></div>
       <input id="plNote" maxlength="300" placeholder="Повідомлення гравцю (необов’язково)">
       <button class="btn sm" data-act="givePlate" id="plBtn" disabled>${ic('gift')} Видати номер</button></div>
-    <div class="act"><h3>${ic('gauge')} Параметри</h3>
+    <div class="act" id="act-set"><h3>${ic('gauge')} Параметри</h3>
       ${[['level', 'Рівень', u.level], ['slots', 'Місць у гаражі', u.slots], ['showcase_slots', 'Місць на вітрині', u.showcaseSlots], ['cap_level', `Рівень сховища (0–${S.CAP_LEVELS.length - 1})`, u.capLevel]]
         .map(([f, t, v]) => `<div class="row"><span class="grow small">${t}</span><input id="set-${f}" value="${v}" inputmode="numeric" style="width:80px"><button class="btn ghost sm" data-act="set" data-f="${f}">OK</button></div>`).join('')}</div>
-    <div class="act"><h3>${ic('bell')} Повідомлення</h3>
+    <div class="act" id="act-msg"><h3>${ic('bell')} Повідомлення</h3>
       <textarea id="msgText" placeholder="Текст прийде в сповіщення гри та в бот"></textarea>
       <button class="btn ghost sm" data-act="message">Надіслати</button></div>
-    <div class="act"><h3>${ic('refresh')} Обнулити прогрес</h3>
+    <div class="act" id="act-reset"><h3>${ic('refresh')} Обнулити прогрес</h3>
       <div class="small muted">Зникнуть усі машини, номери, деталі, гривні, рівень і колекція — як новий гравець. Лишаються акаунт, хто запросив, оплати й бан.</div>
       <button class="btn red sm" data-act="resetUser">${ic('refresh')} Обнулити гравця</button></div>
-    <div class="act"><h3>${ic('trophy')} Рейтинг</h3>
+    <div class="act" id="act-lb"><h3>${ic('trophy')} Рейтинг</h3>
       ${u.lbHidden ? `<div class="small">Гравець прихований з усіх рейтингів (тиждень, увесь час, сезон, «Статок») і не отримує призів тижня. Гараж і гроші — без змін.</div>
         <button class="btn green sm" data-act="lbHide" data-v="0">Показати в рейтингу</button>`
         : `<div class="small muted">Сховати з усіх рейтингів і призів тижня. Гравець далі грає як звичайно; повернути можна будь-коли.</div>
         <button class="btn ghost sm" data-act="lbHide" data-v="1">Приховати з рейтингу</button>`}</div>
-    <div class="act"><h3>${ic('lock')} Блокування</h3>
+    <div class="act" id="act-ban"><h3>${ic('lock')} Блокування</h3>
       ${u.banned ? `<div class="small">Гравець заблокований${u.banReason ? `: ${esc(u.banReason)}` : ''}. Не може грати, його лоти знято з ринку.</div>
         <button class="btn green sm" data-act="ban" data-v="0">Розблокувати</button>`
         : `<div class="small muted">Гравець не зможе грати, його лоти знімуться з ринку.</div>
         <button class="btn red sm" data-act="ban" data-v="1">Заблокувати</button>`}</div>
   </div>`;
 }
+// Phone: big buttons right under the numbers, each jumps to its block in «Керування» (with the cursor in the field where
+// typing is the point) instead of scrolling past the garage and the tabs. admin.css shows it on a narrow screen only.
+function quickActs(u) {
+  const list = state.role === 'helper' ? [['msg', 'bell', 'Повідомлення']] : [
+    ['money', 'cash', 'Гривні'], ['keys', 'key', 'Ключі'], ['car', 'car', 'Машина'], ['msg', 'bell', 'Повідомлення'],
+    ['plate', 'license', 'Номер'], ['parts', 'tool', 'Деталі'], ...(state.role === 'owner' ? [['vip', 'crown', 'VIP, пропуск']] : []), ['set', 'gauge', 'Параметри'],
+    ['bug', 'bug', 'За баг'], ['lb', 'trophy', u.lbHidden ? 'У рейтинг' : 'З рейтингу'], ['role', 'shield-check', 'Права'],
+    ['ban', 'lock', u.banned ? 'Розбан' : 'Бан', u.banned ? 'ok' : 'red'], ['reset', 'refresh', 'Обнулити', 'red']];
+  return `<div class="quick m-only" role="group" aria-label="Керування гравцем">${list.map(([k, i, t, c = '']) => `<button class="${c}" data-act="jump" data-to="act-${k}">${ic(i)}<span>${t}</span></button>`).join('')}</div>`;
+}
+const JUMP_FOCUS = { 'act-money': '#mAmount', 'act-msg': '#msgText', 'act-plate': '#plText' };
+H.jump = (d) => {
+  const el = document.getElementById(d.to);
+  if (!el) return;
+  const pick = el.querySelector('.bb-pick[hidden]');
+  if (pick) pick.hidden = false;
+  if (JUMP_FOCUS[d.to]) $(JUMP_FOCUS[d.to], el)?.focus({ preventScroll: true });
+  el.scrollIntoView({ block: 'start', behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  el.classList.remove('flash');
+  void el.offsetWidth;
+  el.classList.add('flash');
+};
 const uid = () => state.userId;
 // "1 000 000", "1_000_000", "1.5m", "250k" → number.
 function num(sel) {
@@ -690,7 +774,7 @@ H.removeCar = (d) => {
 };
 
 const STATUS = { garage: ['гараж', ''], showcase: ['вітрина', 'amber'], market: ['на ринку', 'green'], auction: ['на аукціоні', 'green'] };
-const friendsTable = (list) => `<div class="tbl-wrap"><table><tr><th>Гравець</th><th class="num">Рівень</th><th class="num">Гараж</th><th>Прийшов</th><th>Був у грі</th><th>3-й рівень</th></tr>
+const friendsTable = (list) => `<div class="tbl-wrap"><table class="stack"><tr><th>Гравець</th><th class="num">Рівень</th><th class="num">Гараж</th><th>Прийшов</th><th>Був у грі</th><th>3-й рівень</th></tr>
   ${list.map((f) => `<tr class="click" data-user="${f.id}"><td><b>${esc(f.name)}</b> <span class="muted small">${f.id}</span></td><td class="num">${f.level}</td><td class="num">${short(f.value)}</td>
     <td class="small nowrap">${date(f.createdAt)}</td><td class="small">${ago(f.lastSeen)}</td><td>${f.paid ? '<span class="badge green">так · нагороду виплачено</span>' : '<span class="muted small">ще ні</span>'}</td></tr>`).join('')}</table></div>`;
 const USER_TABS = {
@@ -709,7 +793,7 @@ const USER_TABS = {
       ${c.auction ? `<div class="meta">аукціон: ${c.auction.top_bid ? `ставка ${money(c.auction.top_bid)}` : `старт ${money(c.auction.start_price)}`}</div>` : ''}
       <button class="btn red sm" data-act="removeCar" data-id="${c.id}">${ic('trash')} Вилучити</button></div>`;
   }).join('')}</div>` : '<div class="empty">Машин немає</div>'),
-  plates: () => (cur.plates.length ? `<table><tr><th>Номер</th><th>Клас</th><th class="num">Вартість</th><th>На машині</th><th></th></tr>${cur.plates.map((p) => {
+  plates: () => (cur.plates.length ? `<table class="stack"><tr><th>Номер</th><th>Клас</th><th class="num">Вартість</th><th>На машині</th><th></th></tr>${cur.plates.map((p) => {
     const car = p.carId && cur.cars.find((c) => c.id === p.carId);
     return `<tr><td>${plate(p.text)}</td><td>${cls(p.cls)}</td><td class="num">${money(p.value)}</td><td>${car ? esc(model(car.model).name) : '<span class="muted">на складі</span>'}</td>
       <td><button class="btn red sm" data-act="removePlate" data-id="${p.id}">${ic('trash')} Забрати</button></td></tr>`;
@@ -731,15 +815,15 @@ function contestPanel(c) {
     : `<input id="ctDays" type="number" min="1" max="60" value="${c.rules.days}" style="width:70px"> днів <button class="btn sm" data-act="contestStart">${k ? 'Почати новий' : 'Почати конкурс'}</button>`;
   const prize = (p) => (!p ? '' : p.stars ? `⭐ ${p.stars}` : esc(p.extra));
   const yes = (v) => (v ? '<span class="badge green">так</span>' : '<span class="muted small">ні</span>');
-  const friends = (list) => `<div class="tbl-wrap"><table><tr><th>Друг</th><th class="num">Рівень</th><th>Прийшов</th><th>Був у грі</th><th>Зараховано</th><th>Повернувся наступного дня</th></tr>
+  const friends = (list) => `<div class="tbl-wrap"><table class="stack"><tr><th>Друг</th><th class="num">Рівень</th><th>Прийшов</th><th>Був у грі</th><th>Зараховано</th><th>Повернувся наступного дня</th></tr>
     ${list.map((f) => `<tr class="${f.banned ? 'warn' : ''}"><td>${userLink(f)}${f.banned ? ' <span class="badge red">бан</span>' : ''}</td><td class="num">${f.level}</td><td class="small nowrap">${date(f.createdAt)}</td><td class="small">${ago(f.lastSeen)}</td><td>${yes(f.counted)}</td><td>${yes(f.returned)}</td></tr>`).join('')}</table></div>`;
-  const rows = c.rows.length ? `<div class="tbl-wrap"><table><tr><th class="num">Місце</th><th>Гравець</th><th class="num">Зараховано</th><th class="num">З них повернулись</th><th class="num">Прийшло всього</th><th>Приз</th><th></th></tr>
-    ${c.rows.map((t, i) => `<tr class="click" data-act="ctOpen" data-i="${i}"><td class="num"><b>${t.place || '—'}</b></td><td><b>${esc(t.name)}</b> <span class="muted small">${t.id}</span></td>
+  const rows = c.rows.length ? `<div class="tbl-wrap"><table class="stack"><tr><th class="num hide-s">Місце</th><th>Гравець</th><th class="num">Зараховано</th><th class="num">З них повернулись</th><th class="num">Прийшло всього</th><th>Приз</th><th></th></tr>
+    ${c.rows.map((t, i) => `<tr class="click" data-act="ctOpen" data-i="${i}"><td class="num hide-s"><b>${t.place || '—'}</b></td><td class="ttl"><b class="show-s">${t.place ? `#${t.place} · ` : ''}</b><b>${esc(t.name)}</b> <span class="muted small">${t.id}</span></td>
       <td class="num"><b>${t.counted}</b></td><td class="num">${t.old ? `${t.returned} з ${t.old}` : '<span class="muted small">рано</span>'}${t.suspect ? ' <span class="badge red" title="Мало хто з друзів, зареєстрованих понад добу тому, повернувся — перевір на накрутку">?</span>' : ''}</td><td class="num">${t.invited}</td><td>${prize(t.prize)}</td><td><a data-user="${t.id}">картка ›</a></td></tr>
       <tr class="reffriends" id="ct-${i}" hidden><td colspan="7">${friends(t.friends)}</td></tr>`).join('')}</table></div>` : '<div class="empty">Ще ніхто нікого не привів</div>';
   return `<div class="panel"><h2>${ic('trophy')} Конкурс «Битва амбасадорів» <span class="sub">${head}</span></h2>
     <div class="row" style="gap:8px;margin-bottom:10px">${ctl}</div>
-    <div class="small muted" style="margin-bottom:10px">Рахуються друзі, які прийшли за посиланням гравця під час конкурсу й дійшли до ${c.rules.minLevel} рівня (бан і приховані з рейтингу — не рахуються). «Повернулись» — з друзів, що прийшли понад добу тому, скільки заходили в інший день, ніж реєструвались; червоний «?» — менше третини: можлива накрутка. Призи (${c.rules.prizes.map((p) => '⭐' + p).join(' / ')}, 4–${c.rules.extraUpTo} місця — ${esc(c.rules.extra)}) видаєш вручну після кінця.</div>
+    <details class="small muted rules" style="margin-bottom:10px" ${narrow() ? '' : 'open'}><summary>Як рахуємо</summary>Рахуються друзі, які прийшли за посиланням гравця під час конкурсу й дійшли до ${c.rules.minLevel} рівня (бан і приховані з рейтингу — не рахуються). «Повернулись» — з друзів, що прийшли понад добу тому, скільки заходили в інший день, ніж реєструвались; червоний «?» — менше третини: можлива накрутка. Призи (${c.rules.prizes.map((p) => '⭐' + p).join(' / ')}, 4–${c.rules.extraUpTo} місця — ${esc(c.rules.extra)}) видаєш вручну після кінця.</details>
     ${k ? `<div class="small" style="margin-bottom:8px">Учасників: <b>${c.totals.inviters}</b> · прийшло друзів: <b>${c.totals.invited}</b> · зараховано: <b>${c.totals.counted}</b></div>${rows}` : ''}</div>`;
 }
 H.ctOpen = (d, el, e) => {
@@ -769,13 +853,13 @@ VIEWS.referrals = async () => {
       ${stat('Хто запрошує', r.top.length, 'гравців з друзями')}
     </div>
     <div class="panel"><h2>Хто кого привів <span class="sub">натисни на рядок, щоб побачити друзів</span></h2>
-      ${r.top.length ? `<div class="tbl-wrap"><table><tr><th>Гравець</th><th class="num">Запросив</th><th class="num">Дійшли до 3 рів.</th><th class="num">Заробив</th><th>Останній друг</th><th></th></tr>
+      ${r.top.length ? `<div class="tbl-wrap"><table class="stack"><tr><th>Гравець</th><th class="num">Запросив</th><th class="num">Дійшли до 3 рів.</th><th class="num">Заробив</th><th>Останній друг</th><th></th></tr>
         ${r.top.map((t, i) => `<tr class="click" data-act="refOpen" data-i="${i}"><td><b>${esc(t.name)}</b> <span class="muted small">${t.id}</span></td><td class="num">${t.invited}</td><td class="num">${t.qualified}</td>
           <td class="num">${short(t.earned)}</td><td class="small">${ago(t.last)}</td><td><a data-user="${t.id}">картка ›</a></td></tr>
           <tr class="reffriends" id="ref-${i}" hidden><td colspan="6">${friendsTable(t.friends)}</td></tr>`).join('')}
       </table></div>` : '<div class="empty">Поки ніхто нікого не запросив</div>'}</div>
     <div class="panel"><h2>Останні, хто прийшов за посиланням <span class="sub">${r.recent.length}</span></h2>
-      ${r.recent.length ? `<div class="tbl-wrap"><table><tr><th>Гравець</th><th>Хто запросив</th><th class="num">Рівень</th><th>Коли прийшов</th><th>Був у грі</th><th>3-й рівень</th></tr>
+      ${r.recent.length ? `<div class="tbl-wrap"><table class="stack"><tr><th>Гравець</th><th>Хто запросив</th><th class="num">Рівень</th><th>Коли прийшов</th><th>Був у грі</th><th>3-й рівень</th></tr>
         ${r.recent.map((f) => `<tr><td>${userLink(f)}</td><td>${userLink(f.referrer)}</td><td class="num">${f.level}</td><td class="small nowrap">${date(f.createdAt)}</td>
           <td class="small">${ago(f.lastSeen)}</td><td>${f.paid ? '<span class="badge green">так</span>' : '<span class="muted small">ще ні</span>'}</td></tr>`).join('')}
       </table></div>` : '<div class="empty">Ще ніхто не приходив за запрошенням</div>'}</div>`;
@@ -804,11 +888,11 @@ VIEWS.search = async () => {
     </div>
     ${q.length >= 2 ? `${verdict}
     <div class="panel"><h2>${ic('license')} Номери <span class="sub">${r.plates.length}${r.plates.length >= 200 ? '+' : ''}</span></h2>
-      ${r.plates.length ? `<div class="tbl-wrap"><table><tr><th>Номер</th><th>Клас</th><th class="num">Вартість</th><th>Власник</th><th>На машині</th></tr>
+      ${r.plates.length ? `<div class="tbl-wrap"><table class="stack"><tr><th>Номер</th><th>Клас</th><th class="num">Вартість</th><th>Власник</th><th>На машині</th></tr>
         ${r.plates.map((p) => `<tr><td>${plate(p.text)}</td><td>${cls(p.cls)}</td><td class="num">${money(p.value)}</td><td>${userLink(p.owner)}</td><td>${p.carModel ? esc(model(p.carModel).name) : '<span class="muted">на складі</span>'}</td></tr>`).join('')}
       </table></div>` : '<div class="empty">Таких номерів ні в кого немає</div>'}</div>
     <div class="panel"><h2>${ic('car')} Машини <span class="sub">${r.cars.length}${r.cars.length >= 300 ? '+' : ''}</span></h2>
-      ${r.cars.length ? `<div class="tbl-wrap"><table><tr><th>Авто</th><th>Власник</th><th>Де</th><th>Тюнінг</th><th>Номер</th><th class="num">Вартість</th></tr>
+      ${r.cars.length ? `<div class="tbl-wrap"><table class="stack"><tr><th>Авто</th><th>Власник</th><th>Де</th><th>Тюнінг</th><th>Номер</th><th class="num">Вартість</th></tr>
         ${r.cars.map((c) => `<tr><td>${cls(model(c.model).cls)} <b>${esc(model(c.model).name)}</b> <span class="muted small">#${c.id}</span></td><td>${userLink(c.owner)}</td>
           <td><span class="badge ${(STATUS[c.status] || [])[1] || ''}">${(STATUS[c.status] || [c.status])[0]}</span></td><td class="small">${S.PART_KEYS.filter((k) => c.parts[k]).length}/8</td>
           <td>${c.plate ? plate(c.plate.text) : '—'}</td><td class="num">${money(c.value)}</td></tr>`).join('')}
@@ -837,13 +921,13 @@ VIEWS.market = async () => {
   const carCell = (c) => `${cls(model(c.model).cls)} <b>${esc(model(c.model).name)}</b><div class="muted small">#${c.id} · ${c.hp} к.с. · оцінка ${short(c.value)}</div>`;
   return `<div class="head"><h1>Ринок</h1><button class="btn ghost sm" data-act="dealerRefresh">${ic('building-store')} Нові лоти дилера</button><button class="btn ghost sm" data-act="reload">${ic('refresh')} Оновити</button></div>
     <div class="panel"><h2>Лоти на ринку <span class="sub">${listings.length}</span></h2>
-      ${listings.length ? `<div class="tbl-wrap"><table><tr><th>Авто</th><th>Продавець</th><th class="num">Ціна</th><th class="num">Ціна / оцінка</th><th>Виставлено</th><th></th></tr>
+      ${listings.length ? `<div class="tbl-wrap"><table class="stack"><tr><th>Авто</th><th>Продавець</th><th class="num">Ціна</th><th class="num">Ціна / оцінка</th><th>Виставлено</th><th></th></tr>
         ${listings.map((l) => `<tr><td>${carCell(l.car)}</td><td>${userLink(l.seller)}</td><td class="num">${money(l.price)}</td>
           <td class="num ${l.price < l.car.value * 0.5 || l.price > l.car.value * 3 ? 'bad' : ''}">${Math.round((l.price / l.car.value) * 100)}%</td><td class="small">${ago(l.at)}</td>
           <td><button class="btn red sm" data-act="unlist" data-kind="listing" data-id="${l.id}" data-name="${esc(model(l.car.model).name)}">Зняти</button></td></tr>`).join('')}</table></div>` : '<div class="empty">Лотів немає</div>'}
     </div>
     <div class="panel"><h2>Аукціони <span class="sub">${auctions.length}</span></h2>
-      ${auctions.length ? `<div class="tbl-wrap"><table><tr><th>Авто</th><th>Продавець</th><th class="num">Старт</th><th class="num">Ставка</th><th>Лідер</th><th>Кінець</th><th></th></tr>
+      ${auctions.length ? `<div class="tbl-wrap"><table class="stack"><tr><th>Авто</th><th>Продавець</th><th class="num">Старт</th><th class="num">Ставка</th><th>Лідер</th><th>Кінець</th><th></th></tr>
         ${auctions.map((a) => `<tr><td>${carCell(a.car)}</td><td>${userLink(a.seller)}</td><td class="num">${money(a.startPrice)}</td><td class="num">${a.topBid ? `${money(a.topBid)} <span class="muted small">(${a.bids})</span>` : '—'}</td>
           <td>${a.leader ? userLink(a.leader) : '—'}</td><td class="small">${date(a.endsAt)}</td>
           <td><button class="btn red sm" data-act="unlist" data-kind="auction" data-id="${a.id}" data-name="${esc(model(a.car.model).name)}">Зняти</button></td></tr>`).join('')}</table></div>` : '<div class="empty">Аукціонів немає</div>'}
@@ -867,19 +951,19 @@ VIEWS.containers = async () => {
   return `<div class="head"><h1>Причал (контейнери)</h1><button class="btn ${c.on ? 'red' : 'green'} sm" data-act="ctToggle" data-on="${c.on ? 0 : 1}">${c.on ? 'Вимкнути' : 'Увімкнути'}</button><button class="btn ghost sm" data-act="reload">${ic('refresh')} Оновити</button></div>
     <div class="panel"><h2>Режим <span class="sub">${c.on ? 'увімкнено' : 'вимкнено'}</span></h2>
       <p class="small muted">Три контейнери завжди на причалі (Порт Одеса, Митниця, Японія). Вимкнення: нові лоти й ставки зупиняються, лоти без ставок гравців знімаються, живі торги доходять до кінця. Віддача «виграв і продав» має бути ≈ 80% (тест 75–85%).</p>
-      <table><tr><th></th><th class="num">Лотів</th><th class="num">Виграли гравці</th><th class="num">Сплачено</th><th class="num">Віддача</th></tr>
+      <table class="stack s4"><tr><th></th><th class="num">Лотів</th><th class="num">Виграли гравці</th><th class="num">Сплачено</th><th class="num">Віддача</th></tr>
         ${w.byTier.map((t) => `<tr><td>${esc(TIER_NAMES[t.tier] || t.tier)}</td><td class="num">${t.done}</td><td class="num">${t.human}</td><td class="num">${short(t.paid)}</td><td class="num">${pctR(t.ret)}</td></tr>`).join('')}
         <tr><td><b>За 7 днів</b></td><td class="num"><b>${w.done}</b></td><td class="num"><b>${w.human}</b> <span class="muted small">(боти ${w.bots})</span></td><td class="num"><b>${short(w.paid)}</b></td><td class="num"><b>${pctR(w.ret)}</b></td></tr></table>
       <div class="small muted">Спалено гравцями: ${money(w.paid)} · продаж виграних машин: ${money(w.sale)} · видано тиражних: ${w.editions}</div>
       ${w.expert ? `<div class="small muted">Огляд експерта: ${w.expert.n} за 7 днів, спалено ${money(w.expert.spent)}${c.evening ? ` · вечірній аукціон о 20:00 — нагадування увімкнули ${c.evening.subs}` : ''}</div>` : ''}</div>
     <div class="panel"><h2>Зараз на причалі <span class="sub">${c.open.length}</span></h2>
-      ${c.open.length ? `<div class="tbl-wrap"><table><tr><th>Лот</th><th>Підказки</th><th class="num">Ставка</th><th>Лідер</th><th>Кінець</th><th></th></tr>
+      ${c.open.length ? `<div class="tbl-wrap"><table class="stack"><tr><th>Лот</th><th>Підказки</th><th class="num">Ставка</th><th>Лідер</th><th>Кінець</th><th></th></tr>
         ${c.open.map((l) => `<tr><td><b>#${l.id}</b> ${esc(TIER_NAMES[l.tier] || l.tier)}<div class="muted small">${l.status === 'live' ? 'торги' : l.status === 'soon' ? 'старт о 20:00' : 'чекає ставки'} · ставок ${l.bids} (людей ${l.humans})</div></td>
           <td class="small">${esc(hintsText(l.hints))}<div class="muted">оцінка ${short(l.est.lo)}–${short(l.est.hi)} · EV продажу ${short(l.est.ev)}</div></td>
           <td class="num">${money(l.topBid)}</td><td>${l.human ? `<a data-user="${l.human}">${esc(l.leader)}</a>` : esc(l.leader)}</td><td class="small">${date(l.endsAt)}</td>
           <td><button class="btn red sm" data-act="ctClose" data-id="${l.id}">Закрити й замінити</button></td></tr>`).join('')}</table></div>` : '<div class="empty">Лотів немає</div>'}</div>
     <div class="panel"><h2>Завершені <span class="sub">останні ${c.recent.length}</span></h2>
-      ${c.recent.length ? `<div class="tbl-wrap"><table><tr><th>Лот</th><th>Вміст</th><th class="num">Ціна</th><th>Переможець</th><th class="num">Продаж / ціна</th><th>Межі ботів</th></tr>
+      ${c.recent.length ? `<div class="tbl-wrap"><table class="stack"><tr><th>Лот</th><th>Вміст</th><th class="num">Ціна</th><th>Переможець</th><th class="num">Продаж / ціна</th><th>Межі ботів</th></tr>
         ${c.recent.map((l) => `<tr><td>#${l.id} ${esc(TIER_NAMES[l.tier] || l.tier)}<div class="muted small">${l.status === 'cancelled' ? 'закрито' : date(l.at)}</div></td>
           <td>${cls(model(l.model).cls)} ${esc(model(l.model).name)}${l.ed ? ` <span class="badge">тираж${l.serial ? ' №' + l.serial : ''}</span>` : ''}${l.junk ? ' <span class="muted small">після повені</span>' : ''}</td>
           <td class="num">${money(l.price)}</td><td>${l.human ? `<a data-user="${l.human}">${esc(l.winner)}</a>` : esc(l.winner)}</td><td class="num">${short(l.sale)} · ${pctR(l.sale / l.price)}</td>
@@ -895,8 +979,8 @@ VIEWS.promos = async () => {
   const { list } = await api('promos');
   return `<div class="head"><h1>Промокоди</h1></div>
     <div class="panel"><h2>Новий промокод</h2>
-      <form class="row" id="promoForm">
-        <input id="pcCode" placeholder="КОД" style="text-transform:uppercase;width:160px">
+      <form class="row pform" id="promoForm">
+        <input id="pcCode" placeholder="КОД" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;width:160px">
         <input id="pcAmount" inputmode="numeric" placeholder="Сума ₴" style="width:140px">
         <input id="pcUses" inputmode="numeric" placeholder="Скільки разів" style="width:140px">
         <input id="pcDays" inputmode="numeric" placeholder="Днів (необов’язково)" style="width:170px">
@@ -904,12 +988,12 @@ VIEWS.promos = async () => {
       </form>
       <div class="small muted" style="margin-top:8px">Кожен гравець може використати код один раз. Той самий код замінює старий.</div></div>
     <div class="panel"><h2>Усі коди <span class="sub">${list.length}</span></h2>
-      ${list.length ? `<table><tr><th>Код</th><th class="num">Сума</th><th class="num">Використано</th><th class="num">Залишилось</th><th>Діє до</th><th></th></tr>
+      ${list.length ? `<div class="tbl-wrap"><table class="stack"><tr><th>Код</th><th class="num">Сума</th><th class="num">Використано</th><th class="num">Залишилось</th><th>Діє до</th><th></th></tr>
         ${list.map((p) => {
           const dead = p.usesLeft <= 0 || (p.expiresAt && p.expiresAt < Date.now());
           return `<tr><td><b>${esc(p.code)}</b> ${dead ? '<span class="badge">неактивний</span>' : '<span class="badge green">діє</span>'}</td><td class="num">${money(p.amount)}</td><td class="num">${p.used}</td><td class="num">${p.usesLeft}</td>
-            <td class="small">${p.expiresAt ? date(p.expiresAt) : 'безстроково'}</td><td><button class="btn red sm" data-act="delPromo" data-code="${esc(p.code)}">${ic('trash')}</button></td></tr>`;
-        }).join('')}</table>` : '<div class="empty">Промокодів ще немає</div>'}</div>`;
+            <td class="small">${p.expiresAt ? date(p.expiresAt) : 'безстроково'}</td><td><button class="btn red sm" data-act="delPromo" data-code="${esc(p.code)}" aria-label="Видалити ${esc(p.code)}">${ic('trash')}<span class="show-s">Видалити</span></button></td></tr>`;
+        }).join('')}</table></div>` : '<div class="empty">Промокодів ще немає</div>'}</div>`;
 };
 AFTER.promos = () => $('#promoForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -924,22 +1008,21 @@ H.delPromo = (d) => mutate('promo/delete', { code: d.code }, { title: 'Вида�
 VIEWS.payments = async () => {
   const { list, total } = await api('payments', { offset: state.offset });
   return `<div class="head"><h1>Платежі</h1><span class="badge amber">⭐ ${total.stars} усього · ${total.n} платежів</span></div>
-    <div class="panel">${list.length ? `<div class="tbl-wrap"><table><tr><th>Коли</th><th>Гравець</th><th>Пакет</th><th class="num">Зірки</th><th class="num">Гривні</th><th>ID платежу</th></tr>
-      ${list.map((p) => `<tr><td class="small nowrap">${date(p.at)}</td><td>${userLink({ id: p.userId, name: p.name })}</td><td>${esc(p.pack)}</td><td class="num">⭐ ${p.stars}</td><td class="num">${money(p.amount)}</td><td class="small muted">${esc(p.chargeId)}</td></tr>`).join('')}
+    <div class="panel">${list.length ? `<div class="tbl-wrap"><table class="stack"><tr><th>Коли</th><th>Гравець</th><th>Пакет</th><th class="num">Зірки</th><th class="num">Гривні</th><th>ID платежу</th></tr>
+      ${list.map((p) => `<tr><td class="small nowrap half">${date(p.at)}</td><td class="ttl">${userLink({ id: p.userId, name: p.name })}</td><td>${esc(p.pack)}</td><td class="num">⭐ ${p.stars}</td><td class="num">${money(p.amount)}</td><td class="small muted cid">${esc(p.chargeId)}</td></tr>`).join('')}
     </table></div>${pager(state.offset, 100, list.length, total.n)}` : '<div class="empty">Платежів ще не було</div>'}</div>`;
 };
 
 // ---------- support: players' messages from the game; the answer pops up in their game ----------
 VIEWS.support = async () => {
   const { list, open } = await api('support', { open: state.supOpen });
-  const n = $('#supN');
-  if (n) (n.textContent = open), (n.hidden = !open);
+  setSup(open);
   return `<div class="head"><h1>Підтримка</h1><span class="badge ${open ? 'red' : 'green'}">${open ? `${open} без відповіді` : 'усім відповіли'}</span>
-      <label class="row small muted" style="margin-left:auto"><input type="checkbox" id="supOpen" ${state.supOpen ? 'checked' : ''} style="width:auto"> лише без відповіді</label></div>
+      <label class="row small muted check-l" style="margin-left:auto"><input type="checkbox" id="supOpen" ${state.supOpen ? 'checked' : ''} style="width:auto"> лише без відповіді</label></div>
     ${list.length ? list.map((m) => `<div class="panel" id="sup${m.id}"><div class="row between"><div>${m.user ? userLink(m.user) : '—'} <span class="muted small">рів. ${m.user?.level ?? '?'} · ${date(m.at)}</span></div><span class="muted small">#${m.id}</span></div>
       <div style="white-space:pre-wrap;margin:8px 0">${esc(m.text)}</div>
       ${m.answer ? `<div class="small"><b>Відповідь</b> <span class="muted">(${esc(m.by || '')}, ${date(m.answeredAt)})</span><div style="white-space:pre-wrap">${esc(m.answer)}</div></div>`
-        : `<textarea id="supA${m.id}" placeholder="Відповідь — гравець побачить її у грі й у боті"></textarea><button class="btn sm" data-act="supReply" data-id="${m.id}">Відповісти</button>`}
+        : `<textarea id="supA${m.id}" placeholder="Відповідь — гравець побачить її у грі й у боті"></textarea><button class="btn sm m-block mt" data-act="supReply" data-id="${m.id}">Відповісти</button>`}
       ${m.user && (state.role !== 'helper' || m.bug) ? bugChooser({ esc, user: m.user, ticket: m.id, done: m.bug }) : ''}</div>`).join('')
       : '<div class="panel"><div class="empty">Звернень немає</div></div>'}`;
 };
@@ -950,6 +1033,11 @@ H.supReply = (d) => {
   doAndReload('support/reply', { id: Number(d.id), text }, 'Відповідь надіслано');
 };
 
+// Unanswered messages: the badge on «Підтримка» and the same number on the phone's menu button.
+function setSup(n) {
+  for (const el of [$('#supN'), $('#supN2')]) if (el) (el.textContent = n), (el.hidden = !n);
+}
+
 // ---------- admin log ----------
 const WHO = { key: 'ключ ADMIN_KEY', local: 'локально (DEV)', bot: 'бот (/give, /promo)', system: 'система (оновлення гри)' };
 const dayStart = (v) => (v ? new Date(v + 'T00:00:00').getTime() : null);
@@ -958,8 +1046,11 @@ VIEWS.log = async () => {
   const r = await api('log', { offset: state.offset, admin: f.admin || null, action: f.action || null, target: f.target || null, text: f.text || null,
     from: dayStart(f.from), to: f.to ? dayStart(f.to) + 86400e3 : null });
   const opt = (v, t, cur) => `<option value="${esc(v)}" ${cur === v ? 'selected' : ''}>${esc(t)}</option>`;
+  // the six filters fill a phone's whole first screen: there they fold into «Фільтри» unless one is set
+  const nf = Object.values(f).filter(Boolean).length;
   return `<div class="head"><h1>Журнал дій <span class="muted" style="font-size:16px">${r.total}</span></h1></div>
-    <form class="panel filters" id="logForm">
+    <details class="panel lf" ${nf || (state.logOpen ?? !narrow()) ? 'open' : ''} data-remember="logOpen"><summary>Фільтри${nf ? ` <span class="badge amber">${nf}</span>` : ''}</summary>
+    <form class="filters" id="logForm">
       <label>Хто<select id="lfAdmin">${opt('', 'усі', f.admin || '')}${r.admins.map((a) => opt(a.id, `${WHO[a.id] || a.name} · ${a.n}`, f.admin)).join('')}</select></label>
       <label>Дія<select id="lfAction">${opt('', 'усі', f.action || '')}${r.actions.map((a) => opt(a, ACTIONS[a] || a, f.action)).join('')}</select></label>
       <label>Гравець<input id="lfTarget" placeholder="ID або @username" value="${esc(f.target || '')}"></label>
@@ -967,7 +1058,7 @@ VIEWS.log = async () => {
       <label>Від<input id="lfFrom" type="date" value="${esc(f.from || '')}"></label>
       <label>До<input id="lfTo" type="date" value="${esc(f.to || '')}"></label>
       <div class="row end"><button type="button" class="btn ghost sm" data-act="logReset">Скинути</button><button class="btn sm">Показати</button></div>
-    </form>
+    </form></details>
     <div class="panel">${r.list.length ? `<div class="tbl-wrap"><table class="log"><tr><th>Коли</th><th>Хто</th><th>Дія</th><th>Гравець</th><th>Деталі</th></tr>
       ${r.list.map((l) => `<tr class="${DANGER.has(l.action) ? 'warn' : ''}"><td class="small nowrap">${date(l.at)}</td><td class="small">${esc(WHO[l.admin] || l.adminName)}${l.admin.startsWith('tg:') ? ` <span class="muted">${esc(l.admin.slice(3))}</span>` : ''}</td><td class="nowrap">${esc(ACTIONS[l.action] || l.action)}</td>
         <td>${l.target ? userLink({ id: l.target, name: l.targetName }) : '—'}</td><td>${details(l.action, l.details)}</td></tr>`).join('')}
@@ -1065,12 +1156,8 @@ async function start() {
     // A helper doesn't see sections they have no rights for (the server refuses them anyway).
     for (const b of document.querySelectorAll('#nav [data-admin-only]')) b.hidden = w.role === 'helper';
     document.body.classList.toggle('helper', w.role === 'helper'); // admin.css hides the buttons a helper may not use
-    $('#qsearch').hidden = false;
-    api('support', { open: true }).then((s) => {
-      const n = $('#supN');
-      n.textContent = s.open;
-      n.hidden = !s.open;
-    }).catch(() => {});
+    document.querySelectorAll('.qsearch').forEach((f) => (f.hidden = false));
+    api('support', { open: true }).then((s) => setSup(s.open)).catch(() => {});
     fetch('/api/config').then((r) => r.json()).then((c) => {
       setImages(c.images || {});
       if (state.view === 'user') render();

@@ -22,7 +22,7 @@ export function bugChooser({ esc, user, ticket = null, done = null }) {
         <b>${esc(v.name)}</b><span>${esc(bugRewardText(v.money, v.keys))}</span></button>`).join('')}</div>
       <div class="bb-custom row">
         <input class="grow" id="bbAmt-${k}" inputmode="decimal" placeholder="Своя сума: 500k, 2m">
-        <select id="bbCase-${k}">${S.CASES.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
+        <select id="bbCase-${k}" class="m-grow">${S.CASES.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
         <input id="bbCnt-${k}" inputmode="numeric" placeholder="ключів" style="width:72px">
         <button class="btn ghost sm" data-act="bugPreset" data-p="${B.BUG_CUSTOM}" ${data}>Видати</button>
       </div>
@@ -38,7 +38,7 @@ export async function bugsPage({ api, esc, date, userLink, offset = 0 }) {
   const v = await api('bugs', { offset });
   const t = v.total;
   const top = v.top.length ? v.top.map((r) => `${r.user ? userLink(r.user) : '—'} <b>${r.n}</b>`).join(' · ') : '—';
-  const rows = v.list.map((r) => `<tr><td class="small nowrap">${date(r.at)}</td><td>${r.user ? userLink(r.user) : '—'}<div class="small muted">знахідок: ${r.count}</div></td>
+  const rows = v.list.map((r) => `<tr><td class="small nowrap half">${date(r.at)}</td><td class="ttl">${r.user ? userLink(r.user) : '—'}<div class="small muted">знахідок: ${r.count}</div></td>
     <td><span class="badge ${r.preset === 'serious' ? 'red' : r.preset === 'useful' ? 'amber' : ''}">${esc(presetName(r.preset))}</span><div class="small muted">${esc(bugRewardText(r.money, r.keys))}</div></td>
     <td class="small">${r.note ? esc(r.note) : ''}${r.ticket ? `<div><a data-act="bugTicket" data-id="${r.ticket.id}">звернення #${r.ticket.id}</a> <span class="muted">${esc(r.ticket.text)}</span></div>` : '<div class="muted">з картки гравця</div>'}</td>
     <td class="small muted hide-m">${esc(r.admin)}</td></tr>`).join('');
@@ -46,7 +46,7 @@ export async function bugsPage({ api, esc, date, userLink, offset = 0 }) {
     <div class="panel"><h2>Підсумок <span class="sub">нагород ${t.n} · гравців ${t.players} · виплачено ${esc(S.short(t.money))}</span></h2>
       <p class="small muted">Нагороджувати — у «Підтримці» (кнопка під зверненням) або в картці гравця → Керування. Значок «Тестувальник» дається за 1 знахідку, «Головний тестувальник» — за 5.</p>
       <div class="small">Топ тестувальників: ${top}</div></div>
-    <div class="panel">${rows ? `<div class="tbl-wrap"><table><tr><th>Коли</th><th>Гравець</th><th>Нагорода</th><th>Що знайшов</th><th class="hide-m">Хто видав</th></tr>${rows}</table></div>`
+    <div class="panel">${rows ? `<div class="tbl-wrap"><table class="stack"><tr><th>Коли</th><th>Гравець</th><th>Нагорода</th><th>Що знайшов</th><th class="hide-m">Хто видав</th></tr>${rows}</table></div>`
       : '<div class="empty">Ще нікого не нагороджено</div>'}</div>`;
 }
 
