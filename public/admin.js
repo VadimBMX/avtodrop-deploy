@@ -484,10 +484,10 @@ AFTER.users = () => {
 let cur = null;
 VIEWS.user = async () => {
   cur = await api('user', { id: state.userId });
-  const { user: u, income, cars, plates, parts, keys, payments, events, drops, log } = cur;
+  const { user: u, income, cars, plates, parts, keys, payments, events, drops, log, carLog = [] } = cur;
   const tabs = [['cars', 'Машини', cars.length], ['friends', 'Запрошені', u.invited.length], ['plates', 'Номери', plates.length], ['parts', 'Деталі', parts.reduce((s, p) => s + p.count, 0)],
     ['keys', 'Ключі', keys.reduce((s, k) => s + k.count, 0)], ['drops', 'Дропи', drops.length], ['payments', 'Платежі', payments.length],
-    ['events', 'Сповіщення', events.length], ['log', 'Дії адмінів', log.length]];
+    ['carlog', 'Історія машин', carLog.length], ['events', 'Сповіщення', events.length], ['log', 'Дії адмінів', log.length]];
   const starsPaid = payments.reduce((s, p) => s + p.stars, 0);
   return `<div class="crumb"><a data-go="users">‹ Усі гравці</a></div>
     <div class="head"><h1>${esc(u.name)}</h1>${u.role ? `<span class="badge amber">${ic('shield-check')} ${ROLE_NAMES[u.role]}</span>` : ''}${u.lbHidden ? `<span class="badge">${ic('trophy')} прихований з рейтингу</span>` : ''}${u.banned ? `<span class="badge red">${ic('lock')} заблокований${u.banReason ? `: ${esc(u.banReason)}` : ''}</span>` : ''}
@@ -777,7 +777,23 @@ const STATUS = { garage: ['гараж', ''], showcase: ['вітрина', 'amber
 const friendsTable = (list) => `<div class="tbl-wrap"><table class="stack"><tr><th>Гравець</th><th class="num">Рівень</th><th class="num">Гараж</th><th>Прийшов</th><th>Був у грі</th><th>3-й рівень</th></tr>
   ${list.map((f) => `<tr class="click" data-user="${f.id}"><td><b>${esc(f.name)}</b> <span class="muted small">${f.id}</span></td><td class="num">${f.level}</td><td class="num">${short(f.value)}</td>
     <td class="small nowrap">${date(f.createdAt)}</td><td class="small">${ago(f.lastSeen)}</td><td>${f.paid ? '<span class="badge green">так · нагороду виплачено</span>' : '<span class="muted small">ще ні</span>'}</td></tr>`).join('')}</table></div>`;
+// «Історія машин» (car_log): every car that left / entered the garage or changed status, with the action behind it.
+const CAR_REASON = { sell: 'продав дилеру', 'buyer/sell': 'продав «Таємному покупцю»', upgrade: 'апгрейд (машини згоріли)', 'dealer/tradein': 'трейд-ін (машини віддано дилеру)', 'casino/upgrade': 'апгрейд у казино',
+  'market/sell': 'виставив на ринок', 'market/buy': 'купівля на ринку', 'market/cancel': 'зняв з ринку', 'auction/create': 'виставив на аукціон', 'auction/bid': 'ставка на аукціоні', 'auction/cancel': 'скасував аукціон',
+  'trade/accept': 'обмін прийнято', 'trade/create': 'обмін', showcase: 'вітрина', 'room/ready': 'кімната обміну', prestige: 'престиж', 'containers/open': 'контейнер', 'battle/join': 'кейс-батл', system: 'система (таймер: кінець аукціону/лоту тощо)' };
+const STATUS_NAME = { garage: 'гараж', showcase: 'вітрина', market: 'ринок', auction: 'аукціон' };
+function carLogTable(list, uid) {
+  if (!list.length) return '<div class="empty">Записів ще немає — історія ведеться з 29.10</div>';
+  const why = (r) => esc(CAR_REASON[r.reason] || r.reason || '—');
+  const what = (r) => r.kind === 'gone' ? '<span class="badge red">зникла з гри</span>'
+    : r.kind === 'moved' ? (r.fromUid === uid ? `<span class="badge amber">пішла до</span> ${r.toName ? userLink({ id: r.toUid, name: r.toName }) : r.toUid}` : `<span class="badge green">прийшла від</span> ${r.fromName ? userLink({ id: r.fromUid, name: r.fromName }) : r.fromUid}`)
+    : `${esc(STATUS_NAME[r.statusFrom] || r.statusFrom)} → <b>${esc(STATUS_NAME[r.statusTo] || r.statusTo)}</b>`;
+  return `<div class="tbl-wrap"><table class="stack"><tr><th>Коли</th><th>Машина</th><th>Що сталось</th><th>Чому</th></tr>${list.map((r) => `<tr>
+    <td class="small nowrap" data-label="Коли">${date(r.at)}</td><td data-label="Машина">${esc(model(r.model)?.name || r.model)} <span class="muted small">#${r.carId}</span></td>
+    <td data-label="Що сталось">${what(r)}</td><td class="small" data-label="Чому">${why(r)}</td></tr>`).join('')}</table></div>`;
+}
 const USER_TABS = {
+  carlog: () => carLogTable(cur.carLog || [], cur.user.id),
   friends: () => (cur.user.invited.length ? friendsTable(cur.user.invited) : '<div class="empty">Цей гравець ще нікого не запросив</div>'),
   cars: () => (cur.cars.length ? `<div class="garage">${cur.cars.map((c) => {
     const m = model(c.model);

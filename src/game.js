@@ -4288,6 +4288,9 @@ export function createGame(db, opts = {}) {
       events: q('SELECT text, created_at at FROM events WHERE user_id = ? ORDER BY id DESC LIMIT 40').all(uid),
       drops: q('SELECT case_id caseId, item, cls, forced, created_at at FROM drops WHERE user_id = ? ORDER BY id DESC LIMIT 30').all(uid),
       log: q('SELECT id, admin, action, details, created_at at FROM admin_log WHERE target = ? ORDER BY id DESC LIMIT 50').all(uid),
+      // Car history (car_log): what left or entered this garage, and why.
+      carLog: q('SELECT car_id carId, model, from_uid fromUid, to_uid toUid, status_from statusFrom, status_to statusTo, kind, reason, actor, at FROM car_log WHERE from_uid = ? OR to_uid = ? ORDER BY id DESC LIMIT 150').all(uid, uid)
+        .map((r) => ({ ...r, fromName: r.fromUid && r.fromUid !== uid ? name(r.fromUid) : null, toName: r.toUid && r.toUid !== uid ? name(r.toUid) : null })),
     };
   }
   // Everything a player has done, summed up from the game's own records (for the admin player card).
@@ -5064,10 +5067,12 @@ export function createGame(db, opts = {}) {
       if (b.confirm !== true) fail('Дію не підтверджено');
     }
     actx.reason = reason;
+    q('UPDATE car_ctx SET reason = ?, actor = NULL, at = ? WHERE id = 1').run(`admin:${name} (${who})`, now());
     try {
       return admin[name](who, b);
     } finally {
       actx.reason = null;
+      q("UPDATE car_ctx SET reason = 'system', actor = NULL, at = NULL WHERE id = 1").run();
     }
   }
 
@@ -5424,7 +5429,9 @@ export function createGame(db, opts = {}) {
     gate(uid, k, body); // progressive unlock and the casino switch (GATES)
     // Presence for "online" (trade hall, live PvP): written at most every 15 s so plain reads don't hit the disk.
     if (q('UPDATE users SET last_seen = ? WHERE id = ? AND (last_seen IS NULL OR last_seen < ?)').run(now(), uid, now() - 15e3).changes) markDay(uid);
+    q('UPDATE car_ctx SET reason = ?, actor = ?, at = ? WHERE id = 1').run(k, uid, now()); // car_log: why a car moved
     const r = fn(uid, body || {});
+    q("UPDATE car_ctx SET reason = 'system', actor = NULL, at = NULL WHERE id = 1").run();
     // Weekly tasks counted per finished call (kept out of the handlers themselves).
     if (WEEKLY_AFTER[k] && !r?.training) track(uid, WEEKLY_AFTER[k]);
     if (!light) recalc(uid);

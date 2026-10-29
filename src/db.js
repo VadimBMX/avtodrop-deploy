@@ -536,6 +536,31 @@ export function openDb(file) {
     }
     if (backfill) db.exec(backfill);
   }
+  // Car history (owner 29.10: «пропала машина — подивись логи»): every car that leaves a garage, changes hands or goes
+  // to the market / an auction / the showcase is written to car_log by triggers — whatever code path does it. The
+  // reason comes from car_ctx (one row): game.js puts the API call or admin action there before running it.
+  db.exec(`CREATE TABLE IF NOT EXISTS car_ctx (id INTEGER PRIMARY KEY CHECK (id = 1), reason TEXT, actor INTEGER, at INTEGER);
+    INSERT OR IGNORE INTO car_ctx (id, reason, actor, at) VALUES (1, 'system', NULL, NULL);
+    CREATE TABLE IF NOT EXISTS car_log (id INTEGER PRIMARY KEY AUTOINCREMENT, car_id INTEGER NOT NULL, model TEXT NOT NULL,
+      from_uid INTEGER, to_uid INTEGER, status_from TEXT, status_to TEXT, kind TEXT NOT NULL, reason TEXT, actor INTEGER, at INTEGER NOT NULL);
+    CREATE INDEX IF NOT EXISTS car_log_from ON car_log(from_uid, id);
+    CREATE INDEX IF NOT EXISTS car_log_to ON car_log(to_uid, id);
+    CREATE INDEX IF NOT EXISTS car_log_car ON car_log(car_id, id);
+    CREATE TRIGGER IF NOT EXISTS car_log_del AFTER DELETE ON cars BEGIN
+      INSERT INTO car_log (car_id, model, from_uid, to_uid, status_from, status_to, kind, reason, actor, at)
+      SELECT OLD.id, OLD.model, OLD.owner_id, NULL, OLD.status, NULL, 'gone', c.reason, c.actor,
+        COALESCE(c.at, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)) FROM car_ctx c WHERE c.id = 1;
+    END;
+    CREATE TRIGGER IF NOT EXISTS car_log_owner AFTER UPDATE OF owner_id ON cars WHEN OLD.owner_id IS NOT NEW.owner_id BEGIN
+      INSERT INTO car_log (car_id, model, from_uid, to_uid, status_from, status_to, kind, reason, actor, at)
+      SELECT NEW.id, NEW.model, OLD.owner_id, NEW.owner_id, OLD.status, NEW.status, 'moved', c.reason, c.actor,
+        COALESCE(c.at, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)) FROM car_ctx c WHERE c.id = 1;
+    END;
+    CREATE TRIGGER IF NOT EXISTS car_log_status AFTER UPDATE OF status ON cars WHEN OLD.status IS NOT NEW.status AND OLD.owner_id IS NEW.owner_id BEGIN
+      INSERT INTO car_log (car_id, model, from_uid, to_uid, status_from, status_to, kind, reason, actor, at)
+      SELECT NEW.id, NEW.model, NEW.owner_id, NEW.owner_id, OLD.status, NEW.status, 'status', c.reason, c.actor,
+        COALESCE(c.at, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)) FROM car_ctx c WHERE c.id = 1;
+    END;`);
   const cache = new Map();
   db.q = (sql) => {
     let st = cache.get(sql);
