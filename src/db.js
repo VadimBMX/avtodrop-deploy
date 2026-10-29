@@ -383,6 +383,32 @@ CREATE INDEX IF NOT EXISTS users_seen ON users(last_seen);
 -- Desktop admin dashboard (src/admin-pc.js): which UTC hours (ms / 1 h) each player made a call in, for «активні за
 -- годину» today and yesterday; kept for three days.
 CREATE TABLE IF NOT EXISTS user_hours (hour INTEGER NOT NULL, user_id INTEGER NOT NULL, PRIMARY KEY (hour, user_id)) WITHOUT ROWID;
+-- Admin «Логи» (src/logs.js, src/serverlog.js, public/admin-logs.js). server_log: warnings and errors of the server
+-- process (redacted before they are written; 14 days, at most ~20k rows, pruned by the sweeper). sessions: a player's
+-- visits — started on the first API call after a gap over 30 min, last_at moved at most once a minute (30 days).
+CREATE TABLE IF NOT EXISTS server_log (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, level TEXT NOT NULL, msg TEXT NOT NULL, stack TEXT);
+CREATE INDEX IF NOT EXISTS server_log_ts ON server_log(ts);
+CREATE INDEX IF NOT EXISTS server_log_level ON server_log(level, ts);
+CREATE TABLE IF NOT EXISTS sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, started_at INTEGER NOT NULL, last_at INTEGER NOT NULL, source TEXT);
+CREATE INDEX IF NOT EXISTS sessions_time ON sessions(started_at);
+CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id, started_at);
+-- «Стрічка подій» reads every source newest first over a time window: each needs an index on its time column
+-- (drops_time, users_created, payments_time exist above; car_log_at and promo_uses_at come after their tables / columns).
+CREATE INDEX IF NOT EXISTS trades_upd ON trades(updated_at);
+CREATE INDEX IF NOT EXISTS trade_rooms_upd ON trade_rooms(updated_at);
+CREATE INDEX IF NOT EXISTS listings_time ON listings(created_at);
+CREATE INDEX IF NOT EXISTS item_listings_time ON item_listings(created_at);
+CREATE INDEX IF NOT EXISTS item_sales_time ON item_sales(created_at);
+CREATE INDEX IF NOT EXISTS auctions_time ON auctions(created_at);
+CREATE INDEX IF NOT EXISTS gifts_time ON gifts(created_at);
+CREATE INDEX IF NOT EXISTS support_time ON support(created_at);
+CREATE INDEX IF NOT EXISTS races_time ON races(created_at);
+CREATE INDEX IF NOT EXISTS pvp_fin ON pvp(finished_at);
+CREATE INDEX IF NOT EXISTS battles_fin ON battles(finished_at);
+CREATE INDEX IF NOT EXISTS container_bids_at ON container_bids(at);
+CREATE INDEX IF NOT EXISTS container_lots_settled ON container_lots(settled_at);
+CREATE INDEX IF NOT EXISTS invite_log_at ON invite_log(at);
+CREATE INDEX IF NOT EXISTS admin_log_time ON admin_log(created_at);
 `;
 // Columns added after the first release; ALTER fails harmlessly when they already exist.
 const MIGRATIONS = [
@@ -519,6 +545,9 @@ const MIGRATIONS = [
   // last opening (the S.PART_COOLDOWN_MS pause is counted from it).
   "ALTER TABLE users ADD COLUMN parts_autosell TEXT NOT NULL DEFAULT ''",
   'ALTER TABLE users ADD COLUMN parts_open_at INTEGER NOT NULL DEFAULT 0',
+  // Admin «Логи»: when a promo code was used and what it gave (NULL on uses from before — they stay out of the feed).
+  'ALTER TABLE promo_uses ADD COLUMN at INTEGER',
+  'ALTER TABLE promo_uses ADD COLUMN amount INTEGER',
 ];
 
 export function openDb(file) {
@@ -549,6 +578,8 @@ export function openDb(file) {
     CREATE INDEX IF NOT EXISTS car_log_from ON car_log(from_uid, id);
     CREATE INDEX IF NOT EXISTS car_log_to ON car_log(to_uid, id);
     CREATE INDEX IF NOT EXISTS car_log_car ON car_log(car_id, id);
+    CREATE INDEX IF NOT EXISTS car_log_at ON car_log(at);
+    CREATE INDEX IF NOT EXISTS promo_uses_at ON promo_uses(at);
     CREATE TRIGGER IF NOT EXISTS car_log_del AFTER DELETE ON cars BEGIN
       INSERT INTO car_log (car_id, model, from_uid, to_uid, status_from, status_to, kind, reason, actor, at)
       SELECT OLD.id, OLD.model, OLD.owner_id, NULL, OLD.status, NULL, 'gone', c.reason, c.actor,

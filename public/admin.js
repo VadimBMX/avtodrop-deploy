@@ -8,6 +8,7 @@ import { channelPage, channelActions } from './admin-channel.js';
 import { eventsPage, eventsActions, eventsAfter } from './admin-events.js';
 import { clubsPage, clubsActions } from './admin-clubs.js';
 import { bugsPage, bugsActions, bugChooser, bugCardLine, bugRewardText } from './admin-bugs.js';
+import { logsPage, logsAfter, logsActions, logsFromHash } from './admin-logs.js';
 import { hideChartTip, liveSkeleton, livePanels, liveCharts, playerMoney, playerSuspicious, economyPage, economyCharts, dbPage, dbFilterRow, readFilters, setupInstall } from './admin-pc.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -195,6 +196,7 @@ function detailsMain(a, d) {
     case 'market-remove': return d.kind === 'listing' ? 'ринок' : 'аукціон';
     case 'plan-add': case 'plan-edit': case 'plan-delete': return `${esc(d.title || S.EVENTS[d.kind]?.name || d.kind)} · ${esc(S.kyivLocal(d.start).replace('T', ' '))} – ${esc(S.kyivLocal(d.end).replace('T', ' '))}`;
     case 'plan-seed': return `додано ${d.added}, пропущено ${d.skipped}`;
+    case 'logs-export': return `${esc(d.window)}${d.player ? ` · гравець ${esc(d.player)}` : ''}${d.types?.length ? ` · ${esc(d.types.join(', '))}` : ''}${d.q ? ` · «${esc(d.q)}»` : ''} · ${d.rows} подій${d.truncated ? ' (обрізано)' : ''}`;
     case 'db-browse': case 'db-export': return `<code>${esc(d.table)}</code>${d.filters?.length ? ` · ${d.filters.map((f) => esc(`${f.col} ${f.op} ${f.value}`)).join(', ')}` : ''}${d.sort ? ` · сорт. ${esc(d.sort)}` : ''}${d.rows != null ? ` · ${d.rows} рядків${d.truncated ? ' (обрізано)' : ''}` : ''}`;
     default: return esc(JSON.stringify(d));
   }
@@ -208,7 +210,7 @@ const state = { view: 'overview', userId: null, userTab: 'cars', query: '', sort
 const VIEWS = {};
 function go(view, extra = {}) {
   Object.assign(state, { view, offset: 0 }, extra);
-  const hash = view === 'user' ? `#user/${state.userId}` : `#${view}`;
+  const hash = view === 'user' ? `#user/${state.userId}` : view === 'logs' ? `#logs/${state.lg?.tab || 'feed'}` : `#${view}`;
   if (location.hash !== hash) history.pushState(null, '', hash);
   render();
 }
@@ -216,6 +218,7 @@ function fromHash() {
   const [v, id] = location.hash.slice(1).split('/');
   if (v === 'user' && id) Object.assign(state, { view: 'user', userId: Number(id) });
   else if (VIEWS[v]) state.view = v;
+  if (v === 'logs') logsFromHash(state, id);
 }
 window.addEventListener('popstate', () => (navOpen(false), fromHash(), render()));
 // ---------- phone (admin.css «phone»): the side bar is a drawer behind the top bar's menu button ----------
@@ -579,6 +582,13 @@ H.dbExport = async () => {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
   toast(`Експортовано ${r.n} рядків${r.truncated ? ` (обрізано до ${r.n})` : ''}`);
 };
+
+// ---------- «Логи»: event feed, sessions, server logs (public/admin-logs.js, src/logs.js, src/serverlog.js) ----------
+const logsCtx = { api, act, esc, ic, short, date, toast, state, $, render: () => render() };
+VIEWS.logs = () => logsPage(logsCtx);
+AFTER.logs = () => logsAfter(logsCtx);
+Object.assign(H, logsActions(logsCtx));
+Object.assign(ACTIONS, { 'logs-export': 'Логи: експорт CSV' });
 
 // ---------- «Заїзд дня»: the car schedule and today's board (public/admin-dayrace.js) ----------
 VIEWS.dayrace = () => dayRacePage({ api, esc, cls, userLink });

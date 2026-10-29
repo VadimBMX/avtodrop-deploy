@@ -5,6 +5,8 @@ import * as T from '../public/tune.js';
 import * as G from '../public/ghost.js';
 import * as M from './metrics.js';
 import { createAdminPc } from './admin-pc.js';
+import { createLogs } from './logs.js';
+import { createServerLog } from './serverlog.js';
 import { createDayRace } from './dayrace.js';
 import { createBuyer } from './buyer.js';
 import { createContainers } from './containers.js';
@@ -4081,7 +4083,7 @@ export function createGame(db, opts = {}) {
       fail('Промокод недійсний');
     }
     if (q('SELECT 1 FROM promo_uses WHERE code = ? AND user_id = ?').get(c, uid)) fail('Ти вже використав цей промокод');
-    q('INSERT INTO promo_uses (code, user_id) VALUES (?, ?)').run(c, uid);
+    q('INSERT INTO promo_uses (code, user_id, at, amount) VALUES (?, ?, ?, ?)').run(c, uid, now(), p.amount);
     q('UPDATE promos SET uses_left = uses_left - 1 WHERE code = ?').run(c);
     addMoney(uid, p.amount);
     return { got: p.amount };
@@ -5740,6 +5742,17 @@ export function createGame(db, opts = {}) {
   }
   HELPER_ACTIONS.add('pc/live');
   HELPER_ACTIONS.add('pc/player');
+  // Admin «Логи» (src/logs.js, public/admin-logs.js): the event feed, its CSV and the players' sessions are for helpers
+  // too; the server tab (logs/server: errors, stacks) for the owner and admins only. Read-only; an export is logged.
+  const SLOG = opts.serverLog || createServerLog({ db, now });
+  const LOGS = createLogs({ db, q, now, int, fail, name, adminName, kyivOffset, serverLog: SLOG, alog: (...a) => alog(...a) });
+  for (const [k, fn] of [['logs/feed', (w, b) => LOGS.feed(b)], ['logs/export', (w, b) => LOGS.feedCsv(w, b)], ['logs/sessions', (w, b) => LOGS.sessions(b)], ['logs/server', (w, b) => LOGS.server(b)]]) {
+    admin[k] = (who, body = {}) => db.tx(() => {
+      if (!canDo(actorRole(who), k)) fail('Немає прав на цю дію');
+      return fn(who, body || {});
+    });
+  }
+  for (const k of ['logs/feed', 'logs/export', 'logs/sessions']) HELPER_ACTIONS.add(k);
 
   // Once per database: the days players were in the game before user_days existed, from what they left behind
   // (case drops, races, Stars payments, the signup day) over the last 120 days (the tab shows at most 90 + 6), up to
@@ -5905,5 +5918,5 @@ export function createGame(db, opts = {}) {
     alog(by ? `bot:${by}` : 'bot', 'promo', null, { code: c, amount: Number(amount), uses: Number(uses), days: days || null });
     return c;
   });
-  return { api, admin, adminCall, adminPc: { snapshot: () => db.tx(() => PC.snapshot()) }, announceUpdates, deliverOutbox, tgGroups: { claim: (uid, w, member) => db.tx(() => TGG.claim(uid, w, member)), cfg: () => TGG.cfg() }, push, pushCandidates: push.candidates, pushMark: push.mark, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, vipSub: (uid) => db.tx(() => vipSub(uid)), vipSubSet: (uid, cancel) => db.tx(() => vipSubSet(uid, cancel)), createPromo: botPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)), challengeInfo, challengeCard, flushStartupNotes, backfillSecrets: (o) => backfillSecrets({ force: true, ...o }) };
+  return { api, admin, adminCall, adminPc: { snapshot: () => db.tx(() => PC.snapshot()) }, sessions: { hit: (uid, source) => LOGS.hit(uid, source) }, logs: { prune: (force) => LOGS.prune(force) }, serverLog: SLOG, announceUpdates, deliverOutbox, tgGroups: { claim: (uid, w, member) => db.tx(() => TGG.claim(uid, w, member)), cfg: () => TGG.cfg() }, push, pushCandidates: push.candidates, pushMark: push.mark, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, vipSub: (uid) => db.tx(() => vipSub(uid)), vipSubSet: (uid, cancel) => db.tx(() => vipSubSet(uid, cancel)), createPromo: botPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)), challengeInfo, challengeCard, flushStartupNotes, backfillSecrets: (o) => backfillSecrets({ force: true, ...o }) };
 }

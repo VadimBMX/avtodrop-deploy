@@ -14,6 +14,7 @@ import { PACKS, PACKS_ON_SALE, REF_REWARD, MODELS, shareCaption, short } from '.
 import { createShareStore, SHARE } from './src/share.js';
 import { createChannel, START_PARAM as CHANNEL_START } from './src/channel.js';
 import { createAutoPromo } from './src/autopromo.js';
+import { createServerLog } from './src/serverlog.js';
 import * as G from './public/ghost.js';
 import * as SRR from './public/showroom.js';
 
@@ -23,8 +24,12 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; cha
 const CSP = "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; form-action 'self'; img-src 'self' data: blob: https://t.me https://*.t.me https://telegram.org https://*.telegram.org; connect-src 'self'; frame-ancestors 'self' https://web.telegram.org https://*.telegram.org";
 const SECURITY = { 'x-content-type-options': 'nosniff', 'content-security-policy': CSP, 'referrer-policy': 'no-referrer' };
 
-export function createApp({ dbFile, token = '', dev = false, webappUrl = '', admins = [], adminKey = '', channelId = '', channelApi = null, log = console.error } = {}) {
+export function createApp({ dbFile, token = '', dev = false, webappUrl = '', admins = [], adminKey = '', channelId = '', channelApi = null, log = console.error, serverLog = null } = {}) {
   const db = openDb(dbFile);
+  // Admin «Логи» → «Сервер» (src/serverlog.js): every line logged here also goes to a ring buffer, warnings and errors
+  // to server_log — redacted first (bot token, ADMIN_KEY, initData, long hex).
+  const slog = serverLog || createServerLog({ db, secrets: [token, adminKey] });
+  log = slog.wrap(log);
   let bot = null, sender = null, reminders = null;
   // Instant events (trades, PvP, auctions, support) go first in the same rate-limited queue as the reminders;
   // admin broadcasts use the same queue at normal priority.
@@ -32,7 +37,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     if (!sender) return;
     for (const id of ids) sender.enqueue(id, text, { urgent: false });
   };
-  const game = createGame(db, { notify: (uid, text) => sender?.enqueue(uid, text, { urgent: true }), admins, broadcast, seedSchedule: true });
+  const game = createGame(db, { notify: (uid, text) => sender?.enqueue(uid, text, { urgent: true }), admins, broadcast, seedSchedule: true, serverLog: slog });
   if (token) {
     bot = createBot({ token, webappUrl, admins, game, log, inline: (query, from) => inlineAnswer(query, from), here: (t) => channel.setTarget(t), promoHere: (t) => autoPromo.setTarget(t) });
     sender = createSender({ send: bot.sendMessage, onBlocked: game.push.block, isBlocked: game.push.isBlocked, log });
@@ -108,13 +113,14 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     const init = req.headers['x-init-data'];
     if (init && token) {
       const c = authCache.get(init);
-      if (c && c.until > Date.now()) return c.uid;
+      if (c && c.until > Date.now()) return (req.startParam = c.sp), c.uid;
       const v = verifyInitData(String(init), token);
       if (!v) return null;
       game.ensureUser(v.user, v.startParam);
       if (authCache.size > 5000) authCache.clear();
       // Cached for 10 minutes, never past the moment the initData itself goes stale.
-      authCache.set(init, { uid: v.user.id, until: Math.min(Date.now() + 10 * 60e3, (v.authDate + 86400) * 1000) });
+      authCache.set(init, { uid: v.user.id, sp: v.startParam || null, until: Math.min(Date.now() + 10 * 60e3, (v.authDate + 86400) * 1000) });
+      req.startParam = v.startParam || null;
       return v.user.id;
     }
     // DEV sign-in by header: only without a bot token (a test copy), or from this computer itself. With BOT_TOKEN set
@@ -123,6 +129,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
       try {
         const u = JSON.parse(decodeURIComponent(String(req.headers['x-dev-user'])));
         game.ensureUser(u, u.start_param);
+        req.startParam = typeof u.start_param === 'string' ? u.start_param : null;
         return u.id;
       } catch {
         return null;
@@ -426,6 +433,13 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     if (!uid) return send(res, 401, { error: 'Відкрий гру через Telegram' });
     if (limited(uid) || (MONEY_API.test(name) && limited('money:' + uid, MONEY_MAX))) return send(res, 429, { error: 'Забагато запитів, зачекай секунду' });
     if (game.isBanned(uid)) return send(res, 403, { error: 'Акаунт заблоковано адміністрацією' });
+    // «Входи гравців»: a call after 30 min of silence starts a session (with the deep-link source of this app launch);
+    // otherwise only memory is touched, and last_at is written at most once a minute. Never fails the request.
+    try {
+      game.sessions.hit(uid, req.startParam);
+    } catch (e) {
+      log('session:', e.message);
+    }
     if (name === 'share/card' || name === 'share/prepare') return await handleShare(req, res, name, uid);
     if (name === 'challenge/prepare') return await handleChallengeShare(req, res, uid);
     if (name === 'showroom/prepare') return await handleShowroomShare(req, res, uid);
@@ -483,7 +497,12 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
   }
 
   async function serveStatic(req, res, pathname, v) {
-    let rel = decodeURIComponent(pathname);
+    let rel;
+    try {
+      rel = decodeURIComponent(pathname);
+    } catch {
+      return send(res, 400, 'Bad request', 'text/plain'); // a malformed %-escape from a scanner, not a server error
+    }
     if (rel === '/') rel = '/index.html';
     const file = path.normalize(path.join(PUBLIC, rel));
     if (!file.startsWith(PUBLIC + path.sep)) return send(res, 403, 'Forbidden', 'text/plain');
@@ -552,7 +571,8 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
       return await serveStatic(req, res, pathname, searchParams.get('v'));
     } catch (e) {
       if (e instanceof GameError) return send(res, 400, { error: e.message });
-      log('server error:', e);
+      // method and path only: never the body, headers or initData (and the line is redacted before it is stored)
+      log('server error:', req.method, pathname, e);
       if (!res.headersSent) send(res, 500, { error: 'Помилка сервера, спробуй ще раз' });
     }
   });
@@ -569,11 +589,17 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     } catch (e) {
       log('wealth snapshot:', e);
     }
+    // «Логи»: sessions older than 30 days, server_log past 14 days / 20k rows (once an hour).
+    try {
+      game.logs.prune();
+    } catch (e) {
+      log('logs prune:', e);
+    }
   }, 15e3);
   sweeper.unref();
 
   return {
-    server, game, db, bot, sender, reminders, statics, shares, channel,
+    server, game, db, bot, serverLog: slog, sender, reminders, statics, shares, channel,
     async start(port) {
       if (bot) {
         try {
@@ -625,6 +651,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     adminKey: process.env.ADMIN_KEY || '',
     channelId: process.env.TG_CHANNEL_ID || '', // @channel_name or -100…; the bot must be its admin (post messages)
   });
+  // Server logs for the admin (src/serverlog.js): console lines too, and crashes. uncaughtExceptionMonitor only
+  // watches — the process still dies as before (an unhandled rejection reaches it with origin 'unhandledRejection').
+  app.serverLog.captureConsole();
+  process.on('uncaughtExceptionMonitor', (err, origin) => app.serverLog.add([`${origin === 'unhandledRejection' ? 'unhandled rejection' : 'uncaught exception'}:`, err], 'error'));
   const port = await app.start(Number(process.env.PORT) || 3100);
   // Hash and compress the static files right away so the first player after a deploy doesn't wait for brotli.
   app.statics.warm().catch((e) => console.error('static warm-up:', e));
