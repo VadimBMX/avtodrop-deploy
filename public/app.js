@@ -1549,7 +1549,7 @@ TABS.cases = () => {
       <span class="picker-tx"><b>${esc(hc.name)}</b><span class="picker-sub">${fromStarter ? '<span class="tiny muted">Подарунок новачку · відкрито</span>' : `${oddsBar(deal.weights)}${dayCase ? `<span class="chip dayc">${ic('flame')} Кейс дня −${S.CASE_OF_DAY.off * 100}%</span>` : ''}${caseEvChip(deal)}`}</span></span>
       <span class="picker-chev">${ic('chevron-right')}</span></button>
       <button class="iconbtn" data-act="odds" aria-label="Що всередині">${ic('info-circle')}</button></div>
-    <div class="stage ${d?.length ? 'lit' : ''}" id="stage" style="${d?.length > 1 ? 'height:auto;min-height:230px;' : ''}${d?.length ? `--c:${S.CLASSES[M(d.reduce((a, r) => (S.rankOf(M(r.car.model).cls) > S.rankOf(M(a.car.model).cls) ? r : a)).car.model).cls].color}` : ''}">${stage}</div>
+    <div class="stage ${d?.length ? 'lit' : ''}" id="stage" data-bg="${hc.id}" style="${d?.length > 1 ? 'height:auto;min-height:230px;' : ''}${d?.length ? `--c:${S.CLASSES[M(d.reduce((a, r) => (S.rankOf(M(r.car.model).cls) > S.rankOf(M(a.car.model).cls) ? r : a)).car.model).cls].color}` : ''}">${stage}</div>
     ${cs.starter || onDrop ? '' : `<div class="seg">${[1, 3, 6].map((k) => `<button class="${k === n ? 'on' : ''}" data-act="pickCount" data-n="${k}">×${k}</button>`).join('')}</div>`}
     ${d ? '' : openBlock()}
     ${cs.starter ? '<div class="tiny muted center mt">Подарунок новачку</div>' : ''}
