@@ -1241,9 +1241,21 @@ AFTER.promos = () => $('#promoForm').addEventListener('submit', async (e) => {
 H.delPromo = (d) => mutate('promo/delete', { code: d.code }, { title: 'Видалити промокод', summary: `<b>${esc(d.code)}</b> перестане діяти`, danger: true, button: 'Видалити' }, 'Видалено');
 
 // ---------- payments ----------
+// Sends a test donation alert and shows who it went to — and which handle from the list isn't in the game.
+H.payAlertTest = async () => {
+  try {
+    const r = await api('payalert/test', {});
+    $('#payAlertRes').innerHTML = `<div class="panel small"><b>Тестове повідомлення надіслано:</b> ${r.found.map((u) => `${esc(u.name || '')}${u.username ? ` @${esc(u.username)}` : ''} (ID ${u.id})`).join(', ') || 'нікому'}
+      ${r.missing.length ? `<div class="muted mt">Не знайдено в грі: ${r.missing.map((x) => '@' + esc(x)).join(', ')} — людина має відкрити гру й натиснути /start у боті.</div>` : ''}
+      <div class="muted mt">Якщо хтось зі списку повідомлення не отримав — він не натиснув /start у приватному чаті з ботом або заблокував бота.</div></div>`;
+  } catch (e) {
+    toast(e.message, true);
+  }
+};
 VIEWS.payments = async () => {
   const { list, total } = await api('payments', { offset: state.offset });
-  return `<div class="head"><h1>Платежі</h1><span class="badge amber">⭐ ${total.stars} усього · ${total.n} платежів</span></div>
+  return `<div class="head"><h1>Платежі</h1><span class="badge amber">⭐ ${total.stars} усього · ${total.n} платежів</span>${state.role === 'owner' || state.role === 'admin' || !state.role ? `<button class="btn sm ghost" style="margin-left:auto" data-act="payAlertTest">${ic('bell')} Тест сповіщення про донат</button>` : ''}</div>
+    <div id="payAlertRes"></div>
     <div class="panel">${list.length ? `<div class="tbl-wrap"><table class="stack"><tr><th>Коли</th><th>Гравець</th><th>Пакет</th><th class="num">Зірки</th><th class="num">Гривні</th><th>ID платежу</th></tr>
       ${list.map((p) => `<tr><td class="small nowrap half">${date(p.at)}</td><td class="ttl">${userLink({ id: p.userId, name: p.name })}</td><td>${esc(p.pack)}</td><td class="num">⭐ ${p.stars}</td><td class="num">${money(p.amount)}</td><td class="small muted cid">${esc(p.chargeId)}</td></tr>`).join('')}
     </table></div>${pager(state.offset, 100, list.length, total.n)}` : '<div class="empty">Платежів ще не було</div>'}</div>`;

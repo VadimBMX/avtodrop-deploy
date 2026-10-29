@@ -27,3 +27,15 @@ test('pay alert: owner + @gavryl11uk hear about a donation, nobody else; repeats
   g.creditItem({ chargeId: 'c3', userId: 9, itemId: 'starter', stars: 39 }); // once-only → refund, no alert
   assert.equal(alerts().length, 4);
 });
+
+test('pay alert: the admin test button finds @gavry11uik and says which handles are not in the game', () => {
+  const sent = [];
+  const db = openDb(':memory:');
+  const g = createGame(db, { now: () => Date.parse('2026-10-29T12:00:00Z'), admins: [1], notify: (id, text) => sent.push([id, text]), allUnlocked: true });
+  g.ensureUser({ id: 1, first_name: 'Owner' });
+  g.ensureUser({ id: 5, first_name: 'Гаврилюк', username: 'gavry11uik' });
+  const r = g.admin['payalert/test']('key', {});
+  assert.deepEqual(r.found.map((u) => u.id).sort(), [1, 5]);
+  assert.ok(!r.missing.includes('gavry11uik') && r.missing.includes('gavryl11uk'));
+  assert.deepEqual(sent.filter(([, t]) => t.startsWith('🧪')).map(([id]) => id).sort(), [1, 5]);
+});

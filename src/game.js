@@ -3994,13 +3994,33 @@ export function createGame(db, opts = {}) {
   // charge, not the season-prize stars on the account) is told by the bot to the owners (ADMIN_IDS) and to the admin
   // PAY_ALERT_USERNAMES (by @username, once he has pressed /start in the bot) — nobody else.
   const PAY_ALERT_USERNAMES = ['gavry11uik', 'gavryl11uk', 'gavrylliuk']; // the admin's real handle is @gavry11uik (owner 29.10); the other spellings are kept just in case
-  function payAlert(uid, what, stars) {
-    const u = q('SELECT username, first_name FROM users WHERE id = ?').get(uid) || {};
+  // Who hears about a donation: the owner(s) by ID, the listed handles if they are in the game.
+  function payAlertIds() {
     const ids = new Set(opts.admins || []);
     for (const un of PAY_ALERT_USERNAMES) {
       const r = q('SELECT id FROM users WHERE lower(username) = lower(?)').get(un);
       if (r) ids.add(r.id);
     }
+    return ids;
+  }
+  // Admin «Платежі» → «Тест»: who the alert goes to (or which handle isn't found) and a test message to each.
+  function adminPayAlertTest(who) {
+    const found = [...payAlertIds()].map((id) => {
+      const u = q('SELECT username, first_name FROM users WHERE id = ?').get(id);
+      return { id, username: u?.username || null, name: u?.first_name || null, inGame: !!u };
+    });
+    const missing = PAY_ALERT_USERNAMES.filter((un) => !q('SELECT 1 FROM users WHERE lower(username) = lower(?)').get(un));
+    for (const r of found) {
+      try {
+        notify(r.id, '🧪 Тест: так виглядатимуть сповіщення про донати. Якщо ти це бачиш — усе працює.');
+      } catch {}
+    }
+    alog(who, 'payalert-test', null, { to: found.map((r) => r.id) });
+    return { found, missing };
+  }
+  function payAlert(uid, what, stars) {
+    const u = q('SELECT username, first_name FROM users WHERE id = ?').get(uid) || {};
+    const ids = payAlertIds();
     const who = `${u.first_name || name(uid)}${u.username ? ` (@${u.username})` : ''}, ID ${uid}`;
     const text = `💰 Донат! ${who} ${what} — ⭐ ${stars}`;
     for (const id of ids) {
@@ -5051,7 +5071,7 @@ export function createGame(db, opts = {}) {
     market: () => adminMarket(), 'market/remove': (w, b) => adminMarketRemove(w, b),
     'dealer/refresh': (w) => (restockDealer(true), alog(w, 'dealer-refresh', null, null), {}),
     promos: () => adminPromos(), 'promo/create': adminPromoCreate, 'promo/delete': adminPromoDelete,
-    payments: (w, b) => adminPayments(b), log: (w, b) => adminLog(b), referrals: () => adminReferrals(),
+    payments: (w, b) => adminPayments(b), 'payalert/test': adminPayAlertTest, log: (w, b) => adminLog(b), referrals: () => adminReferrals(),
     support: (w, b) => adminSupport(b), 'support/reply': adminSupportReply, 'support/close': adminSupportClose, role: adminSetRole,
     dashboard: (w, b) => adminDashboard(b), 'broadcast/preview': (w, b) => adminBroadcastPreview(b), broadcast: adminBroadcast,
     'game-events': () => adminGameEvents(), 'game-events/start': adminEventStart, 'game-events/stop': adminEventStop,
