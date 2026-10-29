@@ -851,7 +851,7 @@ function controls(u) {
       <textarea id="msgText" placeholder="Текст прийде в сповіщення гри та в бот"></textarea>
       <button class="btn ghost sm" data-act="message">Надіслати</button></div>
     <div class="act" id="act-reset"><h3>${ic('refresh')} Обнулити прогрес</h3>
-      <div class="small muted">Зникнуть усі машини, номери, деталі, гривні, рівень і колекція — як новий гравець. Лишаються акаунт, хто запросив, оплати й бан.</div>
+      <div class="small muted">Зникнуть усі машини, номери, деталі, гривні, рівень, колекція, ачівки, очки й пропуск сезону, VIP, завдання (і Хелловін), значки та місце в рейтингах — як новий гравець. Лишаються акаунт, хто запросив, оплати, зірки й бан.</div>
       <button class="btn red sm" data-act="resetUser">${ic('refresh')} Обнулити гравця</button></div>
     <div class="act" id="act-lb"><h3>${ic('trophy')} Рейтинг</h3>
       ${u.lbHidden ? `<div class="small">Гравець прихований з усіх рейтингів (тиждень, увесь час, сезон, «Статок») і не отримує призів тижня. Гараж і гроші — без змін.</div>

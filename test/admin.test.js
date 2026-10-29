@@ -194,6 +194,32 @@ test('admin: reset wipes progress but keeps account, referrer and payments; open
   assert.equal(call(2, 'case/open', { caseId: 'starter' }).results.length, 1, 'can start over');
 });
 
+test('admin: reset also clears achievements, season, VIP, event tasks, badges and the rating standing', () => {
+  const { g, db, mk, call, advance } = setup();
+  mk(1, 'cheat');
+  mk(2, 'rival');
+  const t0 = Date.parse('2026-10-14T10:00:00Z');
+  db.prepare('UPDATE users SET season_xp = 9000, premium_season = 1, vip_until = ?, play_ms = ?, plate_best = 5, total_value = 5e8 WHERE id = 1').run(t0 + 30 * 86400e3, 50 * 3600e3);
+  const ins = (sql, ...a) => db.prepare(sql).run(...a);
+  ins("INSERT INTO battles (creator_id, opponent_id, case_id, count, price, status, winner_id, created_at, finished_at) VALUES (1, 2, 'rust', 1, 1, 'done', 1, ?, ?)", t0 - 1000, t0 - 500);
+  ins("INSERT INTO hw_tasks (event, user_id, task, progress, done_at, prize) VALUES ('hw26', 1, 'cases', 5, ?, NULL)", t0);
+  ins("INSERT INTO badges (user_id, key, title, tier, season, place, created_at) VALUES (1, 'season', 'Топ', 1, 1, 1, ?)", t0);
+  ins('INSERT INTO trophies (user_id, k, cost, at) VALUES (1, 0, 100, ?)', t0);
+  ins("INSERT INTO weekly_quests (user_id, week, key, target, progress, claimed) VALUES (1, '2026-10-12', 'cases', 10, 10, 1)");
+  const battlesBefore = call(1, 'achievements').list.find((a) => a.key === 'battles').value;
+  assert.equal(battlesBefore, 1);
+  advance(1000);
+  g.admin.reset('key', { id: 1 });
+  const u = db.prepare('SELECT * FROM users WHERE id = 1').get();
+  assert.deepEqual([u.season_xp, u.premium_season, u.vip_until, u.play_ms, u.plate_best, u.total_value], [0, 0, 0, 0, 0, 0]);
+  for (const tb of ['hw_tasks', 'badges', 'trophies', 'weekly_quests']) assert.equal(db.prepare(`SELECT COUNT(*) n FROM ${tb} WHERE user_id = 1`).get().n, 0, tb);
+  const ach = call(1, 'achievements').list;
+  assert.equal(ach.find((a) => a.key === 'battles').value, 0, 'old battle wins no longer count');
+  assert.equal(ach.reduce((n, a) => n + a.reached, 0), 0, 'no tier is reached again after a reset');
+  assert.equal(call(1, 'me').vip, false);
+  assert.ok(!g.api.leaderboard(1, { type: 'season' }).list.some((r) => r.id === 1), 'out of the season board');
+});
+
 test('admin: overview and player search', () => {
   const { g, mk } = setup();
   mk(1, 'ivan');

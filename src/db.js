@@ -548,6 +548,9 @@ const MIGRATIONS = [
   // Admin «Логи»: when a promo code was used and what it gave (NULL on uses from before — they stay out of the feed).
   'ALTER TABLE promo_uses ADD COLUMN at INTEGER',
   'ALTER TABLE promo_uses ADD COLUMN amount INTEGER',
+  // «Обнулити прогрес»: when the player was last reset — achievements count PvP / battle wins and invited friends only
+  // from then on (that history stays in its tables), so the tiers can't be claimed a second time.
+  'ALTER TABLE users ADD COLUMN reset_at INTEGER NOT NULL DEFAULT 0',
 ];
 
 export function openDb(file) {
