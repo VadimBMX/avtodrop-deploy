@@ -4385,7 +4385,7 @@ export function createGame(db, opts = {}) {
   // ---------- roles in the admin panel ----------
   // owner: in ADMIN_IDS (Railway variable) — can't be changed from the panel; admin: everything; helper: only
   // looking at players, answering support and writing messages (HELPER_ACTIONS).
-  const HELPER_ACTIONS = new Set(['overview', 'dashboard', 'users', 'user', 'search', 'check-plate', 'referrals', 'support', 'support/reply', 'message', 'market', 'log', 'game-events']);
+  const HELPER_ACTIONS = new Set(['overview', 'dashboard', 'users', 'user', 'search', 'check-plate', 'referrals', 'support', 'support/reply', 'support/close', 'message', 'market', 'log', 'game-events']);
   function roleOf(uid) {
     if (!uid) return null;
     if ((opts.admins || []).includes(uid)) return 'owner';
@@ -4413,7 +4413,7 @@ export function createGame(db, opts = {}) {
     if (t.length < 3) fail('Опиши питання хоча б кількома словами');
     const last = q('SELECT created_at FROM support WHERE user_id = ? ORDER BY id DESC LIMIT 1').get(uid);
     if (last && now() - last.created_at < SUPPORT_GAP_MS) fail('Зачекай хвилинку перед наступним повідомленням');
-    if (q('SELECT COUNT(*) n FROM support WHERE user_id = ? AND answer IS NULL').get(uid).n >= SUPPORT_OPEN_MAX) fail('Дочекайся відповіді на попередні повідомлення');
+    if (q('SELECT COUNT(*) n FROM support WHERE user_id = ? AND answered_at IS NULL').get(uid).n >= SUPPORT_OPEN_MAX) fail('Дочекайся відповіді на попередні повідомлення');
     const id = Number(q('INSERT INTO support (user_id, text, created_at) VALUES (?, ?, ?)').run(uid, t, now()).lastInsertRowid);
     // The owner(s) and everyone with a panel role (admin, helper) hear about it; the writer never pings themself.
     const staff = new Set(staffIds());
@@ -4429,9 +4429,10 @@ export function createGame(db, opts = {}) {
     return { list: q('SELECT id, text, created_at at, answer, answered_at answeredAt FROM support WHERE user_id = ? ORDER BY id DESC LIMIT 20').all(uid) };
   }
   function adminSupport({ open }) {
-    const rows = q(`SELECT * FROM support ${open ? 'WHERE answer IS NULL' : ''} ORDER BY answer IS NOT NULL, id DESC LIMIT 200`).all();
+    // open = not handled yet: neither answered nor closed without an answer (answered_at set, answer NULL — «дякую» needs no reply)
+    const rows = q(`SELECT * FROM support ${open ? 'WHERE answered_at IS NULL' : ''} ORDER BY answered_at IS NOT NULL, id DESC LIMIT 200`).all();
     return { list: rows.map((r) => ({ id: r.id, user: brief(r.user_id), text: r.text, at: r.created_at, answer: r.answer, answeredAt: r.answered_at, by: r.answered_by })),
-      open: q('SELECT COUNT(*) n FROM support WHERE answer IS NULL').get().n };
+      open: q('SELECT COUNT(*) n FROM support WHERE answered_at IS NULL').get().n };
   }
   // The answer reaches the player like an admin message: a window in the game, a notification and the bot.
   function adminSupportReply(who, { id, text }) {
@@ -4443,6 +4444,15 @@ export function createGame(db, opts = {}) {
     event(r.user_id, `💬 Відповідь підтримки: ${t}`);
     gift(r.user_id, 'message', {}, `Відповідь підтримки на «${r.text.slice(0, 80)}${r.text.length > 80 ? '…' : ''}»:\n\n${t}`);
     alog(who, 'support', r.user_id, { text: t });
+    return {};
+  }
+  // Close a ticket without writing back (owner 29.10: «шо я маю писати на дякую»): nothing reaches the player.
+  function adminSupportClose(who, { id }) {
+    const r = q('SELECT * FROM support WHERE id = ?').get(int(id, 1, Number.MAX_SAFE_INTEGER, 'ID'));
+    if (!r) fail('Повідомлення не знайдено');
+    if (r.answered_at) return {};
+    q('UPDATE support SET answered_at = ?, answered_by = ? WHERE id = ?').run(now(), who, r.id);
+    alog(who, 'support-close', r.user_id, { id: r.id });
     return {};
   }
   // Admin gifts and messages also pop up in the player's app as a window showing what arrived (once).
@@ -5030,7 +5040,7 @@ export function createGame(db, opts = {}) {
     'dealer/refresh': (w) => (restockDealer(true), alog(w, 'dealer-refresh', null, null), {}),
     promos: () => adminPromos(), 'promo/create': adminPromoCreate, 'promo/delete': adminPromoDelete,
     payments: (w, b) => adminPayments(b), log: (w, b) => adminLog(b), referrals: () => adminReferrals(),
-    support: (w, b) => adminSupport(b), 'support/reply': adminSupportReply, role: adminSetRole,
+    support: (w, b) => adminSupport(b), 'support/reply': adminSupportReply, 'support/close': adminSupportClose, role: adminSetRole,
     dashboard: (w, b) => adminDashboard(b), 'broadcast/preview': (w, b) => adminBroadcastPreview(b), broadcast: adminBroadcast,
     'game-events': () => adminGameEvents(), 'game-events/start': adminEventStart, 'game-events/stop': adminEventStop,
     settings: () => adminSettings(), 'casino-mode': adminCasinoMode,

@@ -4476,7 +4476,7 @@ PAGES.support = async () => {
       <button class="btn yellow mt" data-act="supSend">${ic('arrow-right')} Надіслати</button></div>
     ${list.length ? `<div class="h2"><span>Мої звернення</span></div><div class="list">${list.map((m) => `<div class="card"><div class="small muted">${new Date(m.at).toLocaleString('uk-UA', { dateStyle: 'short', timeStyle: 'short' })}</div>
       <div class="mt" style="white-space:pre-wrap">${esc(m.text)}</div>
-      ${m.answer ? `<div class="gift-note" style="margin:10px 0 0;max-width:none"><b class="small">Підтримка:</b><div style="white-space:pre-wrap">${esc(m.answer)}</div></div>` : '<div class="tiny muted mt">Чекає на відповідь…</div>'}</div>`).join('')}</div>` : ''}`;
+      ${m.answer ? `<div class="gift-note" style="margin:10px 0 0;max-width:none"><b class="small">Підтримка:</b><div style="white-space:pre-wrap">${esc(m.answer)}</div></div>` : m.answeredAt ? '<div class="tiny muted mt">Переглянуто ✓</div>' : '<div class="tiny muted mt">Чекає на відповідь…</div>'}</div>`).join('')}</div>` : ''}`;
 };
 H.supSend = async () => {
   const text = $('#supText').value.trim();

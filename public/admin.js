@@ -152,7 +152,7 @@ const caseName = (id) => S.CASE_BY_ID[id]?.name || id;
 const tierCls = (tier) => S.TIER_BY_ID[tier]?.cls || 'D';
 const ACTIONS = {
   money: 'Гроші', 'give-car': 'Видано авто', 'remove-car': 'Вилучено авто', part: 'Деталі', keys: 'Ключі', set: 'Параметр',
-  ban: 'Бан', unban: 'Розбан', 'lb-hide': 'Приховано з рейтингу', 'lb-show': 'Повернуто в рейтинг', reset: 'Обнулено', 'dealer-refresh': 'Нові лоти дилера', 'give-plate': 'Видано номер', 'remove-plate': 'Забрано номер', message: 'Повідомлення', 'market-remove': 'Знято лот', promo: 'Промокод', 'promo-delete': 'Видалено промокод', support: 'Відповідь підтримки', role: 'Права',
+  ban: 'Бан', unban: 'Розбан', 'lb-hide': 'Приховано з рейтингу', 'lb-show': 'Повернуто в рейтинг', reset: 'Обнулено', 'dealer-refresh': 'Нові лоти дилера', 'give-plate': 'Видано номер', 'remove-plate': 'Забрано номер', message: 'Повідомлення', 'market-remove': 'Знято лот', promo: 'Промокод', 'promo-delete': 'Видалено промокод', support: 'Відповідь підтримки', 'support-close': 'Закрито звернення', role: 'Права',
   luck: 'Підкрутка', rig: 'Гарантована машина', 'rig-cancel': 'Скасовано гарантовану машину', broadcast: 'Розсилка', 'casino-mode': 'Режим казино',
   'containers-toggle': 'Причал: перемикач', 'containers-close': 'Причал: лот закрито',
   'db-browse': 'База: перегляд', 'db-export': 'База: експорт CSV',
@@ -1258,7 +1258,8 @@ VIEWS.support = async () => {
     ${list.length ? list.map((m) => `<div class="panel" id="sup${m.id}"><div class="row between"><div>${m.user ? userLink(m.user) : '—'} <span class="muted small">рів. ${m.user?.level ?? '?'} · ${date(m.at)}</span></div><span class="muted small">#${m.id}</span></div>
       <div style="white-space:pre-wrap;margin:8px 0">${esc(m.text)}</div>
       ${m.answer ? `<div class="small"><b>Відповідь</b> <span class="muted">(${esc(m.by || '')}, ${date(m.answeredAt)})</span><div style="white-space:pre-wrap">${esc(m.answer)}</div></div>`
-        : `<textarea id="supA${m.id}" placeholder="Відповідь — гравець побачить її у грі й у боті"></textarea><button class="btn sm m-block mt" data-act="supReply" data-id="${m.id}">Відповісти</button>`}
+        : m.answeredAt ? `<div class="small muted">${ic('check')} Закрито без відповіді (${esc(m.by || '')}, ${date(m.answeredAt)})</div>`
+        : `<textarea id="supA${m.id}" placeholder="Відповідь — гравець побачить її у грі й у боті"></textarea><div class="row mt" style="gap:8px;flex-wrap:wrap"><button class="btn sm m-block" data-act="supReply" data-id="${m.id}">Відповісти</button><button class="btn sm ghost m-block" data-act="supClose" data-id="${m.id}">${ic('check')} Закрити без відповіді</button></div>`}
       ${m.user && (state.role !== 'helper' || m.bug) ? bugChooser({ esc, user: m.user, ticket: m.id, done: m.bug }) : ''}</div>`).join('')
       : '<div class="panel"><div class="empty">Звернень немає</div></div>'}`;
 };
@@ -1268,6 +1269,8 @@ H.supReply = (d) => {
   if (!text) return toast('Напиши відповідь', true);
   doAndReload('support/reply', { id: Number(d.id), text }, 'Відповідь надіслано');
 };
+// «Дякую» and the like: close the ticket, the player gets nothing
+H.supClose = (d) => doAndReload('support/close', { id: Number(d.id) }, 'Звернення закрито');
 
 // Unanswered messages: the badge on «Підтримка» and the same number on the phone's menu button.
 function setSup(n) {

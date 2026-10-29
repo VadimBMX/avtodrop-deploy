@@ -20,7 +20,17 @@ test('support: the player writes, admins are told in Telegram, the answer pops u
   const gift = g.api.pulse(1).gifts.find((x) => x.kind === 'message');
   assert.ok(gift.note.includes('Перевірили'), 'answer shows up as a window in the game');
   t += 61e3;
-  g.api['support/send'](1, { text: 'Дякую!' });
+  const thanks = g.api['support/send'](1, { text: 'Дякую!' }).id;
+  // «Дякую» is closed without an answer: off the open count, nothing reaches the player
+  const gifts = g.api.pulse(1).gifts.length;
+  assert.equal(g.admin.support('t', { open: true }).open, 1);
+  g.admin['support/close']('t', { id: thanks });
+  const all = g.admin.support('t', {});
+  assert.equal(all.open, 0);
+  assert.equal(all.list.find((m) => m.id === thanks).answer, null);
+  assert.ok(all.list.find((m) => m.id === thanks).answeredAt);
+  assert.equal(g.api.pulse(1).gifts.length, gifts);
+  assert.ok(g.api['support/mine'](1).list[0].answeredAt);
 });
 
 test('support: the owner, every admin and every helper get the Telegram ping', () => {
