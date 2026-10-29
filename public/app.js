@@ -4741,12 +4741,12 @@ PAGES.market = async () => {
     // No "X" filter: secret cars can never be on the market.
     return seg + `<div class="chips gfilter">${[['', 'Усі'], ...S.CLASS_ORDER.filter((c) => c !== 'X').map((c) => [c, c])].map(([k, t]) => `<button class="${state.marketCls === k ? 'on' : ''}" data-act="mCls" data-k="${k}" ${k ? `style="--c:${S.CLASSES[k].color}"` : ''}>${k ? '<i></i>' : ''}${t}</button>`).join('')}</div>
       <div class="chips sortchips">${[['new', 'Нові'], ['cheap', 'Дешевші'], ['expensive', 'Дорожчі'], ['deal', 'Вигідні']].map(([k, t]) => `<button class="${state.marketSort === k ? 'on' : ''}" data-act="mSort" data-k="${k}">${t}</button>`).join('')}</div>
+      <div class="h2"><span>Від гравців</span><span>${fromPlayers.length || ''}</span></div>
+      ${fromPlayers.length ? `<div class="list">${fromPlayers.map(row).join('')}</div>` : emptyLine('car', 'Поки порожньо — виставити свою машину: картка машини → «Продати»')}
       <div class="card dealer-head"><div class="row"><span class="ic tint" style="--c:#ffc400">${ic('building-store')}</span><div class="grow"><div class="row between"><b>Дилер АВТОДРОП</b><span class="chip">${ic('clock')} <span data-until="${dealer.nextAt - (now - Date.now())}"></span></span></div>
         <div class="small muted">Фіксовані ціни, нові лоти кожні ${S.DEALER.hours} год · покупок лишилось <b style="color:var(--text)">${dealer.left}/${dealer.perPlayer}</b></div>
         <div class="tiny muted hn-dnote">Ціни вищі за колекційні, а викуп — ${Math.round(Math.min(...Object.values(S.SELL_RATES)) * 100)}–${Math.round(Math.max(...Object.values(S.SELL_RATES)) * 100)}%: дивись «продаж потім».</div></div></div></div>
-      ${fromDealer.length ? `<div class="list">${fromDealer.map(row).join('')}</div>` : emptyBox('building-store', 'Дилер усе розпродав', 'Нові лоти з’являться, щойно спливе таймер')}
-      <div class="h2"><span>Від гравців</span><span>${fromPlayers.length || ''}</span></div>
-      ${fromPlayers.length ? `<div class="list">${fromPlayers.map(row).join('')}</div>` : emptyLine('car', 'Поки порожньо — виставити свою машину: картка машини → «Продати»')}`;
+      ${fromDealer.length ? `<div class="list">${fromDealer.map(row).join('')}</div>` : emptyBox('building-store', 'Дилер усе розпродав', 'Нові лоти з’являться, щойно спливе таймер')}`;
   }
   if (state.marketTab === 'pier') return seg + (await pierTab());
   if (state.marketTab === 'auction') {
