@@ -6,8 +6,8 @@
 // autopromo_log. Codes are ordinary rows of `promos` (the same «Меню → Промокод» redeem, one per player).
 import * as S from '../public/shared.js';
 
-export const AUTOPROMO_DEFAULTS = Object.freeze({ on: true, perDay: 3, min: 300000, max: 700000, usesMin: 5, usesMax: 8, ttlMin: 120, from: 10, to: 23 });
-const LIM = { perDay: [1, 8], min: [10000, 5e7], max: [10000, 5e7], usesMin: [1, 100], usesMax: [1, 100], ttlMin: [15, 1440], from: [0, 23], to: [1, 24] };
+export const AUTOPROMO_DEFAULTS = Object.freeze({ on: true, perDay: 3, min: 300000, max: 700000, usesMin: 5, usesMax: 8, ttlMin: 120, from: 0, to: 24 });
+const LIM = { perDay: [1, 24], min: [10000, 5e7], max: [10000, 5e7], usesMin: [1, 100], usesMax: [1, 100], ttlMin: [15, 1440], from: [0, 23], to: [1, 24] };
 const WORDS = ['NITRO', 'TURBO', 'DRIFT', 'GARAGE', 'BOOST', 'RACE', 'DROP', 'KEYS', 'FAST', 'V8', 'GHOST', 'NIGHT'];
 const LINES = [
   (c, a, u) => `⚡️ Швидкий промік!\n<code>${c}</code> — +${a}\nЛише ${u} активацій — хто перший, той забрав 🏁`,
@@ -15,6 +15,8 @@ const LINES = [
   (c, a, u) => `🏎 Хто тут не спить?\n<code>${c}</code> — +${a}\nТільки ${u} разів ⏳`,
   (c, a, u) => `💸 Ловіть гроші на кейси\n<code>${c}</code> — +${a}\n${u} активацій, далі — все 🙌`,
 ];
+export const windowLen = (c) => ((c.to - c.from + 24) % 24) || 24;
+export const inWindow = (c, h) => (h - c.from + 24) % 24 < windowLen(c);
 const clamp = (v, [lo, hi], d) => (Number.isFinite(Number(v)) ? Math.min(hi, Math.max(lo, Math.round(Number(v)))) : d);
 
 export function normalizeAutoPromo(c = {}) {
@@ -22,7 +24,8 @@ export function normalizeAutoPromo(c = {}) {
   for (const k of Object.keys(LIM)) o[k] = clamp(c[k], LIM[k], d[k]);
   if (o.max < o.min) o.max = o.min;
   if (o.usesMax < o.usesMin) o.usesMax = o.usesMin;
-  if (o.to <= o.from) o.to = Math.min(24, o.from + 1);
+  // to ≤ from is a window across midnight (18 → 6); the same hour on both ends (or 0 → 24) is round the clock
+  if (o.to % 24 === o.from) { o.from = 0; o.to = 24; }
   return o;
 }
 
@@ -43,15 +46,15 @@ export function createAutoPromo({ db, now = () => Date.now(), api = null, random
   const target = () => (state().target?.chat ? state().target : null);
   const kyivHour = (t) => Number(S.kyivLocal(t).slice(11, 13)) + Number(S.kyivLocal(t).slice(14, 16)) / 60;
   // The next moment: the day window split into perDay slots, a random point in the slot after `from` (±40 % jitter).
+  // The window may run across midnight (owner 29.10: «в ніч також грають»): its length is counted modulo 24 h.
   function planNext(t = now()) {
-    const c = cfg(), span = (c.to - c.from) * 3600e3, gap = span / c.perDay;
+    const c = cfg(), len = windowLen(c), gap = (len * 3600e3) / c.perDay;
     let next = t + gap * (0.6 + 0.8 * random());
     // Out of the window → a random point in the first slot of the next window.
     for (let k = 0; k < 3; k++) {
       const h = kyivHour(next);
-      if (h >= c.from && h < c.to) break;
-      const day = S.kyivDateOf(next), start = S.kyivMidnightOf(day, h >= c.to ? 1 : 0) + c.from * 3600e3;
-      next = start + gap * random() * 0.9;
+      if (inWindow(c, h)) break;
+      next += ((c.from - h + 24) % 24) * 3600e3 + gap * random() * 0.9;
     }
     metaSet('autopromo_next', next);
     return next;
