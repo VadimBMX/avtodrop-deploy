@@ -1,5 +1,18 @@
 [
   {
+    "id": "2026-10-31-italy-cars",
+    "title": "31.10 — нові машини в «Італії»",
+    "short": [
+      "Кейс «Італія»: 5 нових фіолетових машин — Alfa Romeo 4C, Stelvio Quadrifoglio, Maserati GranTurismo MC Stradale, Ghibli Trofeo, Lancia Stratos",
+      "Ціни машин, які вже є в гаражах, не змінились"
+    ],
+    "items": [
+      "Кейс «Італія»: 5 нових фіолетових машин — Alfa Romeo 4C, Stelvio Quadrifoglio, Maserati GranTurismo MC Stradale, Ghibli Trofeo, Lancia Stratos",
+      "Ціни машин, які вже є в гаражах, не змінились",
+      "Нові машини (LATE_RAW) стають між сусідами за ціною, не зсуваючи ladder; tuning ORIGIN_SELL 0.96→0.95, бо його EV підріс до межі"
+    ]
+  },
+  {
     "id": "2026-10-31-vip-sale",
     "title": "31.10 — VIP −40% на 30 хвилин",
     "short": [

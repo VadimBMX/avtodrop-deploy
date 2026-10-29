@@ -25,7 +25,7 @@ const sha = (f) => crypto.createHash('sha1').update(fs.readFileSync(f)).digest('
 
 test('green: factory colours for every new car, valid and only for NEW_RAW cars', () => {
   const ids = Object.keys(S.FACTORY_PAINT);
-  assert.equal(ids.length, 27);
+  assert.equal(ids.length, 32); // 27 cars of prompts 151–177 + the five Italian B cars of 29.10 (178–182)
   assert.match(S.KEY_GREEN, /^#[0-9a-f]{6}$/);
   for (const id of ids) {
     const f = S.FACTORY_PAINT[id];

@@ -114,7 +114,7 @@ test('buyer, night: an offer made 00:00–08:00 Kyiv runs 3 h from 08:00; a day 
 // ---------- 2. texts ----------
 test('texts: the car count matches the collection; small numbers don\'t count up; the starter drop keeps its header', () => {
   const secret = S.ALL_MODELS.filter((m) => m.secret).length, open = S.ALL_MODELS.length - secret;
-  assert.equal(S.carCountText(), `${open} справжніх авто і ще ${secret} секретних`);
+  assert.match(S.carCountText(), new RegExp(`^${open} справжн(і|іх) авто і ще ${secret} секретних$`)); // «174 справжні», «169 справжніх»
   assert.match(S.INTRO_STORY.slides[0].text, new RegExp(S.carCountText()));
   assert.match(S.INTRO_STORY.slides[2].text, new RegExp(`бонус на ${S.DAILY_BONUS.length} днів`));
   assert.equal(markNumber('Щоденний бонус на 14 днів'), 'Щоденний бонус на 14 днів', 'a day count is never caught mid-count');

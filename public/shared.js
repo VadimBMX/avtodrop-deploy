@@ -228,6 +228,16 @@ const NEW_RAW = [
   ['Ferrari Enzo', 'S', 660, 1365, 'super', 'IT', 2003],
   ['Koenigsegg CCX', 'S', 806, 1456, 'super', 'SE', 2006],
 ];
+// Cars added after the price ladder settled (owner 29.10: five Italian B cars for «Італія», prompts 178–182). Same
+// format; like NEW_RAW they wait for their photo. Unlike NEW_RAW they do NOT take a place in the ladder: each gets a
+// price between its two neighbours by score (log interpolation), so no car already in a garage changes its price.
+const LATE_RAW = [
+  ['Alfa Romeo 4C', 'B', 240, 895, 'coupe', 'IT', 2015],
+  ['Maserati GranTurismo MC Stradale', 'B', 460, 1800, 'coupe', 'IT', 2013],
+  ['Alfa Romeo Stelvio Quadrifoglio', 'B', 510, 1830, 'suv', 'IT', 2019],
+  ['Maserati Ghibli Trofeo', 'B', 580, 1969, 'sedan', 'IT', 2021],
+  ['Lancia Stratos HF Stradale', 'B', 190, 980, 'coupe', 'IT', 1974],
+];
 const PHOTO = new Set(CAR_PHOTOS);
 
 // Secret cars: one per main country, given for collecting every car of that country. Value ≈ 1.5–2× what finishing
@@ -412,6 +422,10 @@ const PRESTIGE = {
   'Ferrari F40': 3,
   'Ferrari Enzo': 3,
   'Koenigsegg CCX': 1,
+  'Alfa Romeo 4C': 1,             // carbon-tub mini supercar
+  'Maserati GranTurismo MC Stradale': 1,
+  'Lancia Stratos HF Stradale': 3, // the rally legend
+  'Alfa Romeo Stelvio Quadrifoglio': -1, // an SUV: below the coupés
 };
 export const prestigeOf = (name) => PRESTIGE[name] || 0;
 
@@ -422,7 +436,7 @@ export const prestigeOf = (name) => PRESTIGE[name] || 0;
 // goes to PENDING_MODELS instead of MODELS, so nothing in the game can see it.
 export const MODELS = {};
 export const PENDING_MODELS = {};
-const NEW_IDS = new Set(NEW_RAW.map((r) => slug(r[0])));
+const NEW_IDS = new Set([...NEW_RAW, ...LATE_RAW].map((r) => slug(r[0])));
 export const isPhotoReady = (id) => !NEW_IDS.has(id) || PHOTO.has(id);
 for (const cls of ['D', 'C', 'B', 'A', 'S']) {
   const pw = (r) => Math.log(r[2] / r[3]);
@@ -431,13 +445,29 @@ for (const cls of ['D', 'C', 'B', 'A', 'S']) {
   const score = (r) => (pwHi > pwLo ? (pw(r) - pwLo) / (pwHi - pwLo) : 0) + PRESTIGE_STEP * prestigeOf(r[0]);
   const list = rows.sort((a, b) => score(a) - score(b) || pw(a) - pw(b));
   const { lo, hi } = CLASSES[cls];
-  list.forEach((r, k) => {
-    const t = list.length > 1 ? k / (list.length - 1) : 0;
-    const price = Math.round((lo * Math.pow(hi / lo, t)) / 1000) * 1000;
+  const put = (r, price) => {
     const id = slug(r[0]);
     const m = { id, name: r[0], cls, hp: r[2], kg: r[3], body: r[4], country: r[5], year: r[6], price, ev: r[7] === 'ev', prestige: prestigeOf(r[0]) };
     (isPhotoReady(id) ? MODELS : PENDING_MODELS)[id] = m;
+  };
+  const ladder = list.map((r, k) => {
+    const t = list.length > 1 ? k / (list.length - 1) : 0;
+    const price = Math.round((lo * Math.pow(hi / lo, t)) / 1000) * 1000;
+    put(r, price);
+    return { s: score(r), price };
   });
+  // LATE_RAW: between the neighbours by score, the ladder itself untouched.
+  for (const r of LATE_RAW.filter((x) => x[1] === cls)) {
+    const sc = score(r);
+    const k = ladder.findIndex((x) => x.s > sc);
+    let price;
+    if (k <= 0) price = ladder[k < 0 ? ladder.length - 1 : 0].price;
+    else {
+      const a = ladder[k - 1], b = ladder[k], t = b.s > a.s ? (sc - a.s) / (b.s - a.s) : 0.5;
+      price = Math.round((a.price * Math.pow(b.price / a.price, t)) / 1000) * 1000;
+    }
+    put(r, price);
+  }
 }
 for (const [name, hp, kg, body, country, year, price, ev] of SECRETS) {
   const id = slug(name);
@@ -584,7 +614,7 @@ export const FRESH_SELL = { rate: 1, hours: 24 };
 // below). Open-and-sell stays 0,85–0,91 plain and ≤ 0,95 on every deal day; a 10-open session of Еліта ends in profit 31%
 // of the time instead of 22%, doubles 3,7% of the time instead of 0,2% (tools/econ-audit.mjs jackpot).
 export const ORIGIN_SELL = {
-  city: 0.79, tuning: 0.96, 'c-ua': 0.9,
+  city: 0.79, tuning: 0.95, 'c-ua': 0.9, // tuning 0.96 → 0.95 (29.10): the five Italian B cars lifted its EV to the line
   sport: { B: 0.28, A: 0.266, S: 0.4 },
   premium: { B: 0.3, A: 0.22, S: 0.4 },
   elite: { A: 0.22, S: 0.45 },
@@ -3051,6 +3081,11 @@ export const FACTORY_PAINT = {
   'ferrari-f40': { hex: '#cc1118', finish: 'gloss', name: 'Rosso Corsa', key: true },
   'porsche-carrera-gt': { hex: '#c4161c', finish: 'gloss', name: 'Guards red', key: true },
   'ferrari-enzo': { hex: '#f4c70f', finish: 'gloss', name: 'Giallo Modena', key: true },
+  'alfa-romeo-4c': { hex: '#a3141c', finish: 'gloss', name: 'Rosso Alfa', key: true },
+  'maserati-granturismo-mc-stradale': { hex: '#1c2a4a', finish: 'metallic', name: 'Blu Sofisticato metallic', key: true },
+  'alfa-romeo-stelvio-quadrifoglio': { hex: '#1f4fa0', finish: 'metallic', name: 'Misano Blue metallic', key: true },
+  'maserati-ghibli-trofeo': { hex: '#4a4d52', finish: 'metallic', name: 'Grigio Lava metallic', key: true },
+  'lancia-stratos-hf-stradale': { hex: '#f2c200', finish: 'gloss', name: 'Giallo Fly', key: true },
 };
 export const isKeyCar = (id) => !!FACTORY_PAINT[id]?.key;
 export const LIVERIES = [
