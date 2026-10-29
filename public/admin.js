@@ -8,6 +8,7 @@ import { channelPage, channelActions } from './admin-channel.js';
 import { eventsPage, eventsActions, eventsAfter } from './admin-events.js';
 import { clubsPage, clubsActions } from './admin-clubs.js';
 import { bugsPage, bugsActions, bugChooser, bugCardLine, bugRewardText } from './admin-bugs.js';
+import { hideChartTip, liveSkeleton, livePanels, liveCharts, playerMoney, playerSuspicious, economyPage, economyCharts, dbPage, dbFilterRow, readFilters, setupInstall } from './admin-pc.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -153,6 +154,7 @@ const ACTIONS = {
   ban: 'Бан', unban: 'Розбан', 'lb-hide': 'Приховано з рейтингу', 'lb-show': 'Повернуто в рейтинг', reset: 'Обнулено', 'dealer-refresh': 'Нові лоти дилера', 'give-plate': 'Видано номер', 'remove-plate': 'Забрано номер', message: 'Повідомлення', 'market-remove': 'Знято лот', promo: 'Промокод', 'promo-delete': 'Видалено промокод', support: 'Відповідь підтримки', role: 'Права',
   luck: 'Підкрутка', rig: 'Гарантована машина', 'rig-cancel': 'Скасовано гарантовану машину', broadcast: 'Розсилка', 'casino-mode': 'Режим казино',
   'containers-toggle': 'Причал: перемикач', 'containers-close': 'Причал: лот закрито',
+  'db-browse': 'База: перегляд', 'db-export': 'База: експорт CSV',
   'event-start': 'Подія: запуск', 'event-stop': 'Подія: зупинка', 'plan-add': 'Розклад: додано', 'plan-edit': 'Розклад: змінено', 'plan-delete': 'Розклад: видалено', 'plan-seed': 'Розклад: типовий календар',
 };
 const FIELD_NAMES = { level: 'Рівень', slots: 'Місць у гаражі', showcase_slots: 'Місць на вітрині', cap_level: 'Рівень сховища', xp: 'XP' };
@@ -193,6 +195,7 @@ function detailsMain(a, d) {
     case 'market-remove': return d.kind === 'listing' ? 'ринок' : 'аукціон';
     case 'plan-add': case 'plan-edit': case 'plan-delete': return `${esc(d.title || S.EVENTS[d.kind]?.name || d.kind)} · ${esc(S.kyivLocal(d.start).replace('T', ' '))} – ${esc(S.kyivLocal(d.end).replace('T', ' '))}`;
     case 'plan-seed': return `додано ${d.added}, пропущено ${d.skipped}`;
+    case 'db-browse': case 'db-export': return `<code>${esc(d.table)}</code>${d.filters?.length ? ` · ${d.filters.map((f) => esc(`${f.col} ${f.op} ${f.value}`)).join(', ')}` : ''}${d.sort ? ` · сорт. ${esc(d.sort)}` : ''}${d.rows != null ? ` · ${d.rows} рядків${d.truncated ? ' (обрізано)' : ''}` : ''}`;
     default: return esc(JSON.stringify(d));
   }
 }
@@ -217,6 +220,10 @@ function fromHash() {
 window.addEventListener('popstate', () => (navOpen(false), fromHash(), render()));
 // ---------- phone (admin.css «phone»): the side bar is a drawer behind the top bar's menu button ----------
 const narrow = () => window.matchMedia?.('(max-width: 860px)').matches;
+// Desktop (admin.css «desktop», ≥ 1200 px): the player card lays its panels side by side; crossing the line redraws it.
+const WIDE = window.matchMedia?.('(min-width: 1200px)');
+const wide = () => !!WIDE?.matches;
+WIDE?.addEventListener?.('change', () => state.view === 'user' && render());
 function navOpen(open) {
   if (open === document.body.classList.contains('nav-open')) return;
   document.body.classList.toggle('nav-open', open);
@@ -245,6 +252,7 @@ const navText = (b) => [...b.childNodes].filter((n) => n.nodeType === 3).map((n)
 let renderSeq = 0;
 async function render() {
   const seq = ++renderSeq;
+  hideChartTip(); // a chart tooltip must not outlive its chart
   const navKey = state.view === 'user' ? 'users' : state.view;
   document.querySelectorAll('#nav button').forEach((b) => {
     b.classList.toggle('on', b.dataset.go === navKey);
@@ -420,6 +428,158 @@ H.days = (d) => ((state.days = Number(d.n)), render());
 // ---------- metrics for the owner (public/admin-metrics.js) ----------
 VIEWS.metrics = () => metricsPage({ api, esc, ic, short, days: state.mDays || 30 });
 H.mdays = (d) => ((state.mDays = Number(d.n)), render());
+// ---------- «Живий дашборд» (public/admin-pc.js, src/admin-pc.js live): refreshes itself every LIVE_MS ----------
+// A refresh patches only the parts that changed (cards, who's online, the hourly charts), so nothing jumps or blinks;
+// the daily charts come again every few minutes. A hidden tab doesn't poll; «Пауза» stops it until pressed again.
+const LIVE_MS = 20e3, LIVE_DAYS_EVERY = 15; // ticks: the daily series every ~5 min
+let lv = null, lvTimer = null, lvTicks = 0;
+VIEWS.live = async () => {
+  lv = await api('pc/live', { days: state.lvDays || 14 });
+  return liveSkeleton(livePanels(lv, { esc, short, ago, userLink }), { ic, days: state.lvDays || 14 });
+};
+AFTER.live = () => {
+  liveCharts(lv, lv.days);
+  pauseLabel();
+  clearInterval(lvTimer);
+  lvTicks = 0;
+  lvTimer = setInterval(lvTick, LIVE_MS);
+};
+async function lvTick(force = false) {
+  if (state.view !== 'live') return clearInterval(lvTimer);
+  if (!force && (document.hidden || state.lvPaused)) return;
+  const withDays = ++lvTicks % LIVE_DAYS_EVERY === 0;
+  let L;
+  try {
+    L = await api('pc/live', withDays ? { days: state.lvDays || 14 } : {});
+  } catch {
+    $('#lvStamp')?.classList.replace('green', 'red');
+    return;
+  }
+  if (state.view !== 'live' || !$('#lvCards')) return;
+  const P = livePanels(L, { esc, short, ago, userLink });
+  const put = (sel, html) => {
+    const el = $(sel);
+    if (el && el.innerHTML !== html) el.innerHTML = html;
+  };
+  put('#lvCards', P.cards);
+  put('#lvWho', P.who);
+  put('#lvNote', P.note);
+  labelTables($('#lvWho'));
+  const st = $('#lvStamp');
+  st.textContent = P.stamp;
+  st.classList.replace('red', 'green');
+  liveCharts(L, withDays ? L.days : null);
+  lv = { ...L, days: L.days || lv.days };
+}
+const pauseLabel = () => {
+  const b = $('#lvPause');
+  if (b) b.innerHTML = state.lvPaused ? `${ic('player-play')} Продовжити` : `${ic('clock')} Пауза`;
+  $('#lvStamp')?.classList.toggle('paused', !!state.lvPaused);
+};
+H.lvPause = () => ((state.lvPaused = !state.lvPaused), pauseLabel(), state.lvPaused || lvTick(true));
+H.lvNow = () => lvTick(true);
+H.lvDays = (d) => ((state.lvDays = Number(d.n)), render());
+document.addEventListener('visibilitychange', () => !document.hidden && state.view === 'live' && lvTick());
+
+// ---------- «Економіка й кейси» (public/admin-pc.js economyPage, src/admin-pc.js economy) ----------
+VIEWS.economy = () => economyPage({ api, esc, ic, short, money, userLink, win: state.ecWin || '24h', grow: state.ecGrow ?? null });
+AFTER.economy = () => {
+  economyCharts();
+  $('#ecGrow')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const v = num('#ecGrowIn');
+    if (!(v >= 0)) return toast('Вкажи суму, напр. 5m', true);
+    state.ecGrow = v;
+    render();
+  });
+};
+H.ecWin = (d) => ((state.ecWin = d.k), render());
+
+// ---------- «Перегляд бази» (owner and admins; public/admin-pc.js dbPage, src/admin-pc.js createDbBrowser) ----------
+const dbv = () => (state.dbv ||= { table: null, filters: [], sort: null, dir: 'desc', offset: 0, q: '' });
+let dbLast = null;
+VIEWS.db = async () => {
+  const V = dbv();
+  const T = await api('db/tables');
+  if (V.table && !T.tables.some((t) => t.name === V.table)) V.table = null;
+  const R = V.table ? await api('db/rows', { table: V.table, filters: V.filters, sort: V.sort, dir: V.dir, offset: V.offset }) : null;
+  dbLast = R;
+  return dbPage(T, R, V, { esc, date });
+};
+const dbOpenCols = () => (dbLast?.cols || []).filter((c) => !c.hidden && !c.masked);
+const dbSync = () => {
+  const f = $('#dbForm');
+  if (f) dbv().filters = readFilters(f);
+};
+const dbEmpty = () => {
+  const n = $('.db-none');
+  if (n) n.hidden = !!$('#dbForm .db-f');
+};
+AFTER.db = () => {
+  dbEmpty();
+  const on = $('.db-list button.on');
+  if (on) on.parentElement.scrollTop = on.offsetTop - on.parentElement.clientHeight / 2;
+  $('#dbForm')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    dbSync();
+    dbv().offset = 0;
+    render();
+  });
+  $('#dbForm')?.addEventListener('change', (e) => {
+    if (!e.target.classList.contains('dfo')) return;
+    const v = e.target.closest('.db-f').querySelector('.dfv');
+    v.disabled = e.target.value === 'null' || e.target.value === 'notnull';
+  });
+  // the table list filters itself as you type (no round trip)
+  $('#dbQ')?.addEventListener('input', (e) => {
+    dbv().q = e.target.value.trim();
+    const q = dbv().q.toLowerCase();
+    document.querySelectorAll('.db-list button').forEach((b) => (b.hidden = !!q && !b.dataset.t.includes(q)));
+  });
+  $('#dbSel')?.addEventListener('change', (e) => H.dbTable({ t: e.target.value }));
+};
+H.dbTable = (d) => {
+  Object.assign(dbv(), { table: d.t, filters: [], sort: null, dir: 'desc', offset: 0 });
+  render();
+};
+H.dbSort = (d) => {
+  dbSync();
+  const V = dbv();
+  if (V.sort === d.c) V.dir = V.dir === 'asc' ? 'desc' : 'asc';
+  else Object.assign(V, { sort: d.c, dir: 'desc' });
+  V.offset = 0;
+  render();
+};
+H.dbPage = (d) => {
+  dbSync();
+  dbv().offset = Number(d.o);
+  render();
+};
+H.dbFAdd = () => {
+  const cols = dbOpenCols();
+  if (!cols.length) return;
+  $('#dbForm .db-flist').insertAdjacentHTML('beforeend', dbFilterRow(cols, { col: cols[0].name, op: 'has', value: '' }, esc));
+  dbEmpty();
+  [...document.querySelectorAll('#dbForm .dfv')].pop()?.focus();
+};
+H.dbFDel = (d, el) => (el.closest('.db-f').remove(), dbEmpty());
+H.dbReset = () => (Object.assign(dbv(), { filters: [], sort: null, dir: 'desc', offset: 0 }), render());
+// The export is the current filter and sort, built on the server (EXPORT_CAP rows at most), saved here as a file
+// with a BOM so Excel reads the Cyrillic right.
+H.dbExport = async () => {
+  dbSync();
+  const V = dbv();
+  const r = await act('db/export', { table: V.table, filters: V.filters, sort: V.sort, dir: V.dir });
+  if (!r) return;
+  const url = URL.createObjectURL(new Blob(['\ufeff' + r.csv], { type: 'text/csv;charset=utf-8' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: `${r.table}-${new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-')}.csv` });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  toast(`Експортовано ${r.n} рядків${r.truncated ? ` (обрізано до ${r.n})` : ''}`);
+};
+
 // ---------- «Заїзд дня»: the car schedule and today's board (public/admin-dayrace.js) ----------
 VIEWS.dayrace = () => dayRacePage({ api, esc, cls, userLink });
 Object.assign(H, dayRaceActions({ mutate, esc, $ }));
@@ -482,8 +642,9 @@ AFTER.users = () => {
 
 // ---------- one player ----------
 let cur = null;
+let curX = null; // src/admin-pc.js player(): money by day and «Підозріле»
 VIEWS.user = async () => {
-  cur = await api('user', { id: state.userId });
+  [cur, curX] = await Promise.all([api('user', { id: state.userId }), api('pc/player', { id: state.userId }).catch(() => null)]);
   const { user: u, income, cars, plates, parts, keys, payments, events, drops, log, carLog = [] } = cur;
   const tabs = [['cars', 'Машини', cars.length], ['friends', 'Запрошені', u.invited.length], ['plates', 'Номери', plates.length], ['parts', 'Деталі', parts.reduce((s, p) => s + p.count, 0)],
     ['keys', 'Ключі', keys.reduce((s, k) => s + k.count, 0)], ['drops', 'Дропи', drops.length], ['payments', 'Платежі', payments.length],
@@ -501,7 +662,7 @@ VIEWS.user = async () => {
       <div class="hero-num"><span>Був у грі</span><b>${ago(u.lastSeen)}</b></div>
     </div>
     ${quickActs(u)}
-    <details class="panel" ${state.userInfo ? 'open' : ''} data-remember="userInfo"><summary>Профіль і статистика</summary><div class="kv">
+    <details class="panel" ${state.userInfo ?? wide() ? 'open' : ''} data-remember="userInfo"><summary>Профіль і статистика</summary><div class="kv">
       <div><span>Telegram ID</span><b>${u.id}</b></div>
       <div><span>Username</span><b>${u.username ? '@' + esc(u.username) : '—'}</b></div>
       <div><span>Ім’я</span><b>${esc(u.firstName || '—')}</b></div>
@@ -528,14 +689,35 @@ VIEWS.user = async () => {
       <div><span>Досягнення</span><b>${u.achievements.claimed}/${u.achievements.total}${u.achievements.reached > u.achievements.claimed ? ` <span class="muted small">(ще ${u.achievements.reached - u.achievements.claimed} не забрано)</span>` : ''}</b></div>
       ${bugCardLine(cur.bugs, esc)}
     </div></details>
-    <div class="panel">
+    ${wide() ? wideCard(u, tabs) : `<div class="panel">
       <div class="tabs">${tabs.map(([k, t, n]) => `<button class="${state.userTab === k ? 'on' : ''}" data-act="userTab" data-k="${k}">${t}<span class="n">${n}</span></button>`).join('')}</div>
       ${USER_TABS[state.userTab]()}
     </div>
     <details class="panel" ${state.userAct ? 'open' : ''} data-remember="userAct"><summary>${ic('gauge')} Активність</summary>${activityHtml(cur.activity)}</details>
+    ${curX ? `<details class="panel" ${state.userSus ?? curX.suspicious.length ? 'open' : ''} data-remember="userSus"><summary>${ic('alert-triangle')} Підозріле ${susBadge()}</summary>${playerSuspicious(curX, { esc })}</details>
+    <details class="panel" ${state.userMoney ? 'open' : ''} data-remember="userMoney"><summary>${ic('cash')} Гроші по днях</summary>${playerMoney(curX, { short })}</details>` : ''}`}
     <div class="panel" id="controls"><h2>${ic('adjustments')} Керування</h2>
       <div class="small muted" style="margin-bottom:10px">Кожна зміна просить причину й підтвердження та записується в журнал дій.</div>${controls(u)}</div>`;
 };
+const susBadge = () => (curX?.suspicious.length ? `<span class="badge ${curX.suspicious.some((x) => x.level === 'red') ? 'red' : 'amber'}">${curX.suspicious.length}</span>` : '<span class="badge green">чисто</span>');
+// The wide card: garage and money by day in the main column; «Підозріле», profile and activity beside them; every
+// former tab as its own panel below (scrolling inside when long), so nothing hides behind a tab on a big screen.
+function wideCard(u, tabs) {
+  const n = Object.fromEntries(tabs.map(([k, , c]) => [k, c]));
+  const P = [['carlog', 'Історія машин'], ['payments', 'Платежі'], ['drops', 'Дропи'], ['log', 'Дії адмінів'], ['events', 'Сповіщення'], ['friends', 'Запрошені'], ['plates', 'Номери'], ['parts', 'Деталі'], ['keys', 'Ключі']];
+  return `<div class="u-cols">
+      <div class="u-main">
+        <div class="panel"><h2>${ic('car')} Гараж <span class="sub">${n.cars} авто</span></h2>${USER_TABS.cars()}</div>
+        ${curX ? `<div class="panel"><h2>${ic('cash')} Гроші по днях <span class="sub">14 днів, з того, що зберігає гра</span></h2>${playerMoney(curX, { short })}</div>` : ''}
+      </div>
+      <div class="u-side">
+        ${curX ? `<div class="panel"><h2>${ic('alert-triangle')} Підозріле ${susBadge()}</h2>${playerSuspicious(curX, { esc })}</div>` : ''}
+        <div class="panel"><h2>${ic('gauge')} Активність</h2>${activityHtml(cur.activity)}</div>
+      </div>
+    </div>
+    <div class="pc-panels">${P.filter(([k]) => n[k]).map(([k, t]) => `<div class="panel pcp"><h2>${t} <span class="sub">${n[k]}</span></h2><div class="pcp-body">${USER_TABS[k]()}</div></div>`).join('')}</div>
+    ${P.some(([k]) => !n[k]) ? `<div class="small muted pc-empty">Порожньо: ${P.filter(([k]) => !n[k]).map(([, t]) => t).join(', ')}</div>` : ''}`;
+}
 document.addEventListener('toggle', (e) => {
   const k = e.target.dataset?.remember;
   if (k) state[k] = e.target.open;
@@ -1204,6 +1386,8 @@ async function start() {
       setImages(c.images || {});
       if (state.view === 'user') render();
     }).catch(() => {});
+    // On a computer the panel opens on the live dashboard (an address with #section still opens that section).
+    if (!location.hash && wide()) state.view = 'live';
     fromHash();
     render();
   } catch (e) {
@@ -1218,4 +1402,6 @@ try {
   tg?.ready?.();
   tg?.expand?.();
 } catch {}
+// «Встановити як програму»: the button shows up only when the browser offers the install (Chrome / Edge, not Telegram).
+if (!tg?.initData) setupInstall($('#installBtn'));
 start();

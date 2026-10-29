@@ -19,7 +19,7 @@ import { stripCss, stripJs } from './minify.js';
 const gzip = promisify(zlib.gzip);
 const brotli = promisify(zlib.brotliCompress);
 
-const COMPRESSIBLE = new Set(['.html', '.js', '.mjs', '.css', '.svg', '.json', '.txt', '.map']);
+const COMPRESSIBLE = new Set(['.html', '.js', '.mjs', '.css', '.svg', '.json', '.webmanifest', '.txt', '.map']);
 const REWRITE = new Set(['.html', '.js', '.mjs', '.css']);
 const IMAGES = new Set(['.webp', '.png', '.jpg', '.jpeg']);
 export const IMMUTABLE = 'public, max-age=31536000, immutable';

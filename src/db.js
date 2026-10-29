@@ -380,6 +380,9 @@ CREATE INDEX IF NOT EXISTS trade_rooms_invited ON trade_rooms(invited_id, status
 CREATE INDEX IF NOT EXISTS parts_cool_user ON parts_cool(user_id, until);
 CREATE INDEX IF NOT EXISTS barn_finds_user ON barn_finds(user_id, status);
 CREATE INDEX IF NOT EXISTS users_seen ON users(last_seen);
+-- Desktop admin dashboard (src/admin-pc.js): which UTC hours (ms / 1 h) each player made a call in, for «активні за
+-- годину» today and yesterday; kept for three days.
+CREATE TABLE IF NOT EXISTS user_hours (hour INTEGER NOT NULL, user_id INTEGER NOT NULL, PRIMARY KEY (hour, user_id)) WITHOUT ROWID;
 `;
 // Columns added after the first release; ALTER fails harmlessly when they already exist.
 const MIGRATIONS = [

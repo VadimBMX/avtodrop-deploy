@@ -19,7 +19,7 @@ import * as SRR from './public/showroom.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.ico': 'image/x-icon', '.webp': 'image/webp', '.woff2': 'font/woff2', '.json': 'application/json; charset=utf-8' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.ico': 'image/x-icon', '.webp': 'image/webp', '.woff2': 'font/woff2', '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json; charset=utf-8' };
 const CSP = "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; form-action 'self'; img-src 'self' data: blob: https://t.me https://*.t.me https://telegram.org https://*.telegram.org; connect-src 'self'; frame-ancestors 'self' https://web.telegram.org https://*.telegram.org";
 const SECURITY = { 'x-content-type-options': 'nosniff', 'content-security-policy': CSP, 'referrer-policy': 'no-referrer' };
 
@@ -562,6 +562,12 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
       game.settleAuctions();
     } catch (e) {
       log('auction sweep:', e);
+    }
+    // Hourly balance snapshots for the desktop admin (src/admin-pc.js): «баланс виріс за 24 год». Cheap when the hour is done.
+    try {
+      game.adminPc.snapshot();
+    } catch (e) {
+      log('wealth snapshot:', e);
     }
   }, 15e3);
   sweeper.unref();

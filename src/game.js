@@ -4,6 +4,7 @@ import * as S from '../public/shared.js';
 import * as T from '../public/tune.js';
 import * as G from '../public/ghost.js';
 import * as M from './metrics.js';
+import { createAdminPc } from './admin-pc.js';
 import { createDayRace } from './dayrace.js';
 import { createBuyer } from './buyer.js';
 import { createContainers } from './containers.js';
@@ -4202,6 +4203,8 @@ export function createGame(db, opts = {}) {
     q('UPDATE users SET session_at = ? WHERE id = ?').run(t, uid);
     q('INSERT INTO user_days (day, user_id, sessions) VALUES (?, ?, ?) ON CONFLICT DO UPDATE SET sessions = sessions + excluded.sessions WHERE excluded.sessions > 0')
       .run(day, uid, fresh);
+    // The hour too (the desktop dashboard's «активні за годину»; src/admin-pc.js keeps three days of it).
+    q('INSERT OR IGNORE INTO user_hours (hour, user_id) VALUES (?, ?)').run(Math.floor(t / 3600e3), uid);
   }
   const isBanned = (uid) => !!q('SELECT banned FROM users WHERE id = ?').get(uid)?.banned;
   const userBrief = (u) => ({
@@ -5724,6 +5727,19 @@ export function createGame(db, opts = {}) {
     if (!canDo(actorRole(who), 'metrics')) fail('Немає прав на цю дію');
     return adminMetrics(body || {});
   });
+  // Desktop admin (src/admin-pc.js, public/admin-pc.js): the live dashboard and the wide player card's extra panels
+  // are for helpers too; economy & cases and the database browser for the owner and admins. All read-only — no
+  // confirm or reason; a look into the database and an export go into the action log.
+  const PC = createAdminPc({ db, q, now, dayOf, int, fail, name, kyivOffset, dashboard: (b) => adminDashboard(b), alog: (...a) => alog(...a) });
+  for (const [k, fn] of [['pc/live', (w, b) => PC.live(b)], ['pc/player', (w, b) => PC.player(b)], ['pc/economy', (w, b) => PC.economy(b)],
+    ['db/tables', () => PC.dbTables()], ['db/rows', (w, b) => PC.dbRows(w, b)], ['db/export', (w, b) => PC.dbExport(w, b)]]) {
+    admin[k] = (who, body = {}) => db.tx(() => {
+      if (!canDo(actorRole(who), k)) fail('Немає прав на цю дію');
+      return fn(who, body || {});
+    });
+  }
+  HELPER_ACTIONS.add('pc/live');
+  HELPER_ACTIONS.add('pc/player');
 
   // Once per database: the days players were in the game before user_days existed, from what they left behind
   // (case drops, races, Stars payments, the signup day) over the last 120 days (the tab shows at most 90 + 6), up to
@@ -5889,5 +5905,5 @@ export function createGame(db, opts = {}) {
     alog(by ? `bot:${by}` : 'bot', 'promo', null, { code: c, amount: Number(amount), uses: Number(uses), days: days || null });
     return c;
   });
-  return { api, admin, adminCall, announceUpdates, deliverOutbox, tgGroups: { claim: (uid, w, member) => db.tx(() => TGG.claim(uid, w, member)), cfg: () => TGG.cfg() }, push, pushCandidates: push.candidates, pushMark: push.mark, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, vipSub: (uid) => db.tx(() => vipSub(uid)), vipSubSet: (uid, cancel) => db.tx(() => vipSubSet(uid, cancel)), createPromo: botPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)), challengeInfo, challengeCard, flushStartupNotes, backfillSecrets: (o) => backfillSecrets({ force: true, ...o }) };
+  return { api, admin, adminCall, adminPc: { snapshot: () => db.tx(() => PC.snapshot()) }, announceUpdates, deliverOutbox, tgGroups: { claim: (uid, w, member) => db.tx(() => TGG.claim(uid, w, member)), cfg: () => TGG.cfg() }, push, pushCandidates: push.candidates, pushMark: push.mark, roleOf, isBanned, ensureUser, settleAuctions, creditPayment, creditItem, itemPrice: itemPriceTx, packAmountFor, vipSub: (uid) => db.tx(() => vipSub(uid)), vipSubSet: (uid, cancel) => db.tx(() => vipSubSet(uid, cancel)), createPromo: botPromo, adminGive, stats, giveCar: (uid, m) => db.tx(() => giveCar(uid, m)), addPart: (uid, t, tier, n) => db.tx(() => addPart(uid, t, tier, n)), challengeInfo, challengeCard, flushStartupNotes, backfillSecrets: (o) => backfillSecrets({ force: true, ...o }) };
 }

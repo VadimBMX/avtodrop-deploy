@@ -482,3 +482,117 @@ body.helper [data-act="bugOpen"], body.helper [data-act="bugPreset"] { display: 
 
 .apgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
 .apgrid .field input[type=checkbox] { width: 24px; height: 24px; }
+
+/* ---------- desktop («ПК-адмінка», public/admin-pc.js): from 1200 px the panel uses the width — the side bar stays,
+   content up to 1600 px, cards and charts in more columns, the player card's panels side by side ---------- */
+.back.install { margin-top: auto; border-color: #4a3c10; color: var(--accent); }
+.back.install:not([hidden]) + .back { margin-top: 0; }
+.pcchart { min-height: 150px; position: relative; }
+svg.pcsvg { display: block; overflow: visible; font: 500 11px var(--f-body); }
+svg.pcsvg .grid { stroke: var(--line); stroke-width: 1; }
+svg.pcsvg .zero { stroke: var(--line2); stroke-width: 1; }
+svg.pcsvg text { fill: var(--muted); }
+svg.pcsvg .br.accent { fill: var(--accent); }
+svg.pcsvg .br.made { fill: var(--made); }
+svg.pcsvg .br.gone { fill: var(--gone); }
+svg.pcsvg .ln { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+svg.pcsvg .ln.accent { stroke: var(--accent); }
+svg.pcsvg .ln.context { stroke: #9aa4b8; stroke-dasharray: 4 3; }
+svg.pcsvg .dt { stroke: var(--card); stroke-width: 2; }
+svg.pcsvg .dt.accent { fill: var(--accent); }
+svg.pcsvg .hit { fill: transparent; cursor: crosshair; }
+svg.pcsvg .hl { fill: #ffffff0d; pointer-events: none; }
+.sw.accent { background: var(--accent); }
+.sw.context { background: none; border-top: 2px dashed #9aa4b8; border-radius: 0; height: 0; width: 14px; }
+.pctip { position: fixed; z-index: 70; pointer-events: none; background: var(--card3); border: 1px solid var(--line2); border-radius: 8px; padding: 6px 9px;
+  font: 500 12.5px/1.45 var(--f-body); color: var(--text); box-shadow: 0 8px 20px #000a; white-space: nowrap; }
+.pctip .tt { color: var(--muted); font-size: 11.5px; margin-bottom: 2px; }
+.pctip .sw { margin-right: 6px; vertical-align: 1px; }
+.pc-g { gap: 0 14px; }
+.pc-g .panel h2 { font-size: 15.5px; margin-bottom: 6px; }
+/* live dashboard */
+.lv-pulse { font: 600 12px var(--f-body); }
+.lv-pulse::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: inline-block; margin-right: 5px; animation: lv-blink 2s ease-in-out infinite; }
+.lv-pulse.paused::before { animation: none; opacity: .4; }
+@keyframes lv-blink { 50% { opacity: .25; } }
+.stat.live b { color: var(--green); font-size: 30px; }
+.stat.flow2 b { font-size: 20px; white-space: nowrap; }
+.stat .dl { font-weight: 700; color: var(--muted); white-space: nowrap; }
+.stat .dl.up { color: var(--green); }
+.stat .dl.down { color: #ff9aa2; }
+.lv-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 16px; align-items: start; }
+.lv-side h2 { margin-bottom: 8px; }
+.lv-side .tbl-wrap { max-height: 70vh; overflow-y: auto; }
+/* player card */
+.u-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 14px; align-items: start; }
+.pc-panels { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 0 14px; align-items: start; }
+.pcp-body { max-height: 380px; overflow: auto; margin: 0 -4px; padding: 0 4px; }
+.pcp h2 { margin-bottom: 8px; }
+table.pmoney { font-size: 12.5px; }
+table.pmoney td, table.pmoney th { padding: 6px 6px; }
+.pc-empty { margin: -4px 0 14px; }
+.sus { display: grid; gap: 8px; }
+.sus-i { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 10px 8px 13px; background: var(--card2); box-shadow: inset 3px 0 0 var(--accent); }
+.sus-i.red { box-shadow: inset 3px 0 0 var(--red); }
+.sus-i b { font: 700 14.5px var(--f-disp); }
+.sus-u { margin-top: 3px; }
+.sus-ok { display: flex; gap: 8px; align-items: baseline; }
+/* economy */
+.eco-cases td.hot { color: var(--accent); font-weight: 700; }
+.eco-cases td.cold { color: #9cc2ff; font-weight: 700; }
+.hotk { color: var(--accent); font-weight: 700; }
+.coldk { color: #9cc2ff; font-weight: 700; }
+.red-s { color: #ff9aa2; }
+.ano { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 16px; }
+.ano h3 { font-size: 14px; margin: 8px 0 4px; color: var(--muted); }
+.ano .top li { padding: 6px 4px; }
+.ano .empty { padding: 8px; text-align: left; }
+/* database browser */
+.db-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 14px; align-items: start; }
+.db-side { display: grid; gap: 8px; }
+.db-side input { width: 100%; }
+.db-list { display: none; position: relative; }
+.db-sel { width: 100%; }
+.db-list button { display: flex; justify-content: space-between; gap: 8px; width: 100%; padding: 6px 9px; border-radius: 8px; color: var(--muted); font: 600 13.5px var(--f-body); text-align: left; }
+.db-list button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-list button b { font: 600 12px var(--f-body); color: var(--muted); font-variant-numeric: tabular-nums; }
+.db-list button:hover { background: var(--card2); color: var(--text); }
+.db-list button.on { background: var(--accent-soft); color: var(--accent); }
+.db-filters { display: grid; gap: 8px; }
+.db-f { display: grid; grid-template-columns: minmax(120px, 1.2fr) minmax(100px, .8fr) minmax(120px, 1.5fr) auto; gap: 6px; }
+.db-f select, .db-f input { min-width: 0; }
+table.db-t { font-size: 12.5px; }
+table.db-t td { white-space: nowrap; max-width: 340px; overflow: hidden; text-overflow: ellipsis; vertical-align: top; }
+table.db-t th a { color: var(--muted); }
+table.db-t th.on a, table.db-t th a:hover { color: var(--accent); }
+table.db-t tr:hover td { background: var(--card2); }
+.db-rows .tbl-wrap { max-height: 70vh; overflow: auto; }
+.db-rows table.db-t tr:first-child th { position: sticky; top: 0; background: var(--card); z-index: 1; }
+@media (min-width: 1200px) {
+  .shell { grid-template-columns: 248px minmax(0, 1fr); }
+  main { max-width: 1600px; width: 100%; padding: 24px 32px 60px; }
+  .cards { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+  .hero-row { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .lv-grid { grid-template-columns: minmax(0, 1fr) minmax(330px, 400px); }
+  .lv-side { position: sticky; top: 16px; }
+  .u-cols { grid-template-columns: minmax(0, 1.65fr) minmax(360px, 1fr); }
+  .u-side .kv { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .db-grid { grid-template-columns: 250px minmax(0, 1fr); }
+  .db-list { display: block; max-height: calc(100vh - 210px); overflow-y: auto; }
+  .db-sel { display: none; }
+  .db-side { position: sticky; top: 16px; }
+}
+/* below the desktop line «Хто грає» comes right after the numbers, before the charts */
+@media (max-width: 1199px) { .lv-side { order: -1; } .lv-side .tbl-wrap { max-height: 420px; } }
+@media (min-width: 1500px) {
+  .lv-charts .grid2 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 860px) {
+  .pcchart { min-height: 130px; }
+  .db-f { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 48px; }
+  .db-f .dfo { grid-column: 2 / 4; }
+  .db-f .dfv { grid-column: 1 / 3; }
+  .ano { grid-template-columns: minmax(0, 1fr); }
+  .stat.live b { font-size: 26px; }
+}
+@media (prefers-reduced-motion: reduce) { .lv-pulse::before { animation: none; } }
