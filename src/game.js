@@ -23,6 +23,9 @@ import { createBugBounty } from './bugbounty.js';
 import { createShowroom } from './showroom.js';
 import { createGoals } from './goals.js';
 import { createPlateAuction } from './plate-auction.js';
+import { createBusiness } from './business.js'; // s2-biz
+import { bizOfItem, BIZ as BIZ_RULES } from '../public/business.js'; // s2-biz
+const BIZ_PERKS = BIZ_RULES.perks; // s2-biz
 
 export class GameError extends Error {}
 const fail = (msg) => {
@@ -193,7 +196,10 @@ export function createGame(db, opts = {}) {
   const REGEN_MS = S.FUEL_REGEN_MIN * 60e3;
   const vipMult = (vip) => (vip ? S.VIP.fuelMult : 1);
   // The player's own tank (S.TANK_UPGRADES «Більший бак»): every cap, refill and «бак повний» goes through this.
-  const fuelMax = (u) => S.fuelMaxOf(u?.tank_lvl || 0);
+  // s2-biz: «Мої бізнеси» (src/business.js, created below); «Заправка» adds to the tank and speeds up its refill.
+  let BIZ = null;
+  const fuelMax = (u) => S.fuelMaxOf(u?.tank_lvl || 0) + (BIZ && u?.id ? BIZ.perks(u.id).fuelExtra : 0);
+  const regenMs = (u) => (BIZ && u?.id ? REGEN_MS / BIZ.perks(u.id).regenMult : REGEN_MS); // s2-biz
   // The per-car tank is gone (one shared tank): cars.tank stays unused and a car always reports a full one, so an app
   // from before never greys a car out.
   const tankState = () => ({ tank: S.CAR_TANK, next: null });
@@ -221,7 +227,7 @@ export function createGame(db, opts = {}) {
     const plate = ex ? ex.plate(c.id) : carPlate(c.id);
     const st = S.carStats({ model: c.model, parts, plateValue: plate?.value || 0 });
     const t = tankState(c);
-    return { id: c.id, model: c.model, status: c.status, parts, plate, look: lookOf(c), tank: t.tank, tankNext: t.next, sell: S.sellPriceOf(c.model, now() - c.created_at, c.origin), origin: c.origin || null, ...st,
+    return { id: c.id, model: c.model, status: c.status, parts, plate, look: lookOf(c), tank: t.tank, tankNext: t.next, sell: Math.floor(S.sellPriceOf(c.model, now() - c.created_at, c.origin) * (BIZ?.owns(c.owner_id, 'salon') ? 1 + BIZ_PERKS.salonSell : 1)) /* s2-biz */, origin: c.origin || null, ...st,
       dirt: Math.floor(S.dirtNow(c.dirt, c.dirt_at, now())), shineUntil: c.shine_until > now() ? c.shine_until : 0, ...(c.serial ? { serial: c.serial } : {}),
       ...((r) => (r?.stars ? { stars: r.stars, starAt: r.at, starSpent: r.spent } : {}))(ex ? ex.restyle(c.id) : restyleOf(c.id)) };
   }
@@ -699,7 +705,7 @@ export function createGame(db, opts = {}) {
     const max = fuelMax(u);
     // fix5: a full tank may hold up to CANISTER.spare more «в запасі» (a canister on a full tank); races use it first.
     if (u.fuel >= max) return { fuel: Math.min(u.fuel, max + S.CANISTER.spare), max, at: now(), next: null, fullAt: u.fuel_at };
-    const r = S.regenAt(u.fuel_at, now(), REGEN_MS, max - u.fuel, evOv, vipMult((u.vip_until || 0) > now()));
+    const r = S.regenAt(u.fuel_at, now(), regenMs(u), max - u.fuel, evOv, vipMult((u.vip_until || 0) > now())); // s2-biz: regenMs
     const fuel = u.fuel + r.n;
     return { fuel, max, at: fuel >= max ? now() : r.at, next: r.next, fullAt: fuel >= max ? r.at : null };
   }
@@ -835,7 +841,7 @@ export function createGame(db, opts = {}) {
     let got = 0;
     for (const id of ids) {
       const c = noSecret(ownCar(uid, id, ['garage', 'showcase']));
-      got += S.sellPriceOf(c.model, now() - c.created_at, c.origin);
+      got += Math.floor(S.sellPriceOf(c.model, now() - c.created_at, c.origin) * (BIZ ? BIZ.perks(uid).sellMult : 1)); // s2-biz: «Автосалон» +5%
       stripCar(uid, c.id);
       q('DELETE FROM cars WHERE id = ?').run(c.id);
       q('DELETE FROM rivals WHERE car_id = ?').run(c.id);
@@ -1057,7 +1063,7 @@ export function createGame(db, opts = {}) {
     const u = userRow(uid);
     const wait = partNextAt(u) - now();
     if (wait > 0) fail(`Зачекай ще ${Math.ceil(wait / 1000)} с`);
-    const price = Math.round(pc.price * (type ? 1 + S.PICK_PART_EXTRA : 1) / 100) * 100;
+    const price = Math.round(pc.price * (type ? 1 + S.PICK_PART_EXTRA : 1) * (BIZ ? BIZ.perks(uid).partsMult : 1) / 100) * 100; // s2-biz: «СТО» −15%
     pay(uid, price * n);
     const tiers = Object.entries(pc.weights);
     const pool = partPool(uid);
@@ -1254,7 +1260,7 @@ export function createGame(db, opts = {}) {
   }
   function washDone(uid, cars) {
     bank(uid); // income so far at the old dirt and shine
-    const until = now() + S.WASH.shineHours * 3600e3;
+    const until = now() + Math.round(S.WASH.shineHours * 3600e3 * (BIZ ? BIZ.perks(uid).shineMult : 1)); // s2-biz: «Автомийка» shines longer
     for (const c of cars) q('UPDATE cars SET dirt = 0, dirt_at = ?, shine_until = ? WHERE id = ?').run(now(), until, c.id);
     track(uid, 'wash', cars.length);
     return until;
@@ -5495,6 +5501,26 @@ export function createGame(db, opts = {}) {
     });
   }
   for (const k of PA.mutating) ADMIN_MUTATING.add(k);
+  // ===== s2-biz: «Мої бізнеси» (src/business.js, public/business.js, public/business-ui.js) =====
+  // biz, biz/buy, biz/upgrade, biz/collect; `me.biz` / `me.bizTotalBox` / `me.bizPerks`; the «Менеджер» Stars items
+  // (S.SHOP_BY_ID bizmgr-<id>) go through the usual itemPrice / applyItem; a VIP purchase banks the boxes first.
+  BIZ = createBusiness({ db, q, now, fail, addMoney, pay, userRow, vipOf, srcWrap: (src, fn) => (...a) => srcWrap(src, fn)(...a) });
+  Object.assign(handlers, BIZ.api);
+  {
+    const meBase = handlers.me;
+    handlers.me = (uid, b) => {
+      const p = BIZ.perks(uid);
+      return { ...meBase(uid, b), ...BIZ.brief(uid), bizPerks: { fuel: p.fuelExtra, regen: p.regenMult, shine: p.shineMult, parts: p.partsMult, sell: p.sellMult } };
+    };
+    const priceBase = itemPrice, applyBase = applyItem;
+    itemPrice = (uid, itemId) => (BIZ.itemCheck(uid, itemId), priceBase(uid, itemId));
+    applyItem = (uid, itemId) => {
+      if (bizOfItem(itemId)) return BIZ.applyManager(uid, itemId);
+      if (S.SHOP_BY_ID[itemId]?.vipDays) BIZ.bankAll(uid); // the longer VIP box starts now, not retroactively
+      return applyBase(uid, itemId);
+    };
+  }
+  // ===== /s2-biz =====
   // Every call runs in one transaction, settles the weekly race and refreshes the caller's garage value — except the
   // frequent polls below (every few seconds, or several times a second in a live race), which change no cars.
   const LIGHT = new Set(['pulse', 'pvp/progress', 'pvp/state', 'containers/lot', 'plateAuction']);
