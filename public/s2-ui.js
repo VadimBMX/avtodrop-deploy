@@ -419,7 +419,10 @@ function caseView(base) {
 function dropResult(base) {
   const s = st(), d = s.drop;
   const html = base();
-  if (d.length !== 1) return `<div class="s2-multi">${html}</div>`;
+  if (d.length !== 1) {
+    const cs0 = S.CASE_BY_ID[s.dropCase] || S.CASE_BY_ID[s.caseId];
+    return `<div class="s2-multi"><div class="s2-res-top"><span class="s2-res-from">${caseArt(cs0, false, 'mini')}${esc(cs0.name)} · ×${d.length} відкрито</span><button class="s2-rb" data-act="toGarage" aria-label="Закрити">${X.ic('x')}</button></div>${html}</div>`;
+  }
   const tpl = document.createElement('template');
   tpl.innerHTML = html;
   const dockEl = tpl.content.querySelector('.drop-dock');

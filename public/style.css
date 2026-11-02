@@ -4872,6 +4872,8 @@ body.s2 #view:has(.s2-res) { background: radial-gradient(90% 55% at 50% 30%, col
 body.s2 .s2-res .drop-dock .opencase, body.s2 .s2-res .drop-dock .opencase.second { background: none !important; box-shadow: none !important; color: var(--accent) !important; }
 body.s2 .s2-res .drop-dock .opencase .oc-l { color: var(--accent); text-decoration: none; }
 .s2-res .wow-share, .s2-res .share-row { width: 100%; }
+body.s2 .s2-multi .casebar { display: none; }
+body.s2:has(#view .s2-multi) .top h1 { visibility: hidden; }
 body.s2 .s2-multi .stage { background: var(--glass); border: 1px solid var(--glass-b); border-radius: 24px; }
 
 /* opening overlay: shake → flash → open */
