@@ -220,7 +220,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
 
   // Per player: 60 calls in 10 s in all, and of those at most MONEY_MAX that move money, cars or rewards (MONEY_API).
   // A key is `uid` or `money:uid`; the map is dropped when it grows too big (it only ever holds the last 10 s).
-  const MONEY_API = /^(case\/open|parts\/(open|merge|sell|sell-junk)|sell$|upgrade$|dealer\/|market\/(sell|buy|cancel|item-sell|item-buy|item-cancel)|auction\/(create|bid|cancel)|trade\/(create|accept)|room\/(offer|ready)|battle\/(create|join)|pvp\/(create|accept|request)|containers\/(bid|expert)|clubs?\/|promo$|shop\/|plate\/(generate|sell)|barn\/|prestige\/|rescue\/claim|rewards\/|weekly\/chest|[a-z]+\/claim$)/;
+  const MONEY_API = /^(case\/open|parts\/(open|merge|sell|sell-junk)|sell$|upgrade$|dealer\/|market\/(sell|buy|cancel|item-sell|item-buy|item-cancel)|auction\/(create|bid|cancel)|trade\/(create|accept)|room\/(offer|ready)|battle\/(create|join)|pvp\/(create|accept|request)|containers\/(bid|expert)|clubs?\/|promo$|shop\/|plate\/(generate|sell)|barn\/|prestige\/|rescue\/claim|rewards\/|weekly\/chest|[a-z]+\/claim$|biz\/(buy|upgrade|collect)$)/; // s2-biz: biz/*
   const MONEY_MAX = 30;
   function limited(uid, max = 60) {
     const t = Date.now();

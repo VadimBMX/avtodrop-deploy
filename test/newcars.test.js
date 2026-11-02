@@ -82,6 +82,7 @@ test('when a photo arrives the car joins the game at the price it already had, a
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'avtodrop-photos-'));
   try {
     fs.copyFileSync(path.join(ROOT, 'public', 'shared.js'), path.join(dir, 'shared.js'));
+    fs.copyFileSync(path.join(ROOT, 'public', 'business.js'), path.join(dir, 'business.js')); // s2-biz: imported by shared.js
     const ready = pending.map((m) => m.id);
     fs.writeFileSync(path.join(dir, 'car-photos.js'), `export const CAR_PHOTOS = ${JSON.stringify([...CAR_PHOTOS, ...ready])};\n`);
     const out = execFileSync(process.execPath, ['--input-type=module', '-e', `

@@ -59,6 +59,7 @@ export const MONEY_GROUPS = [
   { key: 'market', name: 'Ринок, аукціон, обміни', src: ['market/', 'auction', 'plateAuction', 'trade/', 'room/'] },
   { key: 'casino', name: 'Казино', src: ['casino/'] },
   { key: 'shop', name: 'Магазин ⭐', src: ['shop'] },
+  { key: 'biz', name: 'Бізнеси', src: ['biz/'] }, // s2-biz: «Мої бізнеси» (buy, upgrades, «Зібрати», the manager)
   { key: 'admin', name: 'Адмінка', src: ['admin'] },
 ];
 const OTHER = { key: 'other', name: 'Інше' };

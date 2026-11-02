@@ -44,6 +44,7 @@ import { installGoals, goalsHead } from './goals-ui.js';
 import { installPlateAuction, paHubCard, paBanner, paAsk } from './plate-auction-ui.js';
 import { installSeason2, s2Ask, s2PayCredit, s2CreditCard } from './season2-ui.js';
 import { tankShown, idleCapHours } from './garage-calm.js';
+import { installBusiness, bizHubRow } from './business-ui.js'; // s2-biz: «Мої бізнеси»
 
 const tg = window.Telegram?.WebApp;
 const $ = (s, el = document) => el.querySelector(s);
@@ -495,6 +496,7 @@ function back() {
   if (!$('#modal').hidden) return sheetBack ? sheetBack() : closeModal();
   if (state.race && state.race.phase !== 'done') return;
   if (state.page === 'lot') state.marketTab = 'pier';
+  if (state.page === 'bizOne') return go('biz'); // s2-biz: one business → «Мої бізнеси»
   state.page = state.page === 'tradeNew' || state.page === 'room' ? 'trades' : state.page === 'battle' ? 'battles' : state.page === 'lot' ? 'market' : null;
   render();
 }
@@ -597,6 +599,8 @@ installPlateAuction({ me: () => me, state: () => state, H, PAGES, AFTER, PAGE_TI
   untilSpan: (t) => untilSpan(t), tickUntil: () => tickUntil(), serverNow: () => serverNow(), sheet, closeModal, confirmBox: (t) => confirmBox(t),
   emptyBox: (...a) => emptyBox(...a), pop: POP });
 installSeason2({ me: () => me, H, api, act, toast, ic, esc, sheet, closeModal, confirmBox: (t) => confirmBox(t), pop: POP, refresh: () => refresh() });
+// s2-biz: «Мої бізнеси» (pages biz / bizOne, the menu row bizHubRow)
+installBusiness({ me: () => me, state: () => state, H, PAGES, AFTER, PAGE_TITLES, api, act, toast, go, render, ic, esc, serverNow: () => serverNow(), confirmBox: (t) => confirmBox(t) });
 
 // ---------- progressive unlock (S.UNLOCKS; the server says what is open in me.unlocked) ----------
 // Locked things stay in sight with a lock and the level they open at, so there's something to look forward to.
@@ -4392,7 +4396,7 @@ TABS.menu = () => {
   const H2 = (t, r = '') => `<div class="hub-h"><span>${t}</span>${r ? `<span>${r}</span>` : ''}</div>`;
   const nextLock = S.UNLOCKS.find((u) => !isOpen(u.key) && !(u.key === 'casino' && casinoOff()));
   return `<div class="hub">${head}${paHubCard()}${vipSaleBanner()}${contestHubCard()}${pass}${homeCard()}
-    ${H2('Нагороди й прогрес')}<div class="hub-grid g2">${tiles.join('')}</div>${challengeHubRow()}${clubHub()}${prestigeHubRow()}${showroomHubRow()}${tgGroupsCard()}
+    ${H2('Нагороди й прогрес')}<div class="hub-grid g2">${tiles.join('')}</div>${challengeHubRow()}${clubHub()}${bizHubRow()}${prestigeHubRow()}${showroomHubRow()}${tgGroupsCard()}
     ${H2('Торгівля', nextLock && ['market', 'trades', 'tradein', 'plates'].includes(nextLock.key) ? `${ic('lock')} далі: ${nextLock.name} · рів. ${nextLock.level}` : '')}<div class="hub-grid g4">${trade.join('')}</div>
     ${H2('Ризикнути')}<div class="hub-grid g2">${risk.join('')}</div>
     ${H2('Магазин')}${store}
