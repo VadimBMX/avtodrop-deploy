@@ -9140,7 +9140,7 @@ installGoals({ me: () => me, state: () => state, H, AFTER, ic, esc, plural, coun
 
 // ---------- «АВТОДРОП: Місто» (public/s2-ui.js) ----------
 // Last, so it wraps the final TABS / AFTER of every screen above (the boot render runs after this, behind await).
-installS2({ me: () => me, state: () => state, config: () => config, tg, H, TABS, PAGES, AFTER, TITLES, PAGE_TITLES, api, act, toast, sheet, closeModal, go, render, back: () => back(), ic, esc, plural,
+installS2({ me: () => me, refresh: () => refresh(false), state: () => state, config: () => config, tg, H, TABS, PAGES, AFTER, TITLES, PAGE_TITLES, api, act, toast, sheet, closeModal, go, render, back: () => back(), ic, esc, plural,
   carArt, FX, SFX, haptic: (k) => haptic(k), isOpen: (k) => isOpen(k), pct: (p) => pct(p), caseIcon: (cs) => caseIcon(cs), caseNow: (cs) => caseNow(cs), dropPaid: (cs) => dropPaid(cs),
   dropAlive: (r) => dropAlive(r), sellPrice: (c) => sellPrice(c), sellTotal: (c) => sellTotal(c), carInc: (c) => carInc(c), pendingNow: () => pendingNow(), serverNow: () => serverNow(),
   untilSpan: (t) => untilSpan(t), tickUntil: () => tickUntil(), fmax: () => fmax(), hubTile: (o) => hubTile(o), brokeCard: () => brokeCard(), vipSaleBanner: () => vipSaleBanner(),

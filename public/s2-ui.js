@@ -163,7 +163,7 @@ function bizList() {
   const b = me().biz;
   if (!b) return null;
   const list = Array.isArray(b) ? b : Array.isArray(b.list) ? b.list : Object.entries(b).map(([k, v]) => (v && typeof v === 'object' ? { type: k, ...v } : null)).filter(Boolean);
-  return list.map((v) => ({ type: v.type || v.kind || v.id, name: v.name, rate: v.rate ?? v.income ?? v.perHour ?? 0, pending: v.pending ?? v.cash ?? 0, level: v.level }));
+  return list.map((v) => ({ type: v.type || v.kind || v.id, name: v.name, rate: v.rate ?? v.income ?? v.perHour ?? 0, pending: v.pending ?? v.cash ?? v.box ?? 0, level: v.level ?? v.lvl }));
 }
 const paOpen = () => (me().plateAuction?.open || []).filter((a) => a.endsAt > X.serverNow());
 function spotText(sp) {
@@ -206,7 +206,7 @@ function collectSheet() {
   const full = m.income?.rate && X.pendingNow() >= m.income.rate * m.income.capH - 1;
   return `<div class="s2-sheet s2-collect"><span class="s2-dots">${cols.map((c) => `<i style="background:${c}"></i>`).join('')}</span>
     <span class="s2-st"><small>${n > 1 ? `${n} ${X.plural(n, ['бізнес', 'бізнеси', 'бізнесів'])} накопичили` : full ? 'Каса гаража повна' : `Гараж накопичив · ${shortN(m.income?.rate || 0)}/год`}</small><b id="s2Pend">+${n0(pend)} ₴</b></span>
-    <button class="s2-btn" data-act="collect" ${pend < 1 ? 'disabled' : ''}>${X.ic('cash')}Зібрати</button></div>`;
+    <button class="s2-btn" data-act="s2CollectAll" ${pend < 1 ? 'disabled' : ''}>${X.ic('cash')}Зібрати</button></div>`;
 }
 // «Війна районів»: districts of the world map (public/s2/world.webp 1584×672). Static until clubs fight for them.
 const WORLD_W = 1584, WORLD_H = 672;
@@ -601,6 +601,15 @@ const handlers = {
     st().cityView = d.k === 'war' ? 'war' : 'city';
     X.render();
   },
+  // «Зібрати» on the city: the garage income and every business box in one tap.
+  s2CollectAll: async () => {
+    const g = X.pendingNow() >= 1 ? await X.api('collect', {}).catch(() => null) : null;
+    const b = (bizList() || []).some((v) => v.pending >= 1) ? await X.api('biz/collect', { all: true }).catch(() => null) : null;
+    const got = (g?.got || 0) + (b?.got || 0);
+    X.toast(got ? `+${S.fmt(got)}` : 'Поки нічого збирати');
+    await X.refresh?.();
+    X.render();
+  },
   s2Spot: (d) => {
     const s = st();
     const toTab = (tab, extra) => {
@@ -611,15 +620,12 @@ const handlers = {
     };
     switch (d.k) {
       case 'auction': return paOpen().length ? X.go('plateAuction') : X.isOpen('auction') ? X.H.pierGo() : (s.tab = 'bazaar', X.go('market'));
-      case 'sto': return X.isOpen('parts') ? toTab('shop') : X.H.locked({ k: 'parts' });
+      case 'sto': case 'wash': case 'gas': case 'salon': return bizList()?.some((b) => b.type === d.k) ? X.H.bizOpen({ id: d.k }) : X.go('biz');
       case 'track': return toTab('race', () => (s.raceView = 'race'));
       case 'drift': return toTab('race', () => (s.raceView = 'drift'));
       case 'garage': return toTab('garage', () => (s.garageView = 'park'));
-      case 'gas': return toTab('race', () => (s.raceView = 'race'));
-      case 'wash': return toTab('garage', () => (s.garageView = 'cars'));
       case 'shop': return X.go('store');
       case 'club': return X.go('club');
-      case 'salon': return X.go('showroom');
       case 'dealer': return X.isOpen('tradein') ? X.go('tradein') : X.H.locked({ k: 'tradein' });
       case 'tire': return X.toast('Шиномонтаж — бізнес Сезону 2, відкриється незабаром');
       default: return X.toast('Вільна ділянка: тут можна буде збудувати свій бізнес');
