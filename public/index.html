@@ -12,21 +12,24 @@
   <link rel="stylesheet" href="wow.css">
   <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
 </head>
-<body>
+<body class="s2">
   <div id="app">
     <header class="top">
+      <button class="s2back" id="s2back" aria-label="Назад" hidden><svg class="i" aria-hidden="true"><use href="icons.svg#i-chevron-left"/></svg></button>
       <button class="avatar" id="avatar" aria-label="Профіль"></button>
       <h1 id="title">АВТОДРОП</h1>
       <button class="iconbtn" id="gift" aria-label="Нагороди"><svg class="i" aria-hidden="true"><use href="icons.svg#i-gift"/></svg><span class="badge" id="giftBadge" hidden>!</span></button>
       <button class="balance" id="balance">…</button>
     </header>
     <main id="view"><div class="loading">Завантаження…</div></main>
-    <nav class="tabs" id="tabs">
+    <nav class="tabs s2tabs" id="tabs">
+      <button data-tab="city"><svg class="i" aria-hidden="true"><use href="icons.svg#i-building-skyscraper"/></svg><span>Місто</span><i class="dot" id="cityDot" hidden></i></button>
       <button data-tab="garage"><svg class="i" aria-hidden="true"><use href="icons.svg#i-building-warehouse"/></svg><span>Гараж</span></button>
-      <button data-tab="cases"><svg class="i" aria-hidden="true"><use href="icons.svg#i-box"/></svg><span>Кейси</span><i class="dot" id="casesDot" hidden></i></button>
-      <button data-tab="race"><svg class="i" aria-hidden="true"><use href="icons.svg#i-flag-3"/></svg><span>Гонки</span></button>
-      <button data-tab="shop"><svg class="i" aria-hidden="true"><use href="icons.svg#i-tool"/></svg><span>Майстерня</span></button>
-      <button data-tab="menu"><svg class="i" aria-hidden="true"><use href="icons.svg#i-layout-grid"/></svg><span>Меню</span><i class="dot" id="menuDot" hidden></i></button>
+      <button data-tab="cases" class="s2drop"><b class="s2drop-b"><svg class="i" aria-hidden="true"><use href="icons.svg#i-box"/></svg></b><span>DROP</span><i class="dot" id="casesDot" hidden></i></button>
+      <button data-tab="bazaar"><svg class="i" aria-hidden="true"><use href="icons.svg#i-building-store"/></svg><span>Ринок</span><i class="dot" id="bazaarDot" hidden></i></button>
+      <button data-tab="menu" class="s2me"><span class="s2me-av" id="s2meAv"></span><span>Профіль</span><i class="dot" id="menuDot" hidden></i></button>
+      <button data-tab="race" hidden><svg class="i" aria-hidden="true"><use href="icons.svg#i-flag-3"/></svg><span>Гонки</span></button>
+      <button data-tab="shop" hidden><svg class="i" aria-hidden="true"><use href="icons.svg#i-tool"/></svg><span>Майстерня</span></button>
     </nav>
   </div>
   <div id="modal" class="modal" hidden><div class="sheet" id="sheet"></div></div>
