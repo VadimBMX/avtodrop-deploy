@@ -42,6 +42,7 @@ import { installPrestige, starsHtml, starTileCls, sellStarNote, carRestyleLi, pr
 import { installShowroom, showroomHubRow, showroomStrip, showroomFromLink } from './showroom-ui.js';
 import { installGoals, goalsHead } from './goals-ui.js';
 import { installPlateAuction, paHubCard, paBanner, paAsk } from './plate-auction-ui.js';
+import { installSeason2, s2Ask, s2PayCredit, s2CreditCard } from './season2-ui.js';
 import { tankShown, idleCapHours } from './garage-calm.js';
 
 const tg = window.Telegram?.WebApp;
@@ -534,6 +535,7 @@ async function refresh(rerender = true) {
   hwIntroAsk(); // «Ніч Хелловіну»: the animated intro once per event (public/halloween-ui.js)
   contestAsk(); // «Битва амбасадорів»: the banner once a Kyiv day while the contest runs
   paAsk(); // «Аукціон номера»: one window per auction per player while it runs
+  s2Ask(); // «Сезон 02»: the compensation window once after the wipe (public/season2-ui.js)
   packOfferAsk(); // «Мега-пропозиція» on hryvnia packs (one window per offer)
   ideaAskOnce(); // «Що додати в гру?»: every player from level 2, ✕ after 5 s, asked again once next day if skipped
   bugAskOnce(); // «Бета-тест: знайшов баг — пиши в підтримку» (once per player, from level 2)
@@ -594,6 +596,7 @@ installShowroom({ me: () => me, state: () => state, config: () => config, tg, H,
 installPlateAuction({ me: () => me, state: () => state, H, PAGES, AFTER, PAGE_TITLES, api, act, toast, go, render, ic, esc, plate: (...a) => plate(...a),
   untilSpan: (t) => untilSpan(t), tickUntil: () => tickUntil(), serverNow: () => serverNow(), sheet, closeModal, confirmBox: (t) => confirmBox(t),
   emptyBox: (...a) => emptyBox(...a), pop: POP });
+installSeason2({ me: () => me, H, api, act, toast, ic, esc, sheet, closeModal, confirmBox: (t) => confirmBox(t), pop: POP, refresh: () => refresh() });
 
 // ---------- progressive unlock (S.UNLOCKS; the server says what is open in me.unlocked) ----------
 // Locked things stay in sight with a lock and the level they open at, so there's something to look forward to.
@@ -6722,14 +6725,14 @@ H.slotSpin = async () => {
 // Stars buy looks and VIP, not progress (owner, audit §2 №10): two tabs — «Магазин» (the one starter pack, the VIP
 // subscription with the one-off VIP as a fallback, the pass, conveniences) and «Стиль» (S.STYLE_ITEMS: plate frames,
 // showcase backdrops, liveries, name colour, underglow — owned for good, worn per slot, seen by other players).
-const storeBuyBtns = (x, sh, cls = 'yellow') => `<div class="row" style="gap:6px"><button class="btn sm ${cls}" data-act="buyItem" data-id="${x.id}" ${config.stars ? '' : 'disabled'}>${ic('star')} ${x.price}</button>${sh.stars >= x.price ? `<button class="btn sm ghost" data-act="buyItemStars" data-id="${x.id}" data-p="${x.price}">з рахунку</button>` : ''}</div>`;
+const storeBuyBtns = (x, sh, cls = 'yellow') => `<div class="row" style="gap:6px"><button class="btn sm ${cls}" data-act="buyItem" data-id="${x.id}" ${config.stars || sh.starCredit > 0 ? '' : 'disabled'}>${ic('star')} ${x.price}</button>${sh.stars >= x.price ? `<button class="btn sm ghost" data-act="buyItemStars" data-id="${x.id}" data-p="${x.price}">з рахунку</button>` : ''}</div>`;
 const kyivDate = (t) => new Date(t).toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', timeZone: 'Europe/Kyiv' });
 PAGES.store = async () => {
   const sh = await api('shop');
   state.storeView ||= 'shop';
   const seg = `<div class="seg st-seg">${[['shop', 'star', 'Магазин'], ['style', 'sparkles', 'Стиль']].map(([k, i, t]) => `<button class="${state.storeView === k ? 'on' : ''}" data-act="storeView" data-k="${k}">${ic(i)} ${t}</button>`).join('')}</div>`;
   const top = `${config.stars ? '' : `<div class="notice">${ic('info-circle')}<span>Оплата зірками запрацює після підключення бота (BOT_TOKEN).</span></div>`}
-  <div class="card row stars-card"><span class="ic tint" style="--c:#ffc400">${ic('star')}</span><div class="grow"><b>Зірки на рахунку</b><div class="tiny muted">призи сезону — можна витратити тут</div></div><b class="disp stars-n">${sh.stars}</b></div>`;
+  <div class="card row stars-card"><span class="ic tint" style="--c:#ffc400">${ic('star')}</span><div class="grow"><b>Зірки на рахунку</b><div class="tiny muted">призи сезону — можна витратити тут</div></div><b class="disp stars-n">${sh.stars}</b></div>${s2CreditCard(sh)}`;
   const foot = `<div class="tiny muted center mt">Оплата через Telegram Stars, усе зараховується одразу. Зірки на рахунку — призи сезону. Ігрові цінності не можна вивести чи обміняти на реальні гроші. Питання — /paysupport у боті.</div>`;
   return seg + top + (state.storeView === 'style' ? styleView(sh) : storeMain(sh)) + foot;
 };
@@ -6761,7 +6764,7 @@ function storeMain(sh) {
   const mult = fb || off?.mult || 0;
   const packs = sh.packs?.length ? `<div class="h2"><span>Гривні</span>${fb ? `<span class="pk-timer">${ic('gift')} перша покупка ×${fb}</span>` : off ? `<span class="pk-timer">${ic('flame')} ×${off.mult} · ще <span data-until="${off.until - clockOffset}"></span></span>` : '<span>зараховуються одразу</span>'}</div>
     ${fb ? `<div class="pk-hot">${ic('gift')} <b>Перша покупка — ×${fb} гривень!</b> Будь-який пакет, навіть найменший. Лише один раз.</div>` : off ? `<div class="pk-hot">${ic('flame')} <b>Мега-пропозиція:</b> ×${off.mult} гривень на всі пакети за ту саму ціну</div>` : ''}
-    <div class="pk-grid">${sh.packs.map((p) => `<button class="pk${mult ? ' hot' : ''}" data-act="buyPack" data-id="${p.id}" ${config.stars ? '' : 'disabled'}>
+    <div class="pk-grid">${sh.packs.map((p) => `<button class="pk${mult ? ' hot' : ''}" data-act="buyPack" data-id="${p.id}" ${config.stars || sh.starCredit > 0 ? '' : 'disabled'}>
       ${p.tag ? `<span class="pk-tag">${esc(p.tag)}</span>` : ''}<b>${S.short(p.amount)}</b>${mult ? `<s>${S.short(p.amount / mult)}</s>` : ''}<span class="pk-st">${ic('star')} ${p.stars}</span></button>`).join('')}</div>` : '';
   // «Угода дня» (S.DAY_DEALS): one cheap offer a day, at the top of the shop.
   const dd = sh.dayDeal;
@@ -6846,6 +6849,7 @@ H.vipSub = async (d) => {
 AFTER.store = tickUntil;
 H.buyItem = async (d) => {
   try {
+    if (await s2PayCredit({ item: d.id })) return; // «Сезон 02»: the star credit pays first when it covers the price
     const { link } = await api('shop/invoice', { item: d.id });
     if (!tg?.openInvoice) return toast('Відкрий гру в Telegram, щоб оплатити', true);
     tg.openInvoice(link, (status) => {
@@ -6859,6 +6863,7 @@ H.buyItem = async (d) => {
 // Hryvnia packs (S.PACKS): the amount is fixed in the invoice when it's made (the «мега-пропозиція» ×2 included).
 H.buyPack = async (d) => {
   try {
+    if (await s2PayCredit({ pack: d.id })) return;
     const { link } = await api('shop/invoice', { pack: d.id });
     if (!tg?.openInvoice) return toast('Відкрий гру в Telegram, щоб оплатити', true);
     tg.openInvoice(link, (status) => {
