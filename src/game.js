@@ -23,6 +23,7 @@ import { createBugBounty } from './bugbounty.js';
 import { createShowroom } from './showroom.js';
 import { createGoals } from './goals.js';
 import { createPlateAuction } from './plate-auction.js';
+import { createSeason2 } from './season2.js';
 
 export class GameError extends Error {}
 const fail = (msg) => {
@@ -5495,6 +5496,39 @@ export function createGame(db, opts = {}) {
     });
   }
   for (const k of PA.mutating) ADMIN_MUTATING.add(k);
+  // «Сезон 02» (src/season2.js, public/season2-ui.js, public/admin-season2.js): the one-shot wipe with compensation
+  // (owner only), profile frames (shown next to players in the rating and on the card), the star credit in the shop,
+  // the one-time welcome window (`me.s2Welcome`).
+  const S2 = createSeason2({ db, q, now, fail, name, userRow, addMoney, event, alog: (...a) => alog(...a), itemPrice, applyItem, packAmountFor,
+    settleSeason: () => settleSeason(), weekOf, metaGet, metaSet, moneyFlow, actorRole });
+  Object.assign(handlers, S2.api);
+  {
+    const meBase = handlers.me, shopBase = handlers.shop, lbBase = handlers.leaderboard, playerBase = handlers.player;
+    handlers.me = (uid, b) => {
+      const u = userRow(uid);
+      return { ...meBase(uid, b), starCredit: u.star_credit, frame: S2.frameOf(uid), s2Welcome: S2.welcome(uid) };
+    };
+    handlers.shop = (uid, b) => ({ ...shopBase(uid, b), starCredit: userRow(uid).star_credit });
+    handlers.leaderboard = (uid, b) => {
+      const r = lbBase(uid, b);
+      if (Array.isArray(r?.list)) {
+        const fr = S2.framesOf(r.list.map((x) => x.id));
+        for (const x of r.list) x.frame = fr[x.id] || null;
+      }
+      return r;
+    };
+    handlers.player = (uid, b) => {
+      const p = playerBase(uid, b);
+      return { ...p, frame: S2.frameOf(p.id), veteranS1: S2.veteranOf(p.id) };
+    };
+  }
+  for (const [k, fn] of Object.entries(S2.admin)) {
+    admin[k] = (who, body = {}) => db.tx(() => {
+      if (!canDo(actorRole(who), k)) fail('Немає прав на цю дію');
+      return fn(who, body || {});
+    });
+  }
+  for (const k of S2.mutating) ADMIN_MUTATING.add(k);
   // Every call runs in one transaction, settles the weekly race and refreshes the caller's garage value — except the
   // frequent polls below (every few seconds, or several times a second in a live race), which change no cars.
   const LIGHT = new Set(['pulse', 'pvp/progress', 'pvp/state', 'containers/lot', 'plateAuction']);

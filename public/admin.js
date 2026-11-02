@@ -4,6 +4,7 @@ import { carArt, setImages } from './car.js';
 import { metricsPage } from './admin-metrics.js';
 import { dayRacePage, dayRaceActions } from './admin-dayrace.js';
 import { halloweenPage, halloweenActions } from './admin-halloween.js';
+import { season2Page, season2Actions } from './admin-season2.js';
 import { channelPage, channelActions } from './admin-channel.js';
 import { eventsPage, eventsActions, eventsAfter } from './admin-events.js';
 import { clubsPage, clubsActions } from './admin-clubs.js';
@@ -599,6 +600,9 @@ Object.assign(H, dayRaceActions({ mutate, esc, $ }));
 // ---------- «Ніч Хелловіну»: dates, the switch, what players got (public/admin-halloween.js) ----------
 VIEWS.halloween = () => halloweenPage({ api, esc, date });
 Object.assign(H, halloweenActions({ mutate }));
+// ---------- «Сезон 2»: the one-shot wipe with compensation (public/admin-season2.js, src/season2.js) ----------
+VIEWS.season2 = () => season2Page({ api, esc, date, state });
+Object.assign(H, season2Actions({ mutate, toast }));
 // ---------- «Канал»: auto-posts to the Telegram channel (public/admin-channel.js, src/channel.js) ----------
 VIEWS.channel = () => channelPage({ api, esc, date });
 Object.assign(H, channelActions({ mutate, $, api }));

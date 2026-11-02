@@ -4607,6 +4607,13 @@ body.hw-on .dr-sky { background: radial-gradient(circle at 88% 38%, #ffe2b0 0 13
 .idea-pop .btn { width: 100%; }
 #sheet .x:disabled { opacity: .55; font: 700 15px var(--f-disp); }
 
+/* «Сезон 02» (public/season2-ui.js): the compensation window after the wipe. */
+.s2-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; text-align: left; }
+.s2-li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 12px; background: rgba(255, 255, 255, .05); }
+.s2-li .i { flex: none; width: 20px; height: 20px; color: #ffc400; margin-top: 2px; }
+.s2-li span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.s2-li small { opacity: .7; font-size: 12px; }
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */

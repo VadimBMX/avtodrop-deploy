@@ -2574,6 +2574,42 @@ export const cosmeticOn = (claims, kind) => ownedCosmetics(claims).filter((c) =>
 // Season rating: by season XP. Prizes are stars on the player's account (spent in the shop) and a badge that stays.
 export const SEASON_PRIZES = [500, 250, 250, 50, 50, 50, 50, 50, 50, 50];
 export const SEASON_BADGE_TOP = 100;
+
+// ---------- «Сезон 02»: the one-shot wipe and the compensation (src/season2.js) ----------
+// Profile frames (around the avatar in the profile, the rating, the player card): owned per player (user_frames), one
+// worn (users.frame). Pictures come as frames/<id>.webp. `soon`: no way to earn it yet — the design uses it later.
+// Not the plate frames of «Стиль» (STYLE_SLOTS.frame), which go round the number plates.
+export const PROFILE_FRAMES = [
+  { id: 'patron', name: 'Меценат', hint: 'підтримав гру зірками в Сезоні 1' },
+  { id: 'legend_s1', name: 'Легенда S1', hint: 'топ-10 рейтингу Сезону 1' },
+  { id: 'veteran_s1', name: 'Ветеран S1', hint: 'грав у Сезоні 1' },
+  { id: 'vip', name: 'VIP', hint: 'для VIP-гравців', soon: true },
+  { id: 'season2', name: 'Сезон 2', hint: 'нагорода Сезону 2', soon: true },
+  { id: 'king', name: 'Король', hint: 'скоро', soon: true },
+  { id: 'halloween', name: 'Хелловін', hint: 'скоро', soon: true },
+  { id: 'club_leader', name: 'Лідер клубу', hint: 'скоро', soon: true },
+  { id: 'diamond', name: 'Діамант', hint: 'скоро', soon: true },
+  { id: 'drift', name: 'Дрифт', hint: 'скоро', soon: true },
+  { id: 'racer', name: 'Гонщик', hint: 'скоро', soon: true },
+  { id: 'lightning', name: 'Блискавка', hint: 'скоро', soon: true },
+  { id: 'rust', name: 'Іржа', hint: 'скоро', soon: true },
+].map((f) => ({ ...f, img: `frames/${f.id}.webp` }));
+export const FRAME_BY_ID = Object.fromEntries(PROFILE_FRAMES.map((f) => [f.id, f]));
+// «Ветеран Сезону 1»: a profile badge (badges key 'veteran_s1') by the level reached in Season 1 — given once by the
+// wipe, never earned again. Tier 1 = bronze for every account that was in the game.
+export const VETERAN_S1 = {
+  key: 'veteran_s1', title: 'Ветеран Сезону 1',
+  tiers: [{ tier: 1, minLevel: 1, name: 'бронза' }, { tier: 2, minLevel: 10, name: 'срібло' }, { tier: 3, minLevel: 20, name: 'золото' }],
+};
+export const veteranTierOf = (level) => VETERAN_S1.tiers.filter((t) => (level || 0) >= t.minLevel).pop() || null;
+// The wipe itself: the season it opens (meta marker 'season_reset_s<season>'), the season whose rating is archived,
+// the phrase the owner types to run it, star credit = creditPct % of the Stars spent in Season 1, one «Міський» key per
+// friend brought to level 3 (at most friendKeysMax), the S1 rating's top legendTop get «Легенда S1». The frame worn
+// after the wipe: the first of framePriority the player got.
+export const S2_RESET = {
+  season: 2, prevSeason: 1, phrase: 'СЕЗОН 2', creditPct: 100, friendKey: 'city', friendKeysMax: 20, legendTop: 10,
+  framePriority: ['legend_s1', 'patron', 'veteran_s1'],
+};
 export function seasonBadge(place) {
   if (place === 1) return { title: 'Чемпіон', tier: 3 };
   if (place <= 3) return { title: 'Призер', tier: 2 };
