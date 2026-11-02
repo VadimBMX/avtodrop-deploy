@@ -735,12 +735,13 @@ function showLevelUp() {
   const nextU = S.UNLOCKS.find((u) => u.level > me.level && isOpen(u.key) === false && !(u.key === 'casino' && casinoOff()));
   // wIntro: the ring turns in while the number counts up, the gift card lands, each unlocked feature slides in and
   // drops its lock (CSS «wIntro», .lvup; still under reduced motion).
-  sheet('', `<div class="center lvup"><div class="ring">${ring(me.level, 1, 1, 84)}<span class="face" data-from="${from}" data-to="${me.level}">${me.level}</span></div>
-    <div class="big mt">Рівень ${me.level}!</div><div class="muted">подарунок уже в тебе</div>
-    <div class="card mt"><b class="win">${esc(rewardText(rw))}</b></div>
+  // s2-ui2 (mockup 30): the gold ring with the number, «Новий рівень!», the gift and what opened as tiles, yellow «Забрати».
+  sheet('', `<div class="center lvup s2-lv"><div class="ring s2-lv-ring"><span class="face" data-from="${from}" data-to="${me.level}">${me.level}</span><small>рівень</small></div>
+    <div class="big s2-lv-t">Новий рівень!</div><div class="muted">Тобі відкрилось:</div>
+    <div class="s2-lv-rw"><div><img src="s2/x-chest.webp" alt=""><b>${esc(rewardText(rw))}</b><small>подарунок уже в тебе</small></div></div>
     ${opened.length ? `<div class="h2 unlocked-h"><span>${ic('sparkles')} Відкрито</span></div><div class="list unlocked">${opened.map((u, k) => `<div class="li" style="--i:${Math.min(k, 3)}"><span class="ic tint" style="--c:#ffc400">${ic(u.icon)}<b class="lu-lock" aria-hidden="true">${ic('lock')}</b></span><div class="grow left"><b>${u.name}</b><div class="tiny muted">${esc(u.text)}</div></div></div>`).join('')}</div>` : ''}
     ${nextU ? `<div class="tiny muted mt">Далі: ${nextU.name} — на рівні ${nextU.level}</div>` : ''}
-    <button class="btn mt" data-act="levelOk">Чудово</button></div>`);
+    <button class="s2-btn wide mt" data-act="levelOk">${ic('gift')}Забрати</button></div>`);
   haptic('success');
   celebrateSheet($('#sheet .ring'), ['#f5b301', '#ffd500', '#ffffff', '#34c759']);
   IFX.countUpIn($('#sheet .ring'), 560, 60);
@@ -1524,7 +1525,14 @@ function eventsCard(compact, skip = []) {
   return `<div class="card ev-card mt" ${compact ? 'data-act="eventsOpen"' : ''}>${compact ? `<div class="row between"><b class="ev-h">${ic('calendar')} Події</b><span class="tiny muted">усі ${ic('chevron-right')}</span></div>` : ''}
     ${act.map((e) => row(e, true)).join('')}${next.length ? `<div class="ev-sub tiny muted">Далі</div>${next.map((e) => row(e, false)).join('')}` : ''}</div>`;
 }
-H.eventsOpen = () => sheet('Події', `${eventsCard(false)}<div class="tiny muted mt">Події йдуть самі за розкладом (київський час): «Країна тижня» — щотижня, з понеділка; у вівторок і четвер — «Щасливі номери» та «Подвійне пальне»; на вихідних — «Вихідні удачі» або «Гоночний уїкенд», через тиждень. Деякі тижні йдуть за календарем сезону — з «Подвійним досвідом», «Ніччю дрифту» й темою кейса дня.</div>`);
+// s2-ui2 (mockup 20): the live event on a picture (the Halloween night when it's on), then the list.
+function s2EvHero() {
+  const hw = me.halloween?.on, e = evActive()[0];
+  if (!hw && !e) return '';
+  const t = hw ? 'Ніч Хелловіну' : e.title, sub = hw ? 'Завдання події, привиди й гарбузовий кейс' : e.text;
+  return `<button class="s2-evh" ${hw ? 'data-act="hwOpen"' : ''} style="--c:${hw ? '#a855f7' : e.color}"><img src="s2/bg/${hw ? 'halloween' : 'splash'}.webp" alt=""><span class="s2-evh-tx"><em>LIVE${!hw && e ? ` · ще ${left(e.end - serverNow()).replace(/:\d\d$/, '')}` : ''}</em><b>${esc(t)}</b><small>${esc(sub)}</small></span></button>`;
+}
+H.eventsOpen = () => sheet('Події', `${s2EvHero()}${eventsCard(false)}<div class="tiny muted mt">Події йдуть самі за розкладом (київський час): «Країна тижня» — щотижня, з понеділка; у вівторок і четвер — «Щасливі номери» та «Подвійне пальне»; на вихідних — «Вихідні удачі» або «Гоночний уїкенд», через тиждень. Деякі тижні йдуть за календарем сезону — з «Подвійним досвідом», «Ніччю дрифту» й темою кейса дня.</div>`);
 // No money for even the cheapest case and no keys: instead of a dead end, every way to get going again.
 function brokeCard() {
   const cheapest = S.CASE_BY_ID.rust.price;
@@ -4579,18 +4587,29 @@ H.openLink = (d) => (tg?.openTelegramLink && /^https:\/\/t\.me\//.test(d.page) ?
 // ---------- support ----------
 PAGES.support = async () => {
   const { list } = await api('support/mine');
-  return `<div class="card"><b>Написати в підтримку</b>
-      <div class="small muted mt">Питання, помилка, оплата чи ідея — пиши сюди. Відповідь прийде прямо в гру й у бот.</div>
+  // s2-ui2 (mockup 36): topic chips, the thread as chat bubbles (newest first), the form under them.
+  const topic = state.supTopic || '';
+  const chips = ['Баг', 'Оплата', 'Скарга', 'Ідея', 'Інше'].map((t) => `<button class="${t === topic ? 'on' : ''}" data-act="supTopic" data-k="${t}">${t}</button>`).join('');
+  const when = (t) => new Date(t).toLocaleString('uk-UA', { dateStyle: 'short', timeStyle: 'short' });
+  const thread = list.map((m) => `<div class="s2-sup-th"><div class="row between"><b class="ellipsis">${esc(String(m.text).split('\n')[0].slice(0, 48))}</b>${m.answer ? '<span class="s2-sup-st ok">Відповіли</span>' : m.answeredAt ? '<span class="s2-sup-st">Переглянуто ✓</span>' : '<span class="s2-sup-st wait">Чекає</span>'}</div>
+      <div class="s2-sup-me"><div>${esc(m.text)}</div><small>${when(m.at)}</small></div>
+      ${m.answer ? `<div class="s2-sup-ans"><small>Підтримка</small><div>${esc(m.answer)}</div></div>` : ''}</div>`).join('');
+  return `<div class="chips gfilter s2-sup-chips">${chips}</div>
+    <div class="card s2-sup-form"><div class="small muted">Питання, помилка, оплата чи ідея — пиши сюди. Відповідь прийде прямо в гру й у бот.</div>
       <div class="small mt">🐞 Гра в бета-тесті: <b class="win">за знайдені баги й нелогічні ціни — бонуси</b> (гроші, ключі від кейсів).</div>
-      <textarea id="supText" maxlength="1000" placeholder="Опиши, що сталося" style="display:block;width:100%;box-sizing:border-box;min-height:110px;margin-top:10px"></textarea>
-      <button class="btn yellow mt" data-act="supSend">${ic('arrow-right')} Надіслати</button></div>
-    ${list.length ? `<div class="h2"><span>Мої звернення</span></div><div class="list">${list.map((m) => `<div class="card"><div class="small muted">${new Date(m.at).toLocaleString('uk-UA', { dateStyle: 'short', timeStyle: 'short' })}</div>
-      <div class="mt" style="white-space:pre-wrap">${esc(m.text)}</div>
-      ${m.answer ? `<div class="gift-note" style="margin:10px 0 0;max-width:none"><b class="small">Підтримка:</b><div style="white-space:pre-wrap">${esc(m.answer)}</div></div>` : m.answeredAt ? '<div class="tiny muted mt">Переглянуто ✓</div>' : '<div class="tiny muted mt">Чекає на відповідь…</div>'}</div>`).join('')}</div>` : ''}`;
+      <textarea id="supText" maxlength="1000" placeholder="Опиши проблему…"></textarea>
+      <div class="row between mt"><span class="tiny muted">${topic ? `Тема: ${esc(topic)}` : 'Обери тему вгорі (необов’язково)'}</span><button class="s2-btn sm" data-act="supSend">${ic('arrow-right')}Надіслати</button></div></div>
+    ${list.length ? `<div class="s2-h"><b>Мої звернення</b><span>${list.length}</span></div>${thread}` : ''}`;
+};
+H.supTopic = (d) => {
+  const t = $('#supText')?.value || '';
+  state.supTopic = state.supTopic === d.k ? '' : d.k;
+  render().then(() => { const el = $('#supText'); if (el) el.value = t; });
 };
 H.supSend = async () => {
-  const text = $('#supText').value.trim();
-  if (text.length < 3) return toast('Опиши питання хоча б кількома словами', true);
+  const raw = $('#supText').value.trim();
+  if (raw.length < 3) return toast('Опиши питання хоча б кількома словами', true);
+  const text = state.supTopic && state.supTopic !== 'Інше' ? `[${state.supTopic}] ${raw}`.slice(0, 1000) : raw;
   if (await act('support/send', { text }, 'Надіслано — відповімо якнайшвидше', { rerender: false })) render();
 };
 H.copyId = () => navigator.clipboard?.writeText(String(me.id)).then(() => toast('ID скопійовано'), () => toast(String(me.id)));
@@ -4890,7 +4909,7 @@ PAGES.market = async () => {
       : `<button class="btn sm" data-act="buy" data-id="${l.id}" data-price="${l.price}" data-sell="${S.saleOf(l.car) ?? ''}" ${me.balance < l.price || (l.dealer && !dealer.left) ? 'disabled' : ''}>${S.short(l.price)}</button>`,
       // Seller, own-lot tag, parts and a «good deal» tag; the sale after buying and the collection price are on the
       // class line («продаж потім ≈»: what the dealer would pay for it right after).
-      [l.mine ? mineTag : l.dealer ? '' : `<span class="seller">${nameHtml(l.seller, l.sellerStyle)}</span>`, l.dealer ? '' : info(l.car), !l.mine && l.price <= l.car.value * 1.05 ? `<span class="chip deal">${l.dealer ? 'акція' : 'вигідно'}</span>` : ''].join(''), !l.mine);
+      [l.mine ? mineTag : l.dealer ? '' : `<span class="seller">${nameHtml(l.seller, l.sellerStyle)}</span>`, l.dealer ? '' : info(l.car), !l.mine && l.price <= l.car.value * 1.05 ? `<span class="chip deal">${l.dealer ? 'акція' : 'вигідно'}</span>` : '', s2Pct(l.price, l.car.value)].join(''), !l.mine);
     const fromDealer = list.filter((l) => l.dealer), fromPlayers = list.filter((l) => !l.dealer);
     // No "X" filter: secret cars can never be on the market.
     return seg + `<div class="chips gfilter">${[['', 'Усі'], ...S.CLASS_ORDER.filter((c) => c !== 'X').map((c) => [c, c])].map(([k, t]) => `<button class="${state.marketCls === k ? 'on' : ''}" data-act="mCls" data-k="${k}" ${k ? `style="--c:${S.CLASSES[k].color}"` : ''}>${k ? '<i></i>' : ''}${t}</button>`).join('')}</div>
@@ -4914,6 +4933,12 @@ PAGES.market = async () => {
     ${!mine.length && !auc.length ? emptyLine('building-store', `Поки порожньо — свою ціну ставиш сам (комісія ${S.FEE * 100}%), аукціон триває 1–24 год`) : ''}
     ${mine.length ? `<div class="h2"><span>На ринку</span><span>${mine.length}</span></div>` : ''}${mine.length ? `<div class="list">${mine.map((l) => carRow(l.car, `<button class="btn sm red" data-act="unlist" data-id="${l.id}">Зняти</button>`, `<span class="chip mine">ціна ${S.short(l.price)}</span>`)).join('')}</div>` : ''}
     ${auc.length ? `<div class="h2"><span>Аукціони</span><span>${auc.length}</span></div>` : ''}${auc.length ? `<div class="list">${auc.map((x) => carRow(x.car, x.bids ? `<span class="chip">${x.bids} ставок</span>` : `<button class="btn sm red" data-act="unauction" data-id="${x.id}">Скасувати</button>`, `<span class="chip bidc">${x.topBid ? `${S.short(x.topBid)} від ${esc(x.leader)}` : `старт ${S.short(x.startPrice)}`}</span><span class="chip timec">${ic('clock')} <span data-until="${x.endsAt - (a.now - Date.now())}"></span></span>`)).join('')}</div>` : ''}`;
+};
+// s2-ui2: price against the car's collection price («−8% від ціни»), the way the mockup's market rows read.
+const s2Pct = (price, ref) => {
+  if (!ref) return '';
+  const p = Math.round((price / ref - 1) * 100);
+  return `<span class="s2-mpct ${p < -1 ? 'up' : p > 1 ? 'dn' : ''}">${p > 1 ? '+' + p + '%' : p < -1 ? '−' + Math.abs(p) + '%' : '≈'} від ціни</span>`;
 };
 AFTER.market = () => {
   tickUntil();
@@ -7154,10 +7179,13 @@ PAGES.contest = async () => {
 };
 PAGES.friends = async () => {
   const r = await api('ref');
-  return `<div class="card center"><div style="font-size:36px;color:var(--accent)">${ic('users')}</div><b class="disp" style="font-size:20px">КЛИЧ ДРУЗІВ</b>
-    <div class="muted mt">За кожного друга — <b class="win">${S.fmt(S.REF_REWARD)}</b> тобі, коли він досягне 3-го рівня, а йому — ${S.fmt(S.REF_FRIEND_BONUS)} і кейс «${esc(S.CASE_BY_ID[S.REF_FRIEND_KEY].name)}» на старт та ще ${S.fmt(S.REF_FRIEND_L3)} на 3-му рівні</div>
-    ${r.link ? `<div class="mono mt">${esc(r.link)}</div><div class="btns mt"><button class="btn" data-act="shareRef" data-link="${esc(r.link)}">Поділитися</button><button class="btn ghost" data-act="copyRef" data-link="${esc(r.link)}">Скопіювати</button></div>` : '<div class="small muted mt">Посилання з’явиться після підключення бота</div>'}</div>
-    <div class="stat" style="grid-template-columns:1fr 1fr"><div><b>${r.invited}</b><span>запрошено</span></div><div><b>${S.short(r.earned)}</b><span>зароблено</span></div></div>`;
+  // s2-ui2 (mockup 33): the invite hero with the gift, the link row, three numbers.
+  return `<div class="s2-fr-hero"><div class="grow"><small>ЗАПРОСИ ДРУГА</small><b>+${S.short(S.REF_REWARD)} тобі<br>і другу на старт</b>
+      <span>йому — ${S.short(S.REF_FRIEND_BONUS)} і кейс «${esc(S.CASE_BY_ID[S.REF_FRIEND_KEY].name)}», ще ${S.short(S.REF_FRIEND_L3)} на 3-му рівні. Тобі — коли він досягне 3-го рівня.</span></div>
+      <img src="s2/x-gift.webp" alt=""></div>
+    ${r.link ? `<div class="s2-fr-link"><span class="mono ellipsis">${esc(r.link)}</span><button class="btn sm green" data-act="copyRef" data-link="${esc(r.link)}">${ic('copy')} Копіювати</button></div>
+      <button class="s2-btn wide s2-fr-share" data-act="shareRef" data-link="${esc(r.link)}">${ic('share')}Поділитися в Telegram</button>` : '<div class="card small muted center">Посилання з’явиться після підключення бота</div>'}
+    <div class="s2-fr-stats"><div><b>${r.invited}</b><span>запрошено</span></div><div><b>${S.short(r.earned)}</b><span>зароблено</span></div></div>`;
 };
 H.copyRef = (d) => navigator.clipboard?.writeText(d.link).then(() => toast('Скопійовано'));
 H.shareRef = (d) => {

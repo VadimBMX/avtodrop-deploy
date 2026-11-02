@@ -81,7 +81,7 @@ function lobby(v, inv) {
     : X.emptyLine('users', 'Відкритих клубів поки немає — створи перший');
   const createBtn = v.canCreate ? `<button class="btn ${inv ? 'ghost' : ''}" data-act="clubCreateOpen">Створити клуб · ${S.fmt(R.createCost)}</button>`
     : `<button class="btn ghost" disabled>${ic('lock')} Створити клуб — з ${R.createLevel}-го рівня</button>`;
-  return `${invite}<div class="card clb-hero"><span class="clb-emb">${ic('users')}</span><div class="grow"><b class="disp">Автоклуби</b>
+  return `${invite}<div class="card clb-hero"><span class="clb-emb s2-clemb"><img src="s2/em/e0.webp" alt=""></span><div class="grow"><b class="disp">Автоклуби</b>
       <div class="small muted">До ${R.max} гравців. Тег клубу видно в рейтингу, батлах і Заїзді дня. Перемоги учасників — очки в лізі тижня; топ-10 клубів отримують призи в понеділок о 00:00.</div></div></div>
     ${createBtn}
     <div class="h2"><span>Знайти клуб</span></div>
@@ -102,7 +102,7 @@ function clubView(v) {
       <button class="btn sm ghost" data-act="clubClaim" data-kind="fuel" ${c.claims.fuel.can ? '' : 'disabled'}>Забрати</button></div>` : '',
   ].filter(Boolean);
   return `<div class="card clb-head">
-      <div class="row">${tagBox(c.tag, 'lg')}<div class="grow"><b class="disp clb-name ellipsis">${esc(c.name)}</b><div class="tiny muted">${C.ROLES[c.role]} · ${c.members.length}/${R.max} учасників</div></div>
+      <div class="row"><img class="s2-clem" src="s2/em/e${[...String(c.tag || c.name || '')].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 9}.webp" alt="">${tagBox(c.tag, 'lg')}<div class="grow"><b class="disp clb-name ellipsis">${esc(c.name)}</b><div class="tiny muted">${C.ROLES[c.role]} · ${c.members.length}/${R.max} учасників</div></div>
         ${c.tg ? `<button class="btn sm ghost clb-tg" data-act="openLink" data-page="${esc(c.tg)}">${ic('share')} Група</button>` : ''}</div>
       ${c.about ? `<div class="small muted mt">${esc(c.about)}</div>` : ''}
       <div class="clb-stats"><div><b>${c.place ? '#' + c.place : '—'}</b><span>місце з ${c.clubs}</span></div><div><b>${n0(c.pts)}</b><span>очок тижня</span></div><div><b>${n0(c.myPts)}</b><span>твої очки</span></div><div><b>${S.short(c.treasury)}</b><span>у касі</span></div></div>
