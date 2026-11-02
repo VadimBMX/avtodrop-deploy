@@ -3,8 +3,8 @@ public/race-wheels-data.js.
 
     python -I tools/race_wheels.py [--report out.json] [--only id,id]
 
-For every photo in public/cars/*.webp and each wheel seed (paint/meta.json `wheels` when sane, else
-tools/race_wheels_seeds.json):
+For every photo in public/cars/*.webp and each wheel seed (tools/race_wheels_seeds.json when the car is listed there,
+else paint/meta.json `wheels` when sane):
   1. rim edge: along 360 rays from the seed centre, the outermost strong bright->dark step (rim lip -> tyre);
      a robust least-squares ellipse through those points gives the wheel's centre, axes and tilt (photos are
      slightly perspective, so many wheels are not circles).
@@ -150,6 +150,8 @@ def seam(L, cx, cy, a, b, t):
 
 
 def seeds_for(meta, extra, cid):
+    if extra.get(cid):  # seeds checked by eye win over the paint tool's automatic wheel fit
+        return extra[cid]
     m = meta.get(cid) or {}
     ws = m.get('wheels') or []
     if ws and all(0.1 * m['h'] < q[2] < 0.3 * m['h'] for q in ws):
