@@ -25,7 +25,7 @@ const sha = (f) => crypto.createHash('sha1').update(fs.readFileSync(f)).digest('
 
 test('green: factory colours for every new car, valid and only for NEW_RAW cars', () => {
   const ids = Object.keys(S.FACTORY_PAINT);
-  assert.equal(ids.length, 32); // 27 cars of prompts 151–177 + the five Italian B cars of 29.10 (178–182)
+  assert.equal(ids.length, 25); // 27 cars of prompts 151–177 + the five Italian B cars of 29.10 (178–182), minus 7 re-shot as plain photos (02.11)
   assert.match(S.KEY_GREEN, /^#[0-9a-f]{6}$/);
   for (const id of ids) {
     const f = S.FACTORY_PAINT[id];
@@ -77,29 +77,31 @@ test('green: every green base in public/cars has its baked photo, mask and meta 
 
 const PY = ['python3', 'python'].find((p) => spawnSync(p, ['-c', 'import numpy, scipy, PIL'], { stdio: 'ignore' }).status === 0);
 test('green: green.py builds a matching mask and bakes the factory colour, idempotently', { skip: !PY && 'needs python with numpy/scipy/pillow' }, () => {
+  // the fixture is the old green Volga photo; it runs under a car that is still a key car (two-tone, like the Volga)
+  const ID = 'mitsubishi-pajero-ii';
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'green-'));
   try {
     for (const d of ['public/cars', 'public/paint']) fs.mkdirSync(path.join(tmp, d), { recursive: true });
     for (const f of ['shared.js', 'car-photos.js']) fs.copyFileSync(path.join(PUB, f), path.join(tmp, 'public', f));
     // as `npm run cars` / the cloud cutter leave it: the green photo in public/cars
-    fs.copyFileSync(FIXTURE, path.join(tmp, 'public/cars/haz-21-volha.webp'));
+    fs.copyFileSync(FIXTURE, path.join(tmp, 'public/cars/' + ID + '.webp'));
     const run = () => {
-      const r = spawnSync(PY, ['-I', path.join(ROOT, 'tools/paint/green.py'), '--root', tmp, 'haz-21-volha'], { encoding: 'utf8' });
+      const r = spawnSync(PY, ['-I', path.join(ROOT, 'tools/paint/green.py'), '--root', tmp, ID], { encoding: 'utf8' });
       assert.equal(r.status, 0, r.stderr);
-      assert.match(r.stdout, /haz-21-volha: ok/);
+      assert.match(r.stdout, new RegExp(`${ID}: ok`));
     };
     run();
-    const base = path.join(tmp, 'public/cars/base/haz-21-volha.webp'), baked = path.join(tmp, 'public/cars/haz-21-volha.webp');
-    const mask = path.join(tmp, 'public/paint/haz-21-volha.png');
+    const base = path.join(tmp, 'public/cars/base/' + ID + '.webp'), baked = path.join(tmp, 'public/cars/' + ID + '.webp');
+    const mask = path.join(tmp, 'public/paint/' + ID + '.png');
     assert.equal(sha(base), sha(FIXTURE), 'the green original is kept as the base');
     const size = webpSize(fs.readFileSync(FIXTURE));
     assert.deepEqual(webpSize(fs.readFileSync(baked)), size);
     assert.deepEqual(pngSize(fs.readFileSync(mask)), size);
-    const m = JSON.parse(fs.readFileSync(path.join(tmp, 'public/paint/meta.json'), 'utf8')).cars['haz-21-volha'];
+    const m = JSON.parse(fs.readFileSync(path.join(tmp, 'public/paint/meta.json'), 'utf8')).cars[ID];
     assert.deepEqual([m.w, m.h], size);
     assert.equal(m.base, sha(base));
     assert.equal(m.baked, sha(baked));
-    assert.equal(m.factory.hex, S.FACTORY_PAINT['haz-21-volha'].hex);
+    assert.equal(m.factory.hex, S.FACTORY_PAINT[ID].hex);
     assert.equal(m.wheels.length, 2);
     assert.ok(m.p[0] < m.p[1] && m.p[1] < m.p[2]);
     assert.notEqual(sha(baked), sha(base), 'the photo is baked, not the green original');

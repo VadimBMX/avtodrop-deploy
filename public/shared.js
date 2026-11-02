@@ -3060,17 +3060,10 @@ export const PAINT_FINISH = { gloss: 'глянець', metallic: 'металік
 // Colour names are those of docs/car-prompts.txt; hexes are sRGB approximations of the factory paints.
 export const KEY_GREEN = '#3fae49';
 export const FACTORY_PAINT = {
-  'volkswagen-passat-b5': { hex: '#1f2a4d', finish: 'metallic', name: 'Indigo blue metallic', key: true },
-  'luaz-969m-volyn': { hex: '#e2621c', finish: 'gloss', name: 'bright orange (khaki canvas top)', key: true },
   'vaz-2114': { hex: '#b6babe', finish: 'metallic', name: 'silver «Snow Queen» metallic', key: true },
-  'lada-priora': { hex: '#121315', finish: 'gloss', name: 'gloss black', key: true },
-  'zaz-966-vukhatyi': { hex: '#e6d9a2', finish: 'gloss', name: 'light cream yellow', key: true },
   'mitsubishi-pajero-ii': { hex: '#1f3b2c', finish: 'metallic', name: 'dark green metallic over silver', key: true,
     two: { hex: '#a9adb1', finish: 'metallic', side: 'below', at: 0.64 } },
-  'haz-21-volha': { hex: '#8cc5bd', finish: 'gloss', name: 'pale turquoise with an ivory roof', key: true,
-    two: { hex: '#ebe2c8', finish: 'gloss', side: 'above', at: 0.36 } },
   'audi-100-c3-syhara': { hex: '#b9141c', finish: 'gloss', name: 'Tornado red', key: true },
-  'hummer-h2': { hex: '#f2c00f', finish: 'gloss', name: 'bright yellow', key: true },
   'toyota-land-cruiser-200': { hex: '#eceee9', finish: 'metallic', name: 'pearl white', key: true },
   'toyota-camry-3-5-xv40': { hex: '#121315', finish: 'gloss', name: 'gloss black', key: true },
   'mercedes-benz-e55-amg-w210': { hex: '#262c4f', finish: 'metallic', name: 'Tanzanite blue metallic', key: true },
@@ -3078,7 +3071,6 @@ export const FACTORY_PAINT = {
   'mercedes-benz-s600-w140-kaban': { hex: '#141519', finish: 'metallic', name: 'Obsidian black metallic', key: true },
   'mercedes-benz-e500-w124-vovchok': { hex: '#b3b7bb', finish: 'metallic', name: 'Brilliant silver metallic', key: true },
   'bmw-m5-e34': { hex: '#0f1012', finish: 'gloss', name: 'Jet black', key: true },
-  'range-rover-supercharged-l322': { hex: '#efefeb', finish: 'gloss', name: 'Fuji white', key: true },
   'dodge-charger-r-t-1970': { hex: '#121315', finish: 'gloss', name: 'gloss black', key: true },
   'nissan-skyline-gt-r-r32': { hex: '#5a5e62', finish: 'metallic', name: 'Gun Grey metallic', key: true },
   'bmw-m5-e39': { hex: '#24477e', finish: 'metallic', name: 'Avus blue metallic', key: true },

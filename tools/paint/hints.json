@@ -239,11 +239,6 @@
    ]
   ]
  },
- "haval-jolion": {
-  "hue_tol": 50,
-  "c_floor": 0.08,
-  "off": "glass gets painted, specks"
- },
  "jeep-wrangler": {
   "hue_tol": 50,
   "c_floor": 0.08,
@@ -270,11 +265,6 @@
   "hole_max": 0.003
  },
  "lamborghini-urus": {
-  "hue_tol": 50,
-  "c_floor": 0.08,
-  "hole_max": 0.003
- },
- "byd-atto-3": {
   "hue_tol": 50,
   "c_floor": 0.08,
   "hole_max": 0.003
@@ -3175,5 +3165,14 @@
  },
  "zaz-lanos": {
   "off": "dark blue photo: ragged edges"
+ },
+ "lada-priora": {
+  "off": "glass gets painted (black photo) — needs a green key photo"
+ },
+ "mercedes-amg-c63-s": {
+  "off": "glass gets painted (grey photo) — needs a green key photo"
+ },
+ "haval-jolion": {
+  "off": "specks on glass — needs a green key photo"
  }
 }
