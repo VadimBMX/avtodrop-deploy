@@ -1,5 +1,5 @@
 // Admin «Сезон 2»: the one-shot wipe with compensation. Before it runs: the dry-run numbers (players, who gets star
-// credit and how much, frames, veteran tiers, friend keys, VIP carried over, the S1 top-10 «Легенда S1») and the guarded
+// credit and how much, frames, veteran tiers, friend keys, VIP subscribers (credit only), the S1 top-10 «Легенда S1») and the guarded
 // run (owner only; the phrase S.S2_RESET.phrase, the confirm dialog). After: what was given and how much credit is spent.
 // Server: src/season2.js (admin 'season2', 'season2/reset').
 import * as S from './shared.js';
@@ -27,7 +27,7 @@ export async function season2Page({ api, esc, date, state }) {
       <p>Гравців: <b>${n(v.users)}</b> · гривень у грі: <b>${n(v.money)}</b> · вартість гаражів: <b>${n(v.garage)}</b></p>
       <p>Кредит зірок (${v.credit.pct}% витраченого в S${R.prevSeason}): <b>${n(v.credit.users)}</b> гравців, разом <b>${n(v.credit.total)} ⭐</b> · рамка «Меценат»: <b>${n(v.patrons)}</b></p>
       <p>«${esc(S.VETERAN_S1.title)}»: ${vet}</p>
-      <p>Ключі «${esc(S.CASE_BY_ID[R.friendKey].name)}» за друзів (до ${v.friendKeys.max}): <b>${n(v.friendKeys.users)}</b> гравців, <b>${n(v.friendKeys.total)}</b> ключів · VIP-підписка переходить: <b>${n(v.vipCarry)}</b></p>
+      <p>Ключі «${esc(S.CASE_BY_ID[R.friendKey].name)}» за друзів (до ${v.friendKeys.max}): <b>${n(v.friendKeys.users)}</b> гравців, <b>${n(v.friendKeys.total)}</b> ключів · VIP-підписників (лише кредит, без днів VIP): <b>${n(v.vipSubs)}</b></p>
       <p class="small muted">Буде стерто зараз: ${Object.entries(v.wipe || {}).map(([k, c]) => `${esc(k)} ${n(c)}`).join(' · ')}</p></div>
     <div class="panel"><h2>Легенда S${R.prevSeason} <span class="sub">топ-${R.legendTop} рейтингу «Сезон»</span></h2>${legends}</div>
     <div class="panel"><h2>Запуск <span class="sub">один раз, назавжди</span></h2>

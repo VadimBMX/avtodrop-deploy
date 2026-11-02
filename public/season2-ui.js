@@ -20,10 +20,10 @@ const keysWord = (n) => (n % 10 === 1 && n % 100 !== 11 ? 'ключ' : [2, 3, 4]
 export function welcomeLines(w) {
   const out = [];
   if (w.credit > 0) out.push(['star', `${w.credit} ⭐ кредиту в магазині`, `100% зірок, витрачених у Сезоні ${S.S2_RESET.prevSeason} — VIP, пакети, «Стиль» без нової оплати`]);
-  for (const f of w.frames || []) if (S.FRAME_BY_ID[f]) out.push(['sparkles', `Рамка «${S.FRAME_BY_ID[f].name}»`, S.FRAME_BY_ID[f].hint]);
+  for (const f of w.frames || []) if (S.FRAME_BY_ID[f]) out.push(['sparkles', `Рамка «${S.FRAME_BY_ID[f].name}»`, S.FRAME_BY_ID[f].hint, S.FRAME_BY_ID[f].img]); // s2-fix: + its picture
   if (w.veteran) out.push(['trophy', `Значок «${w.veteran.title}» · ${w.veteran.name}`, `за ${w.level}-й рівень у Сезоні ${S.S2_RESET.prevSeason} — назавжди в профілі`]);
   if (w.keys > 0) out.push(['key', `${w.keys} ${keysWord(w.keys)} «${S.CASE_BY_ID[w.caseId]?.name || w.caseId}»`, `за друзів, яких ти привів до 3-го рівня`]);
-  if (w.vipUntil) out.push(['crown', 'VIP-підписка діє далі', `до ${new Date(w.vipUntil).toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', timeZone: 'Europe/Kyiv' })}`]);
+  if (w.vipSub) out.push(['crown', 'VIP-підписка', 'її зірки вже в кредиті вище; автопродовження в Telegram діє далі — вимкнути можна в магазині']);
   return out;
 }
 
@@ -39,7 +39,7 @@ export function s2Ask() {
     X.sheet(`Сезон ${cur.season}`, `<div class="card center s2-pop"><div class="tg-home-ic">${ic('flag-3')}</div>
       <b class="disp">СЕЗОН ${cur.season}: ОСЬ ТВОЯ КОМПЕНСАЦІЯ</b>
       <div class="muted mt">Прогрес обнулено для всіх — усі стартують рівно. За Сезон ${S.S2_RESET.prevSeason} ти отримуєш:</div>
-      ${lines.length ? `<div class="s2-list">${lines.map(([i, t, s]) => `<div class="s2-li">${ic(i)}<span><b>${esc(t)}</b><small>${esc(s)}</small></span></div>`).join('')}</div>` : ''}
+      ${lines.length ? `<div class="s2-list">${lines.map(([i, t, s, img]) => `<div class="s2-li">${img ? `<img class="s2-li-fr" src="${img}" alt="">` : ic(i)}<span><b>${esc(t)}</b><small>${esc(s)}</small></span></div>`).join('')}</div>` : ''}
       <div class="btns mt"><button class="btn yellow" data-act="s2Ok">Погнали!</button></div></div>`);
     X.api('s2/welcome-seen', {}).then(() => {
       if (X.me()) X.me().s2Welcome = null;

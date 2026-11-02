@@ -31,25 +31,36 @@ function caseArt(cs, open = false, cls = '') {
 const HOLES = { f0: [0.5046, 0.5527, 0.2623, 326, 332], f1: [0.4984, 0.4969, 0.3047, 320, 327], f2: [0.4969, 0.4864, 0.2875, 320, 331], f3: [0.5015, 0.541, 0.2654, 324, 329],
   f4: [0.5153, 0.5107, 0.3012, 327, 326], f5: [0.4954, 0.515, 0.2918, 329, 333], f6: [0.5015, 0.5255, 0.2886, 324, 333], f7: [0.4954, 0.5045, 0.2936, 327, 330],
   f8: [0.5015, 0.5046, 0.2893, 337, 328], f9: [0.4984, 0.4984, 0.3062, 307, 311], f10: [0.5278, 0.4968, 0.3105, 306, 310], f11: [0.4984, 0.4968, 0.3056, 306, 310],
-  f12: [0.4984, 0.5413, 0.2964, 307, 327], f13: [0.4984, 0.5015, 0.3071, 311, 326] };
+  f12: [0.4984, 0.5413, 0.2964, 307, 327], f13: [0.4984, 0.5015, 0.3071, 311, 326],
+  // s2-fix: f14–f17 measured from the pictures (the transparent hole's centroid and area); f10 re-centred (was 0.5278)
+  f14: [0.4994, 0.5016, 0.279, 219, 220], f15: [0.4996, 0.4974, 0.3196, 218, 220], f16: [0.5008, 0.5011, 0.295, 215, 220], f17: [0.4997, 0.4979, 0.3177, 219, 220] };
+HOLES.f10 = [0.4998, 0.4973, 0.3092, 217, 220]; // s2-fix
 const holeOf = (f) => HOLES['f' + f] || [0.5, 0.5, 0.3, 1, 1];
 // Achievement → badge picture (public/s2/bd/b<N>.webp, all drawn gold; lower tiers are tinted in CSS).
 const ACH_BADGE = { cases: 1, wins: 2, pvp: 9, battles: 10, collection: 3, rarest: 11, secrets: 12, garage: 0, level: 13, play: 14, streak: 6, merges: 15, tuned: 16, plates: 17, friends: 5, dream: 18 };
 const TIER_CLS = ['br', 'sv', 'gd', 'dm'];
 const badgeImg = (key, tier, cls = '') => `<img class="s2-bd t-${tier < 0 ? 'off' : TIER_CLS[Math.min(tier, 3)]} ${cls}" src="s2/bd/b${ACH_BADGE[key] ?? 19}.webp" alt="" loading="lazy">`;
 
-// The player's look: a helmet and a frame. Not stored on the server yet (see report) — by id/level, a local pick wins.
-const LOOK_KEY = 's2.look';
+// s2-fix: the look lives on the server — me.helmet (0…8) and me.frame (S.PROFILE_FRAMES id or null; S.frameAllowed),
+// set with 'frames/helmet' / 'frames/equip'. Other players: `helmet` + `frame` on every player object the API returns
+// (rating, card, club, hall, battles…; market rows: sellerLook) — collected into LOOKS by UI2.onApi (app.js api()).
+// No frame picked → the free «Іржа» (S.PROFILE_FRAMES rust) is drawn.
+const FR_NONE = S.FRAME_BY_ID.rust.fr;
+const frImg = (id) => (id && S.FRAME_BY_ID[id] ? S.FRAME_BY_ID[id].fr : FR_NONE);
+const LOOKS = new Map(); // player id → { h, f (picture index), frame (id or null) }
+function lookSeen(o, depth = 0) {
+  if (!o || typeof o !== 'object' || depth > 6) return;
+  if (Array.isArray(o)) return o.forEach((x) => lookSeen(x, depth + 1));
+  if (Number.isSafeInteger(o.id) && Number.isInteger(o.helmet)) LOOKS.set(o.id, { h: o.helmet, f: frImg(o.frame), frame: o.frame || null });
+  if (o.sellerLook && Number.isSafeInteger(o.sellerId)) LOOKS.set(o.sellerId, { h: o.sellerLook.helmet, f: frImg(o.sellerLook.frame), frame: o.sellerLook.frame || null });
+  if (o.creatorLook && Number.isSafeInteger(o.creatorId)) LOOKS.set(o.creatorId, { h: o.creatorLook.helmet, f: frImg(o.creatorLook.frame), frame: o.creatorLook.frame || null });
+  for (const k in o) if (o[k] && typeof o[k] === 'object' && k !== 'car' && k !== 'cars') lookSeen(o[k], depth + 1);
+}
 function myLook() {
   const m = me();
-  let l = null;
-  try {
-    l = JSON.parse(localStorage.getItem(LOOK_KEY) || 'null');
-  } catch {}
-  return { h: Number.isInteger(l?.h) ? l.h : lookOf(m.id).h, f: Number.isInteger(l?.f) ? l.f : frameFor(m.level, m.vip) };
+  return { h: Number.isInteger(m.helmet) ? m.helmet : S.helmetDefault(m.id), f: frImg(m.frame), frame: m.frame || null };
 }
-const lookOf = (id) => ({ h: Math.abs(Number(id) || 0) % 9, f: 7 });
-const frameFor = (level = 1, vip = false) => (vip ? 0 : level >= 30 ? 4 : level >= 20 ? 2 : level >= 10 ? 7 : level >= 5 ? 11 : 13);
+const lookOf = (id) => (Number(id) === me()?.id ? myLook() : LOOKS.get(Number(id)) || { h: S.helmetDefault(id), f: FR_NONE, frame: null });
 function avatar({ h, f }, size, lvl = null, cls = '') {
   const [cx, cy, r, w, hh] = holeOf(f);
   const d = r * 2 * 0.98, k = w / hh; // r is a share of the width, cy of the height
@@ -90,6 +101,18 @@ export function installS2(x) {
   Object.assign(X.H, handlers);
   UI2.openAnim = openAnim;
   UI2.header = header;
+  UI2.onApi = (name, j) => { // s2-fix: other players' looks from every API answer
+    try {
+      lookSeen(j);
+    } catch {}
+  };
+  // s2-fix: the player card (licence) shows the player's helmet in his frame
+  const cardBase = X.H.playerCard;
+  if (cardBase) X.H.playerCard = async (...a) => {
+    const r = await cardBase(...a);
+    licenceAva();
+    return r;
+  };
   document.getElementById('s2back')?.addEventListener('click', () => X.back());
   // DROP pressed again on the DROP tab → back to the market (capture: before app.js switches the tab).
   document.getElementById('tabs')?.addEventListener('click', (e) => {
@@ -233,8 +256,10 @@ function warMap() {
 }
 let pendTimer = 0;
 function cityAfter() {
+  watchCity(); // s2-fix
   fitCity();
   mountPan();
+  requestAnimationFrame(() => (fitCity(), mountPan(), fitLabels())); // s2-fix: after paintGuide
   clearInterval(pendTimer);
   pendTimer = setInterval(() => {
     const el = document.getElementById('s2Pend');
@@ -244,16 +269,79 @@ function cityAfter() {
   }, 1000);
 }
 // The city fills the screen between the header and the bar (no page scroll on the home screen).
+// s2-fix: measured against the tab bar's real top (it is fixed: its rect is the viewport's), and measured again when the
+// newbie guide strip is put above the city after this render (app.js paintGuide prepends #guide to #view) — the old
+// 420 px floor pushed «Зібрати» under the bar on short screens. The map takes what is left (flex), never < 150 px.
 function fitCity() {
   const el = document.getElementById('s2City');
   if (!el) return;
-  const top = el.getBoundingClientRect().top + window.scrollY;
-  const bar = document.getElementById('tabs')?.getBoundingClientRect().height || 76;
-  el.style.height = `${Math.max(420, window.innerHeight - top - bar)}px`;
+  window.scrollTo(0, 0);
+  const top = el.getBoundingClientRect().top;
+  const tabs = document.getElementById('tabs');
+  const tr = tabs?.getBoundingClientRect();
+  // the bar's highest part (the raised DROP button sticks out above the bar)
+  const barTop = tr && tr.height ? Math.min(tr.top, ...[...tabs.querySelectorAll('*')].map((b) => b.getBoundingClientRect()).filter((r) => r.width > 30 && r.top > 0).map((r) => r.top)) : window.innerHeight - 76;
+  const gap = 8;
+  const want = Math.floor(barTop - top - gap);
+  const sheet = el.querySelector('.s2-sheet'), seg = el.querySelector('.s2-seg'), leg = el.querySelector('.s2-leg');
+  const fixed = (sheet?.offsetHeight || 0) + (seg?.offsetHeight || 0) + (leg?.offsetHeight || 0) + 24;
+  const h = Math.max(fixed + 150, want);
+  if (el.style.height !== h + 'px') el.style.height = h + 'px';
+}
+let fitObs = null;
+function watchCity() { // s2-fix
+  const view = document.getElementById('view');
+  if (!view || fitObs) return;
+  fitObs = new MutationObserver((list) => {
+    if (!document.getElementById('s2City')) return;
+    if (list.some((m) => [...m.addedNodes, ...m.removedNodes].some((n) => n.id === 'guide' || n.id === 'nextUl'))) (fitCity(), mountPan(), fitLabels());
+  });
+  fitObs.observe(view, { childList: true });
+  document.addEventListener('click', (e) => { // the guide pill opens / closes in place
+    if (e.target.closest?.('#guide') && document.getElementById('s2City')) requestAnimationFrame(() => (fitCity(), mountPan(), fitLabels()));
+  });
 }
 window.addEventListener('resize', () => {
-  if (document.getElementById('s2City')) (fitCity(), mountPan());
+  if (document.getElementById('s2City')) (fitCity(), mountPan(), fitLabels());
 });
+// s2-fix: building labels never cut off by the screen edge. While panning, a label near an edge slides inwards
+// (--dx; its pointer stays on the building), and when even that can't fit it, the level part is dropped (.s2-tight).
+const LB_PAD = 10;
+let lbView = 0;
+function fitLabels() {
+  const vp = document.getElementById('s2Map'), pan = document.getElementById('s2Pan');
+  if (!vp || !pan) return;
+  lbView = vp.clientWidth;
+  for (const lb of pan.querySelectorAll('.s2-lb')) (lb.classList.remove('s2-tight'), (lb._w = 0));
+  const m = /translate3d\((-?[\d.]+)px/.exec(pan.style.transform || '');
+  clampLabels(m ? Number(m[1]) : 0);
+}
+function clampLabels(x) {
+  const pan = document.getElementById('s2Pan');
+  if (!pan || !pan.querySelector('.s2-lb')) return;
+  const V = lbView || (lbView = document.getElementById('s2Map')?.clientWidth || 0), W = pan.offsetWidth;
+  if (!V || !W) return;
+  for (const lb of pan.querySelectorAll('.s2-lb')) {
+    if (!lb._w) lb._w = lb.offsetWidth;
+    const ax = x + (parseFloat(lb.style.left) / 100) * W;
+    let half = lb._w / 2;
+    const need = (ax - half < LB_PAD ? LB_PAD - (ax - half) : ax + half > V - LB_PAD ? V - LB_PAD - (ax + half) : 0);
+    if (need && Math.abs(need) > half - 14 && ax > -half && ax < V + half && !lb.classList.contains('s2-tight') && lb.querySelector('small')) {
+      lb.classList.add('s2-tight');
+      lb._w = lb.offsetWidth;
+      half = lb._w / 2;
+    }
+    const lim = Math.max(0, half - 14);
+    // the label slides fully inside while any of it would show; its pointer moves at most to the label's end
+    let v = ax - half < LB_PAD ? LB_PAD - (ax - half) : ax + half > V - LB_PAD ? V - LB_PAD - (ax + half) : 0;
+    if (ax < -half || ax > V + half) v = 0; // the building is far off screen: leave it there
+    const a = Math.max(-lim, Math.min(lim, v));
+    const px = (n) => (Math.abs(n) < 0.5 ? '' : n.toFixed(1) + 'px');
+    for (const [k, n] of [['--dx', px(v)], ['--adx', px(a)]]) {
+      if (lb.style.getPropertyValue(k) !== n) n ? lb.style.setProperty(k, n) : lb.style.removeProperty(k);
+    }
+  }
+}
 // Drag the picture sideways (pointer events; a drag never counts as a tap on a label).
 function mountPan() {
   const vp = document.getElementById('s2Map'), pan = document.getElementById('s2Pan');
@@ -263,14 +351,16 @@ function mountPan() {
   pan.style.width = W + 'px';
   pan.style.height = H0 + 'px';
   const min = Math.min(0, V - W), clamp = (v) => Math.max(min, Math.min(0, v));
-  let x = clamp(s[key] ?? V / 2 - (Number(pan.dataset.x) / Number(pan.dataset.w)) * W);
-  const put = () => (pan.style.transform = `translate3d(${x}px,0,0)`);
-  put();
+  // s2-fix: the listeners below are bound once per map element, so they read the CURRENT size from vp._P — the map is
+  // measured again (guide strip, resize) and the first size let the picture be dragged past its end.
+  const P = (vp._P = { x: clamp(s[key] ?? V / 2 - (Number(pan.dataset.x) / Number(pan.dataset.w)) * W), clamp, put: null });
+  P.put = () => ((pan.style.transform = `translate3d(${P.x}px,0,0)`), clampLabels(P.x)); // s2-fix: labels stay on screen
+  P.put();
   if (vp.dataset.on) return;
   vp.dataset.on = '1';
   let x0 = 0, px = 0, moved = false, down = false, vx = 0, lt = 0, lx = 0, raf = 0;
   vp.addEventListener('pointerdown', (e) => {
-    down = true; moved = false; px = e.clientX; x0 = x; lx = e.clientX; lt = performance.now(); vx = 0;
+    down = true; moved = false; px = e.clientX; x0 = vp._P.x; lx = e.clientX; lt = performance.now(); vx = 0;
     cancelAnimationFrame(raf);
   });
   vp.addEventListener('pointermove', (e) => {
@@ -281,19 +371,21 @@ function mountPan() {
     const now = performance.now();
     vx = (e.clientX - lx) / Math.max(1, now - lt);
     lx = e.clientX; lt = now;
-    x = clamp(x0 + dx);
-    put();
+    const Q = vp._P;
+    Q.x = Q.clamp(x0 + dx);
+    Q.put();
   });
   const up = () => {
     if (!down) return;
     down = false;
     vp.classList.remove('drag');
-    st()[key] = x;
+    st()[key] = vp._P.x;
     // a little glide after a flick
     let v = vx * 16;
     const glide = () => {
-      if (Math.abs(v) < 0.4) return (st()[key] = x);
-      x = clamp(x + v); v *= 0.92; put();
+      const Q = vp._P;
+      if (Math.abs(v) < 0.4) return (st()[key] = Q.x);
+      Q.x = Q.clamp(Q.x + v); v *= 0.92; Q.put();
       raf = requestAnimationFrame(glide);
     };
     if (moved) raf = requestAnimationFrame(glide);
@@ -538,11 +630,35 @@ async function profileAfter() {
     }
   } catch {}
 }
-function lookSheet() {
+// s2-fix: the picker reads / writes the server ('frames'); locked frames show how to get them.
+let frameList = null;
+async function lookSheet(fresh = true) {
+  if (fresh || !frameList) {
+    try {
+      frameList = (await X.api('frames', {})).list;
+    } catch {
+      frameList = frameList || S.PROFILE_FRAMES.map((f) => ({ ...f, allowed: S.frameAllowed(f.id, { level: me().level, vip: me().vip, owned: me().frames || [] }) }));
+    }
+  }
   const l = myLook();
-  const hs = Array.from({ length: 9 }, (_, i) => `<button class="s2-pick ${i === l.h ? 'on' : ''}" data-act="s2SetLook" data-k="h" data-n="${i}"><img src="s2/av/h${i}.webp" alt=""></button>`).join('');
-  const fs = Array.from({ length: 14 }, (_, i) => `<button class="s2-pick fr ${i === l.f ? 'on' : ''}" data-act="s2SetLook" data-k="f" data-n="${i}"><img src="s2/fr/f${i}.webp" alt=""></button>`).join('');
-  X.sheet('Мій вигляд', `<div class="s2-look-pv">${avatar(l, 120, me().level)}</div><div class="s2-h"><b>Шолом</b></div><div class="s2-picks">${hs}</div><div class="s2-h"><b>Рамка</b><span>на цьому пристрої</span></div><div class="s2-picks">${fs}</div>`);
+  const hs = Array.from({ length: S.HELMETS }, (_, i) => `<button class="s2-pick ${i === l.h ? 'on' : ''}" data-act="s2SetLook" data-k="h" data-n="${i}"><img src="s2/av/h${i}.webp" alt=""></button>`).join('');
+  const sorted = [...frameList].sort((a, b) => (b.allowed - a.allowed) || (a.soon ? 1 : 0) - (b.soon ? 1 : 0));
+  const fs = sorted.map((f) => `<button class="s2-pick fr s2-fpick${f.id === l.frame ? ' on' : ''}${f.allowed ? '' : ' lock'}" data-act="s2SetLook" data-k="f" data-id="${f.id}" aria-label="${esc(f.name)}">
+    <img src="${f.img}" alt="">${f.allowed ? '' : `<i class="s2-lk">${X.ic('lock')}</i>`}<small>${esc(f.name)}</small>${f.allowed ? '' : `<em>${esc(f.hint)}</em>`}</button>`).join('');
+  const n = frameList.filter((f) => f.allowed).length;
+  X.sheet('Мій вигляд', `<div class="s2-look-pv">${avatar(l, 120, me().level)}</div><div class="s2-h"><b>Шолом</b></div><div class="s2-picks">${hs}</div><div class="s2-h"><b>Рамка</b><span>відкрито ${n} з ${frameList.length}</span></div><div class="s2-picks s2-fpicks">${fs}</div>`);
+}
+// The licence (player card / my licence): the helmet in the frame instead of the initial.
+function licenceAva() {
+  document.querySelectorAll('.licence .lic-ava').forEach((a) => {
+    if (a.dataset.s2) return;
+    const id = Number((a.closest('.licence')?.querySelector('.lic-id')?.textContent || '').replace(/\D/g, ''));
+    if (!id) return;
+    a.dataset.s2 = '1';
+    const lvl = a.querySelector('.lvl')?.textContent;
+    a.innerHTML = avatar(lookOf(id), 84, lvl ?? null);
+    a.classList.add('s2-lic');
+  });
 }
 
 // ---------- re-skins of existing pages (decoration after app.js drew them) ----------
@@ -553,16 +669,18 @@ function ratingAfter() {
     const ava = p.querySelector('.pod-ava');
     if (!ava || ava.querySelector('.s2-ava')) return;
     const id = Number(p.dataset.id) || 0;
-    const f = place === 1 ? 0 : place === 2 ? 7 : 11;
-    ava.insertAdjacentHTML('afterbegin', avatar({ h: lookOf(id).h, f }, place === 1 ? 92 : 74));
+    const L = lookOf(id); // s2-fix: the player's own frame; without one the podium's gold / steel / bronze
+    const f = L.frame ? L.f : place === 1 ? 0 : place === 2 ? 7 : 11;
+    ava.insertAdjacentHTML('afterbegin', avatar({ h: L.h, f }, place === 1 ? 92 : 74));
     ava.classList.add('s2-has');
   });
   const lbs = document.querySelectorAll('.list .lb .lb-ava');
   lbs.forEach((a) => {
     if (a.querySelector('img')) return;
     const id = Number(a.closest('.lb')?.dataset.id) || 0;
-    a.innerHTML = `<img src="s2/av/h${lookOf(id).h}.webp" alt="">`;
-    a.classList.add('s2-hel');
+    const L = lookOf(id);
+    if (L.frame) (a.innerHTML = avatar(L, 40), a.classList.add('s2-lbf')); // s2-fix: a worn frame shows in the row
+    else (a.innerHTML = `<img src="s2/av/h${L.h}.webp" alt="">`, a.classList.add('s2-hel'));
   });
   document.querySelector('.mybar')?.classList.add('s2-mybar');
 }
@@ -651,17 +769,26 @@ const handlers = {
   },
   s2All: () => (st().s2all = !st().s2all, X.render()),
   s2Look: () => lookSheet(),
-  s2SetLook: (d) => {
-    const l = myLook();
-    l[d.k] = Number(d.n);
+  s2SetLook: async (d) => { // s2-fix: saved on the server
+    const m = me();
+    if (d.k === 'f') {
+      const f = frameList?.find((x) => x.id === d.id);
+      if (f && !f.allowed) return X.toast(`«${f.name}»: ${f.hint}`);
+    }
+    let r;
     try {
-      localStorage.setItem(LOOK_KEY, JSON.stringify(l));
-    } catch {}
-    lookSheet();
+      r = d.k === 'h' ? await X.api('frames/helmet', { helmet: Number(d.n) }) : await X.api('frames/equip', { id: d.id });
+    } catch (e) {
+      return X.toast(e.message, true);
+    }
+    m.helmet = r.helmet;
+    m.frame = r.equipped;
+    frameList = r.list;
+    lookSheet(false);
     header();
     if (st().tab === 'menu' && !st().page) {
       const a = document.querySelector('.s2-prof-ava');
-      if (a) a.innerHTML = avatar(l, 150, me().level);
+      if (a) a.innerHTML = avatar(myLook(), 150, m.level);
     }
   },
 };

@@ -309,18 +309,19 @@ export function createGame(db, opts = {}) {
     const garage = rows.filter((c) => c.status === 'garage');
     const ex = garage.length ? carExtras(uid) : null;
     const t = now(), cut = garage.length > 0 && isOpen(uid, 'wash');
+    const washBonus = garage.length && BIZ ? BIZ.perks(uid).washMult : 1; // s2-fix: «Автомийка» +% to the shine bonus
     // S.garageIncome is the one count of who earns and how much (the client shows the same per car and in total).
     const g = S.garageIncome({
       cars: rows.map((c) => (c.status === 'garage'
         ? { id: c.id, model: c.model, status: c.status, parts: ex.parts(c.id), plateValue: ex.plate(c.id)?.value || 0, dirt: c.dirt, dirtAt: c.dirt_at, shineUntil: c.shine_until, stars: ex.restyle(c.id)?.stars || 0 }
         : { id: c.id, model: c.model, status: c.status })),
-      slots: u?.slots ?? 1e9, claimed: garage.length ? claimedSets(uid) : [], t, cut,
+      slots: u?.slots ?? 1e9, claimed: garage.length ? claimedSets(uid) : [], t, cut, washBonus,
     });
     let earned = 0;
     if (from != null && t > from) {
       for (const c of garage) {
         const e = g.cars[c.id];
-        if (e.earning) earned += e.base * S.washFactorAvg(c.dirt, c.dirt_at, c.shine_until, from, t, cut) * ((t - from) / 3600e3);
+        if (e.earning) earned += e.base * S.washFactorAvg(c.dirt, c.dirt_at, c.shine_until, from, t, cut, washBonus) * ((t - from) / 3600e3);
       }
     }
     return { rate: g.rate, earned };
@@ -2049,7 +2050,7 @@ export function createGame(db, opts = {}) {
   }
   function pvpList(uid) {
     const open = q("SELECT * FROM pvp WHERE status = 'open' ORDER BY id DESC LIMIT 50").all().map((p) => ({
-      id: p.id, bet: p.bet, mine: p.creator_id === uid, creator: name(p.creator_id), car: JSON.parse(p.snapshot), at: p.created_at,
+      id: p.id, bet: p.bet, mine: p.creator_id === uid, creator: name(p.creator_id), creatorId: p.creator_id, car: JSON.parse(p.snapshot), at: p.created_at,
       auto: !pvpLive(p.creator_id), // honest label before the bet: offline / «не турбувати» → a bot (autopilot) drives his car
     }));
     const history = q("SELECT * FROM pvp WHERE status = 'done' AND (creator_id = ? OR opponent_id = ?) ORDER BY finished_at DESC LIMIT 20").all(uid, uid).map((p) => {
@@ -2272,7 +2273,7 @@ export function createGame(db, opts = {}) {
     const styles = new Map(); // the seller's «Стиль» (name colour, plate frame), once per seller
     const sellerStyle = (id) => (id === DEALER_ID ? null : styles.get(id) || styles.set(id, styleOf(id)).get(id));
     let list = q('SELECT * FROM listings ORDER BY id DESC LIMIT 500').all().map((l) => ({
-      id: l.id, price: l.price, mine: l.seller_id === uid, seller: name(l.seller_id), car: carOut(carRow(l.car_id)), at: l.created_at,
+      id: l.id, price: l.price, mine: l.seller_id === uid, seller: name(l.seller_id), sellerId: l.seller_id, car: carOut(carRow(l.car_id)), at: l.created_at,
       dealer: l.seller_id === DEALER_ID, sellerStyle: sellerStyle(l.seller_id),
     }));
     if (cls && S.CLASSES[cls]) list = list.filter((l) => S.MODELS[l.car.model].cls === cls);
@@ -2337,7 +2338,7 @@ export function createGame(db, opts = {}) {
     settleAuctions();
     const list = q("SELECT * FROM auctions WHERE status = 'open' ORDER BY ends_at LIMIT 200").all().map((a) => ({
       id: a.id, startPrice: a.start_price, topBid: a.top_bid, bids: a.bids, endsAt: a.ends_at,
-      mine: a.seller_id === uid, leading: a.top_bidder === uid, seller: name(a.seller_id),
+      mine: a.seller_id === uid, leading: a.top_bidder === uid, seller: name(a.seller_id), sellerId: a.seller_id,
       leader: a.top_bidder ? name(a.top_bidder) : null, minBid: minBid(a), car: carOut(carRow(a.car_id)),
     }));
     return { list, now: now() };
@@ -2457,7 +2458,7 @@ export function createGame(db, opts = {}) {
     const o = {
       id: l.id, kind: l.kind, price: l.price, count: l.count, unit, base: l.base, ref,
       deal: S.isItemDeal(unit, l.base, ratio), pct: ref ? Math.round((unit / ref - 1) * 100) : 0,
-      mine: l.seller_id === uid, seller: name(l.seller_id), at: l.created_at, expiresAt: l.expires_at,
+      mine: l.seller_id === uid, seller: name(l.seller_id), sellerId: l.seller_id, at: l.created_at, expiresAt: l.expires_at,
     };
     if (l.kind === 'part') o.part = { type: l.part_type, tier: l.part_tier };
     else o.plate = { id: l.plate_id, text: l.text, cls: l.pcls, value: l.value, label: S.plateInfo(l.text).label, region: S.regionOf(l.text) };
@@ -5508,10 +5509,16 @@ export function createGame(db, opts = {}) {
   BIZ = createBusiness({ db, q, now, fail, addMoney, pay, userRow, vipOf, srcWrap: (src, fn) => (...a) => srcWrap(src, fn)(...a) });
   Object.assign(handlers, BIZ.api);
   {
+    // s2-fix: the «Автомийка» raises the shine's income bonus — bank the garage first so it isn't applied backwards.
+    const buyBase = handlers['biz/buy'];
+    handlers['biz/buy'] = (uid, b) => {
+      if (String(b?.id ?? '') === 'wash' && !BIZ.owns(uid, 'wash')) bank(uid);
+      return buyBase(uid, b);
+    };
     const meBase = handlers.me;
     handlers.me = (uid, b) => {
       const p = BIZ.perks(uid);
-      return { ...meBase(uid, b), ...BIZ.brief(uid), bizPerks: { fuel: p.fuelExtra, regen: p.regenMult, shine: p.shineMult, parts: p.partsMult, sell: p.sellMult } };
+      return { ...meBase(uid, b), ...BIZ.brief(uid), bizPerks: { fuel: p.fuelExtra, regen: p.regenMult, shine: p.shineMult, wash: p.washMult, parts: p.partsMult, sell: p.sellMult } };
     };
     const priceBase = itemPrice, applyBase = applyItem;
     itemPrice = (uid, itemId) => (BIZ.itemCheck(uid, itemId), priceBase(uid, itemId));
@@ -5529,24 +5536,40 @@ export function createGame(db, opts = {}) {
     settleSeason: () => settleSeason(), weekOf, metaGet, metaSet, moneyFlow, actorRole });
   Object.assign(handlers, S2.api);
   {
-    const meBase = handlers.me, shopBase = handlers.shop, lbBase = handlers.leaderboard, playerBase = handlers.player;
+    const meBase = handlers.me, shopBase = handlers.shop;
     handlers.me = (uid, b) => {
-      const u = userRow(uid);
-      return { ...meBase(uid, b), starCredit: u.star_credit, frame: S2.frameOf(uid), s2Welcome: S2.welcome(uid) };
+      const u = userRow(uid), look = S2.lookOf(uid);
+      return { ...meBase(uid, b), starCredit: u.star_credit, frame: look.frame, helmet: look.helmet, frames: S2.framesOwned(uid), s2Welcome: S2.welcome(uid) };
     };
     handlers.shop = (uid, b) => ({ ...shopBase(uid, b), starCredit: userRow(uid).star_credit });
-    handlers.leaderboard = (uid, b) => {
-      const r = lbBase(uid, b);
-      if (Array.isArray(r?.list)) {
-        const fr = S2.framesOf(r.list.map((x) => x.id));
-        for (const x of r.list) x.frame = fr[x.id] || null;
-      }
-      return r;
+    // s2-fix: every list of players carries each one's look (helmet 0…8, worn frame or null) — S2.lookRows.
+    const L = S2.lookRows;
+    const looksBy = (rows, idKey, outKey) => {
+      if (!Array.isArray(rows) || !rows.length) return;
+      const m = S2.looksOf(rows.map((r) => r?.[idKey]));
+      for (const r of rows) if (r && m[r[idKey]]) r[outKey] = m[r[idKey]];
     };
-    handlers.player = (uid, b) => {
-      const p = playerBase(uid, b);
-      return { ...p, frame: S2.frameOf(p.id), veteranS1: S2.veteranOf(p.id) };
+    const wrap = (k, fn) => {
+      const base = handlers[k];
+      if (base) handlers[k] = (uid, b) => {
+        const r = base(uid, b);
+        if (r && typeof r === 'object') fn(r);
+        return r;
+      };
     };
+    wrap('leaderboard', (r) => L(r.list));
+    wrap('player', (r) => (L([r]), (r.veteranS1 = S2.veteranOf(r.id))));
+    wrap('battle/list', (r) => { for (const k of ['open', 'recent', 'mine']) L(r[k], (x) => x.creator), L(r[k], (x) => x.opponent); });
+    wrap('battle/get', (r) => L([r.creator, r.opponent]));
+    wrap('dayrace', (r) => (L(r.board), L(r.friends?.list)));
+    wrap('club', (r) => L(r.club?.members));
+    wrap('trade/list', (r) => { for (const k of ['open', 'past']) L(r[k], (x) => x.from), L(r[k], (x) => x.to); });
+    wrap('hall', (r) => (L(r.rooms, (x) => x.host), L(r.online)));
+    wrap('room/state', (r) => L([r.me, r.partner]));
+    wrap('market/list', (r) => looksBy(r.list, 'sellerId', 'sellerLook'));
+    wrap('auction/list', (r) => looksBy(r.list, 'sellerId', 'sellerLook'));
+    wrap('market/items', (r) => looksBy(r.list, 'sellerId', 'sellerLook'));
+    wrap('pvp/list', (r) => looksBy(r.open, 'creatorId', 'creatorLook'));
   }
   for (const [k, fn] of Object.entries(S2.admin)) {
     admin[k] = (who, body = {}) => db.tx(() => {

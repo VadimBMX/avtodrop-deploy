@@ -1,5 +1,6 @@
 // «Сезон 02» (src/season2.js): the one-shot wipe — dry run, the snapshot that survives it, what goes and what stays,
-// the compensation (star credit, frames, «Ветеран Сезону 1», friend keys capped at 20, the VIP subscription's days),
+// the compensation (star credit, frames, «Ветеран Сезону 1» from S1 level 3, friend keys capped at 20; a VIP subscription
+// is credit only — no VIP days carried),
 // the guard against a second run, the star credit in the shop (same goods as an invoice), frames, the welcome window.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,7 +14,7 @@ const S1_T = Date.parse('2026-10-28T10:00:00Z'); // Season 1 (19.10 21:00 UTC �
 const S2_T = Date.parse('2026-11-03T10:00:00Z');
 
 // Players: 1 — big payer, level 22, Season 1 leader; 2 — level 12, brought 22 friends to level 3; 3…24 — those friends;
-// 30 — banned, the top season XP; 31 — hidden from the ratings; 32 — an admin; 33 — a VIP subscriber; 34 — fresh.
+// 30 — banned, the top season XP; 31 — hidden from the ratings, level 5; 32 — an admin; 33 — a VIP subscriber; 34 — fresh (level 1).
 function setup() {
   const db = openDb(':memory:');
   let t = S1_T;
@@ -32,7 +33,7 @@ function setup() {
   run('UPDATE users SET level = 22, balance = 9e9, stars = 250 WHERE id = 1');
   run('UPDATE users SET level = 12 WHERE id = 2');
   run("UPDATE users SET banned = 1, ban_reason = 'чит' WHERE id = 30");
-  run('UPDATE users SET lb_hidden = 1 WHERE id = 31');
+  run('UPDATE users SET lb_hidden = 1, level = 5 WHERE id = 31');
   run("UPDATE users SET role = 'admin' WHERE id = 32");
   // the Season 1 rating
   const xp = { 30: 99999, 1: 9000, 31: 8000, 2: 7000 };
@@ -71,9 +72,9 @@ test('season 2: the dry run reports and changes nothing', () => {
   assert.equal(v.users, 29);
   assert.deepEqual(v.credit, { users: 2, total: 450 + S.VIP_SUB.stars, pct: 100 });
   assert.equal(v.patrons, 2);
-  assert.deepEqual(v.veterans, { 1: 27, 2: 1, 3: 1 });
+  assert.deepEqual(v.veterans, { 1: 1, 2: 1, 3: 1 }, 'bronze only from S1 level 3: just 31 (level 5); the level-1 accounts get nothing');
   assert.deepEqual(v.friendKeys, { users: 1, total: 20, max: 20 });
-  assert.equal(v.vipCarry, 1);
+  assert.equal(v.vipSubs, 1);
   // not settled yet → counted live: banned 30 is out of the board, hidden 31 is out of the legends
   assert.deepEqual(v.legends.map((l) => l.id), [1, 2, 24, 23, 22, 21, 20, 19, 18, 17]);
   assert.equal(v.legends[0].place, 1);
@@ -134,7 +135,7 @@ test('season 2: the wipe — progress goes, accounts / friends / clubs / payment
   assert.ok(e.get("SELECT COUNT(*) n FROM car_log WHERE kind = 'gone'").n >= 2);
 });
 
-test('season 2: compensation — credit 100%, frames, veteran tiers, friend keys capped at 20, VIP subscription days carry over', () => {
+test('season 2: compensation — credit 100%, frames, veteran tiers from level 3, friend keys capped at 20, VIP subscription: credit only', () => {
   const e = setup();
   e.setT(S2_T);
   ownerReset(e.g);
@@ -144,20 +145,20 @@ test('season 2: compensation — credit 100%, frames, veteran tiers, friend keys
   assert.equal(me1.frame, 'legend_s1');
   assert.deepEqual(e.call(1, 'frames').list.filter((f) => f.owned).map((f) => f.id), ['patron', 'legend_s1', 'veteran_s1']);
   assert.equal(e.call(2, 'me').frame, 'legend_s1');
-  assert.equal(e.call(34, 'me').frame, 'veteran_s1');
+  assert.equal(e.call(34, 'me').frame, null, 'level 1 in Season 1: no veteran frame');
   assert.equal(e.call(34, 'me').starCredit, 0);
   assert.equal(e.call(31, 'me').frame, 'veteran_s1', 'hidden from the ratings: no legend');
   // veteran badge by Season 1 level: gold / silver / bronze
   const vet = (uid) => e.get("SELECT tier FROM badges WHERE user_id = ? AND key = 'veteran_s1'", uid)?.tier;
-  assert.deepEqual([vet(1), vet(2), vet(34)], [3, 2, 1]);
+  assert.deepEqual([vet(1), vet(2), vet(31), vet(34)], [3, 2, 1, undefined]);
   assert.ok(e.call(34, 'player', { id: 1 }).badges.some((b) => b.key === 'veteran_s1' && b.title === 'Ветеран Сезону 1 · золото'));
   // 22 friends at level 3 → 20 «Міський» keys; «Душа компанії» still counts the 22
   assert.equal(e.call(2, 'me').keys.city, 20);
   assert.equal(e.call(2, 'achievements').list.find((x) => x.key === 'friends').value, 22);
-  // VIP subscription: the paid days stay
-  const sub = e.get('SELECT expires_at FROM vip_subs WHERE user_id = 33').expires_at;
-  assert.equal(e.get('SELECT vip_until FROM users WHERE id = 33').vip_until, sub);
-  assert.equal(e.call(33, 'me').vip, true);
+  // VIP subscription: its Stars come back as credit, the VIP days are NOT carried too (owner 3.11)
+  assert.equal(e.call(33, 'me').starCredit, S.VIP_SUB.stars);
+  assert.equal(e.get('SELECT vip_until FROM users WHERE id = 33').vip_until, 0);
+  assert.equal(e.call(33, 'me').vip, false);
   assert.equal(e.call(1, 'me').vip, false, 'one-off VIP does not carry over (its stars came back as credit)');
   // rating rows and the player card show the frame; the card shows the veteran badge
   const lb = e.call(34, 'leaderboard', { type: 'all' });
@@ -240,7 +241,7 @@ test('season 2: frames — list, equip only owned, take off; the welcome window 
   ownerReset(e.g);
   const f = e.call(1, 'frames');
   assert.equal(f.list.length, S.PROFILE_FRAMES.length);
-  assert.ok(f.list.every((x) => x.img === `frames/${x.id}.webp`));
+  assert.ok(f.list.every((x) => x.img === `s2/fr/f${x.fr}.webp`));
   for (const id of ['patron', 'legend_s1', 'veteran_s1', 'vip', 'season2', 'king', 'halloween', 'club_leader', 'diamond', 'drift', 'racer', 'lightning', 'rust']) assert.ok(S.FRAME_BY_ID[id], id);
   assert.throws(() => e.call(1, 'frames/equip', { id: 'king' }), /ще немає/);
   assert.throws(() => e.call(1, 'frames/equip', { id: '__proto__' }), /Невідома рамка/);
@@ -258,7 +259,9 @@ test('season 2: frames — list, equip only owned, take off; the welcome window 
   const w1 = e.call(1, 'me').s2Welcome;
   assert.equal(w1.credit, 450);
   assert.ok(welcomeLines(w1)[0][1].startsWith('450 ⭐'));
-  assert.equal(e.call(33, 'me').s2Welcome.vipUntil, e.get('SELECT expires_at FROM vip_subs WHERE user_id = 33').expires_at);
+  assert.equal(e.call(33, 'me').s2Welcome.vipSub, true);
+  assert.equal(e.call(33, 'me').s2Welcome.vipUntil, undefined);
+  assert.ok(welcomeLines(e.call(33, 'me').s2Welcome).some((l) => l[1] === 'VIP-підписка' && l[2].includes('кредиті')));
   e.call(2, 's2/welcome-seen');
   assert.equal(e.call(2, 'me').s2Welcome, null);
   assert.ok(e.call(1, 'me').s2Welcome, 'per player');

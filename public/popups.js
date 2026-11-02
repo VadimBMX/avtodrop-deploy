@@ -19,7 +19,8 @@ export const POP_PLAY = new Set(['gift', 'level', 'fueldeal']); // fueldeal: the
 export const NEW_ENTRY_MS = 30 * 60e3;
 export const READY_FALLBACK_MS = 5000;
 
-// calm(): nothing on screen that a window must not cover; idle(): no window/story open (the entry's window is closed).
+// calm(kind): nothing on screen that a window must not cover (kind: the window that would open — s2-fix: the Season 2
+// compensation window may open over the newbie guide's focus); idle(): no window/story open (the entry's window is closed).
 export function createPopups({ calm = () => true, idle = () => true, now = () => Date.now(), later = (f, ms) => setTimeout(f, ms) } = {}) {
   let cands = new Map(); // kind → { show, onLose }
   let decided = false; // the collection window of this entry is over
@@ -52,8 +53,8 @@ export function createPopups({ calm = () => true, idle = () => true, now = () =>
   function pick() {
     waiting = false;
     if (!cands.size || holder) return;
-    if (!calm()) return void ((waiting = true), later(pick, 1200)); // e.g. the first steps' focus or a link that opened a race
     const list = [...cands.entries()].sort((a, b) => (POP_PRI[b[0]] || 0) - (POP_PRI[a[0]] || 0));
+    if (!calm(list[0][0])) return void ((waiting = true), later(pick, 1200)); // e.g. the first steps' focus or a link that opened a race
     cands = new Map();
     for (let i = 0; i < list.length; i++) {
       if (show(list[i][0], list[i][1].show) !== 'shown') continue;
@@ -67,9 +68,9 @@ export function createPopups({ calm = () => true, idle = () => true, now = () =>
   function offer(kind, fn, onLose) {
     if (over) {
       if (!POP_PLAY.has(kind)) return 'denied';
-      return calm() ? show(kind, fn) : 'busy';
+      return calm(kind) ? show(kind, fn) : 'busy';
     }
-    if (holder) return holder === kind && calm() ? show(kind, fn) : holder === kind ? 'busy' : 'denied';
+    if (holder) return holder === kind && calm(kind) ? show(kind, fn) : holder === kind ? 'busy' : 'denied';
     cands.set(kind, { show: fn, onLose });
     if (!decided) return 'queued';
     // The choice is made but nothing was shown yet (nothing was offered, or the best one waits for a calm moment):

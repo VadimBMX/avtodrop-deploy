@@ -6,8 +6,9 @@
 //   2. snapshots what the compensation needs into s1_archive (per player: level, season XP and place, garage value,
 //      balance, cars, Stars spent, friends brought to level 3, VIP subscription end) — this table is never wiped;
 //   3. wipes every player's progress (the list below);
-//   4. grants the compensation (star credit, frames, «Ветеран Сезону 1», «Міський» keys for friends, the VIP
-//      subscription's paid days) and leaves the welcome window pending (s1_archive.welcome_seen = 0);
+//   4. grants the compensation (star credit, frames, «Ветеран Сезону 1» from S1 level 3, «Міський» keys for friends)
+//      and leaves the welcome window pending (s1_archive.welcome_seen = 0). Owner 3.11: a running VIP subscription
+//      is NOT carried over as days — its Stars are already in the credit (no double compensation);
 //   5. writes the marker meta 'season_reset_s2' — a second run fails, and the transaction makes it all-or-nothing.
 //
 // What happens to each table (db.js and the modules' own tables):
@@ -114,7 +115,7 @@ export function createSeason2(ctx) {
       patrons: rows.filter((r) => r.frames.includes('patron')).length,
       veterans: Object.fromEntries(S.VETERAN_S1.tiers.map((t) => [t.tier, rows.filter((r) => r.veteran === t.tier).length])),
       friendKeys: { users: rows.filter((r) => r.keys > 0).length, total: sumBy('keys'), max: R.friendKeysMax },
-      vipCarry: rows.filter((r) => r.vip_sub_until).length,
+      vipSubs: rows.filter((r) => r.vip_sub_until).length, // credit only, no VIP days (owner 3.11)
       legends: rows.filter((r) => r.legend).sort((a, b) => a.legend - b.legend)
         .map((r) => ({ rank: r.legend, place: r.season_place, id: r.user_id, name: name(r.user_id), seasonXp: r.season_xp, level: r.level, value: r.garage_value })),
       wipe,
@@ -173,7 +174,6 @@ export function createSeason2(ctx) {
         .run(uid, S.VETERAN_S1.key, `${S.VETERAN_S1.title} · ${vet.name}`, vet.tier, R.prevSeason, t);
     }
     if (r.keys > 0) q('INSERT INTO keys (user_id, case_id, count) VALUES (?, ?, ?) ON CONFLICT DO UPDATE SET count = count + excluded.count').run(uid, R.friendKey, r.keys);
-    if (r.vip_sub_until) q('UPDATE users SET vip_until = ? WHERE id = ?').run(r.vip_sub_until, uid);
     const parts = [r.credit ? `${r.credit} ⭐ кредиту в магазині` : '', r.keys ? `${r.keys} ${S.CASE_BY_ID[R.friendKey].name.replace(/ий$/, 'их')} ключів` : '', vet ? `значок «${S.VETERAN_S1.title}»` : ''].filter(Boolean);
     q('INSERT INTO events (user_id, text, created_at) VALUES (?, ?, ?)').run(uid, `🏁 Сезон ${R.season} стартував — прогрес обнулено для всіх.${parts.length ? ` Твоя компенсація: ${parts.join(', ')}.` : ''}`, t);
   }
@@ -196,36 +196,87 @@ export function createSeason2(ctx) {
     for (const r of rows) compensate(r, t);
     metaSet(MARKER, t);
     alog(who, 'season2-reset', null, { users: out.users, credit: out.credit, patrons: out.patrons, veterans: out.veterans, friendKeys: out.friendKeys,
-      vipCarry: out.vipCarry, legends: out.legends.map((l) => l.id), wipe: out.wipe });
+      vipSubs: out.vipSubs, legends: out.legends.map((l) => l.id), wipe: out.wipe });
     return { ...out, done: true, at: t };
   }
 
-  // ---------- frames ----------
+  // ---------- the look: helmet + frame (S.PROFILE_FRAMES, S.frameAllowed, S.HELMETS) ----------
+  // users.helmet: 0…S.HELMETS-1, NULL = the default by id (S.helmetDefault). users.frame: the frame picked; it is shown
+  // only while S.frameAllowed says the player may wear it (owned in user_frames, or free by level / VIP / club owner).
   const ownedFrames = (uid) => q('SELECT frame, source, at FROM user_frames WHERE user_id = ? ORDER BY at, frame').all(uid).filter((r) => S.FRAME_BY_ID[r.frame]);
-  const frameOf = (uid) => {
-    const f = q('SELECT frame FROM users WHERE id = ?').get(uid)?.frame;
-    return f && S.FRAME_BY_ID[f] ? f : null;
-  };
-  // The worn frame of many players at once (rating rows, cards): { id → frame }.
+  const inList = (ids) => ids.map(() => '?').join(',');
+  function clubOwners(ids) {
+    if (!ids.length || !has('clubs')) return new Set();
+    return new Set(q(`SELECT owner_id FROM clubs WHERE owner_id IN (${inList(ids)})`).all(...ids).map((r) => r.owner_id));
+  }
+  // What decides the frames a player may wear: { level, vip, clubOwner, owned }.
+  function wearCtx(u, owned, owners, t = now()) {
+    return { level: u.level, vip: (u.vip_until || 0) > t, clubOwner: owners.has(u.id), owned };
+  }
+  // The look of many players at once (rating rows, cards, club members, trade rooms, battles…): { id → { helmet, frame } }.
+  function looksOf(ids) {
+    const list = [...new Set((ids || []).filter((x) => Number.isSafeInteger(x) && x > 0))];
+    const out = {};
+    if (!list.length) return out;
+    for (let i = 0; i < list.length; i += 400) {
+      const part = list.slice(i, i + 400);
+      const rows = q(`SELECT id, helmet, frame, level, vip_until FROM users WHERE id IN (${inList(part)})`).all(...part);
+      const worn = rows.filter((r) => r.frame && S.FRAME_BY_ID[r.frame]);
+      const ownIds = worn.filter((r) => S.FRAME_BY_ID[r.frame].own).map((r) => r.id);
+      const owned = new Set(ownIds.length ? q(`SELECT user_id, frame FROM user_frames WHERE user_id IN (${inList(ownIds)})`).all(...ownIds).map((r) => `${r.user_id}:${r.frame}`) : []);
+      const owners = clubOwners(worn.filter((r) => S.FRAME_BY_ID[r.frame].club).map((r) => r.id));
+      const t = now();
+      for (const r of rows) {
+        const ok = r.frame && S.FRAME_BY_ID[r.frame] && S.frameAllowed(r.frame, wearCtx(r, owned.has(`${r.id}:${r.frame}`) ? [r.frame] : [], owners, t));
+        out[r.id] = { helmet: Number.isInteger(r.helmet) ? r.helmet : S.helmetDefault(r.id), frame: ok ? r.frame : null };
+      }
+    }
+    return out;
+  }
+  const lookOf = (uid) => looksOf([uid])[uid] || { helmet: S.helmetDefault(uid), frame: null };
+  const frameOf = (uid) => lookOf(uid).frame;
+  // The worn frame of many players at once: { id → frame } (players without one are left out).
   function framesOf(ids) {
-    const list = [...new Set(ids.filter((x) => Number.isSafeInteger(x) && x > 0))];
-    if (!list.length) return {};
-    return Object.fromEntries(q(`SELECT id, frame FROM users WHERE frame IS NOT NULL AND id IN (${list.map(() => '?').join(',')})`).all(...list)
-      .filter((r) => S.FRAME_BY_ID[r.frame]).map((r) => [r.id, r.frame]));
+    return Object.fromEntries(Object.entries(looksOf(ids)).filter(([, l]) => l.frame).map(([id, l]) => [id, l.frame]));
+  }
+  // Puts `helmet` and `frame` on every object (or nested player object via `pick`) that has a player id.
+  function lookRows(rows, pick = (r) => r) {
+    if (!Array.isArray(rows) || !rows.length) return rows;
+    const objs = rows.map(pick).filter((o) => o && typeof o === 'object' && Number.isSafeInteger(o.id) && o.id > 0);
+    const L = looksOf(objs.map((o) => o.id));
+    for (const o of objs) if (L[o.id]) (o.helmet = L[o.id].helmet, o.frame = L[o.id].frame);
+    return rows;
   }
   function framesList(uid) {
+    const u = q('SELECT id, level, vip_until FROM users WHERE id = ?').get(uid);
     const own = new Map(ownedFrames(uid).map((r) => [r.frame, r]));
-    return { equipped: frameOf(uid), list: S.PROFILE_FRAMES.map((f) => ({ ...f, owned: own.has(f.id), at: own.get(f.id)?.at || null })) };
+    const ctx = wearCtx(u, [...own.keys()], clubOwners([uid]));
+    const look = lookOf(uid);
+    return {
+      equipped: look.frame, helmet: look.helmet, helmets: S.HELMETS,
+      list: S.PROFILE_FRAMES.map((f) => ({ ...f, owned: own.has(f.id), allowed: S.frameAllowed(f.id, ctx), at: own.get(f.id)?.at || null })),
+    };
   }
   function frameEquip(uid, { id }) {
     const want = id ? String(id) : '';
     if (want) {
       if (!Object.hasOwn(S.FRAME_BY_ID, want)) fail('Невідома рамка');
-      if (!q('SELECT 1 FROM user_frames WHERE user_id = ? AND frame = ?').get(uid, want)) fail('Цієї рамки в тебе ще немає');
+      const u = q('SELECT id, level, vip_until FROM users WHERE id = ?').get(uid);
+      if (!S.frameAllowed(want, wearCtx(u, ownedFrames(uid).map((r) => r.frame), clubOwners([uid])))) {
+        const f = S.FRAME_BY_ID[want];
+        fail(f.lvl ? `Рамка «${f.name}» відкривається з ${f.lvl}-го рівня` : f.vip ? 'Рамка VIP — поки діє VIP' : f.club ? 'Ця рамка — для власника автоклубу' : 'Цієї рамки в тебе ще немає');
+      }
     }
     q('UPDATE users SET frame = ? WHERE id = ?').run(want || null, uid);
     return framesList(uid);
   }
+  function helmetSet(uid, { helmet }) {
+    const h = helmet == null || helmet === '' ? NaN : Number(helmet);
+    if (!Number.isInteger(h) || h < 0 || h >= S.HELMETS) fail('Невідомий шолом');
+    q('UPDATE users SET helmet = ? WHERE id = ?').run(h, uid);
+    return framesList(uid);
+  }
+  const framesOwned = (uid) => ownedFrames(uid).map((r) => r.frame);
 
   // ---------- the star credit in the shop ----------
   // Same goods as a paid invoice: an item goes through itemPrice (every check: once-only, owned cosmetic, the day deal,
@@ -268,7 +319,7 @@ export function createSeason2(ctx) {
     return {
       season: R.season, credit: a.credit, starsSpent: a.stars_spent, keys: a.keys, caseId: R.friendKey, friends: a.friends_l3,
       frames: JSON.parse(a.frames || '[]'), veteran: vet ? { tier: vet.tier, name: vet.name, title: S.VETERAN_S1.title } : null,
-      legend: a.legend, level: a.level, vipUntil: a.vip_sub_until && a.vip_sub_until > now() ? a.vip_sub_until : null,
+      legend: a.legend, level: a.level, vipSub: !!a.vip_sub_until, // its Stars are in the credit; the VIP days are not carried
     };
   }
   function welcomeSeen(uid) {
@@ -302,10 +353,10 @@ export function createSeason2(ctx) {
 
   return {
     api: {
-      frames: (uid) => framesList(uid), 'frames/equip': frameEquip, 'shop/credit': creditBuy, 's2/welcome-seen': welcomeSeen,
+      frames: (uid) => framesList(uid), 'frames/equip': frameEquip, 'frames/helmet': helmetSet, 'shop/credit': creditBuy, 's2/welcome-seen': welcomeSeen,
     },
     admin: { season2: () => adminStatus(), 'season2/reset': adminReset },
     mutating: ['season2/reset'],
-    run, snapshot, welcome, frameOf, framesOf, veteranOf, grantFrame, creditAdd, doneAt,
+    run, snapshot, welcome, frameOf, framesOf, looksOf, lookOf, lookRows, framesOwned, veteranOf, grantFrame, creditAdd, doneAt,
   };
 }

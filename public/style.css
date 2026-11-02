@@ -5108,6 +5108,29 @@ body.s2 .badge-a.s2-hasbd .tn { position: absolute; right: -2px; bottom: -2px; z
 }
 /* ===== /s2-ui */
 
+/* ===== s2-fix: server look (frame picker with locked frames, frames in rating rows, licence avatar), city layout ===== */
+.s2-picks { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.s2-fpicks { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.s2-pick.s2-fpick { position: relative; aspect-ratio: auto; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px 7px; min-width: 0; }
+.s2-pick.s2-fpick img { width: 74%; height: auto; aspect-ratio: 1; }
+.s2-pick.s2-fpick small { font: 700 11.5px var(--f-body); color: var(--text); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.s2-pick.s2-fpick em { font: 500 10px/1.2 var(--f-body); font-style: normal; color: var(--muted); text-align: center; max-width: 100%; }
+.s2-pick.s2-fpick.lock img { filter: grayscale(1) brightness(.45); }
+.s2-pick.s2-fpick.lock small { color: var(--muted); }
+.s2-pick.s2-fpick .s2-lk { position: absolute; top: 24%; left: 50%; transform: translateX(-50%); width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #0b0f1acc; color: #fff; }
+.s2-pick.s2-fpick .s2-lk svg { width: 16px; height: 16px; }
+body.s2 .lb-ava.s2-lbf { width: 40px; height: 40px; margin: -4px 0; background: none; box-shadow: none; font-size: 0; overflow: visible; }
+.lic-ava.s2-lic { width: auto; height: auto; background: none; }
+/* the city home: the map takes what is left; the collect sheet never goes under the tab bar */
+body.s2 .s2-city { display: flex; flex-direction: column; min-height: 0; }
+body.s2 .s2-city > .s2-map { flex: 1 1 auto; min-height: 0; height: auto; }
+body.s2 .s2-city > .s2-sheet { flex: none; }
+.s2-lb.s2-tight small { display: none; }
+.s2-li-fr { flex: none; width: 34px; height: 34px; object-fit: contain; margin: -4px -4px -4px -6px; }
+body.s2 .s2-lb { transform: translate(calc(-50% + var(--dx, 0px)), -100%); }
+body.s2 .s2-lb::after { margin-left: calc(-4px - var(--adx, 0px)); }
+/* ===== /s2-fix */
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */

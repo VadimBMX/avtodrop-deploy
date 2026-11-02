@@ -35,6 +35,7 @@ export const BIZ = {
   // The passive perks of owning a business (only while owned).
   perks: {
     washShine: 0.5, // +50% length of a wash's shine (S.WASH.shineHours)
+    washBonus: 0.5, // +50% to the shine's income bonus (S.WASH.shine: +5% → +7.5%; S.washFactor washBonus)
     gasTank: 1, // +1 ⛽ tank capacity
     gasRegen: 0.25, // fuel comes back 25% faster
     stoParts: 0.15, // −15% on part cases (the only ₴ the game charges for parts / tuning)
@@ -48,7 +49,7 @@ export const BIZ_MAX_LVL = BIZ.build.length;
 
 // What each perk says on the cards.
 export const PERK_TEXT = {
-  wash: `мийка блищить на ${Math.round(BIZ.perks.washShine * 100)}% довше`,
+  wash: `мийка блищить на ${Math.round(BIZ.perks.washShine * 100)}% довше, бонус блиску до доходу +${Math.round(BIZ.perks.washBonus * 100)}%`,
   gas: `+${BIZ.perks.gasTank} ⛽ до бака, пальне на ${Math.round(BIZ.perks.gasRegen * 100)}% швидше`,
   sto: `−${Math.round(BIZ.perks.stoParts * 100)}% на кейси деталей`,
   salon: `+${Math.round(BIZ.perks.salonSell * 100)}% до ціни продажу машин`,

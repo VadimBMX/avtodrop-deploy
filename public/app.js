@@ -176,6 +176,7 @@ async function api(name, body = {}) {
   }
   const j = await r.json().catch(() => ({ error: 'Помилка сервера' }));
   if (!r.ok) throw Object.assign(new Error(j.error || 'Помилка'), { status: r.status });
+  UI2.onApi?.(name, j); // s2-fix: other players' helmet + frame (public/s2-ui.js)
   return j;
 }
 function haptic(kind) {
@@ -306,7 +307,9 @@ $('#modal').addEventListener('click', (e) => {
 const popIdle = () => $('#modal').hidden && !$('.story') && !$('.confirm') && !hwIntroOpen();
 const POP = createPopups({
   idle: popIdle,
-  calm: () => popIdle() && !guideOn() && !state.opening && !(state.race && state.race.phase !== 'done') && !(state.drift && state.drift.phase !== 'done') && !battleTimers.length && !WOW.isOpen(),
+  // s2-fix: the Season 2 compensation window is the first thing after the wipe — every player is back on the guide's
+  // first steps then, so it may open over the guide's focus (nothing else may).
+  calm: (kind) => popIdle() && (kind === 's2welcome' || !guideOn()) && !state.opening && !(state.race && state.race.phase !== 'done') && !(state.drift && state.drift.phase !== 'done') && !battleTimers.length && !WOW.isOpen(),
 });
 document.addEventListener('click', () => POP.touch(), true); // capture: the tap that closes the window doesn't count yet
 document.addEventListener('visibilitychange', () => POP.visibility(document.hidden));
@@ -953,6 +956,7 @@ function garageInc() {
   const g = S.garageIncome({
     cars: me.cars.map((c) => ({ ...c, plateValue: c.plate?.value || 0, dirtAt: me.now })),
     slots: me.slots, claimed: me.claims.filter((k) => k.startsWith('set:')).map((k) => k.slice(4)), t, cut: isOpen('wash'),
+    washBonus: me.bizPerks?.wash || 1, // s2-fix: «Автомийка» +% to the shine bonus, same as the server
   });
   incCache = { me, t, g };
   return g;

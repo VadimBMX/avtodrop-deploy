@@ -562,6 +562,8 @@ const MIGRATIONS = [
   // Stars spent in Season 1, given back by the wipe; the shop takes it instead of a Telegram invoice.
   'ALTER TABLE users ADD COLUMN frame TEXT',
   'ALTER TABLE users ADD COLUMN star_credit INTEGER NOT NULL DEFAULT 0',
+  // s2-fix: the helmet of the avatar (0…S.HELMETS-1; NULL = the default by id, S.helmetDefault).
+  'ALTER TABLE users ADD COLUMN helmet INTEGER',
 ];
 
 export function openDb(file) {

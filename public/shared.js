@@ -1044,30 +1044,31 @@ export const washPrice = (model) => WASH.price[MODELS[model]?.cls] ?? WASH.price
 export const dirtNow = (dirt, at, t) => Math.min(100, Math.max(0, (dirt || 0) + (at > 0 && t > at ? ((t - at) / 3600e3) * WASH.perHour : 0)));
 // Share of income lost at this much dirt: always 0 now (WASH.maxCut 0 — dirt is visual only); kept for old callers.
 export const dirtCut = (d) => (WASH.maxCut > 0 && d > WASH.from ? WASH.maxCut * Math.min(1, (d - WASH.from) / (100 - WASH.from)) : 0);
-// Income multiplier of a car at time t: 1, or 1 + shine while it shines after a wash. `cut` (wash locked for the
-// player) only mattered for the old dirt penalty.
-export const washFactor = (dirt, at, shineUntil, t, cut = true) => 1 - (cut ? dirtCut(dirtNow(dirt, at, t)) : 0) + ((shineUntil || 0) > t ? WASH.shine : 0);
+// Income multiplier of a car at time t: 1, or 1 + shine × washBonus while it shines after a wash. `cut` (wash locked
+// for the player) only mattered for the old dirt penalty. washBonus: the «Автомийка» business perk (1 + BIZ.perks
+// washBonus while owned, server: BIZ.perks(uid).washMult, client: me.bizPerks.wash) — 1 without it.
+export const washFactor = (dirt, at, shineUntil, t, cut = true, washBonus = 1) => 1 - (cut ? dirtCut(dirtNow(dirt, at, t)) : 0) + ((shineUntil || 0) > t ? WASH.shine * washBonus : 0);
 // The multiplier averaged over [a, b]. Exact: between the moments dirt crosses `from` and 100% and the shine ends, the
 // factor is linear in time, so each piece's average is its value at the middle.
-export function washFactorAvg(dirt, at, shineUntil, a, b, cut = true) {
-  if (!(b > a)) return washFactor(dirt, at, shineUntil, b, cut);
+export function washFactorAvg(dirt, at, shineUntil, a, b, cut = true, washBonus = 1) {
+  if (!(b > a)) return washFactor(dirt, at, shineUntil, b, cut, washBonus);
   const pts = [a, b];
   if (at > 0 && WASH.perHour > 0) for (const d of [WASH.from, 100]) pts.push(at + ((d - (dirt || 0)) / WASH.perHour) * 3600e3);
   if (shineUntil) pts.push(shineUntil);
   const cuts = [...new Set(pts.filter((p) => p >= a && p <= b))].sort((x, y) => x - y);
   let s = 0;
-  for (let i = 0; i + 1 < cuts.length; i++) s += washFactor(dirt, at, shineUntil, (cuts[i] + cuts[i + 1]) / 2, cut) * (cuts[i + 1] - cuts[i]);
+  for (let i = 0; i + 1 < cuts.length; i++) s += washFactor(dirt, at, shineUntil, (cuts[i] + cuts[i + 1]) / 2, cut, washBonus) * (cuts[i + 1] - cuts[i]);
   return s / (b - a);
 }
 // Garage income, the one count the server credits and the client shows (cards, tiles, header). cars: the player's
 // cars ({ id, model, status, parts, plateValue, dirt, dirtAt, shineUntil }); cars on the market or auction take a slot
 // each, and of the garage cars only the best earners up to the free slots earn. Each car: clean income (class rate +
 // parts/plate) × the claimed-set bonus (setIncomeBonus); three or more earning cars of one country: +COUNTRY_BONUS;
-// then × its shine (washFactor at t: +WASH.shine after a wash, dirt costs nothing). VIP only lengthens the
+// then × its shine (washFactor at t: +WASH.shine × washBonus after a wash, dirt costs nothing). VIP only lengthens the
 // cash cap, not the rate. Returns the total rate and per car { earning, clean, set, country, base, wash, rate }.
 // «Престиж» (public/prestige.js): each ★ of restyling adds STAR_INCOME to the car's clean income, next to the set bonus.
 export const STAR_INCOME = 0.03;
-export function garageIncome({ cars, slots = 1e9, claimed = [], t = Date.now(), cut = false }) {
+export function garageIncome({ cars, slots = 1e9, claimed = [], t = Date.now(), cut = false, washBonus = 1 }) {
   const listed = cars.filter((c) => c.status === 'market' || c.status === 'auction').length;
   const rows = cars.filter((c) => c.status === 'garage').map((c) => {
     const clean = carIncomeOf(c), set = claimed.length ? setIncomeBonus(c.model, claimed) : 0, star = Math.min(5, Math.max(0, c.stars || 0)) * STAR_INCOME;
@@ -1082,7 +1083,7 @@ export function garageIncome({ cars, slots = 1e9, claimed = [], t = Date.now(), 
     const earning = i < room;
     const country = earning && per[r.country] >= COUNTRY_BONUS.cars ? COUNTRY_BONUS.income : 0;
     const base = earning ? r.v * (1 + country) : 0;
-    const wash = washFactor(r.c.dirt, r.c.dirtAt || 0, r.c.shineUntil, t, cut);
+    const wash = washFactor(r.c.dirt, r.c.dirtAt || 0, r.c.shineUntil, t, cut, washBonus);
     out[r.c.id] = { earning, clean: r.clean, set: r.set, star: r.star, country, base, wash, rate: base * wash };
     rate += base * wash;
   });
@@ -2577,30 +2578,55 @@ export const SEASON_PRIZES = [500, 250, 250, 50, 50, 50, 50, 50, 50, 50];
 export const SEASON_BADGE_TOP = 100;
 
 // ---------- «Сезон 02»: the one-shot wipe and the compensation (src/season2.js) ----------
-// Profile frames (around the avatar in the profile, the rating, the player card): owned per player (user_frames), one
-// worn (users.frame). Pictures come as frames/<id>.webp. `soon`: no way to earn it yet — the design uses it later.
+// Profile frames (around the helmet avatar in the profile, the rating, the player card, club / trade / battle rows).
+// One worn per player (users.frame, set through 'frames/equip'); `fr` = the picture public/s2/fr/f<fr>.webp.
+// Which a player may wear (frameAllowed below, the same rule on the server and in the look picker):
+//   · `own`  — granted once and kept for good (user_frames): the Season 1 compensation, later event prizes;
+//   · `lvl`  — free from that player level on (level drops at a season wipe, so these are re-earned each season);
+//   · `vip`  — while VIP is active; `club` — while the player owns (leads) an auto club.
+// `soon`: an `own` frame with no way to earn it yet (shown locked, «скоро»). A frame that stops being allowed (VIP ran
+// out, club given away) is simply not shown — players see no frame until they pick another one.
 // Not the plate frames of «Стиль» (STYLE_SLOTS.frame), which go round the number plates.
 export const PROFILE_FRAMES = [
-  { id: 'patron', name: 'Меценат', hint: 'підтримав гру зірками в Сезоні 1' },
-  { id: 'legend_s1', name: 'Легенда S1', hint: 'топ-10 рейтингу Сезону 1' },
-  { id: 'veteran_s1', name: 'Ветеран S1', hint: 'грав у Сезоні 1' },
-  { id: 'vip', name: 'VIP', hint: 'для VIP-гравців', soon: true },
-  { id: 'season2', name: 'Сезон 2', hint: 'нагорода Сезону 2', soon: true },
-  { id: 'king', name: 'Король', hint: 'скоро', soon: true },
-  { id: 'halloween', name: 'Хелловін', hint: 'скоро', soon: true },
-  { id: 'club_leader', name: 'Лідер клубу', hint: 'скоро', soon: true },
-  { id: 'diamond', name: 'Діамант', hint: 'скоро', soon: true },
-  { id: 'drift', name: 'Дрифт', hint: 'скоро', soon: true },
-  { id: 'racer', name: 'Гонщик', hint: 'скоро', soon: true },
-  { id: 'lightning', name: 'Блискавка', hint: 'скоро', soon: true },
-  { id: 'rust', name: 'Іржа', hint: 'скоро', soon: true },
-].map((f) => ({ ...f, img: `frames/${f.id}.webp` }));
+  { id: 'rust', fr: 17, name: 'Іржа', hint: 'з 1-го рівня', lvl: 1 },
+  { id: 'steel', fr: 7, name: 'Сталь', hint: 'з 5-го рівня', lvl: 5 },
+  { id: 'racer', fr: 15, name: 'Гонщик', hint: 'з 10-го рівня', lvl: 10 },
+  { id: 'gold', fr: 4, name: 'Золото', hint: 'з 15-го рівня', lvl: 15 },
+  { id: 'neon', fr: 2, name: 'Неон', hint: 'з 20-го рівня', lvl: 20 },
+  { id: 'smoke', fr: 5, name: 'Димка', hint: 'з 30-го рівня', lvl: 30 },
+  { id: 'inferno', fr: 6, name: 'Інферно', hint: 'з 40-го рівня', lvl: 40 },
+  { id: 'vip', fr: 0, name: 'VIP', hint: 'поки діє VIP', vip: true },
+  { id: 'club_leader', fr: 12, name: 'Лідер клубу', hint: 'для власника автоклубу', club: true },
+  { id: 'patron', fr: 9, name: 'Меценат', hint: 'підтримав гру зірками в Сезоні 1', own: true },
+  { id: 'legend_s1', fr: 10, name: 'Легенда S1', hint: 'топ-10 рейтингу Сезону 1', own: true },
+  { id: 'veteran_s1', fr: 11, name: 'Ветеран S1', hint: 'дійшов до 3-го рівня в Сезоні 1', own: true },
+  { id: 'season2', fr: 1, name: 'Сезон 2', hint: 'нагорода Сезону 2 — скоро', own: true, soon: true },
+  { id: 'king', fr: 3, name: 'Король', hint: 'переможцю сезону — скоро', own: true, soon: true },
+  { id: 'halloween', fr: 8, name: 'Хелловін', hint: 'святкова подія — скоро', own: true, soon: true },
+  { id: 'diamond', fr: 13, name: 'Діамант', hint: 'скоро', own: true, soon: true },
+  { id: 'drift', fr: 14, name: 'Дрифт', hint: 'скоро', own: true, soon: true },
+  { id: 'lightning', fr: 16, name: 'Блискавка', hint: 'скоро', own: true, soon: true },
+].map((f) => ({ ...f, img: `s2/fr/f${f.fr}.webp` }));
 export const FRAME_BY_ID = Object.fromEntries(PROFILE_FRAMES.map((f) => [f.id, f]));
+// May a player wear this frame? p: { level, vip (bool), clubOwner (bool), owned (array / Set of frame ids) }.
+export function frameAllowed(id, p = {}) {
+  const f = Object.hasOwn(FRAME_BY_ID, id) ? FRAME_BY_ID[id] : null;
+  if (!f) return false;
+  if (f.lvl) return (p.level || 0) >= f.lvl;
+  if (f.vip) return !!p.vip;
+  if (f.club) return !!p.clubOwner;
+  const own = p.owned || [];
+  return typeof own.has === 'function' ? own.has(id) : own.includes(id);
+}
+// Helmets: public/s2/av/h<n>.webp, all free to pick (users.helmet; a new player gets id % HELMETS).
+export const HELMETS = 9;
+export const helmetDefault = (id) => Math.abs(Number(id) || 0) % HELMETS;
 // «Ветеран Сезону 1»: a profile badge (badges key 'veteran_s1') by the level reached in Season 1 — given once by the
-// wipe, never earned again. Tier 1 = bronze for every account that was in the game.
+// wipe, never earned again. Tier 1 = bronze from level 3 (owner 3.11: accounts that only opened the app don't count);
+// the frame «Ветеран S1» goes with any tier.
 export const VETERAN_S1 = {
   key: 'veteran_s1', title: 'Ветеран Сезону 1',
-  tiers: [{ tier: 1, minLevel: 1, name: 'бронза' }, { tier: 2, minLevel: 10, name: 'срібло' }, { tier: 3, minLevel: 20, name: 'золото' }],
+  tiers: [{ tier: 1, minLevel: 3, name: 'бронза' }, { tier: 2, minLevel: 10, name: 'срібло' }, { tier: 3, minLevel: 20, name: 'золото' }],
 };
 export const veteranTierOf = (level) => VETERAN_S1.tiers.filter((t) => (level || 0) >= t.minLevel).pop() || null;
 // The wipe itself: the season it opens (meta marker 'season_reset_s<season>'), the season whose rating is archived,

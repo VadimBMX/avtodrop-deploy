@@ -162,6 +162,7 @@ export function createBusiness(ctx) {
       fuelExtra: has.has('gas') ? P.gasTank : 0,
       regenMult: has.has('gas') ? 1 + P.gasRegen : 1,
       shineMult: has.has('wash') ? 1 + P.washShine : 1,
+      washMult: has.has('wash') ? 1 + P.washBonus : 1, // × the shine's income bonus (S.washFactor washBonus)
       partsMult: has.has('sto') ? 1 - P.stoParts : 1,
       sellMult: has.has('salon') ? 1 + P.salonSell : 1,
     };
