@@ -43,6 +43,8 @@ import { installShowroom, showroomHubRow, showroomStrip, showroomFromLink } from
 import { installGoals, goalsHead } from './goals-ui.js';
 import { installPlateAuction, paHubCard, paBanner, paAsk } from './plate-auction-ui.js';
 import { tankShown, idleCapHours } from './garage-calm.js';
+// «АВТОДРОП: Місто» (Season 02): the bottom bar, the city home, Drop-market, parking, profile hero (public/s2-ui.js).
+import { installS2, UI2 } from './s2-ui.js';
 
 const tg = window.Telegram?.WebApp;
 const $ = (s, el = document) => el.querySelector(s);
@@ -474,6 +476,7 @@ function renderHeader() {
   for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('on', b.dataset.tab === state.tab && !state.page);
   for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('locked', !!TAB_FEATURE[b.dataset.tab] && !isOpen(TAB_FEATURE[b.dataset.tab]));
   if (tg?.initData && tg.BackButton) state.page ? tg.BackButton.show() : tg.BackButton.hide();
+  UI2.header?.();
 }
 // «Кейси» tab: a calm tab with a dot only when something can be opened for free right now — the starter case, a key
 // for any case, or a full set of key fragments (the server turns those into a key, this is only a safety net).
@@ -1721,7 +1724,10 @@ H.openCase = async (d, el) => {
     toast(e.message, true);
     return refresh().catch(() => {}); // redraw the button with the price, keys and balance as they are now
   }
-  if (!state.fast) {
+  if (!state.fast && UI2.openAnim) {
+    state.drop = null;
+    await UI2.openAnim(cs, r); // s2: the case shakes, flashes and opens (public/s2-ui.js) instead of the reel
+  } else if (!state.fast) {
     state.drop = null;
     if (r.results.length === 1) {
       $('#stage').innerHTML = `<div class="reel-wrap" id="reelWrap"><div class="reel" id="reel"></div></div>`;
@@ -6158,7 +6164,7 @@ function paintGuide() {
     ${open ? `<div class="guide-more"><div class="small">${esc(st.text)}</div><button class="guide-off" data-act="guideOff">Сховати підказки (повернути: Меню → Налаштування)</button></div>` : ''}`;
   $('#view').prepend(el);
   if (ready) return;
-  const target = here ? $(st.target) : $(`#tabs button[data-tab="${st.tab}"]`);
+  const target = here ? $(st.target) : $(`#tabs button[data-tab="${UI2.tabBtn[st.tab] || st.tab}"]`);
   if (!target) return;
   target.classList.add('guide-hi');
   // Once per step: bring a target that is below the fold (the first rival) into view.
@@ -9122,3 +9128,11 @@ installTourney({ api, me: () => me, state: () => state, H, PAGES, AFTER, TABS, P
 // ---------- «Цілі дня» (public/goals-ui.js; server src/goals.js): the garage card, the head of «Завдання», the key ----------
 installGoals({ me: () => me, state: () => state, H, AFTER, ic, esc, plural, countFix, guideOn, claimQuiet, revealRewards, refresh, toast, pulseSoon, closeModal, banners, hideBanner,
   openRewards, caseIcon, go, render: () => render(), REWARD_KINDS, REWARD_IC, PAGE_CLAIMS });
+
+// ---------- «АВТОДРОП: Місто» (public/s2-ui.js) ----------
+// Last, so it wraps the final TABS / AFTER of every screen above (the boot render runs after this, behind await).
+installS2({ me: () => me, state: () => state, config: () => config, tg, H, TABS, PAGES, AFTER, TITLES, PAGE_TITLES, api, act, toast, sheet, closeModal, go, render, back: () => back(), ic, esc, plural,
+  carArt, FX, SFX, haptic: (k) => haptic(k), isOpen: (k) => isOpen(k), pct: (p) => pct(p), caseIcon: (cs) => caseIcon(cs), caseNow: (cs) => caseNow(cs), dropPaid: (cs) => dropPaid(cs),
+  dropAlive: (r) => dropAlive(r), sellPrice: (c) => sellPrice(c), sellTotal: (c) => sellTotal(c), carInc: (c) => carInc(c), pendingNow: () => pendingNow(), serverNow: () => serverNow(),
+  untilSpan: (t) => untilSpan(t), tickUntil: () => tickUntil(), fmax: () => fmax(), hubTile: (o) => hubTile(o), brokeCard: () => brokeCard(), vipSaleBanner: () => vipSaleBanner(),
+  paBanner: () => paBanner(), originText: (m) => originText(m), prefSet: (k, v) => prefSet(k, v) });
