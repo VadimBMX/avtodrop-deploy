@@ -85,6 +85,11 @@ export function installS2(x) {
     await menuAfter?.();
   };
   wrapAfter('leaderboard', ratingAfter);
+  // s2-ui2: the race lobby head goes over the strips other modules put on top (tourney, day race).
+  wrapAfter('race', () => {
+    const h = document.querySelector('#view .s2r-head'), v = document.getElementById('view');
+    if (h && v && v.firstElementChild !== h) v.prepend(h);
+  });
   wrapAfter('store', storeAfter);
   wrapAfter('achievements', achAfter);
   Object.assign(X.H, handlers);
@@ -95,6 +100,9 @@ export function installS2(x) {
   document.getElementById('tabs')?.addEventListener('click', (e) => {
     const b = e.target.closest('button[data-tab]');
     if (b?.dataset.tab === 'cases' && st().tab === 'cases' && !st().page) st().s2case = false;
+    // s2-ui2: a full-page sheet (car card, СТО) sits under the bar — a tab closes it like a page.
+    const md = document.getElementById('modal');
+    if (b && md && !md.hidden && md.classList.contains('s2-pm')) X.closeModal();
   }, true);
 }
 function wrapAfter(page, fn) {
