@@ -5,6 +5,7 @@
 import * as S from './shared.js';
 import * as B from './business.js';
 import { playOpen } from './s2-reel.js';
+import { warDemo } from './war-demo.js';
 
 let X = null;
 // Hooks app.js reads: the opening animation and the header painter; tabs that live inside another tab's button.
@@ -238,7 +239,8 @@ function spotText(sp) {
   const m = me(), biz = bizList();
   const used = m.cars.filter((c) => c.status !== 'showcase').length;
   switch (sp.k) {
-    case 'auction': return paOpen().length ? '<u>LIVE</u>' : '';
+    case 'auction': return paOpen().length ? '<u>LIVE</u>' : X.isOpen('auction') ? '' : `<small>рів.${S.unlockLevel('auction')}</small>`;
+    case 'drift': return X.isOpen('drift') ? '' : `<small>рів.${S.unlockLevel('drift')}</small>`;
     case 'track': return `<small>${m.fuel ?? 0}/${X.fmax()}</small>`;
     case 'garage': return `<em>+${shortN(m.income?.rate || 0)}</em><small>${used}/${m.slots}</small>`;
     case 'club': return m.club?.tag ? `<small>${esc(m.club.tag)}</small>` : '';
@@ -287,15 +289,7 @@ function collectSheet() {
 // claimants' colours (opacity only) and the pin carries crossed swords. g: the block's top surface corners measured on the
 // art — left, back, right, front; T: the plinth's height there.
 const WORLD_W = 1584, WORLD_H = 672, PLINTH = 12;
-const DISTRICTS = [
-  { n: 'Оболонь', c: '#ff8a3d', c2: '#ffd400', club: null, fight: true, g: [[17, 230], [314, 65], [462, 155], [165, 320]] },
-  { n: 'Поділ', c: '#ffd400', club: 'Нічні вовки', e: 0, g: [[287, 362], [516, 225], [669, 325], [440, 462]] },
-  { n: 'Лук’янівка', c: '#ffd400', club: 'Нічні вовки', e: 0, g: [[17, 500], [219, 365], [442, 495], [240, 630]] },
-  { n: 'Печерськ', c: '#b06cff', club: 'BMW Club', e: 2, g: [[732, 367], [922, 250], [1110, 345], [920, 462]] },
-  { n: 'Троєщина', c: '#3d8bff', club: 'Турбо', e: 1, g: [[980, 150], [1182, 20], [1337, 147], [1135, 277]] },
-  { n: 'Дарниця', c: '#3d8bff', club: 'Турбо', e: 1, g: [[1172, 320], [1369, 180], [1569, 290], [1372, 430]] },
-  { n: 'Позняки', c: '#ff3d5a', club: 'Drift Kings', e: 3, g: [[955, 525], [1147, 415], [1367, 535], [1175, 645]] },
-];
+// The demo districts and their made-up clubs: public/war-demo.js (warDemo).
 const SWORDS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 17.5 3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2M14.5 6.5 18 3h3v3l-3.5 3.5M5 14l4 4M7 17l-3 3M3 19l2 2"/></svg>';
 const lerp = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
 const ptsOf = (q) => q.map((v) => v.map((n) => Math.round(n)).join(',')).join(' ');
@@ -311,6 +305,7 @@ function ledPath([L, , R, B]) {
   return `M${P(a)} L${P(b)} Q${P(B)} ${P(c)} L${P(e)}`;
 }
 function warMap() {
+  const { districts: DISTRICTS, legend } = warDemo(me().club);
   const tiles = DISTRICTS.map((d) => `<polygon points="${ptsOf(grow(d.g, 1.02, PLINTH / 2))}"/>`).join('');
   const glow = (d, c, cls = '') => `<polygon class="${cls}" points="${ptsOf(grow(d.g, 1.1, PLINTH + 6))}" fill="${c}"/>`;
   const defs = DISTRICTS.map((d, i) => {
@@ -318,8 +313,9 @@ function warMap() {
     const grad = (id, c) => `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${L[0]}" y1="0" x2="${R[0]}" y2="0"><stop offset="0" stop-color="${c}" stop-opacity="0"/><stop offset=".2" stop-color="${c}"/><stop offset=".8" stop-color="${c}"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient>`;
     return grad(`s2led${i}`, d.c) + (d.fight ? grad(`s2led${i}b`, d.c2) : '');
   }).join('');
-  const base = DISTRICTS.filter((d) => !d.fight).map((d) => glow(d, d.c)).join('');
-  const leds = DISTRICTS.map((d, i) => d.fight ? '' : `<path d="${ledPath(d.g)}" stroke="url(#s2led${i})" color="${d.c}"/>`).join('');
+  // A neutral district (no demo club, see warDemo) has no glow and no LED: nobody holds it.
+  const base = DISTRICTS.filter((d) => !d.fight && d.club).map((d) => glow(d, d.c)).join('');
+  const leds = DISTRICTS.map((d, i) => d.fight || !d.club ? '' : `<path d="${ledPath(d.g)}" stroke="url(#s2led${i})" color="${d.c}"/>`).join('');
   // Contested blocks: each claimant's glow and LED in its own <svg> layer, crossfaded by opacity (composited, no repaint).
   const fightLayer = (d, i, c, k) => `<svg class="s2-ov s2-dg s2-fight${k}" viewBox="0 0 ${WORLD_W} ${WORLD_H}" preserveAspectRatio="none" aria-hidden="true"><g mask="url(#s2gm)" filter="url(#s2gb)">${glow(d, c)}</g><g class="s2-led"><path d="${ledPath(d.g)}" stroke="url(#s2led${i}${k === 2 ? 'b' : ''})" color="${c}"/></g></svg>`;
   const fights = DISTRICTS.map((d, i) => d.fight ? fightLayer(d, i, d.c, 1) + fightLayer(d, i, d.c2, 2) : '').join('');
@@ -327,12 +323,13 @@ function warMap() {
     const [cx, cy] = lerp(grow(d.g, 0)[0], d.g[3], 0.2); // the pin stands a little in front of the block's centre
     const head = d.fight
       ? `<span class="s2-pin-ic x">${SWORDS}</span><span class="s2-pin-t"><b>${d.n}</b><small>Спірний</small></span>`
-      : `<img class="s2-pin-ic" src="s2/em/e${d.e}.webp" alt=""><span class="s2-pin-t"><b>${d.n}</b><small>${d.club}</small></span>`;
+      : d.club ? `<img class="s2-pin-ic" src="s2/em/e${d.club.e}.webp" alt=""><span class="s2-pin-t"><b>${d.n}</b><small>${esc(d.club.name)}</small></span>`
+        : `<span class="s2-pin-ic x n">${X.ic('flag-3')}</span><span class="s2-pin-t"><b>${d.n}</b><small>Нічий</small></span>`;
     return `<div class="s2-dl${d.fight ? ' fight' : ''}" style="left:${((cx / WORLD_W) * 100).toFixed(2)}%;top:${((cy / WORLD_H) * 100).toFixed(2)}%;--c:${d.c};--c2:${d.c2 || d.c}"><div class="s2-pin">${head}</div><i class="s2-pin-stem"></i><i class="s2-pin-dot"></i></div>`;
   };
   const labels = DISTRICTS.map(pin).join('');
-  const leg = [['Нічні вовки', '#ffd400', 0, 2], ['Турбо', '#3d8bff', 1, 2], ['BMW', '#b06cff', 2, 1], ['DK', '#ff3d5a', 3, 1]].map(([n, c, e, k]) => `<span style="--c:${c}"><img src="s2/em/e${e}.webp" alt="">${n} <b>${k}</b></span>`).join('');
-  return `<div class="s2-leg">${leg}</div>
+  const leg = legend.map(([cl, k]) => `<span style="--c:${cl.c}"><img src="s2/em/e${cl.e}.webp" alt="">${esc(cl.short)} <b>${k}</b></span>`).join('');
+  return `<div class="s2-leg" aria-label="Демо-клуби">${leg}</div>
     <div class="s2-map war" id="s2Map"><div class="s2-pan" id="s2Pan" data-w="${WORLD_W}" data-h="${WORLD_H}" data-x="420"><img src="s2/world.webp" alt="" draggable="false">
       <svg class="s2-ov s2-dg" viewBox="0 0 ${WORLD_W} ${WORLD_H}" preserveAspectRatio="none" aria-hidden="true"><defs>
         <filter id="s2gb" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="16"/></filter>
@@ -341,7 +338,7 @@ function warMap() {
         <g mask="url(#s2gm)" filter="url(#s2gb)">${base}</g><g class="s2-led">${leds}</g></svg>${fights}${labels}</div>
       <div class="s2-ef l"></div><div class="s2-ef r"></div><div class="s2-hint">${X.ic('arrows-exchange')}Гортай карту</div></div>
     <div class="s2-sheet s2-war"><div class="s2-war-h"><b>Війна районів</b><span class="s2-soon">Скоро</span></div>
-      <div class="s2-war-t">Автоклуби битимуться за райони міста: гонки за район, бонус до доходу всім учасникам клубу-переможця. Карта поки демонстраційна.</div>
+      <div class="s2-war-t">Автоклуби битимуться за райони міста: гонки за район, бонус до доходу всім учасникам клубу-переможця. Поки це демо: клуби на карті вигадані, твій клуб з’явиться тут, коли стартує війна.</div>
       <button class="s2-btn wide" data-act="go" data-page="club">${X.ic('users')}${me().club ? 'Мій автоклуб' : 'Знайти автоклуб'}</button></div>`;
 }
 let pendTimer = 0;
