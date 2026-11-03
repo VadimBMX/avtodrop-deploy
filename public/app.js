@@ -2053,9 +2053,29 @@ function s2RaceHead() {
   const v = state.raceView;
   const lab = { race: 'ТРАСА · ДРАГ 402 М', career: 'КАР’ЄРА · БОСИ КРАЇН', drift: 'ТРАСА · ДРИФТ', pvp: 'PVP · НАЖИВО' }[v] || 'ТРАСА';
   return `<div class="s2r-head ${v}"><div class="s2r-ht"><small>${lab}</small><h2>Гонки</h2>
-    <span class="s2r-fuel ${me.fuel < 1 ? 'out' : ''}">${ic('gas-station')}<b>${me.fuel}</b>/${fmax()}${me.fuelNext && me.fuel < fmax() ? ` · +1 <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : ''}</span></div>
+    <span class="s2r-fuel ${me.fuel < 1 ? 'out' : ''}" data-act="s2Fuel" role="button">${ic('gas-station')}<b>${me.fuel}</b>/${fmax()}${me.fuelNext && me.fuel < fmax() ? ` · +1 <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : ''}</span></div>
     <img class="s2r-track" src="s2/bg/track.webp" alt="" draggable="false"></div>`;
 }
+// s2-ui2 (mockup 21): «Заправка» — the tank as a picture, how it refills, the ways to fill it (the existing buttons).
+H.s2Fuel = () => {
+  const f = fuelNow(), max = fmax(), next = S.nextTank(me.tankLvl);
+  const it = S.SHOP_BY_ID.refuel;
+  sheet('Заправка', `<div class="s2-gas"><div class="s2-gas-tank"><i style="height:${Math.round((f / max) * 100)}%"></i>${'<b></b>'.repeat(4)}</div>
+      <div class="grow"><small>У БАКУ</small><div class="s2-gas-n">${f}<span>/${max}</span></div>
+        <div class="small muted">${me.fuelNext && f < max ? `${ic('clock')} +1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : 'бак повний'}${spareTxt()}</div>
+        ${me.vip ? '<span class="chip s2-gas-vip">VIP: швидше відновлення</span>' : ''}</div></div>
+    <div class="list s2-gas-info"><div class="li"><div class="grow">Відновлення</div><b>1 ⛽ / ${S.FUEL_REGEN_MIN} хв</b></div><div class="li"><div class="grow">Заїзд будь-якої гонки</div><b>1 ⛽</b></div>
+      ${f < max && me.fuelNext ? `<div class="li"><div class="grow">Повний бак через</div><b>≈ ${Math.ceil(((max - f) * S.FUEL_REGEN_MIN) / 60)} год</b></div>` : ''}</div>
+    <div class="s2-h"><b>Дозаправитись</b></div>
+    ${refuelBtn() ? `<div class="s2-gas-row">${refuelBtn()}</div>` : `<div class="tiny muted">${it && config.stars && f < max ? '' : f >= max ? 'Бак повний — їдь!' : 'Повний бак за зірки — коли платежі підключені.'}</div>`}
+    ${next ? `<div class="list mt"><div class="li"><span class="ic">${ic('gas-station')}</span><div class="grow"><b>Більший бак · ${next.max}</b><div class="small muted">${me.level >= next.level ? `назавжди +${next.max - max} пального` : `з ${next.level}-го рівня`}</div></div>${me.level >= next.level ? `<button class="btn sm ${me.balance >= next.cost ? '' : 'ghost'}" data-act="tankUp" ${me.balance >= next.cost ? '' : 'disabled'}>${S.short(next.cost)}</button>` : `<span class="lockchip">${ic('lock')} рів. ${next.level}</span>`}</div></div>` : ''}
+    <button class="s2-btn wide mt" data-act="s2FuelGo">${ic('flag-3')}До гонок · ${f} ${plural(f, ['спроба', 'спроби', 'спроб'])}</button>`);
+  tickUntil();
+};
+H.s2FuelGo = () => {
+  closeModal();
+  if (state.tab !== 'race' || state.page) (state.tab = 'race', state.page = null, state.raceView = 'race', render());
+};
 // «Чесний шанс»: the chance chip of a solo rival — or, for an easy rival you'd lose more often than not right now,
 // a plain «важко» instead of a number (S.RACE_FORM.toughBelow).
 const rivalChanceChip = (r) => (r.tough ? '<span class="chip rv-tough">Для тебе зараз: важко — потренуйся</span>' : `<span class="chip">шанс ${r.chance < 1 ? '<1' : r.chance}%</span>`);
@@ -5226,12 +5246,19 @@ function roomOfferHtml(s) {
   const p = s.partner;
   const inOffer = new Set(s.me.cars.map((c) => c.id));
   const canAdd = me.cars.some((c) => c.status === 'garage' && !inOffer.has(c.id) && !M(c.model).secret);
-  return `<div class="trade-side"><h4>Ти даєш · ${S.short(sideValue(s.me))}</h4>${sideHtml(s.me, true)}
-      <div class="row mt" style="gap:6px"><button class="btn sm ghost" data-act="roomAddCar" ${canAdd ? '' : 'disabled'}>${ic('plus')} Авто</button>
-      <input id="roomMoney" inputmode="numeric" placeholder="гривні" value="${s.me.money ? grp(s.me.money) : ''}" style="flex:1;padding:8px 10px"><button class="btn sm ghost" data-act="roomMoney">Додати</button></div></div>
-    <div class="trade-side mt"><h4>Ти отримуєш · ${p ? S.short(sideValue(p)) : '—'}</h4>${p ? sideHtml(p, false) : '<div class="small muted" style="padding:10px 0">ще ніхто не зайшов</div>'}</div>
-    ${p ? `<div class="row between mt small"><span>${esc(p.name)}:</span>${p.ready ? '<span class="chip ready">готовий ✓</span>' : '<span class="chip">думає…</span>'}</div>` : ''}
-    <button class="btn ${s.me.ready ? 'green' : 'yellow'} mt" data-act="roomReady" ${p ? '' : 'disabled'}>${s.me.ready ? 'Готовий ✓ · скасувати' : 'Готовий до обміну'}</button>
+  // s2-ui2 (mockup 24): two sides with an avatar and a ready tick, cars as tiles, «+» to add, the green swap between.
+  const tiles = (side, mine) => side.cars.map((c) => (c.gone ? '<div class="s2-tr-car gone">авто більше недоступне</div>'
+    : `<div class="s2-tr-car" style="--c:${S.CLASSES[M(c.model).cls].color}"><span class="s2-cl">${M(c.model).cls}</span>${mine && !side.ready ? `<button class="s2-tr-x" data-act="roomRemoveCar" data-id="${c.id}" aria-label="Прибрати">${ic('x')}</button>` : c.ok === false ? '<span class="chip">недоступне</span>' : ''}<div class="art">${carArt(c.model, { look: c.look, thumb: true })}</div><b class="ellipsis">${esc(M(c.model).name)}</b><small>${S.short(c.value || 0)}</small></div>`)).join('');
+  const head = (name, ready, col) => `<div class="s2-tr-h"><span class="s2-tr-av" style="background:${col}">${esc(initialOf(name))}</span><b class="ellipsis">${esc(name)}</b>${ready ? `<span class="s2-tr-ok">${ic('check')}</span>` : ''}</div>`;
+  return `<div class="s2-trade"><div class="s2-tr-side">${head('Ти', s.me.ready, '#ffd400')}
+      <div class="s2-tr-cars">${tiles(s.me, true)}${!s.me.ready ? `<button class="s2-tr-car add" data-act="roomAddCar" ${canAdd ? '' : 'disabled'} aria-label="Додати авто">${ic('plus')}</button>` : ''}</div>
+      <div class="s2-tr-money">+ ${grp(s.me.money || 0)} ₴ <span>· разом ${S.short(sideValue(s.me))}</span></div>
+      <div class="row mt" style="gap:6px"><input id="roomMoney" inputmode="numeric" placeholder="додати гривні" value="${s.me.money ? grp(s.me.money) : ''}" style="flex:1;padding:8px 10px"><button class="btn sm ghost" data-act="roomMoney">Додати</button></div></div>
+    <div class="s2-tr-swap">${ic('arrows-exchange')}</div>
+    <div class="s2-tr-side">${p ? head(p.name, p.ready, '#a26bff') : '<div class="s2-tr-h"><span class="s2-tr-av">?</span><b class="muted">чекаємо…</b></div>'}
+      ${p ? `<div class="s2-tr-cars">${tiles(p, false) || '<div class="small muted">поки нічого</div>'}</div><div class="s2-tr-money">+ ${grp(p.money || 0)} ₴ <span>· разом ${S.short(sideValue(p))}</span></div>
+        <div class="tiny muted mt">${esc(p.name)}: ${p.ready ? '<b class="win">готовий ✓</b>' : 'думає…'}</div>` : '<div class="small muted" style="padding:10px 0">ще ніхто не зайшов</div>'}</div></div>
+    <button class="s2-btn wide mt ${s.me.ready ? 's2-btn-ok' : ''}" data-act="roomReady" ${p ? '' : 'disabled'}>${ic('check')}${s.me.ready ? 'Готовий ✓ · скасувати' : 'Підтвердити обмін'}</button>
     <div class="tiny muted center mt">Обмін відбудеться, щойно обидва натиснуть «Готовий». Будь-яка зміна пропозиції скидає готовність, тож підмінити авто в останню мить не вийде.</div>`;
 }
 const roomKey = (s) => JSON.stringify([s.status, s.version, s.me?.ready, s.partner?.id, s.partner?.ready]);

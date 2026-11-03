@@ -5447,6 +5447,51 @@ body.s2 .coll-hero, body.s2 .card.coll-top { border-radius: 22px; }
 body.s2 .clb-emb.s2-clemb { width: 64px; height: 64px; background: none; border: 0; box-shadow: none; }
 body.s2 .clb-emb.s2-clemb img { width: 64px; height: 64px; object-fit: contain; filter: drop-shadow(0 6px 12px #000a); }
 body.s2 .clb-hero, body.s2 .clb-head { border-radius: 22px; background: radial-gradient(70% 90% at 0% 0%, #c084fc22, transparent 70%), var(--glass); }
+/* trade room (mockup 24) */
+.s2-trade { position: relative; display: grid; gap: 10px; }
+.s2-tr-side { padding: 12px; border-radius: 22px; background: var(--glass); border: 1px solid var(--glass-b); }
+.s2-tr-h { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.s2-tr-h b { font: 800 15px var(--f-disp); flex: 1; min-width: 0; }
+.s2-tr-av { width: 30px; height: 30px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #2a3142; color: #111; font: 900 13px var(--f-disp); }
+.s2-tr-ok { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #39e58c26; color: var(--green); box-shadow: inset 0 0 0 1px #39e58c66; }
+.s2-tr-ok .i { width: 14px; height: 14px; }
+.s2-tr-cars { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.s2-tr-car { position: relative; display: flex; flex-direction: column; min-width: 0; padding: 8px 8px 7px; border-radius: 14px; background: #0d121e; border: 1px solid var(--glass-b); color: var(--text); text-align: left; }
+.s2-tr-car .art { height: 44px; margin: 8px 0 4px; }
+.s2-tr-car b { font: 700 11.5px var(--f-body); }
+.s2-tr-car small { font: 600 10.5px var(--s2-mono); color: var(--muted); }
+.s2-tr-car .s2-cl { position: absolute; left: 6px; top: 6px; }
+.s2-tr-car.add { align-items: center; justify-content: center; min-height: 92px; border-style: dashed; color: var(--muted); font-size: 22px; }
+.s2-tr-car.add:disabled { opacity: .4; }
+.s2-tr-car.gone { font: 600 11px var(--f-body); color: var(--muted); justify-content: center; }
+.s2-tr-x { position: absolute; right: 4px; top: 4px; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #ffffff14; color: var(--muted); z-index: 2; }
+.s2-tr-x .i { width: 12px; height: 12px; }
+.s2-tr-money { margin-top: 9px; font: 800 13px var(--s2-mono); color: var(--green); }
+.s2-tr-money span { font-weight: 600; color: var(--muted); }
+.s2-tr-swap { position: relative; z-index: 3; width: 46px; height: 46px; margin: -24px auto; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: #39e58c; color: #062014; box-shadow: 0 0 0 6px #070a12, 0 0 24px -2px #39e58c; font-size: 22px; pointer-events: none; }
+.s2-btn.s2-btn-ok { background: #39e58c; box-shadow: 0 10px 22px -10px #39e58c; }
+/* boss / ghost (mockup 19): the purple ghost night behind the challenge, a lit stage under the next boss */
+body.s2 .chg-hero { position: relative; overflow: hidden; border-radius: 22px; border: 1px solid #a855f755; background: linear-gradient(90deg, #070a12f2 30%, #070a1280), url('s2/bg/ghost.webp') right center / cover no-repeat, #0b0f1a; }
+body.s2 .chg-vs { border-radius: 18px; background: var(--glass); border: 1px solid var(--glass-b); }
+body.s2 .chg-vs i { color: #c084fc; text-shadow: 0 0 14px #a855f7; }
+body.s2 .boss-next { border-radius: 22px; background: radial-gradient(80% 60% at 50% 30%, color-mix(in srgb, var(--c) 26%, transparent), transparent 70%), var(--glass); border: 1px solid color-mix(in srgb, var(--c) 35%, #ffffff14); }
+body.s2 .boss-next .bn-art { position: relative; }
+body.s2 .boss-next .bn-art::after { content: ''; position: absolute; left: 12%; right: 12%; bottom: 2px; height: 22px; border-radius: 50%; z-index: -1; background: radial-gradient(closest-side, color-mix(in srgb, var(--c) 40%, transparent), transparent); }
+body.s2 .boss-next .taunt { border-radius: 14px; background: #ffffff08; border: 1px solid #ffffff10; }
+/* fuel station (mockup 21) */
+.s2-gas { display: flex; align-items: center; gap: 16px; padding: 14px; border-radius: 22px; background: radial-gradient(70% 90% at 0% 50%, #22e3ff1f, transparent 70%), var(--glass); border: 1px solid var(--glass-b); }
+.s2-gas-tank { position: relative; width: 64px; height: 104px; flex: none; border-radius: 16px; overflow: hidden; background: #0d121e; box-shadow: inset 0 0 0 2px #22e3ff55; display: flex; flex-direction: column; justify-content: space-evenly; padding: 0 14px; }
+.s2-gas-tank i { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(#5ee7f0, #22a6e6); box-shadow: 0 0 20px #22e3ff88; }
+.s2-gas-tank b { position: relative; z-index: 1; height: 2px; border-radius: 1px; background: #0a2a3a55; }
+.s2-gas small { font: 800 10.5px var(--f-body); letter-spacing: 1.3px; color: var(--muted); }
+.s2-gas-n { font: 900 40px/1 var(--f-disp); letter-spacing: -1px; margin: 2px 0 4px; }
+.s2-gas-n span { font-size: 18px; color: var(--muted); }
+.s2-gas-vip { margin-top: 6px; background: #ffd4001f; color: var(--accent); border: 1px solid #ffd40055; }
+.s2-gas-info { margin-top: 10px; }
+.s2-gas-info .li b { font: 700 13px var(--s2-mono); color: var(--accent); }
+.s2-gas-row .btn { width: 100%; }
+.s2r-fuel { cursor: pointer; }
 /* ===== /s2-ui2 */
 
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
