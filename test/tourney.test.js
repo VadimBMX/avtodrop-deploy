@@ -374,3 +374,21 @@ test('prizes: money scales with the class, the champion takes two keys, the fina
   // A champion's money is about a dozen races of the class's typical car.
   assert.equal(d.money, Math.round((12 * S.raceEv(TR.classValue('D'))) / 1000) * 1000);
 });
+
+// s2-qa: the app starts a match without a car id. The registered car sold (or traded / listed / on the showcase) since
+// the draw used to fail with «Це не твоє авто» while «Їхати» stayed on screen — a sure no-show defeat.
+test('rounds: the registered car is gone — the match is raced in the fastest garage car of the bracket class', () => {
+  const { mk, call, set, run, db, match } = setup();
+  const reg = mk(10);
+  call(10, 'tourney/join', { carId: reg });
+  const spare = mk(10, 'toyota-corolla-ae86');
+  call(10, 'sell', { carIds: [reg] });
+  set(win(16, 0).opens + 60e3);
+  const r = run(10);
+  assert.equal(r.st.car.id, spare);
+  assert.equal(r.res.tourney.counted, true);
+  // No car of the class left in the garage: a clear message, not «Це не твоє авто» (the next round, or a second run).
+  if (match(10).round === 1) set(win(16, 1).opens + 60e3);
+  db.prepare("UPDATE cars SET status = 'showcase' WHERE id = ?").run(spare);
+  assert.throws(() => call(10, 'tourney/start'), /класу/);
+});
