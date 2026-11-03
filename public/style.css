@@ -5713,7 +5713,7 @@ body.s2 .btn, body.s2 .s2-btn, body.s2 .s2-open, body.s2 .bz-btn, body.s2 .raceb
   font-family: var(--f-fc); font-weight: 800; text-transform: uppercase; letter-spacing: .5px; border: 0; border-radius: 14px; transition: transform .08s, box-shadow .08s;
 }
 body.s2 .btn:not(.ghost):not(.outline):not(.red):not(.green):not(.second):not(.sm):not([disabled]), body.s2 .btn.yellow:not([disabled]), body.s2 .s2-btn:not(.ghost):not(.sm):not([disabled]),
-body.s2 .s2-open:not([disabled]):not(.s2-full-g), body.s2 .bz-btn:not([disabled]), body.s2 .racebtn.shift, body.s2 .s2-mybar {
+body.s2 .s2-open:not([disabled]):not(.s2-full-g), body.s2 .bz-btn:not([disabled]), body.s2 .racebtn.shift {
   background: var(--yel); color: #111; box-shadow: var(--yel-sh); text-shadow: none;
 }
 body.s2 .btn:not(.ghost):not(.outline):not(.red):not(.green):not(.second):not(.sm):not([disabled]):active, body.s2 .btn.yellow:not([disabled]):active, body.s2 .s2-btn:not(.ghost):not(.sm):active,
@@ -5996,6 +5996,30 @@ body.s2 .s2r-track { display: none; }
 body.s2 .s2r-ht h2 { font-size: 34px; margin: 2px 0 8px; }
 body.s2 .s2r-ht small { font: 800 11px var(--f-fc); letter-spacing: 2px; text-shadow: 0 1px 6px #000; }
 body.s2 .s2r-fuel { height: 30px; border-radius: 10px; }
+
+/* ---------- car tiles everywhere (garage, trade-in, style, showroom, pickers): an asphalt slab, the class only as a
+   small tag and a 3 px bottom edge — no coloured glow frames ---------- */
+body.s2 :is(#view, #modal) .car, body.s2 :is(#view, #modal) .car[style*="--c"], body.s2 :is(#view, #modal) .car:is(.r0, .r1, .r2, .r3, .r4, .r5)[style*="--c"] {
+  background: radial-gradient(58% 13% at 50% var(--fy, 52%), color-mix(in srgb, var(--c, #888) 20%, transparent), transparent 76%), var(--slab);
+  border: 0; border-radius: 14px; box-shadow: var(--slab-sh-sm), inset 0 -3px 0 color-mix(in srgb, var(--c, #555) 85%, #000); }
+body.s2 :is(#view, #modal) .car.sel, body.s2 :is(#view, #modal) .car.on { box-shadow: var(--slab-sh-sm), inset 0 0 0 2px var(--accent), inset 0 -3px 0 var(--c, #555); }
+body.s2 :is(#view, #modal) .car::before { opacity: 0; }
+body.s2 :is(#view, #modal) .car .cls { border-radius: 6px; font: 800 12px/1 var(--f-fc); color: #111; box-shadow: 0 2px 0 #00000066; }
+body.s2 :is(#view, #modal) .car .nm, body.s2 :is(#view, #modal) .car b.nm { font: 800 13px var(--f-fc); text-transform: uppercase; letter-spacing: .3px; }
+/* ---------- store packs ---------- */
+body.s2 .pk { background: var(--slab); border: 0; border-radius: 14px; box-shadow: var(--slab-sh-sm); }
+body.s2 .pk.hot { border: 0; box-shadow: var(--slab-sh-sm), inset 0 -3px 0 #ff8a3d; }
+body.s2 .pk b { font: 700 18px var(--s2-mono); color: var(--accent); letter-spacing: -.5px; }
+body.s2 .pk .pk-st { border-radius: 9px; background: #1b1c20; color: var(--accent); box-shadow: var(--slab-sh-in); font: 700 13px var(--s2-mono); }
+body.s2 .pk-hot { background: var(--slab-dk); color: #ffb27a; box-shadow: var(--slab-sh-sm), inset 3px 0 0 #ff8a3d; border: 0; }
+body.s2 .card.offer, body.s2 .vip-card, body.s2 .st-daydeal { border: 0 !important; }
+/* ---------- «me» rows in ratings: a dark slab with a yellow edge, not a second yellow bar ---------- */
+body.s2 .mybar, body.s2 .s2-mybar { background: var(--slab-dk); color: var(--text); border: 0; border-radius: 14px; box-shadow: var(--slab-sh-sm), inset 4px 0 0 var(--accent); font: 800 15px var(--f-fc); text-transform: uppercase; letter-spacing: .4px; }
+body.s2 .mybar > span:last-child, body.s2 .s2-mybar > span:last-child { color: var(--accent); font: 700 14px var(--s2-mono); text-transform: none; letter-spacing: -.3px; }
+/* ---------- hub tiles: the season pass and friends are slabs (no yellow frames) ---------- */
+body.s2 .hub-pass, body.s2 .hub-pass.ready { background: var(--slab); border: 0; box-shadow: var(--slab-sh); }
+body.s2 .hub-pass.ready { box-shadow: var(--slab-sh), inset 0 -3px 0 var(--accent); }
+body.s2 .drs, body.s2 .dry, body.s2 .drh, body.s2 .drr, body.s2 .drb, body.s2 .drt { border: 0; background: var(--slab); box-shadow: var(--slab-sh-sm); }
 
 /* ---------- profile ---------- */
 body.s2 .s2-prof { background: none; }
