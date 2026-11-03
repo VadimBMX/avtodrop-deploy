@@ -558,7 +558,7 @@ function marketView(base) {
   const list = S.CASES.filter((c) => !c.starter || m.keys[c.id]);
   const tile = (c) => {
     const dl = X.caseNow(c);
-    return `<button class="s2-ct ${c.id === cs.id ? 'on' : ''}" style="--cc:${caseCol(c)}" data-act="s2Pick" data-id="${c.id}">${dl.why === 'day' || dl.off ? '<span class="s2-ct-hot">−%</span>' : ''}${m.keys[c.id] && !c.starter ? `<span class="s2-ct-key">${X.ic('key')}${m.keys[c.id]}</span>` : ''}${caseArt(c)}<b>${esc(CASE_SHORT[c.id] || c.name)}</b><small>${c.starter ? 'ключ' : shortN(dl.price)}</small></button>`;
+    return `<button class="s2-ct ${c.id === cs.id ? 'on' : ''}" style="--cc:${caseCol(c)}" data-act="s2Pick" data-id="${c.id}">${dl.off ? `<span class="s2-ct-hot">−${Math.round(dl.off * 100)}%</span>` : ''}${m.keys[c.id] && !c.starter ? `<span class="s2-ct-key">${X.ic('key')}${m.keys[c.id]}</span>` : ''}${caseArt(c)}<b>${esc(CASE_SHORT[c.id] || c.name)}</b><small>${c.starter ? 'ключ' : shortN(dl.price)}</small></button>`;
   };
   const rar = list.filter((c) => c.group !== 'country'), cty = list.filter((c) => c.group === 'country');
   return `<div class="feed" id="dropFeed" hidden></div><div class="s2-page s2-drop">

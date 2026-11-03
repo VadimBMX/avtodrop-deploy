@@ -59,7 +59,7 @@ test('intro wiring: the boot plays the reel for me.intro, popups wait for it, th
   assert.match(boot, /api\('intro\/seen'\)/);
   assert.match(boot, /introReel\(true, seen\)/);
   assert.doesNotMatch(boot, /playStory\(S\.INTRO_STORY/);
-  assert.match(APP, /const popIdle = \(\) => [^\n]*!\$\('\.reel'\)/);
+  assert.match(APP, /const popIdle = \(\) => [^\n]*!\$\('body > \.reel'\)/);
   assert.match(APP, /H\.howTo = \(\) => introReel\(false\);/);
   assert.match(fn('function settingsSheet('), /data-act="howTo"/);
   assert.match(fn('PAGES.news = ', 'H.whatsNewAgain'), /data-act="howTo"/);

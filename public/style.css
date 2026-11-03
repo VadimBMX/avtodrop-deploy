@@ -6054,6 +6054,9 @@ body.s2 .slot .slot-plus { background: #1b1c20; color: var(--accent); box-shadow
 /* sticky docks: a solid strip under them down to the floating bar, so no content peeks between the dock and the bar */
 body.s2 .dr-dock, body.s2 #view .drop-dock { background: #07080b; box-shadow: 0 -14px 14px -2px #07080b; }
 body.s2 .dr-dock::after, body.s2 #view .drop-dock::after { content: ''; position: absolute; z-index: -1; left: 0; right: 0; top: 100%; height: 40px; background: #07080b; pointer-events: none; }
+/* …but when the dock isn't stuck (a short drop screen) that 40px strip lay over the top of the next card («Фрагменти
+   ключа» was cut off). Cards after the dock are never under it (they come after its natural place), so they go on top. */
+body.s2 #view .drop-dock ~ .card { position: relative; z-index: 6; }
 
 /* the guide pill when a step is done: no yellow rings — the claim is a dark slab with yellow text and a cyan pulse */
 body.s2 .guide.pill.ready { border: 0; box-shadow: var(--slab-sh-sm), inset 3px 0 0 var(--accent); }
@@ -6281,11 +6284,13 @@ body.s2 .wow .wow-acts .btn.yellow { background: var(--yel); color: #111; box-sh
 /* ===== Night intro 2026-11-03 (s2-intro, public/intro-reel.js): the first-launch motion intro in «Асфальт». Seven
    full-screen scenes over #07080b, the game's own art moved by transform/opacity only; a caption under each scene
    (kicker · title · one line), story bars on top, «Пропустити», the yellow CTA on the last scene. Hold = pause
-   (.hold), reduced motion = every scene in its final frame (.rm). --vz is the picture zone above the caption. ===== */
-.reel { position: fixed; inset: 0; z-index: 130; overflow: hidden; background: #07080b; color: var(--text); touch-action: manipulation; user-select: none; -webkit-user-select: none;
+   (.hold), reduced motion = every scene in its final frame (.rm). --vz is the picture zone above the caption.
+   The root is `body > .reel`: a bare `.reel` also matched the case reels (.reel-wrap > .reel: reward case, parts,
+   ×3/×6) and turned their strip into an empty full-screen layer. ===== */
+body > .reel { position: fixed; inset: 0; z-index: 130; overflow: hidden; background: #07080b; color: var(--text); touch-action: manipulation; user-select: none; -webkit-user-select: none;
   --vz: calc(100vh - 262px - var(--safe-b)); transition: opacity .3s; }
-@supports (height: 100dvh) { .reel { --vz: calc(100dvh - 262px - var(--safe-b)); } }
-.reel.out { opacity: 0; pointer-events: none; }
+@supports (height: 100dvh) { body > .reel { --vz: calc(100dvh - 262px - var(--safe-b)); } }
+body > .reel.out { opacity: 0; pointer-events: none; }
 .reel.hold *, .reel.hold *::before, .reel.hold *::after { animation-play-state: paused !important; }
 .reel img { -webkit-user-drag: none; pointer-events: none; }
 .rl-scenes, .rl-sc { position: absolute; inset: 0; }

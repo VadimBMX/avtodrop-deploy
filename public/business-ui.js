@@ -19,7 +19,7 @@ const img = (id, lvl) => `biz/${id}-${Math.min(B.BIZ_MAX_LVL, Math.max(1, lvl ||
 const ICONS = { eq: 'tools', staff: 'users', ads: 'rocket' };
 function hm(ms) {
   const m = Math.max(1, Math.ceil(ms / 60e3)), h = Math.floor(m / 60);
-  return h ? `${h} г ${m % 60} хв` : `${m} хв`;
+  return h ? `${h} год${m % 60 ? ` ${m % 60} хв` : ''}` : `${m} хв`; // as the garage's «повна через 3 год 56 хв»
 }
 // The box of business x now (client-side count-up from the last answer).
 function boxNow(x) {
