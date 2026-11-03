@@ -11,11 +11,11 @@ import * as FH from '../public/firsthour.js';
 
 const src = (f) => fs.readFileSync(new URL(`../public/${f}`, import.meta.url), 'utf8');
 
-test('firsthour: at most one strip on top — guide > rewards > event > barn > level', () => {
+test('firsthour: at most one strip on top — rewards > event > barn > level', () => {
   assert.deepEqual(FH.topStripPick(['level', 'barn', 'event', 'rewards']), { keep: 'rewards', hide: ['event', 'barn', 'level'] });
   assert.deepEqual(FH.topStripPick(['level', 'barn', 'event']), { keep: 'event', hide: ['barn', 'level'] });
   assert.deepEqual(FH.topStripPick(['level', 'barn']), { keep: 'barn', hide: ['level'] });
-  assert.deepEqual(FH.topStripPick(['level', 'guide', 'rewards']), { keep: 'guide', hide: ['rewards', 'level'] });
+  assert.deepEqual(FH.topStripPick(['level', 'rewards']), { keep: 'rewards', hide: ['level'] });
   assert.deepEqual(FH.topStripPick(['level']), { keep: 'level', hide: [] });
   assert.deepEqual(FH.topStripPick([]), { keep: null, hide: [] });
 });

@@ -7,8 +7,9 @@
 //   · spendConfirm — that question as an own sheet (not tg.showConfirm: the amount has to be big and clear).
 import * as S from './shared.js';
 
-// Strips on top of the home screens, most important first: the steps pill, rewards, the event, the barn, the next level.
-export const STRIP_ORDER = ['guide', 'rewards', 'event', 'barn', 'level'];
+// Strips on top of the home screens, most important first: rewards, the event, the barn, the next level.
+// (The «Перші кроки» steps pill is no strip any more: it is the coach ring in the header, app.js paintGuide.)
+export const STRIP_ORDER = ['rewards', 'event', 'barn', 'level'];
 export function topStripPick(present) {
   const have = new Set(present);
   const keep = STRIP_ORDER.find((k) => have.has(k)) || null;
@@ -39,11 +40,11 @@ export const BIG_SPEND = { abs: 10e6, share: 0.2, min: 100e3 };
 export const bigSpend = (amount, balance) => amount >= BIG_SPEND.abs || (amount >= BIG_SPEND.min && amount >= BIG_SPEND.share * Math.max(0, balance || 0));
 
 // The strips as the modules draw them (each module keeps drawing its own; this only decides which one is seen):
-// the steps pill (#guide), the rewards/claim banners (#banners, above the view), «Ніч Хелловіну» (#hwBanner),
+// the rewards/claim banners (#banners, above the view), «Ніч Хелловіну» (#hwBanner),
 // the barn row (#brRow), the next-level chip (#nextUl). On «Гараж» and «Меню» only one shows; a hidden event or barn
 // lights the dot on «Меню» (both live there), hidden rewards are on the gift badge. When the shown one goes (a
 // banner's 9 s are over, a reward is taken), the next one comes in by itself.
-const STRIP_SEL = { guide: '#view > #guide', event: '#view > #hwBanner', barn: '#view > #brRow', level: '#view > #nextUl' };
+const STRIP_SEL = { event: '#view > #hwBanner', barn: '#view > #brRow', level: '#view > #nextUl' };
 export function installTopStrip({ state }) {
   const view = document.getElementById('view');
   if (!view) return;
