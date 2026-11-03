@@ -174,8 +174,11 @@ export function createSeason2(ctx) {
         .run(uid, S.VETERAN_S1.key, `${S.VETERAN_S1.title} · ${vet.name}`, vet.tier, R.prevSeason, t);
     }
     if (r.keys > 0) q('INSERT INTO keys (user_id, case_id, count) VALUES (?, ?, ?) ON CONFLICT DO UPDATE SET count = count + excluded.count').run(uid, R.friendKey, r.keys);
-    const parts = [r.credit ? `${r.credit} ⭐ кредиту в магазині` : '', r.keys ? `${r.keys} ${S.CASE_BY_ID[R.friendKey].name.replace(/ий$/, 'их')} ключів` : '', vet ? `значок «${S.VETERAN_S1.title}»` : ''].filter(Boolean);
-    q('INSERT INTO events (user_id, text, created_at) VALUES (?, ?, ?)').run(uid, `🏁 Сезон ${R.season} стартував — прогрес обнулено для всіх.${parts.length ? ` Твоя компенсація: ${parts.join(', ')}.` : ''}`, t);
+    // wText 2026-11-03: «1 ключ / 3 ключі / 20 ключів «Міський»» (was «1 Міських ключів»), the frames too.
+    const kw = (n) => (n % 10 === 1 && n % 100 !== 11 ? 'ключ' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'ключі' : 'ключів');
+    const parts = [r.credit ? `${r.credit} ⭐ кредиту в магазині` : '', ...r.frames.filter((f) => S.FRAME_BY_ID[f]).map((f) => `рамка «${S.FRAME_BY_ID[f].name}»`),
+      vet ? `значок «${S.VETERAN_S1.title}»` : '', r.keys ? `${r.keys} ${kw(r.keys)} «${S.CASE_BY_ID[R.friendKey].name}»` : ''].filter(Boolean);
+    q('INSERT INTO events (user_id, text, created_at) VALUES (?, ?, ?)').run(uid, `🏁 Сезон ${R.season} стартував — прогрес обнулено для всіх, акаунт і друзі на місці.${parts.length ? ` Твоя компенсація: ${parts.join(', ')}.` : ''}`, t);
   }
 
   function run(who, { dryRun = false } = {}) {

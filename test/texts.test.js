@@ -7,6 +7,7 @@ import { openDb } from '../src/db.js';
 import { createGame } from '../src/game.js';
 import * as S from '../public/shared.js';
 import { BIZ } from '../public/business.js';
+import { welcomeLines } from '../public/season2-ui.js';
 
 const slide = (title) => S.WHATS_NEW.slides.find((s) => s.title.startsWith(title));
 
@@ -71,4 +72,18 @@ test('house style: one apostrophe (’), «драг» and «пальне» in th
       assert.doesNotMatch(src, /Подвійне палив|Подвійним палив|(?<![а-яіїєґА-ЯІЇЄҐ])[Дд]рег(?![а-яіїєґ]*ат)/u, `${f}: «паливо»/«дрег»`);
     }
   }
+});
+
+test('Season 2 welcome window: each line says what and why; key words agree with the number', () => {
+  const base = { credit: 0, frames: [], veteran: null, level: 2, keys: 0, friends: 0, caseId: S.S2_RESET.friendKey, vipSub: false };
+  assert.deepEqual(welcomeLines(base), [], 'nothing to list → the window says the starter case waits');
+  const one = welcomeLines({ ...base, keys: 1, friends: 1 });
+  assert.equal(one[0][1], `1 ключ «${S.CASE_BY_ID[S.S2_RESET.friendKey].name}»`);
+  assert.ok(!one[0][2].includes('максимум'));
+  const capped = welcomeLines({ ...base, keys: S.S2_RESET.friendKeysMax, friends: S.S2_RESET.friendKeysMax + 3 });
+  assert.ok(capped[0][2].includes(`максимум ${S.S2_RESET.friendKeysMax}`));
+  const fr = welcomeLines({ ...base, frames: ['patron', 'veteran_s1'] });
+  assert.ok(fr[0][2].endsWith('уже на аватарі') && !fr[1][2].includes('аватарі'), 'the first frame is the worn one');
+  const cr = welcomeLines({ ...base, credit: 120 });
+  assert.ok(cr[0][1].startsWith('120 ⭐') && cr[0][2].startsWith(`${S.S2_RESET.creditPct}% зірок`) && cr[0][2].includes('«Стиль»'));
 });

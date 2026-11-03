@@ -17,13 +17,19 @@ export function installSeason2(x) {
 const keysWord = (n) => (n % 10 === 1 && n % 100 !== 11 ? 'ключ' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'ключі' : 'ключів');
 
 // The compensation as lines (also used by the tests through the server payload shape).
+// wText 2026-11-03: each line says what it is and why the player got it; no numbers but the player's own.
 export function welcomeLines(w) {
   const out = [];
-  if (w.credit > 0) out.push(['star', `${w.credit} ⭐ кредиту в магазині`, `100% зірок, витрачених у Сезоні ${S.S2_RESET.prevSeason} — VIP, пакети, «Стиль» без нової оплати`]);
-  for (const f of w.frames || []) if (S.FRAME_BY_ID[f]) out.push(['sparkles', `Рамка «${S.FRAME_BY_ID[f].name}»`, S.FRAME_BY_ID[f].hint, S.FRAME_BY_ID[f].img]); // s2-fix: + its picture
-  if (w.veteran) out.push(['trophy', `Значок «${w.veteran.title}» · ${w.veteran.name}`, `за ${w.level}-й рівень у Сезоні ${S.S2_RESET.prevSeason} — назавжди в профілі`]);
-  if (w.keys > 0) out.push(['key', `${w.keys} ${keysWord(w.keys)} «${S.CASE_BY_ID[w.caseId]?.name || w.caseId}»`, `за друзів, яких ти привів до 3-го рівня`]);
-  if (w.vipSub) out.push(['crown', 'VIP-підписка', 'її зірки вже в кредиті вище; автопродовження в Telegram діє далі — вимкнути можна в магазині']);
+  const prev = S.S2_RESET.prevSeason;
+  if (w.credit > 0) out.push(['star', `${w.credit} ⭐ кредиту в магазині`, `${S.S2_RESET.creditPct}% зірок, витрачених у Сезоні ${prev} (VIP, «Стиль», пакети). Ними можна платити в магазині замість Telegram Stars`]);
+  // s2-fix: + its picture; the first one is already worn (src/season2.js compensate: S2_RESET.framePriority)
+  (w.frames || []).filter((f) => S.FRAME_BY_ID[f]).forEach((f, i) => out.push(['sparkles', `Рамка «${S.FRAME_BY_ID[f].name}»`, `${S.FRAME_BY_ID[f].hint}${i ? '' : ' · уже на аватарі'}`, S.FRAME_BY_ID[f].img]));
+  if (w.veteran) out.push(['trophy', `Значок «${w.veteran.title}» · ${w.veteran.name}`, `за ${w.level}-й рівень у Сезоні ${prev} — назавжди в профілі`]);
+  if (w.keys > 0) {
+    const capped = w.friends > w.keys ? ` (максимум ${S.S2_RESET.friendKeysMax})` : '';
+    out.push(['key', `${w.keys} ${keysWord(w.keys)} «${S.CASE_BY_ID[w.caseId]?.name || w.caseId}»`, `по ключу за кожного друга, якого ти привів до 3-го рівня${capped}`]);
+  }
+  if (w.vipSub) out.push(['crown', 'VIP-підписка', 'VIP обнулився разом із прогресом, його зірки — у кредиті вище. Підписка в Telegram продовжується далі, вимкнути — в магазині']);
   return out;
 }
 
@@ -37,8 +43,9 @@ export function s2Ask() {
     const { ic, esc } = X;
     const lines = welcomeLines(cur);
     X.sheet(`Сезон ${cur.season}`, `<div class="card center s2-pop"><div class="tg-home-ic">${ic('flag-3')}</div>
-      <b class="disp">СЕЗОН ${cur.season}: ОСЬ ТВОЯ КОМПЕНСАЦІЯ</b>
-      <div class="muted mt">Прогрес обнулено для всіх — усі стартують рівно. За Сезон ${S.S2_RESET.prevSeason} ти отримуєш:</div>
+      <b class="disp">СЕЗОН ${cur.season} · «МІСТО»</b>
+      <div class="muted mt">Прогрес обнулено для всіх, щоб нові бізнеси й економіка були чесними з першого дня. Акаунт, друзі, клуб і покупки — на місці.</div>
+      <div class="mt">${lines.length ? `Дякуємо, що грав у Сезоні ${S.S2_RESET.prevSeason}! Ось що тобі повернулося:` : 'Стартовий кейс уже чекає — відкривай і будуй гараж заново.'}</div>
       ${lines.length ? `<div class="s2-list">${lines.map(([i, t, s, img]) => `<div class="s2-li">${img ? `<img class="s2-li-fr" src="${img}" alt="">` : ic(i)}<span><b>${esc(t)}</b><small>${esc(s)}</small></span></div>`).join('')}</div>` : ''}
       <div class="btns mt"><button class="btn yellow" data-act="s2Ok">Погнали!</button></div></div>`);
     X.api('s2/welcome-seen', {}).then(() => {
