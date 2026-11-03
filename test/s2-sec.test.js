@@ -44,7 +44,7 @@ async function serve(opts) {
 const init = (id) => signInitData({ auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id, first_name: 'A' + id }) }, 'T');
 
 test('admin «Перевірити групи» (tggroups/check): helpers are refused like every other owner/admin action', async () => {
-  const s = await serve({ token: 'T', admins: [1] });
+  const s = await serve({ token: 'T' }); // no ADMIN_IDS: nothing is queued for the (fake) bot
   try {
     s.app.game.ensureUser({ id: 5, first_name: 'H' });
     s.app.db.prepare("UPDATE users SET role = 'helper' WHERE id = 5").run();
