@@ -192,6 +192,8 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     // «Перевірити групи» (admin «Канал»): what Telegram says about each group set in «Наші групи» — found or not, its
     // title and type, whether topics are on, and the bot's own status there (it must be an admin to check members).
     if (name === 'tggroups/check') {
+      // s2-sec: owner / admin only, like «Наші групи» itself (helpers only look at players and support).
+      if (!['owner', 'admin'].includes(id.who.startsWith('tg:') ? game.roleOf(Number(id.who.slice(3))) : 'owner')) return send(res, 403, { error: 'Немає прав на цю дію' });
       if (!bot) return send(res, 400, { error: 'Бот не підключено' });
       const g = game.tgGroups.cfg(), out = {};
       const me = await bot.call('getMe').catch(() => null);

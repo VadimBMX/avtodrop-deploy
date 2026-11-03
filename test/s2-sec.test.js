@@ -42,3 +42,25 @@ async function serve(opts) {
   return { app, url: (p) => `http://127.0.0.1:${app.server.address().port}${p}` };
 }
 const init = (id) => signInitData({ auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id, first_name: 'A' + id }) }, 'T');
+
+test('admin «Перевірити групи» (tggroups/check): helpers are refused like every other owner/admin action', async () => {
+  const s = await serve({ token: 'T', admins: [1] });
+  try {
+    s.app.game.ensureUser({ id: 5, first_name: 'H' });
+    s.app.db.prepare("UPDATE users SET role = 'helper' WHERE id = 5").run();
+    const post = (id, name) => fetch(s.url(`/api/admin/${name}`), { method: 'POST', headers: { 'x-init-data': init(id), 'content-type': 'application/json' }, body: '{}' });
+    assert.equal((await post(5, 'tggroups/check')).status, 403, 'helper');
+    assert.equal((await post(5, 'overview')).status, 200, 'a helper action still works');
+  } finally {
+    s.app.close();
+  }
+  // The owner (here by ADMIN_KEY, no bot so nothing is asked of Telegram) gets past the role check.
+  const o = await serve({ adminKey: 'k'.repeat(20) });
+  try {
+    const r = await fetch(o.url('/api/admin/tggroups/check'), { method: 'POST', headers: { 'x-admin-key': 'k'.repeat(20) }, body: '{}' });
+    assert.equal(r.status, 400);
+    assert.match((await r.json()).error, /Бот не підключено/);
+  } finally {
+    o.app.close();
+  }
+});
