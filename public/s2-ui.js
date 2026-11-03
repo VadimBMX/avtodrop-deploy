@@ -348,10 +348,9 @@ function warMap() {
 }
 let pendTimer = 0;
 function cityAfter() {
-  watchCity(); // s2-fix
   fitCity();
   mountPan();
-  requestAnimationFrame(() => (fitCity(), mountPan(), fitLabels())); // s2-fix: after paintGuide
+  requestAnimationFrame(() => (fitCity(), mountPan(), fitLabels())); // s2-fix: once the frame has laid out
   clearInterval(pendTimer);
   pendTimer = setInterval(() => {
     const el = document.getElementById('s2Pend');
@@ -361,12 +360,12 @@ function cityAfter() {
   }, 1000);
 }
 // The city fills the screen between the header and the bar (no page scroll on the home screen).
-// s2-fix: measured against the tab bar's real top (it is fixed: its rect is the viewport's), and measured again when the
-// newbie guide strip is put above the city after this render (app.js paintGuide prepends #guide to #view) — the old
-// 420 px floor pushed «Зібрати» under the bar on short screens. The map takes what is left (flex), never < 150 px.
+// s2-fix: measured against the tab bar's real top (it is fixed: its rect is the viewport's) — the old 420 px floor
+// pushed «Зібрати» under the bar on short screens. The map takes what is left (flex), never < 150 px. (The newbie steps
+// are the coach ring in the header now, floating over the page, so nothing is put above the city after this render.)
 // s2-screens (owner 03.11, iPhone): the measured height went stale while Telegram resized the webview (a void under the
 // map, or the page scrolling with an empty band over the header). Now the layout is pure CSS — on «Місто» #app is one
-// fixed 100dvh flex column (header · guide · toggle · map · cash strip), nothing scrolls vertically — and the map is
+// fixed 100dvh flex column (header · toggle · map · cash strip), nothing scrolls vertically — and the map is
 // re-measured for panning whenever its box changes size (ResizeObserver).
 function fitCity() {
   const el = document.getElementById('s2City');
@@ -386,45 +385,34 @@ function fitCity() {
     vp._ro.observe(vp);
   }
 }
-let fitObs = null;
-function watchCity() { // s2-fix
-  const view = document.getElementById('view');
-  if (!view || fitObs) return;
-  fitObs = new MutationObserver((list) => {
-    if (!document.getElementById('s2City')) return;
-    if (list.some((m) => [...m.addedNodes, ...m.removedNodes].some((n) => n.id === 'guide' || n.id === 'nextUl'))) (fitCity(), mountPan(), fitLabels());
-  });
-  fitObs.observe(view, { childList: true });
-  document.addEventListener('click', (e) => { // the guide pill opens / closes in place
-    if (e.target.closest?.('#guide') && document.getElementById('s2City')) requestAnimationFrame(() => (fitCity(), mountPan(), fitLabels()));
-  });
-}
 window.addEventListener('resize', () => {
   if (document.getElementById('s2City')) (fitCity(), mountPan(), fitLabels());
 });
 // s2-fix: building labels never cut off by the screen edge. While panning, a label near an edge slides inwards
 // (--dx; its pointer stays on the building), and when even that can't fit it, the level part is dropped (.s2-tight).
+// s2-tails: the district pins of «Війна районів» (.s2-dl) slide the same way — the pin's card moves, its dot stays.
 const LB_PAD = 10;
 let lbView = 0;
 function fitLabels() {
   const vp = document.getElementById('s2Map'), pan = document.getElementById('s2Pan');
   if (!vp || !pan) return;
   lbView = vp.clientWidth;
-  for (const lb of pan.querySelectorAll('.s2-lb')) (lb.classList.remove('s2-tight'), (lb._w = 0));
+  for (const lb of pan.querySelectorAll('.s2-lb, .s2-dl')) (lb.classList.remove('s2-tight'), (lb._w = 0));
   const m = /translate3d\((-?[\d.]+)px/.exec(pan.style.transform || '');
   clampLabels(m ? Number(m[1]) : 0);
 }
 function clampLabels(x) {
   const pan = document.getElementById('s2Pan');
-  if (!pan || !pan.querySelector('.s2-lb')) return;
+  if (!pan || !pan.querySelector('.s2-lb, .s2-dl')) return;
   const V = lbView || (lbView = document.getElementById('s2Map')?.clientWidth || 0), W = pan.offsetWidth;
   if (!V || !W) return;
-  for (const lb of pan.querySelectorAll('.s2-lb')) {
-    if (!lb._w) lb._w = lb.offsetWidth;
+  const card = (lb) => (lb.classList.contains('s2-dl') ? lb.querySelector('.s2-pin') : lb); // what is seen and measured
+  for (const lb of pan.querySelectorAll('.s2-lb, .s2-dl')) {
+    if (!lb._w) lb._w = card(lb).offsetWidth;
     const ax = x + (parseFloat(lb.style.left) / 100) * W;
     let half = lb._w / 2;
     const need = (ax - half < LB_PAD ? LB_PAD - (ax - half) : ax + half > V - LB_PAD ? V - LB_PAD - (ax + half) : 0);
-    if (need && Math.abs(need) > half - 14 && ax > -half && ax < V + half && !lb.classList.contains('s2-tight') && lb.querySelector('small')) {
+    if (need && Math.abs(need) > half - 14 && ax > -half && ax < V + half && !lb.classList.contains('s2-tight') && lb.classList.contains('s2-lb') && lb.querySelector('small')) {
       lb.classList.add('s2-tight');
       lb._w = lb.offsetWidth;
       half = lb._w / 2;
@@ -441,8 +429,8 @@ function clampLabels(x) {
   }
   // s2-audit: a label pushed in from the edge must not lie on top of another one («Шиномонтаж» under «Мій гараж»
   // on a short map) — it fades out until the picture is dragged so it has room again.
-  const all = [...pan.querySelectorAll('.s2-lb')];
-  const rc = all.map((lb) => lb.getBoundingClientRect());
+  const all = [...pan.querySelectorAll('.s2-lb, .s2-dl')];
+  const rc = all.map((lb) => card(lb).getBoundingClientRect());
   all.forEach((lb, i) => {
     const slid = !!lb.style.getPropertyValue('--dx');
     const hit = slid && all.some((o, j) => j !== i && !o.classList.contains('s2-hid') && rc[j].left < rc[i].right - 2 && rc[j].right > rc[i].left + 2 && rc[j].top < rc[i].bottom - 2 && rc[j].bottom > rc[i].top + 2);
@@ -463,6 +451,8 @@ function mountPan() {
   const P = (vp._P = { x: clamp(s[key] ?? V / 2 - (Number(pan.dataset.x) / Number(pan.dataset.w)) * W), clamp, put: null });
   P.put = () => ((pan.style.transform = `translate3d(${P.x}px,0,0)`), clampLabels(P.x)); // s2-fix: labels stay on screen
   P.put();
+  // s2-tails: the «Гортай» hint is for a player who hasn't dragged this map yet (it lay over the Троєщина pin).
+  vp.classList.toggle('panned', !!s['panned_' + key]);
   if (vp.dataset.on) return;
   vp.dataset.on = '1';
   let x0 = 0, px = 0, moved = false, down = false, vx = 0, lt = 0, lx = 0, raf = 0;
@@ -473,7 +463,7 @@ function mountPan() {
   vp.addEventListener('pointermove', (e) => {
     if (!down) return;
     const dx = e.clientX - px;
-    if (Math.abs(dx) > 6 && !moved) (moved = true, vp.setPointerCapture?.(e.pointerId), vp.classList.add('drag'));
+    if (Math.abs(dx) > 6 && !moved) (moved = true, vp.setPointerCapture?.(e.pointerId), vp.classList.add('drag', 'panned'), (st()['panned_' + key] = 1));
     if (!moved) return;
     const now = performance.now();
     vx = (e.clientX - lx) / Math.max(1, now - lt);
@@ -685,7 +675,7 @@ function openAnim(cs, r) {
     fastPill: fastPill(false), onFast: () => X.setFast?.(true) });
 }
 
-// ---------- Гараж: «Мій паркінг» ----------
+// ---------- Гараж: «Мій гараж» (the parking floors) ----------
 function garageView(base) {
   const s = st(), m = me();
   // asphalt (owner): the garage opens on «Паркінг»; the newbie step «Встанови деталь» points at a car tile of «Машини»,

@@ -68,7 +68,7 @@ export function channelActions({ mutate, $, api }) {
     tgGroupsSave: () => {
       const body = { channel: $('#tgChannel').value, channelLink: $('#tgChannelLink').value, chat: $('#tgChat').value, chatLink: $('#tgChatLink').value };
       return mutate('tggroups/set', body, { title: 'Наші групи в Telegram', button: 'Зберегти',
-        summary: `Канал: ${body.channel || '—'} · чат: ${body.chat || '—'}. Гравці побачать групи в «Меню» й зможуть забрати бонус.` }, 'Групи збережено');
+        summary: `Канал: ${body.channel || '—'} · чат: ${body.chat || '—'}. Гравці побачать групи в «Профілі» й зможуть забрати бонус.` }, 'Групи збережено');
     },
     tgGroupsCheck: async () => {
       const el = document.getElementById('tgCheck');

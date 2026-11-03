@@ -4883,6 +4883,13 @@ body.s2 #app:has(.s2-city) { padding-bottom: calc(var(--s2-bar) + var(--safe-b))
   .s2-pin-stem { height: 16px; }
 }
 @media (prefers-reduced-motion: reduce) { .s2-fight1, .s2-fight2, .s2-dl.fight .s2-pin-dot { animation: none; } .s2-fight1, .s2-fight2 { opacity: .6; } }
+/* s2-tails: a pin near the screen edge slides inwards while panning (--dx from s2-ui.js clampLabels; the dot stays on
+   the block), a pin pushed onto another one fades out; «Гортай карту / місто» goes once the map has been dragged. */
+.s2-pin { transform: translateX(calc(-50% + var(--dx, 0px))); }
+.s2-dl { transition: opacity .2s; }
+.s2-dl.s2-hid { opacity: 0; }
+.s2-hint { transition: opacity .35s; }
+.s2-map.panned .s2-hint { opacity: 0; }
 .s2-war { flex-direction: column; align-items: stretch; gap: 8px; padding: 12px 14px 14px; }
 .s2-war-h { display: flex; align-items: center; justify-content: space-between; }
 .s2-war-h b { font: 800 17px var(--f-disp); }
@@ -5073,7 +5080,7 @@ body.s2 .s2-multi .stage { background: var(--glass); border: 1px solid var(--gla
 .s2-rov.rm .rv-intro { display: none; }
 @media (prefers-reduced-motion: reduce) { .s2-rov.go .rv-case, .rv-card { animation: none; transition: none; } }
 
-/* Гараж: «Мій паркінг» */
+/* Гараж: «Мій гараж» (the parking floors) */
 .s2-phead { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin: 0 2px 12px; }
 .s2-phead h2 { margin: 0; font: 800 28px var(--f-disp); letter-spacing: -.6px; }
 .s2-phead div { text-align: right; }
