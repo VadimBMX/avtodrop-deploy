@@ -6727,6 +6727,11 @@ body.s2 .sheet-head .bk .i { width: 20px; height: 20px; }
 .s2-gas-why b { display: block; font: 800 15px var(--f-body); color: #ff8a9a; }
 .s2-gas-why small { display: block; margin-top: 2px; font: 500 13px/1.35 var(--f-body); color: var(--muted); }
 
+/* s2-decide 03.11: the lock card's «Далі відкриються» rows inside a page whose list rows are a car grid (Ринок → Аукціони /
+   Причал while the auction is locked, race pages): plain icon + text + chip rows again. */
+body.s2[data-s2pg] #view .lockcard ~ .list > .li { display: flex; align-items: center; gap: 12px; }
+body.s2[data-s2pg] #view .lockcard ~ .list > .li > .grow { display: block; min-width: 0; }
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */
