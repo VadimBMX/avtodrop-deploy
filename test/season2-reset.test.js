@@ -270,3 +270,16 @@ test('season 2: frames — list, equip only owned, take off; the welcome window 
   assert.equal(e.call(500, 'me').s2Welcome, null);
   assert.equal(e.call(500, 'me').frame, null);
 });
+
+// s2-qa: a business bought before the wipe (Season 2 code live a while before the owner runs it) must not survive it.
+test('season 2: the wipe takes businesses too (user_business)', () => {
+  const e = setup();
+  e.run('UPDATE users SET level = 30, balance = 1e10 WHERE id = 2');
+  e.call(2, 'biz/buy', { id: 'wash' });
+  assert.equal(e.call(2, 'biz').list.find((b) => b.id === 'wash').owned, true);
+  e.setT(S2_T);
+  ownerReset(e.g);
+  assert.equal(e.get('SELECT COUNT(*) n FROM user_business').n, 0);
+  assert.ok(e.call(2, 'biz').list.every((b) => !b.owned));
+  assert.equal(e.call(2, 'me').fuelMax, S.FUEL_MAX, 'no «Заправка» perk left');
+});
