@@ -4543,7 +4543,7 @@ export function createGame(db, opts = {}) {
   function adminGiveCar(who, { id, model, notify: tell }) {
     const uid = int(id, 1, Number.MAX_SAFE_INTEGER, 'ID');
     userRow(uid);
-    if (!S.MODELS[model]) fail('Невідома модель');
+    if (!own(S.MODELS, model)) fail('Невідома модель'); // s2-sec: own keys only ('__proto__' is not a car)
     bank(uid);
     const c = giveCar(uid, model);
     if (tell) {
@@ -5128,7 +5128,9 @@ export function createGame(db, opts = {}) {
   const admin = Object.fromEntries(Object.entries(adminHandlers).map(([k, fn]) => [k, (who, body = {}) => db.tx(() => {
     if (!canDo(actorRole(who), k)) fail('Немає прав на цю дію');
     const r = fn(who, body || {});
-    if (body?.id && k !== 'market/remove' && q('SELECT 1 FROM users WHERE id = ?').get(body.id)) recalc(body.id);
+    // s2-sec: only a real player id (an object / array id from the panel was a 500 here, after the action).
+    const bid = Number(body?.id);
+    if (typeof body?.id !== 'object' && Number.isSafeInteger(bid) && bid > 0 && k !== 'market/remove' && q('SELECT 1 FROM users WHERE id = ?').get(bid)) recalc(bid);
     return r;
   })]));
   // Actions that change a player or the economy. From the panel (adminCall, used by the HTTP endpoint) each needs

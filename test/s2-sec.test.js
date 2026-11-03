@@ -64,3 +64,28 @@ test('admin «Перевірити групи» (tggroups/check): helpers are re
     o.app.close();
   }
 });
+
+test('prototype / non-integer keys: admin give-car and the after-call refresh are clean errors, share/prepare too', async () => {
+  const db = openDb(':memory:');
+  const g = createGame(db, { notify: () => {}, admins: [1], allUnlocked: true });
+  g.ensureUser({ id: 1, first_name: 'O' });
+  g.ensureUser({ id: 3, first_name: 'P' });
+  const ok = { confirm: true, reason: 'перевірка' };
+  for (const model of ['__proto__', 'constructor', 'toString']) {
+    assert.throws(() => g.adminCall('tg:1', 'give-car', { id: 3, model, ...ok }), GameError, model);
+  }
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM cars').get().n, 0);
+  for (const id of [{ a: 1 }, [1], true, '1e3']) {
+    assert.doesNotThrow(() => g.adminCall('tg:1', 'users', { id }), JSON.stringify(id));
+  }
+  const s = await serve({ dev: true });
+  try {
+    const dev = { 'x-dev-user': encodeURIComponent(JSON.stringify({ id: 9, first_name: 'T' })), 'content-type': 'application/json' };
+    for (const model of ['__proto__', 'constructor']) {
+      const r = await fetch(s.url('/api/share/prepare'), { method: 'POST', headers: dev, body: JSON.stringify({ model, id: 'x' }) });
+      assert.equal(r.status, 400, model);
+    }
+  } finally {
+    s.app.close();
+  }
+});

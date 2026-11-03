@@ -298,7 +298,8 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     const body = await readBody(req);
     // A «Заїзд дня» result (body.dayrace = its day): the player's own time on that day's car, whatever his collection.
     const dr = body.dayrace ? game.api['dayrace/caption'](uid, { day: String(body.dayrace) }) : null;
-    const m = MODELS[dr ? dr.model : String(body.model || '')];
+    const mk = dr ? dr.model : String(body.model || '');
+    const m = Object.hasOwn(MODELS, mk) ? MODELS[mk] : null; // s2-sec: own keys only ('__proto__' / 'constructor' were a 500)
     // A «тиражна» never enters the collection: it is shared while the player owns it (its serial goes in the caption).
     const ed = !dr && m?.edition ? db.q('SELECT serial FROM cars WHERE owner_id = ? AND model = ? ORDER BY id = ? DESC, id LIMIT 1').get(uid, m.id, Number(body.carId) || 0) : null;
     if (!m || (!dr && !ed && !db.q('SELECT 1 FROM collection WHERE user_id = ? AND model = ?').get(uid, m.id))) throw new GameError('Цієї машини немає у твоїй колекції');
