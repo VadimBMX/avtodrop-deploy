@@ -138,6 +138,9 @@ export function createSeason2(ctx) {
       q("UPDATE plate_auctions SET top_bid = NULL, top_bidder = NULL, bids = 0 WHERE status = 'open'").run();
     }
     for (const table of WIPE_ALL) if (has(table)) q(`DELETE FROM ${table}`).run();
+    // s2-qa: the dealer's lots (listings + his cars) went with the tables above; without its batch marker the market
+    // restocks on the next look instead of staying empty until the next DEALER.hours batch.
+    q("DELETE FROM meta WHERE key = 'dealer_batch'").run();
     q(`DELETE FROM claims WHERE NOT (${KEEP_CLAIMS})`).run();
     q('DELETE FROM trade_chat WHERE room_id <> 0').run();
     q('UPDATE gifts SET shown = 1 WHERE shown = 0').run();

@@ -244,6 +244,18 @@ export function createTourney(ctx) {
       time: m[o + '_best'] ?? st.et };
   }
   const triesOut = (used) => ({ used, left: Math.max(0, T.tries - used), max: T.tries });
+  // The car a match is raced in when the app names none (it never does): the registered one while it is in the garage;
+  // sold, traded, listed or on the showcase since — the fastest garage car of the bracket's class (s2-qa: the player
+  // used to get «Це не твоє авто» with «Їхати» still on screen, and lost the match by no-show).
+  function entryCar(uid, e, cls) {
+    const ec = e && carRow(e.car_id);
+    if (ec && ec.owner_id === uid && ec.status === 'garage') return ec;
+    const pick = q("SELECT * FROM cars WHERE owner_id = ? AND status = 'garage'").all(uid)
+      .filter((c) => S.MODELS[c.model] && TR.bracketCls(S.MODELS[c.model].cls) === cls)
+      .map((c) => ({ c, et: carOut(c)?.et ?? 99 })).sort((a, b) => a.et - b.et || a.c.id - b.c.id)[0];
+    if (!pick) fail(`Зареєстрованої машини вже немає в гаражі — постав у гараж машину класу ${cls}`);
+    return pick.c;
+  }
   function start(uid, { carId } = {}) {
     tick();
     startLimit(uid, 'races');
@@ -256,7 +268,7 @@ export function createTourney(ctx) {
     if (m[s + '_tries'] >= T.tries) fail('Спроби в цьому матчі закінчились — чекай на суперника');
     const br = bracketRow(tid, m.bracket);
     const e = entryOf(tid, uid);
-    const c = ownCar(uid, carId ?? e?.car_id);
+    const c = carId != null ? ownCar(uid, carId) : entryCar(uid, e, br.cls);
     const car = carOut(c);
     if (TR.bracketCls(S.MODELS[car.model].cls) !== br.cls) fail(`У цій сітці їдуть лише машини класу ${br.cls}`);
     q("UPDATE races SET status = 'expired' WHERE user_id = ? AND status = 'running'").run(uid);

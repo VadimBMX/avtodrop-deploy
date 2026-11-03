@@ -237,3 +237,14 @@ test('perk «Автосалон»: +5% on a car sale and on the car.sell shown �
   assert.equal(T.call(u, 'sell', { carIds: [cu] }).got, Math.floor(base * 1.05));
   assert.equal(T.call(v, 'sell', { carIds: [cv] }).got, base);
 });
+
+// s2-qa: a «Менеджер» invoice paid when the player no longer owns that business (made before the Season 2 wipe) is
+// recorded as a refund, not swallowed with nothing given.
+test('manager: a paid invoice for a business not owned is a refund', () => {
+  const { g, mk, db } = setup();
+  mk(5);
+  const r = g.creditItem({ chargeId: 'mgr-1', userId: 5, itemId: B.mgrItemId('gas'), stars: B.BIZ.manager.stars });
+  assert.equal(r.refund, true);
+  assert.equal(db.prepare('SELECT pack FROM payments WHERE charge_id = ?').get('mgr-1').pack, 'refund:' + B.mgrItemId('gas'));
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM user_business WHERE uid = 5').get().n, 0);
+});
