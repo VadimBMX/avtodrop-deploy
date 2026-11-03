@@ -14,10 +14,10 @@ import { EVENING } from '../public/containers.js';
 
 const slide = (title) => S.WHATS_NEW.slides.find((s) => s.title.startsWith(title));
 
-test('«Що нового»: seven slides of the autumn update, icons that exist, short texts', () => {
+test('«Що нового»: six slides of the autumn update (Halloween slide gone after 2.11), icons that exist, short texts', () => {
   assert.notEqual(S.WHATS_NEW.id, 'economy-2');
   assert.deepEqual(S.WHATS_NEW.slides.map((s) => s.title.split(' ·')[0]),
-    ['Ніч Хелловіну', 'Причал', 'Автоклуби', 'Турнір вихідних', 'Сарайна знахідка', 'Престиж', 'Сезон 2']);
+    ['Причал', 'Автоклуби', 'Турнір вихідних', 'Сарайна знахідка', 'Престиж', 'Сезон 2']);
   const svg = fs.readFileSync(new URL('../public/icons.svg', import.meta.url), 'utf8');
   for (const s of S.WHATS_NEW.slides) {
     assert.ok(svg.includes(`id="i-${s.icon}"`), s.icon);
@@ -28,7 +28,6 @@ test('«Що нового»: seven slides of the autumn update, icons that exist
 });
 
 test('«Що нового»: the numbers match the rules', () => {
-  assert.equal(slide('Ніч Хелловіну').tag, `${HALLOWEEN.from[1]}.${HALLOWEEN.from[0]} – ${HALLOWEEN.to[1]}.${HALLOWEEN.to[0]}`);
   assert.ok(slide('Причал').text.includes(`о ${EVENING.hour}:00`) && slide('Причал').tag.includes(`${EVENING.hour}:00`));
   const cl = slide('Автоклуби');
   assert.equal(cl.tag, `з ${CLUB.joinLevel}-го рівня`);

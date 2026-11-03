@@ -1906,7 +1906,13 @@ export const DEALER = {
 // ---------- garage ----------
 export const START_SLOTS = 6;
 export const MAX_SLOTS = 40;
-export const slotCost = (slots) => niceRound(50000 * Math.pow(1.6, slots - START_SLOTS));
+// ×1.6 per place up to P16, then a gentle ×1.25 (the old endless ×1.6 asked 4 млрд for P31 — owner 3.11: «ні»).
+export const SLOT_SOFT_FROM = 16;
+export const slotCost = (slots) => {
+  const steep = Math.min(slots, SLOT_SOFT_FROM) - START_SLOTS;
+  const soft = Math.max(0, slots - SLOT_SOFT_FROM);
+  return niceRound(50000 * Math.pow(1.6, steep) * Math.pow(1.25, soft));
+};
 // Income storage: the first step is within reach of a D/C garage (race2: 1M/10M/100M before).
 export const CAP_LEVELS = [
   { hours: 4, cost: 0 },
@@ -2746,7 +2752,6 @@ export const HOME_SCREEN = { day: 3, caseId: 'city', count: 1 };
 export const WHATS_NEW = {
   id: 'autumn-2026',
   slides: [
-    { icon: 'ghost', c: '#ff7a1a', tag: '29.10 – 2.11', title: 'Ніч Хелловіну', text: 'Нічна траса драгу й дрифту, «Контейнер з привидом» на «Причалі», рамка «Гарбуз» і п’ять завдань події з шансом на тиражний «№ 13». Ціни й шанси кейсів — як завжди.' },
     { icon: 'hammer', c: '#ff6b8b', tag: 'вечірній аукціон о 20:00', title: 'Причал', text: 'Ринок → Причал: контейнери з машиною наосліп — чесні підказки й точний «Можливий вміст». Щодня о 20:00 — вечірній аукціон: один дорогий лот для всіх одразу.' },
     { icon: 'users', c: '#a855f7', tag: 'з 3-го рівня', title: 'Автоклуби', text: 'До 20 гравців, тег на зразок [ЖИГА] біля імені, ліга тижня з призами щопонеділка й клубна каса на бонуси для всіх. Свій клуб — з 5-го рівня.' },
     { icon: 'trophy', c: '#38bdf8', tag: 'пт 18:00 → нд 20:00', title: 'Турнір вихідних', text: 'Драг 402 м на вибування, сітки за класом машини. Реєстрація безкоштовна до суботи 12:00, заїзди без пального, чемпіонам — рамка «Чемпіон».' },
