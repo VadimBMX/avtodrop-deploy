@@ -74,7 +74,7 @@ function listView() {
       const full = !b.manager && v >= b.cap;
       return `<div class="bz-card${full ? ' full' : ''}" role="button" tabindex="0" data-act="bizOpen" data-id="${b.id}" style="--c:${meta.color}">
         <img class="bz-img" src="${img(b.id, b.lvl)}" alt="" loading="lazy">
-        <span class="bz-mid"><b class="bz-nm">${X.esc(b.name)}</b><small>рів. ${b.lvl} · <b class="bz-rate">+${grp(b.rate)} ₴/год</b></small>
+        <span class="bz-mid"><b class="bz-nm">${X.esc(b.name)}</b><small>рів. ${b.lvl}</small><small><b class="bz-rate">+${grp(b.rate)} ₴/год</b></small>
           <span class="bz-bar"><i data-bz-bar="${b.id}" style="width:${pctv.toFixed(1)}%"></i></span></span>
         <span class="bz-right"><button class="bz-chip${full ? ' hot' : ''}" data-act="bizCollect" data-id="${b.id}" ${v > 0 ? '' : 'disabled'}>Зібрати</button>
           ${full ? '<span class="bz-full">Каса повна</span>' : b.manager ? `<span class="bz-need">${ic('crown')} менеджер</span>` : `<span class="bz-need" data-bz-box="${b.id}">${S.short(v)}</span>`}</span></div>`;

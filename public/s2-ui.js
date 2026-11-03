@@ -3,6 +3,7 @@
 // small re-skins of the rating, store and achievements. Installed once by app.js with its helpers (like the other
 // *-ui.js modules); game logic stays in app.js — every action here is an existing data-act handler.
 import * as S from './shared.js';
+import * as B from './business.js';
 
 let X = null;
 // Hooks app.js reads: the opening animation and the header painter; tabs that live inside another tab's button.
@@ -94,6 +95,8 @@ export function installS2(x) {
   X.AFTER.menu = async () => {
     profileAfter();
     await menuAfter?.();
+    const rk = document.querySelector('#s2Rank b'), pl = st().hub?.place; // s2-audit: the hub's place came after the hero
+    if (rk && pl) rk.textContent = '#' + pl;
   };
   wrapAfter('leaderboard', ratingAfter);
   // s2-ui2: the race lobby head goes over the strips other modules put on top (tourney, day race).
@@ -103,6 +106,7 @@ export function installS2(x) {
   });
   wrapAfter('store', storeAfter);
   wrapAfter('achievements', achAfter);
+  wrapAfter('club', clubAfter); // s2-audit: members get their helmets like in the rating
   Object.assign(X.H, handlers);
   UI2.openAnim = openAnim;
   UI2.header = header;
@@ -161,6 +165,8 @@ function header() {
   const pg = s.page || (home ? 'city' : s.tab);
   document.body.dataset.s2pg = pg;
   const lb = !home && pageLabel(pg);
+  document.getElementById('gift')?.classList.toggle('s2-hide', !!s.page); // s2-audit
+  if (t) t.classList.toggle('s2-xl', !home && t.textContent.length > 12); // s2-audit: «Цілі дня й тижня», «Аукціон номерів»
   if (lb && lb[0] && t) {
     const title = t.textContent;
     t.innerHTML = `<span class="s2-pt"><small style="--c:${lb[1]}">${lb[0]}</small><b>${esc(title)}</b></span>`;
@@ -186,12 +192,12 @@ function pageLabel(pg) {
     market: ['РИНОК · ТОРГІВЛЯ', '#39e58c'], trades: ['ОБМІНИ · НАЖИВО', '#39e58c'], room: ['КІМНАТА ОБМІНУ · LIVE', '#39e58c'], tradeNew: ['НОВИЙ ОБМІН', '#39e58c'],
     plates: [`МОЇ НОМЕРИ · ${m.plates?.length || 0}`, '#3d8bff'], plateAuction: ['АУКЦІОН · НОМЕРИ', '#ff3d5a'], lot: ['ПРИЧАЛ · КОНТЕЙНЕР', '#22c3e6'],
     collection: [`КОЛЕКЦІЯ · ${have()} / ${total()}`, '#a26bff'], quests: ['ЗАВДАННЯ · ЦІЛІ', '#39e58c'], season: [`СЕЗОН ${m.season?.id || ''} · ПРОПУСК`.replace('  ', ' '), '#ff3df0'],
-    club: ['АВТОКЛУБ', '#c084fc'], friends: ['ЗАПРОСИ ДРУГА', '#39e58c'], events: ['ЩО ВІДБУВАЄТЬСЯ', '#ff3df0'], achievements: ['ПРОФІЛЬ · НАГОРОДИ', '#ffcc33'],
-    support: ['ВІДПОВІДАЄМО ДО 24 ГОД', '#22e3ff'], leaderboard: ['ТОП ГРАВЦІВ', '#ffcc33'], store: ['ЗІРКИ TELEGRAM', '#ffcc33'], battles: ['КЕЙС-БАТЛИ', '#ff3d5a'], battle: ['КЕЙС-БАТЛ', '#ff3d5a'],
+    club: ['АВТОКЛУБ', '#c084fc'], friends: ['ЗАПРОСИ ДРУГА', '#39e58c'], events: ['ЩО ВІДБУВАЄТЬСЯ', '#ff3df0'], achievements: ['НАГОРОДИ', '#ffcc33'],
+    support: ['ВІДПОВІДЬ ДО 24 ГОД', '#22e3ff'], leaderboard: ['ТОП ГРАВЦІВ', '#ffcc33'], store: ['ЗІРКИ TELEGRAM', '#ffcc33'], battles: ['КЕЙС-БАТЛИ', '#ff3d5a'], battle: ['КЕЙС-БАТЛ', '#ff3d5a'],
     upgrade: ['АПГРЕЙД МАШИН', '#a26bff'], casino: ['КАЗИНО', '#ff3df0'], tradein: ['ТРЕЙД-ІН', '#ff8a3d'], challenges: ['ВИКЛИКИ ДРУЗЯМ', '#ff8a1f'], dayrace: ['ЗАЇЗД ДНЯ', '#ff8a1f'],
     tourney: ['ТУРНІР ВИХІДНИХ', '#ff8a1f'], barn: ['САРАЙ · ЗНАХІДКА', '#ff8a3d'], biz: ['МОЇ БІЗНЕСИ', '#39e58c'], bizOne: ['БІЗНЕС', '#39e58c'], showroom: ['ШОУРУМ', '#5ee7f0'],
     fair: ['ЧЕСНА ГРА', '#22e3ff'], news: ['ОНОВЛЕННЯ ГРИ', '#3d8bff'], promo: ['ПРОМОКОДИ', '#ffcc33'], contest: ['КОНКУРС', '#ff3df0'],
-    race: [null, '#ff8a1f'], shop: [s.shopView === 'wash' ? 'МИЙКА · БЛИСК' : s.shopView === 'paint' ? 'ФАРБУВАННЯ' : 'МАЙСТЕРНЯ · ДЕТАЛІ', '#ff8a1f'],
+    race: [null, '#ff8a1f'], shop: [s.shopView === 'wash' ? 'МИЙКА · БЛИСК' : s.shopView === 'paint' ? 'ФАРБУВАННЯ' : 'ДЕТАЛІ', '#ff8a1f'],
   };
   const v = L[pg];
   return v && v[0] ? v : v ? [null, v[1]] : null;
@@ -201,7 +207,7 @@ function pageLabel(pg) {
 // Labels on the city picture (public/s2/city.webp, 1750×775): x, y of the label's foot in picture pixels.
 const CITY_W = 1750, CITY_H = 775;
 const SPOTS = [
-  { k: 'auction', x: 875, y: 34, t: 'Аукціон', c: '#ff4d6d', i: 'hammer' },
+  { k: 'auction', x: 875, y: 58, t: 'Аукціон', c: '#ff4d6d', i: 'hammer' },
   { k: 'sto', x: 712, y: 150, t: 'СТО', c: '#ff8a1f', i: 'tool', biz: 'sto' },
   { k: 'tire', x: 488, y: 212, t: 'Шиномонтаж', c: '#ffb020', i: 'disc', biz: 'tire' },
   { k: 'track', x: 1030, y: 178, t: 'Траса', c: '#ff8a1f', i: 'flag-3' },
@@ -211,7 +217,7 @@ const SPOTS = [
   { k: 'gas', x: 1040, y: 316, t: 'Заправка', c: '#ffd400', i: 'gas-station', biz: 'gas' },
   { k: 'shop', x: 415, y: 386, t: 'Магазин', c: '#39ff88', i: 'star' },
   { k: 'club', x: 1032, y: 470, t: 'Автоклуб', c: '#c084fc', i: 'users' },
-  { k: 'salon', x: 1322, y: 360, t: 'Шоурум', c: '#5ee7f0', i: 'building-arch' },
+  { k: 'salon', x: 1322, y: 360, t: 'Автосалон', c: '#5ee7f0', i: 'building-arch', biz: 'salon' },
   { k: 'dealer', x: 876, y: 580, t: 'Трейд-ін', c: '#9aa3b5', i: 'refresh' },
   { k: 'free1', x: 168, y: 372, t: 'Вільна ділянка', c: '#39ff88', i: 'plus', free: true },
   { k: 'free2', x: 1580, y: 352, t: 'Вільна ділянка', c: '#39ff88', i: 'plus', free: true },
@@ -229,7 +235,7 @@ function spotText(sp) {
   const used = m.cars.filter((c) => c.status !== 'showcase').length;
   switch (sp.k) {
     case 'auction': return paOpen().length ? '<u>LIVE</u>' : '';
-    case 'track': return `<small>${m.fuel ?? 0}/${X.fmax()}⛽</small>`;
+    case 'track': return `<small>${m.fuel ?? 0}/${X.fmax()}</small>`;
     case 'garage': return `<em>+${shortN(m.income?.rate || 0)}</em><small>${used}/${m.slots}</small>`;
     case 'club': return m.club?.tag ? `<small>${esc(m.club.tag)}</small>` : '';
     case 'dealer': return X.isOpen('tradein') ? '' : `<small>рів.${S.unlockLevel('tradein')}</small>`;
@@ -237,7 +243,10 @@ function spotText(sp) {
     default:
       if (sp.biz) {
         const b = biz?.find((v) => v.type === sp.biz);
-        return b ? `<em>+${shortN(b.rate)}</em>${b.level ? `<small>рів.${b.level}</small>` : ''}` : '<small>скоро</small>';
+        if (b) return `<em>+${shortN(b.rate)}</em>${b.level ? `<small>рів.${b.level}</small>` : ''}`;
+        // s2-audit: a business that can be bought said «скоро» — the price (or the level it opens at) instead
+        const d = B.BIZ?.list?.find((v) => v.id === sp.biz);
+        return d ? ((m.level || 1) >= d.level ? `<small>${shortN(d.price)}</small>` : `<small>рів.${d.level}</small>`) : '<small>скоро</small>';
       }
       return '';
   }
@@ -376,6 +385,15 @@ function clampLabels(x) {
       if (lb.style.getPropertyValue(k) !== n) n ? lb.style.setProperty(k, n) : lb.style.removeProperty(k);
     }
   }
+  // s2-audit: a label pushed in from the edge must not lie on top of another one («Шиномонтаж» under «Мій гараж»
+  // on a short map) — it fades out until the picture is dragged so it has room again.
+  const all = [...pan.querySelectorAll('.s2-lb')];
+  const rc = all.map((lb) => lb.getBoundingClientRect());
+  all.forEach((lb, i) => {
+    const slid = !!lb.style.getPropertyValue('--dx');
+    const hit = slid && all.some((o, j) => j !== i && !o.classList.contains('s2-hid') && rc[j].left < rc[i].right - 2 && rc[j].right > rc[i].left + 2 && rc[j].top < rc[i].bottom - 2 && rc[j].bottom > rc[i].top + 2);
+    lb.classList.toggle('s2-hid', hit);
+  });
 }
 // Drag the picture sideways (pointer events; a drag never counts as a tap on a label).
 function mountPan() {
@@ -465,7 +483,8 @@ function dropView(base) {
 function openBtn(cs, n) {
   const m = me(), deal = X.caseNow(cs), keys = m.keys[cs.id] || 0;
   const paid = Math.max(0, n - keys), free = m.slots - m.used, price = deal.price;
-  if (free < n) return `<button class="s2-open" disabled>${free > 0 ? `Вільно ${free} з ${m.slots}` : 'Гараж заповнений'}</button>`;
+  if (free < 1) return `<button class="s2-open s2-full-g" data-act="toGarage">${X.ic('building-warehouse')}Гараж повний · звільнити місце</button>`; // s2-audit
+  if (free < n) return `<button class="s2-open" disabled>Вільно ${free} з ${m.slots}</button>`;
   if (paid && price * paid > m.balance) return `<button class="s2-open" disabled>Бракує ${S.short(price * paid - m.balance)}</button>`;
   return `<button class="s2-open opencase" data-act="openCase" data-expect="${price * paid}">${X.ic('box')}<span class="l">${cs.starter ? 'Відкрити' : 'Відкрити'}</span><span class="p">${cs.starter ? 'безкоштовно' : paid ? shortN(price * paid) + ' ₴' : `${X.ic('key')} ${n}`}</span></button>`;
 }
@@ -646,8 +665,8 @@ function profileHero() {
   const stat = (t, v) => `<div class="s2-stat"><small>${t}</small><b>${v}</b></div>`;
   return `<div class="s2-prof"><button class="s2-prof-ava" data-act="s2Look" aria-label="Змінити шолом і рамку">${avatar(look, 150, m.level)}</button>
     <h2>${esc(name)}</h2><div class="s2-prof-sub">${m.club?.name ? `<span class="acc">${esc(m.club.tag ? m.club.tag + ' · ' : '')}${esc(m.club.name)}</span>` : ''}${m.vip ? `<span class="acc">${X.ic('crown')} VIP</span>` : ''}<span>рівень ${m.level}</span></div>
-    <div class="s2-badges" id="s2Badges">${badges.length ? badges.map((a) => badgeImg(a.key, a.claimed - 1)).join('') : '<span class="s2-nob">Перші досягнення — у «Досягненнях»</span>'}</div>
-    <div class="s2-stats">${stat('Гараж', S.short(m.stats?.value || 0).replace(' ₴', ''))}${stat('Рейтинг', C.place ? '#' + C.place : '—')}${stat('Кейсів', n0(m.stats?.cases))}
+    <div class="s2-badges" id="s2Badges">${badges.length ? badges.map((a) => badgeImg(a.key, a.claimed - 1)).join('') : Object.keys(ACH_BADGE).slice(0, 5).map((k) => badgeImg(k, -1)).join('')}</div>
+    <div class="s2-stats">${stat('Гараж', S.short(m.stats?.value || 0).replace(' ₴', ''))}${stat('Рейтинг', C.place ? '#' + C.place : '—').replace('class="s2-stat"', 'class="s2-stat" id="s2Rank"')}${stat('Кейсів', n0(m.stats?.cases))}
       ${stat('Перемог', n0(m.stats?.wins))}${stat('Колекція', have)}${stat('У грі', `${playH} год`)}</div>
     <div class="s2-prof-act"><button class="s2-btn ghost" data-act="profileOpen">${X.ic('license')}Ліцензія</button><button class="s2-btn" data-act="go" data-page="trades">${X.ic('arrows-exchange')}Обмін</button></div></div>`;
 }
@@ -718,6 +737,14 @@ function ratingAfter() {
     else (a.innerHTML = `<img src="s2/av/h${L.h}.webp" alt="">`, a.classList.add('s2-hel'));
   });
   document.querySelector('.mybar')?.classList.add('s2-mybar');
+}
+function clubAfter() {
+  for (const a of document.querySelectorAll('.clb-mem .lb-ava')) {
+    if (a.querySelector('img')) continue;
+    const L = lookOf(Number(a.closest('.clb-mem')?.dataset.id) || 0);
+    a.innerHTML = `<img src="s2/av/h${L.h}.webp" alt="">`;
+    a.classList.add('s2-hel');
+  }
 }
 function storeAfter() {
   const packs = [...document.querySelectorAll('.pk-grid .pk')];

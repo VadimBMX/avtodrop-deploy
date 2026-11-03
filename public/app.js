@@ -3784,11 +3784,11 @@ TABS.shop = () => {
     <div class="stage pstage" style="${d?.length > 3 ? 'height:auto;min-height:200px' : d ? 'height:auto;min-height:170px' : ''}">${stage}</div>
     ${autoGot ? `<div class="dropauto">${ic('cash')}<span>Автопродаж: <b>+${S.fmt(autoGot)}</b></span><small>${d.filter((p) => p.auto).length} з ${d.length}</small></div>` : ''}
     ${d?.length > 1 ? dropSummary(d) : ''}
-    <div class="seg">${[1, 3, 5, 10].map((k) => `<button class="${k === state.partCount ? 'on' : ''}" data-act="partCount" data-n="${k}">×${k}</button>`).join('')}</div>
+    <div class="pdock"><div class="seg">${[1, 3, 5, 10].map((k) => `<button class="${k === state.partCount ? 'on' : ''}" data-act="partCount" data-n="${k}">×${k}</button>`).join('')}</div>
     ${price * state.partCount > me.balance ? `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(price * state.partCount - me.balance)}</button>`
       : wait > 0
         ? `<button class="btn pwait" disabled style="--d:${S.PART_COOLDOWN_MS}ms;--o:${Math.min(0, wait - S.PART_COOLDOWN_MS)}ms"><span>${d ? 'Відкрити ще' : 'Відкрити'} · <span data-secs="${nextAt - clockOffset}">${Math.ceil(wait / 1000)}</span> с…</span></button>`
-        : `<button class="btn" data-act="openParts" ${state.opening ? 'disabled' : ''}>${d ? 'Відкрити ще' : 'Відкрити'}${state.partCount > 1 ? ' ×' + state.partCount : ''} · ${S.fmt(price * state.partCount)}</button>`}
+        : `<button class="btn" data-act="openParts" ${state.opening ? 'disabled' : ''}>${d ? 'Відкрити ще' : 'Відкрити'}${state.partCount > 1 ? ' ×' + state.partCount : ''} · ${S.fmt(price * state.partCount)}</button>`}</div>
     ${d ? `<div class="btns mt"><button class="btn outline" data-act="shopView" data-k="stock">На склад</button>${alive.length ? `<button class="btn ghost btn2" data-act="sellDropParts"><span>${ic('cash')} Продати все</span><small>${S.short(sum)}</small></button>` : ''}</div>` : ''}
     <div class="card autosell mt"><div class="row between"><span>Автопродаж</span><small class="${autoSel.length ? 'on' : 'muted'}">${autoSel.length ? `${ic('cash')} продаються одразу` : 'вимкнено'}</small></div>
       <div class="chips gfilter as-chips">${S.PART_DROP_TIERS.map((id) => {

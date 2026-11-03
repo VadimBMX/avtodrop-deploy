@@ -5547,6 +5547,61 @@ body.s2.racing .tabs.s2tabs { display: none; }
 body.s2.racing #app { padding-bottom: calc(16px + var(--safe-b)); }
 /* ===== /s2-ui2 */
 
+/* ===== s2-audit 2026-11-03: the A–Z design pass (docs: scratchpad s2-audit-report.md) */
+/* header: content no longer shows through under the title while scrolling; inner pages are «back · title · balance» */
+body.s2 .top { background: rgba(7, 10, 18, .86); backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2); box-shadow: 0 1px 0 #ffffff0a; }
+body.s2 .top.s2-home { background: rgba(7, 10, 18, .7); box-shadow: none; }
+body.s2 #gift.s2-hide { display: none !important; }
+body.s2 .top h1.s2-xl .s2-pt b, body.s2 .top h1.s2-xl:not(:has(.s2-pt)) { font-size: 18px; letter-spacing: -.3px; }
+/* the race lobby has its own big heading: the header title would say «Гонки» twice */
+body.s2:has(#view .s2r-head) .top h1 { visibility: hidden; }
+/* sticky docks: nothing peeks between the main button and the bar */
+.s2-dock::after { content: ''; position: absolute; z-index: -1; left: -14px; right: -14px; top: 100%; height: 30px; background: #070a12; pointer-events: none; }
+.s2-open.s2-full-g { background: #1a1f2c; color: #ffd400; box-shadow: inset 0 0 0 1px #ffd40055; font-size: 14.5px; }
+.s2-open.s2-full-g .i { font-size: 18px; }
+body.s2 .sheet.s2-full:has(.s2c-dock) { padding-bottom: 0; }
+body.s2 .s2c-dock { margin-bottom: 0; padding-bottom: 34px; background: linear-gradient(#070a1200, #070a12 18px); }
+/* workshop: ×1/×3/×5/×10 and «Відкрити» travel together above the bar (the button used to cover the picker) */
+body.s2 .pdock { position: sticky; bottom: calc(var(--tabs-h) - 4px + var(--safe-b)); z-index: 4; display: grid; gap: 8px; margin: 12px -16px 0; padding: 10px 16px 8px; background: linear-gradient(#070a1200, #070a12 22px); }
+body.s2 .pdock::after { content: ''; position: absolute; z-index: -1; left: 0; right: 0; top: 100%; height: 30px; background: #070a12; }
+body.s2 .pdock .seg { margin: 0; }
+body.s2 .pdock > .btn { margin: 0; box-shadow: 0 10px 24px -12px #ffd400aa; }
+body.s2 .pdock > .btn[disabled] { opacity: 1; background: var(--card2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line2); }
+/* city: labels pushed in from the edge hide while they lie on another one */
+.s2-lb { transition: opacity .18s; }
+.s2-lb.s2-hid { opacity: 0; pointer-events: none; }
+/* businesses: the countdown wraps instead of «Повна через 3 г …»; one-line names */
+.bz-box-t small { white-space: normal; line-height: 1.25; }
+.bz-nm { font-size: 14.5px; }
+/* ×3/×6 result: the collection price goes to the next line instead of off the screen */
+body.s2 .multi-sum b { white-space: normal; }
+body.s2 .multi-sum b small { white-space: nowrap; }
+/* garage «Машини»: the sale of the whole garage under the count, not squeezed beside it */
+body.s2 .garage-h { flex-wrap: wrap; row-gap: 4px; }
+body.s2 .garage-h .hn-gsum { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; width: 100%; text-align: left; }
+/* market / PvP rows: name on top, the price button beside it, numbers and chips full width (was a 120 px column) */
+body.s2[data-s2pg="market"] #view .list > .li, body.s2[data-s2pg="race"] #view .card > .list > .li { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; column-gap: 10px; row-gap: 4px; align-items: center; }
+body.s2[data-s2pg="market"] #view .list > .li > .grow, body.s2[data-s2pg="race"] #view .card > .list > .li > .grow { display: contents; }
+body.s2[data-s2pg="market"] #view .list > .li > .mini, body.s2[data-s2pg="race"] #view .card > .list > .li > .mini { grid-row: 1 / 3; grid-column: 1; width: 96px; height: 48px; }
+body.s2[data-s2pg="market"] #view .list > .li .clamp2, body.s2[data-s2pg="race"] #view .card > .list > .li .clamp2 { grid-column: 2; grid-row: 1; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.s2[data-s2pg="market"] #view .list > .li > .btn, body.s2[data-s2pg="race"] #view .card > .list > .li > .btn { grid-column: 3; grid-row: 1; }
+body.s2[data-s2pg="market"] #view .list > .li .small.muted, body.s2[data-s2pg="race"] #view .card > .list > .li .small.muted { grid-column: 2 / 4; grid-row: 2; line-height: 1.35; }
+body.s2[data-s2pg="market"] #view .list > .li .lot-meta { grid-column: 1 / 4; grid-row: 3; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+body.s2[data-s2pg="market"] #view .lot-meta .chip.deal { display: none; } /* «−84% від ціни» already says it */
+/* settings: the small toggles had a yellow knob on a yellow track */
+body.s2 .toggle.sm.on { background: var(--accent); }
+body.s2 .toggle.sm.on::after { background: #111; }
+/* licence: the garage value no longer runs into «кейсів» */
+body.s2 .lic-stats { grid-template-columns: 1.5fr 1fr 1fr 1fr; }
+/* achievements: one solid yellow button («Забрати все»), the rows' claims are outlined */
+body.s2[data-s2pg="achievements"] #view .btn.sm.yellow[data-act="achClaim"] { background: #ffd40014; color: #ffd400; box-shadow: inset 0 0 0 1px #ffd40080; }
+/* profile: locked badges fill the row until the first is earned */
+.s2-badges .s2-bd.t-off { opacity: .35; filter: grayscale(1); }
+/* club members wear their helmets */
+.clb-mem .lb-ava.s2-hel { padding: 0; overflow: hidden; background: #0b0f19; }
+.clb-mem .lb-ava.s2-hel img { width: 100%; height: 100%; object-fit: cover; }
+/* ===== /s2-audit */
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */
