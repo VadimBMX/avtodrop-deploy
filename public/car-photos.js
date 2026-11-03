@@ -123,6 +123,7 @@ export const CAR_PHOTOS = [
   'pagani-zonda-r',
   'peugeot-205-gti',
   'porsche-911-turbo-s',
+  'porsche-911-turbo-s-aurora',
   'porsche-918-spyder',
   'porsche-959',
   'porsche-carrera-gt',

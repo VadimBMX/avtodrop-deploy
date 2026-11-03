@@ -500,7 +500,7 @@ export const SEASON2_CAR_OPTIONS = [
   { season: 2, name: 'Toyota Supra A80 «Neon Tokyo»', hp: 520, kg: 1510, body: 'coupe', country: 'JP', year: 1997, price: ECON.seasonCar,
     img: 'toyota-supra-a80', filter: 'sepia(1) saturate(5) hue-rotate(255deg) brightness(.62)' },
   { season: 2, name: 'Porsche 911 Turbo S «Aurora»', hp: 650, kg: 1640, body: 'super', country: 'DE', year: 2021, price: ECON.seasonCar,
-    img: 'porsche-911-turbo-s', filter: 'sepia(.9) saturate(3.2) hue-rotate(115deg) brightness(.72)' },
+    img: 'porsche-911-turbo-s-aurora' }, // 03.11: its own «Aurora» livery photo (Gemini)
 ];
 export const SEASON_CARS = [
   { season: 1, name: 'BMW X5 M E70 «Monte Carlo Blue»', hp: 555, kg: 2380, body: 'suv', country: 'DE', year: 2010, price: ECON.seasonCar },
