@@ -156,17 +156,22 @@ function header() {
   if (back) back.hidden = !s.page || !!X.tg?.initData;
   const t = document.getElementById('title');
   const look = myLook();
-  if (home) {
+  // asphalt: every tab root (no page open) gets the HUD — one dark slab with the helmet, the nickname and «рівень N»
+  // on the left (taps open the profile like the old round avatar), the balance slab on the right.
+  const hud = !s.page;
+  top.classList.toggle('s2-hud', hud);
+  if (hud && t) {
     const name = m.username || m.firstName || 'Гравець';
-    const sub = m.club?.name ? esc(m.club.name) : m.vip ? 'VIP' : `рівень ${m.level}`;
-    t.innerHTML = `<span class="s2-who"><b class="ellipsis">${esc(name)}</b><small class="ellipsis">${sub}</small></span>`;
-  }
+    const sub = `рівень ${m.level}${m.vip ? ' · VIP' : ''}`;
+    t.innerHTML = `<span class="s2-hudme" role="button" aria-label="Профіль">${helmet(look.h, 36)}<span class="s2-who"><b class="ellipsis">${esc(name)}</b><small class="ellipsis">${sub}</small></span></span>`;
+    t.onclick = () => document.getElementById('avatar')?.click();
+  } else if (t) t.onclick = null;
   // s2-ui2: every inner page gets the mockups' heading — a small section label over the title — and its section glow.
   const pg = s.page || (home ? 'city' : s.tab);
   document.body.dataset.s2pg = pg;
-  const lb = !home && pageLabel(pg);
+  const lb = !hud && pageLabel(pg);
   document.getElementById('gift')?.classList.toggle('s2-hide', !!s.page); // s2-audit
-  if (t) t.classList.toggle('s2-xl', !home && t.textContent.length > 12); // s2-audit: «Цілі дня й тижня», «Аукціон номерів»
+  if (t) t.classList.toggle('s2-xl', !hud && t.textContent.length > 12); // s2-audit: «Цілі дня й тижня», «Аукціон номерів»
   if (lb && lb[0] && t) {
     const title = t.textContent;
     t.innerHTML = `<span class="s2-pt"><small style="--c:${lb[1]}">${lb[0]}</small><b>${esc(title)}</b></span>`;
@@ -580,20 +585,19 @@ function dropResult(base) {
   const sp = X.sellPrice(car), paid = X.dropPaid(cs), mult = paid ? sp / paid : 0;
   const inc = X.carInc(car);
   const have = me().collection.filter((id) => !M(id)?.secret).length, total = S.ALL_MODELS.filter((x) => !x.secret).length;
-  const W = X.caseNow(cs).weights, tw = Object.values(W).reduce((a, b) => a + b, 0);
   const origin = X.originText(md);
+  // asphalt (owner's notes on the starter result): no case floating in the card, no giant cut class letter, the car fits
+  // inside the slab, no «Шанс 100% на клас»; the class is a small tag on the card; one yellow button in the dock.
+  const sub = [isNew ? `<span class="nw">нова в колекції ${have}/${total}</span>` : '', forced ? 'гарантія' : '', d[0].fragment ? `${X.ic('key')} +фрагмент` : ''].filter(Boolean).join(' · ');
   return `<div class="s2-res r${rank}" style="--c:${color}">
-    <div class="s2-res-top"><span class="s2-res-from">${caseArt(cs, false, 'mini')}${esc(cs.name)} · відкрито</span><button class="s2-rb" data-act="toGarage" aria-label="Закрити">${X.ic('x')}</button></div>
-    <div class="s2-res-chip ${fresh ? 'pop' : ''}">${rank >= 3 ? X.ic('crown') : ''}${md.cls} · ${esc(S.CLASSES[md.cls].name)}</div>
+    <div class="s2-res-top"><span class="s2-res-from">${esc(cs.name)} · відкрито</span></div>
     <div class="result-name s2-res-name ${fresh ? 'pop' : ''}">${esc(md.name)}</div>
-    <div class="s2-res-sub">Шанс ${X.pct(((W[md.cls] || 0) / tw) * 100)} на клас${isNew ? ` · <span class="nw">нова в колекції ${have}/${total}</span>` : ''}${forced ? ' · гарантія' : ''}${d[0].fragment ? ` · ${X.ic('key')} +фрагмент` : ''}</div>
-    <div class="s2-res-card"><span class="s2-res-ghost">${md.cls}</span>
+    ${sub ? `<div class="s2-res-sub">${sub}</div>` : ''}
+    <div class="s2-res-card"><span class="s2-res-chip ${fresh ? 'pop' : ''}">${rank >= 3 ? X.ic('crown') : ''}<b>${md.cls}</b>${esc(S.CLASSES[md.cls].name)}</span>
       <div class="reveal-wrap r${rank}" id="revealWrap" style="--c:${color}"><div class="art ${fresh ? 'reveal' : ''}" id="dropArt">${X.carArt(car.model, { glow: rank >= 2 })}</div></div>
-      ${isNew ? `<div class="newtag ${fresh ? 'pop' : ''}" hidden></div>` : ''}
-      <div class="s2-res-case">${caseArt(cs, true)}</div>
       <div class="s2-res-stats"><div><small>Потужність</small><b>${md.hp} к.с.</b></div><div><small>Маса</small><b>${n0(md.kg)} кг</b></div><div><small>Країна</small><b class="ellipsis">${esc(origin)}</b></div></div></div>
-    <div class="s2-res-money"><div><small>Продаж</small><b id="dropValue">${S.short(sp)}</b></div><div><small>Дохід/год</small><b>${inc ? '+' + shortN(inc.rate ?? inc.income ?? inc) : '—'}</b></div><div><small>Від ціни кейса</small><b class="${mult >= 1 ? 'up' : ''}">${mult ? S.multText(mult) : '—'}</b></div></div>
-    ${d[0].sold ? `<div class="s2-note win">${X.ic('check')} Продано за ${S.short(sp)}</div>` : `<div class="s2-note">Колекційна ціна ${S.short(car.value)}</div>`}
+    <div class="s2-res-money"><div><small>Продаж</small><b id="dropValue">${S.short(sp)}</b></div><div><small>Дохід/год</small><b>${inc ? '+' + shortN(inc.rate ?? inc.income ?? inc) : '—'}</b></div>${mult ? `<div><small>Від ціни кейса</small><b class="${mult >= 1 ? 'up' : ''}">${S.multText(mult)}</b></div>` : `<div><small>Колекційна</small><b>${S.short(car.value)}</b></div>`}</div>
+    ${d[0].sold ? `<div class="s2-note win">${X.ic('check')} Продано за ${S.short(sp)}</div>` : ''}
     ${dockEl ? dockEl.outerHTML : ''}${share}</div>`;
 }
 function dropAfter() {
@@ -630,7 +634,10 @@ function openAnim(cs, r) {
 // ---------- Гараж: «Мій паркінг» ----------
 function garageView(base) {
   const s = st(), m = me();
-  if (!s.s2gInit) (s.s2gInit = true, s.garageView = m.guide ? 'cars' : 'park');
+  // asphalt (owner): the garage opens on «Паркінг»; the newbie step «Встанови деталь» points at a car tile of «Машини»,
+  // so while that step is on, the garage switches there once by itself.
+  if (!s.s2gInit) (s.s2gInit = true, s.garageView = 'park');
+  if (m.guide === 'install' && !s.s2gInstall) (s.s2gInstall = true, s.garageView = 'cars');
   if (s.garageView !== 'park') return parkHead() + base().replace('<div class="seg">', `<div class="seg s2-gseg"><button data-act="gView" data-k="park">Паркінг</button>`);
   const cars = m.cars.filter((c) => c.status === 'garage' || c.status === 'race').sort((a, b) => b.value - a.value);
   const name = String(m.username || m.firstName || 'MY').toUpperCase().replace(/[^A-ZА-ЯІЇЄҐ0-9_]/g, '').slice(0, 10) || 'MY';

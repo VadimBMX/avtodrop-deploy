@@ -1665,7 +1665,7 @@ TABS.cases = () => {
       // «Відкрити ще» rides under them as a text link (.drop-dock .opencase), the share row stays in the flow below.
       // Everything sold: «Відкрити ще» becomes the big main button and «У гараж» a quiet line under it (owner 27.10).
       if (!alive.length) return `<div class="drop-dock dd-sold">${openBlock()}<button class="btn outline dd-back" data-act="toGarage">До гаража</button></div>${wowShareRow(d)}`;
-      return `<div class="drop-dock"><div class="btns"><button class="btn" data-act="toGarage">У гараж</button>${sellBtn}</div>${last ? '<div class="tiny muted center mt">Це твоя єдина машина: на ній ганяєш і заробляєш, тому продати її не можна</div>' : ''}${openBlock()}</div>${wowShareRow(d)}`;
+      return `<div class="drop-dock"><div class="btns"><button class="btn" data-act="toGarage">У гараж</button>${sellBtn}</div>${last ? '<div class="tiny muted center mt dd-last">Перша машина — її не можна продати</div>' : ''}${openBlock()}</div>${wowShareRow(d)}`;
     })() : ''}
     <div class="fastrow"><span>${ic('bolt')} Швидке відкриття <small>без рулетки</small></span><button class="toggle ${state.fast ? 'on' : ''}" data-act="toggleFast" aria-label="Швидке відкриття"></button></div>
     ${cs.starter ? '' : (() => {
