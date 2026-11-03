@@ -2720,7 +2720,7 @@ export const EVENT_COSMETICS = [
 const STYLE_BY_COS = Object.fromEntries([...STYLE_ITEMS, ...EVENT_COSMETICS].map((it) => [it.cos, it]));
 // A «Стиль» item as a cosmetic (same shape as a season one; season 0).
 function styleCosmetic(id) {
-  const it = STYLE_BY_COS[id];
+  const it = Object.hasOwn(STYLE_BY_COS, String(id)) ? STYLE_BY_COS[id] : null; // not 'toString' & co.
   if (!it) return null;
   const k = STYLE_KINDS[it.kind];
   if (it.event) return { id, season: 0, kind: it.kind, look: it.look, item: it.id, short: k.short, name: it.name, icon: k.icon, hint: it.hint, event: it.event, livery: null };

@@ -5131,7 +5131,9 @@ export function createGame(db, opts = {}) {
   const admin = Object.fromEntries(Object.entries(adminHandlers).map(([k, fn]) => [k, (who, body = {}) => db.tx(() => {
     if (!canDo(actorRole(who), k)) fail('Немає прав на цю дію');
     const r = fn(who, body || {});
-    if (body?.id && k !== 'market/remove' && q('SELECT 1 FROM users WHERE id = ?').get(body.id)) recalc(body.id);
+    // s2-qa: an id that is no number (an array, an object) made the lookup itself throw — a 500 instead of the action's answer.
+    const rid = typeof body?.id === 'number' || typeof body?.id === 'string' ? Number(body.id) : NaN;
+    if (Number.isSafeInteger(rid) && rid > 0 && k !== 'market/remove' && q('SELECT 1 FROM users WHERE id = ?').get(rid)) recalc(rid);
     return r;
   })]));
   // Actions that change a player or the economy. From the panel (adminCall, used by the HTTP endpoint) each needs
