@@ -1666,8 +1666,10 @@ TABS.cases = () => {
       // D-reveal: the drop's actions live in one sticky dock over the tab bar (on 360 a ×6 grid pushed them off screen);
       // «Відкрити ще» rides under them as a text link (.drop-dock .opencase), the share row stays in the flow below.
       // Everything sold: «Відкрити ще» becomes the big main button and «У гараж» a quiet line under it (owner 27.10).
-      if (!alive.length) return `<div class="drop-dock dd-sold">${openBlock()}<button class="btn outline dd-back" data-act="toGarage">До гаража</button></div>${wowShareRow(d)}`;
-      return `<div class="drop-dock"><div class="btns"><button class="btn" data-act="toGarage">У гараж</button>${sellBtn}</div>${last ? '<div class="tiny muted center mt dd-last">Перша машина — її не можна продати</div>' : ''}${openBlock()}</div>${wowShareRow(d)}`;
+      // 03.11 (owner): the count and «Швидко» stay changeable right on the drop screen — «Відкрити ще» opens the picked ×N.
+      const ddRow = cs.starter || (onDrop && free < 1) ? '' : `<div class="s2-dock-r dd-cnt"><div class="s2-cnt">${[1, 3, 6].map((k) => `<button class="${k === n ? 'on' : ''}" data-act="pickCount" data-n="${k}">×${k}</button>`).join('')}</div><button class="s2-fast${state.fast ? ' on' : ''}" data-act="toggleFast" aria-pressed="${state.fast ? 'true' : 'false'}" aria-label="Швидке відкриття — без анімації">${ic('player-track-next')}<span>Швидко</span><i></i></button></div>`;
+      if (!alive.length) return `<div class="drop-dock dd-sold">${ddRow}${openBlock()}<button class="btn outline dd-back" data-act="toGarage">До гаража</button></div>${wowShareRow(d)}`;
+      return `<div class="drop-dock"><div class="btns"><button class="btn" data-act="toGarage">У гараж</button>${sellBtn}</div>${last ? '<div class="tiny muted center mt dd-last">Перша машина — її не можна продати</div>' : ''}${ddRow}${openBlock()}</div>${wowShareRow(d)}`;
     })() : ''}
     ${cs.starter ? '' : (() => {
       const fr = me.fragments?.[cs.id] || 0, need = S.FRAGMENTS_PER_KEY;

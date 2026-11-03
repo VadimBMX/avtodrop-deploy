@@ -6558,6 +6558,12 @@ body.s2 .guide-hi:not(#tabs button) { outline: 2px solid var(--accent); outline-
 @keyframes coachTarget { 0%, 100% { outline-color: #ffd400; outline-offset: 3px; } 50% { outline-color: #ffd40033; outline-offset: 7px; } }
 @media (prefers-reduced-motion: reduce) { .coach, .coach.out, .coach-ring, .coach-ring::after, .coach-bar, body.s2 .guide-hi { animation: none !important; } }
 
+/* ===== 03.11 drop screen: ×1/×3/×6 + «Швидко» in the drop dock; «До гаража» no longer sits on the yellow button's ledge ===== */
+body.s2 #view .drop-dock .dd-cnt { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0 8px; }
+body.s2 #view .drop-dock.dd-sold .dd-cnt { margin-top: 0; }
+body.s2 #view .drop-dock.dd-sold .btn.dd-back { margin-top: 14px; }
+body.s2 #view .drop-dock:not(.dd-sold) .dd-cnt + .btn.opencase { margin-top: 0; }
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */
