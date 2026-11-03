@@ -1,4 +1,4 @@
-// Texts pass (wText 2026-10-29): the «Що нового» slides of the autumn update say what the rules say, they are shown
+// Texts pass (wText 2026-10-29, Season 2 story 2026-11-03): the «Що нового» slides say what the rules say, they are shown
 // once per player (any device), and the house style holds — one apostrophe (’), «драг», «пальне».
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,46 +6,47 @@ import fs from 'node:fs';
 import { openDb } from '../src/db.js';
 import { createGame } from '../src/game.js';
 import * as S from '../public/shared.js';
-import { HALLOWEEN } from '../public/halloween.js';
-import { CLUB } from '../public/clubs.js';
-import { TOURNEY } from '../public/tourney.js';
-import { PRESTIGE } from '../public/prestige.js';
-import { EVENING } from '../public/containers.js';
+import { BIZ } from '../public/business.js';
 
 const slide = (title) => S.WHATS_NEW.slides.find((s) => s.title.startsWith(title));
 
-test('«Що нового»: six slides of the autumn update (Halloween slide gone after 2.11), icons that exist, short texts', () => {
-  assert.notEqual(S.WHATS_NEW.id, 'economy-2');
+test('«Що нового»: the Season 2 «Місто» story — 5–7 slides, icons that exist, short texts', () => {
+  assert.ok(!['economy-2', 'autumn-2026'].includes(S.WHATS_NEW.id), 'a new id, so everyone sees it once');
   assert.deepEqual(S.WHATS_NEW.slides.map((s) => s.title.split(' ·')[0]),
-    ['Причал', 'Автоклуби', 'Турнір вихідних', 'Сарайна знахідка', 'Престиж', 'Сезон 2']);
+    ['Сезон 2', 'Мапа міста', 'Бізнеси', 'Покращення бізнесу', 'Компенсація', 'Пропуск', 'Новий вигляд']);
+  assert.ok(S.WHATS_NEW.slides.length >= 5 && S.WHATS_NEW.slides.length <= 7);
   const svg = fs.readFileSync(new URL('../public/icons.svg', import.meta.url), 'utf8');
   for (const s of S.WHATS_NEW.slides) {
     assert.ok(svg.includes(`id="i-${s.icon}"`), s.icon);
     assert.ok(s.text.length <= 190, `${s.title}: ${s.text.length}`);
     assert.ok(s.tag && s.tag.length <= 26, s.title);
     assert.match(s.c, /^#[0-9a-f]{6}$/i);
+    assert.doesNotMatch(s.title + s.text + s.tag, /Хеллов|гарбуз|осінн/i, `${s.title}: stale wording`);
   }
 });
 
 test('«Що нового»: the numbers match the rules', () => {
-  assert.ok(slide('Причал').text.includes(`о ${EVENING.hour}:00`) && slide('Причал').tag.includes(`${EVENING.hour}:00`));
-  const cl = slide('Автоклуби');
-  assert.equal(cl.tag, `з ${CLUB.joinLevel}-го рівня`);
-  assert.ok(cl.text.includes(`До ${CLUB.max} гравців`) && cl.text.includes(`з ${CLUB.createLevel}-го рівня`));
-  const tr = slide('Турнір вихідних');
-  assert.deepEqual([TOURNEY.regOpen, TOURNEY.regClose, TOURNEY.stages[0].slice(0, 2)], [[0, 18], [1, 12], [2, 20]]); // пт 18:00, сб 12:00, нд 20:00
-  assert.ok(tr.text.includes('до суботи 12:00') && tr.tag === 'пт 18:00 → нд 20:00');
-  assert.ok(slide('Сарайна знахідка').text.includes(`×${String(S.R_MULT).replace('.', ',')}`));
-  const pr = slide('Престиж');
-  assert.equal(pr.tag, `з ${PRESTIGE.level}-го рівня`);
-  assert.equal(PRESTIGE.garage, 500e6);
-  assert.ok(pr.text.includes('від 500 млн') && pr.text.includes(`+${Math.round(S.STAR_INCOME * 100)}%`));
-  // Season 2 starts on 2.11 at 23:00 Kyiv time.
-  const s2 = S.seasonStartOf(2);
-  assert.equal(S.kyivLocal(s2), '2026-11-02T23:00');
-  const t = S.kyivLocal(s2);
-  assert.equal(slide('Сезон 2').tag, `з ${Number(t.slice(8, 10))}.${Number(t.slice(5, 7))}, ${t.slice(11, 16)}`);
-  assert.ok(slide('Сезон 2').title.includes(S.SEASON_THEMES[2].name) && slide('Сезон 2').text.includes(S.SEASON_CARS[1].name));
+  // the businesses: names, the first level, the box hours — from BIZ, whatever the rebalance sets
+  const bz = slide('Бізнеси');
+  assert.equal(bz.tag, `з ${Math.min(...BIZ.list.map((b) => b.level))}-го рівня`);
+  for (const b of BIZ.list) assert.ok(bz.text.toLowerCase().includes(b.short.toLowerCase()), b.short);
+  assert.ok(bz.text.includes(`${BIZ.capHours} год`) && bz.text.includes(`з VIP — ${BIZ.vipCapHours}`));
+  const up = slide('Покращення бізнесу');
+  for (const k of ['eq', 'staff', 'ads']) assert.ok(up.text.includes(`«${BIZ.branches[k].name}»`), k);
+  // the compensation: what the wipe really gives
+  const c = slide('Компенсація');
+  assert.ok(c.text.startsWith(`${S.S2_RESET.creditPct}% зірок`));
+  assert.ok(c.text.includes(`«${S.FRAME_BY_ID.patron.name}»`) && c.text.includes(`«${S.FRAME_BY_ID.legend_s1.name}» — топ-${S.S2_RESET.legendTop}`));
+  assert.ok(c.text.includes(`«${S.VETERAN_S1.title}» — з ${S.VETERAN_S1.tiers[0].minLevel}-го рівня`));
+  assert.ok(c.text.includes(`ключ «${S.CASE_BY_ID[S.S2_RESET.friendKey].name}»`));
+  assert.equal(c.tag, `для гравців Сезону ${S.S2_RESET.prevSeason}`);
+  assert.ok(slide('Сезон 2').title.startsWith(`Сезон ${S.S2_RESET.season}`));
+  // the pass
+  const ps = slide('Пропуск');
+  assert.ok(ps.title.includes(S.SEASON_THEMES[2].name) && ps.text.startsWith(`${S.SEASON.levels} рівнів`));
+  assert.ok(ps.text.includes(S.SEASON_CARS.find((x) => x.season === 2).name));
+  // no prices or odds written by hand
+  for (const s of S.WHATS_NEW.slides) assert.doesNotMatch(s.text, /₴|млн|⭐|\d+ зір/, s.title);
 });
 
 test('«Що нового»: once per player — seen on one device, not shown on another', () => {
