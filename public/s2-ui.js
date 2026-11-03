@@ -660,19 +660,22 @@ function garageView(base) {
   if (s.garageView !== 'park') return parkHead() + base().replace('<div class="seg">', `<div class="seg s2-gseg"><button data-act="gView" data-k="park">Паркінг</button>`);
   const cars = m.cars.filter((c) => c.status === 'garage' || c.status === 'race').sort((a, b) => b.value - a.value);
   const name = String(m.username || m.firstName || 'MY').toUpperCase().replace(/[^A-ZА-ЯІЇЄҐ0-9_]/g, '').slice(0, 10) || 'MY';
+  // asphalt: every car is one floor of a night parking garage (s2/bg/garage-floor.webp) — the car stands on the floor, the
+  // name/class and the price/income ride in two small slabs; the floors stack like a building, the next one is being built.
   const floor = (c, k) => {
     const md = M(c.model), inc = X.carInc(c);
-    return `<button class="s2-fl" data-act="car" data-id="${c.id}" style="--c:${clsCol(md.cls)}"><span class="s2-pn">P${k}</span><span class="s2-lamp l1"></span><span class="s2-lamp l2"></span>
+    return `<button class="s2-fl a-fl" data-act="car" data-id="${c.id}" style="--c:${clsCol(md.cls)}"><span class="a-pn">P${k}</span>
       <span class="s2-fl-car art">${X.carArt(c.model, { look: c.look, dirt: c.dirt })}</span>
-      <span class="s2-fl-tx"><span class="s2-cl">${md.cls}</span><b class="ellipsis">${esc(md.name)}</b><em>${S.short(X.sellPrice(c))}</em>${inc ? `<small>+${shortN(inc.rate ?? inc.income ?? inc)}/год</small>` : ''}</span></button>`;
+      <span class="a-fl-tag"><span class="a-cls" style="--c:${clsCol(md.cls)}">${md.cls}</span><b class="ellipsis">${esc(md.name)}</b></span>
+      <span class="a-fl-val"><em>${S.short(X.sellPrice(c))}</em>${inc ? `<small>+${shortN(inc.rate ?? inc.income ?? inc)}/год</small>` : ''}</span></button>`;
   };
-  const build = m.slots < S.MAX_SLOTS ? `<div class="s2-fl build"><div class="s2-tape"><span>БУДУЄТЬСЯ · ПОВЕРХ P${cars.length + 1 > m.slots ? m.slots + 1 : m.slots + 1}</span></div><span class="s2-fl-hint">+1 місце для машини</span><button class="s2-btn sm" data-act="buySlot">${X.ic('plus')}${S.short(S.slotCost(m.slots))}</button></div>` : '';
+  const build = m.slots < S.MAX_SLOTS ? `<div class="s2-fl a-fl build"><span class="a-pn">P${m.slots + 1}</span><div class="s2-tape"><span>БУДУЄТЬСЯ · ПОВЕРХ P${m.slots + 1}</span></div><span class="s2-fl-hint">+1 місце для машини</span><button class="s2-btn sm" data-act="buySlot">${X.ic('plus')}${S.short(S.slotCost(m.slots))}</button></div>` : '';
   const free = Math.max(0, m.slots - m.cars.filter((c) => c.status !== 'showcase').length);
-  const empties = Array.from({ length: Math.min(free, 2) }, (_, i) => `<button class="s2-fl empty" data-act="toCases"><span class="s2-pn">P${cars.length + free - i}</span><span class="s2-fl-hint">${X.ic('plus')} Вільне місце — відкрий кейс</span></button>`).join('');
+  const empties = Array.from({ length: Math.min(free, 2) }, (_, i) => `<button class="s2-fl a-fl empty" data-act="toCases"><span class="a-pn">P${cars.length + free - i}</span><span class="s2-fl-hint">${X.ic('plus')} Вільне місце — відкрий кейс</span></button>`).join('');
   return parkHead() + `${X.vipSaleBanner()}${X.paBanner()}<div class="seg s2-gseg">${[['park', 'Паркінг'], ['cars', 'Машини'], ['showcase', 'Вітрина']].map(([k, t]) => `<button class="${s.garageView === k ? 'on' : ''}" data-act="gView" data-k="${k}">${t}</button>`).join('')}</div>
     <div class="s2-inc"><div class="grow"><small>${X.ic('coin')} Дохід гаража · ${shortN(m.income.rate)}/год</small><b id="pending">${S.fmt(X.pendingNow())}</b></div><button class="s2-btn sm" data-act="collect" ${X.pendingNow() < 1 ? 'disabled' : ''}>Забрати</button></div>
     <div class="s2-park"><div class="s2-sign"><span>${esc(name)} · PARKING</span></div>${build}${empties}${cars.length ? cars.map((c, i) => floor(c, cars.length - i)).join('') : ''}</div>
-    <div class="s2-note">Натисни на машину — тюнінг, фарба, мийка, продаж. Сортування й продаж кількох — у вкладці «Машини».</div>`;
+    <div class="s2-note a-note">Тисни на машину — тюнінг, фарба, мийка, продаж</div>`;
 }
 function parkHead() {
   const m = me();
