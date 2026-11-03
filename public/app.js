@@ -309,7 +309,7 @@ $('#modal').addEventListener('click', (e) => {
 });
 // popups: every window that opens by itself asks POP first (gifts, level-up, «Що нового», «Нагороди» at start,
 // «Бета-тест», «Ярлик на екрані»). Calm = nothing it must not cover; idle = no window or story open.
-const popIdle = () => $('#modal').hidden && !$('.story') && !$('.reel') && !$('.confirm') && !hwIntroOpen();
+const popIdle = () => $('#modal').hidden && !$('.story') && !$('body > .reel') && !$('.confirm') && !hwIntroOpen();
 const POP = createPopups({
   idle: popIdle,
   // s2-fix: the Season 2 compensation window is the first thing after the wipe — every player is back on the guide's
@@ -6426,7 +6426,7 @@ H.coachToggle = () => {
 // Otherwise a replay from Профіль / Налаштування / Новини: «Поїхали» goes to DROP, «Пропустити» stays where it was.
 const reelSeconds = () => Math.round(S.INTRO_REEL.scenes.reduce((a, x) => a + x.ms, 0) / 1000);
 function introReel(first, seen = null) {
-  if ($('.reel')) return;
+  if ($('body > .reel')) return; // the intro's own layer, not a case reel (.reel-wrap > .reel) on the page
   if (!first) closeModal();
   playReel({
     carArt: (id) => carArt(id), haptic, again: !first,

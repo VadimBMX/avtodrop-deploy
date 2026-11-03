@@ -6331,11 +6331,13 @@ body.s2 .wow .wow-acts .btn.yellow { background: var(--yel); color: #111; box-sh
 /* ===== Night intro 2026-11-03 (s2-intro, public/intro-reel.js): the first-launch motion intro in «Асфальт». Seven
    full-screen scenes over #07080b, the game's own art moved by transform/opacity only; a caption under each scene
    (kicker · title · one line), story bars on top, «Пропустити», the yellow CTA on the last scene. Hold = pause
-   (.hold), reduced motion = every scene in its final frame (.rm). --vz is the picture zone above the caption. ===== */
-.reel { position: fixed; inset: 0; z-index: 130; overflow: hidden; background: #07080b; color: var(--text); touch-action: manipulation; user-select: none; -webkit-user-select: none;
+   (.hold), reduced motion = every scene in its final frame (.rm). --vz is the picture zone above the caption.
+   The root is `body > .reel`: a bare `.reel` also matched the case reels (.reel-wrap > .reel: reward case, parts,
+   ×3/×6) and turned their strip into an empty full-screen layer. ===== */
+body > .reel { position: fixed; inset: 0; z-index: 130; overflow: hidden; background: #07080b; color: var(--text); touch-action: manipulation; user-select: none; -webkit-user-select: none;
   --vz: calc(100vh - 262px - var(--safe-b)); transition: opacity .3s; }
-@supports (height: 100dvh) { .reel { --vz: calc(100dvh - 262px - var(--safe-b)); } }
-.reel.out { opacity: 0; pointer-events: none; }
+@supports (height: 100dvh) { body > .reel { --vz: calc(100dvh - 262px - var(--safe-b)); } }
+body > .reel.out { opacity: 0; pointer-events: none; }
 .reel.hold *, .reel.hold *::before, .reel.hold *::after { animation-play-state: paused !important; }
 .reel img { -webkit-user-drag: none; pointer-events: none; }
 .rl-scenes, .rl-sc { position: absolute; inset: 0; }
