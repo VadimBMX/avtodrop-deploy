@@ -54,7 +54,7 @@ export function goalsHead() {
   const state = g.keyReady ? `<button class="btn sm ghost" data-act="goalKey">${X.ic('key')} Забрати ключ</button>`
     : g.complete ? `<span class="chip">${X.ic('check')} отримано</span>` : `<span class="chip">${g.done}/${g.total}</span>`;
   return `<div class="card gl-head">
-    <div class="gl-row"><span class="gl-kic">${X.caseIcon(S.CASE_BY_ID[g.caseId])}</span><span class="grow"><b>Усі три цілі → ключ «${X.esc(caseName(g.caseId))}»</b>
+    <div class="gl-row"><span class="gl-kic s2-chest"><img src="s2/x-chest.webp" alt=""><img class="s2-key" src="s2/key/${['rust', 'city', 'tuning', 'sport', 'premium', 'elite'].includes(g.caseId) ? g.caseId : 'daily'}.webp" alt=""></span><span class="grow"><b>Усі три цілі → ключ «${X.esc(caseName(g.caseId))}»</b>
       <span class="tiny muted">${g.complete ? 'Сьогодні виконано' : `Лишилось ${g.total - g.done} ${X.plural(g.total - g.done, ['ціль', 'цілі', 'цілей'])}`} · нові опівночі</span></span>${state}</div>
     <div class="gl-run"><div class="gl-row"><b class="gl-rt">${X.ic('flame')} Серія: ${g.streak} ${daysW(g.streak)}</b><span class="tiny muted">рекорд ${g.best}</span></div>
       <div class="gl-dots">${dots}</div>

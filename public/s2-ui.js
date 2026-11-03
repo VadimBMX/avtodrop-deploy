@@ -96,6 +96,11 @@ export function installS2(x) {
     await menuAfter?.();
   };
   wrapAfter('leaderboard', ratingAfter);
+  // s2-ui2: the race lobby head goes over the strips other modules put on top (tourney, day race).
+  wrapAfter('race', () => {
+    const h = document.querySelector('#view .s2r-head'), v = document.getElementById('view');
+    if (h && v && v.firstElementChild !== h) v.prepend(h);
+  });
   wrapAfter('store', storeAfter);
   wrapAfter('achievements', achAfter);
   Object.assign(X.H, handlers);
@@ -118,6 +123,9 @@ export function installS2(x) {
   document.getElementById('tabs')?.addEventListener('click', (e) => {
     const b = e.target.closest('button[data-tab]');
     if (b?.dataset.tab === 'cases' && st().tab === 'cases' && !st().page) st().s2case = false;
+    // s2-ui2: a full-page sheet (car card, СТО) sits under the bar — a tab closes it like a page.
+    const md = document.getElementById('modal');
+    if (b && md && !md.hidden && md.classList.contains('s2-pm')) X.closeModal();
   }, true);
 }
 function wrapAfter(page, fn) {
@@ -149,6 +157,15 @@ function header() {
     const sub = m.club?.name ? esc(m.club.name) : m.vip ? 'VIP' : `рівень ${m.level}`;
     t.innerHTML = `<span class="s2-who"><b class="ellipsis">${esc(name)}</b><small class="ellipsis">${sub}</small></span>`;
   }
+  // s2-ui2: every inner page gets the mockups' heading — a small section label over the title — and its section glow.
+  const pg = s.page || (home ? 'city' : s.tab);
+  document.body.dataset.s2pg = pg;
+  const lb = !home && pageLabel(pg);
+  if (lb && lb[0] && t) {
+    const title = t.textContent;
+    t.innerHTML = `<span class="s2-pt"><small style="--c:${lb[1]}">${lb[0]}</small><b>${esc(title)}</b></span>`;
+  }
+  document.body.style.setProperty('--s2glow', (lb && lb[1]) || '#12204a');
   const av = document.getElementById('avatar');
   if (av && !av.querySelector('.s2-hel')) av.insertAdjacentHTML('beforeend', helmet(look.h, 30));
   else if (av) av.querySelector('.s2-hel img').src = `s2/av/h${look.h}.webp`;
@@ -161,6 +178,24 @@ function header() {
   if (bz) bz.hidden = !m.incomingTrades;
 }
 const esc = (v) => X.esc(v);
+// Page → [label, section colour] (labels keep to what is known on the client).
+function pageLabel(pg) {
+  const m = me(), s = st();
+  const have = () => m.collection.filter((id) => !M(id)?.secret).length, total = () => S.ALL_MODELS.filter((x) => !x.secret).length;
+  const L = {
+    market: ['РИНОК · ТОРГІВЛЯ', '#39e58c'], trades: ['ОБМІНИ · НАЖИВО', '#39e58c'], room: ['КІМНАТА ОБМІНУ · LIVE', '#39e58c'], tradeNew: ['НОВИЙ ОБМІН', '#39e58c'],
+    plates: [`МОЇ НОМЕРИ · ${m.plates?.length || 0}`, '#3d8bff'], plateAuction: ['АУКЦІОН · НОМЕРИ', '#ff3d5a'], lot: ['ПРИЧАЛ · КОНТЕЙНЕР', '#22c3e6'],
+    collection: [`КОЛЕКЦІЯ · ${have()} / ${total()}`, '#a26bff'], quests: ['ЗАВДАННЯ · ЦІЛІ', '#39e58c'], season: [`СЕЗОН ${m.season?.id || ''} · ПРОПУСК`.replace('  ', ' '), '#ff3df0'],
+    club: ['АВТОКЛУБ', '#c084fc'], friends: ['ЗАПРОСИ ДРУГА', '#39e58c'], events: ['ЩО ВІДБУВАЄТЬСЯ', '#ff3df0'], achievements: ['ПРОФІЛЬ · НАГОРОДИ', '#ffcc33'],
+    support: ['ВІДПОВІДАЄМО ДО 24 ГОД', '#22e3ff'], leaderboard: ['ТОП ГРАВЦІВ', '#ffcc33'], store: ['ЗІРКИ TELEGRAM', '#ffcc33'], battles: ['КЕЙС-БАТЛИ', '#ff3d5a'], battle: ['КЕЙС-БАТЛ', '#ff3d5a'],
+    upgrade: ['АПГРЕЙД МАШИН', '#a26bff'], casino: ['КАЗИНО', '#ff3df0'], tradein: ['ТРЕЙД-ІН', '#ff8a3d'], challenges: ['ВИКЛИКИ ДРУЗЯМ', '#ff8a1f'], dayrace: ['ЗАЇЗД ДНЯ', '#ff8a1f'],
+    tourney: ['ТУРНІР ВИХІДНИХ', '#ff8a1f'], barn: ['САРАЙ · ЗНАХІДКА', '#ff8a3d'], biz: ['МОЇ БІЗНЕСИ', '#39e58c'], bizOne: ['БІЗНЕС', '#39e58c'], showroom: ['ШОУРУМ', '#5ee7f0'],
+    fair: ['ЧЕСНА ГРА', '#22e3ff'], news: ['ОНОВЛЕННЯ ГРИ', '#3d8bff'], promo: ['ПРОМОКОДИ', '#ffcc33'], contest: ['КОНКУРС', '#ff3df0'],
+    race: [null, '#ff8a1f'], shop: [s.shopView === 'wash' ? 'МИЙКА · БЛИСК' : s.shopView === 'paint' ? 'ФАРБУВАННЯ' : 'МАЙСТЕРНЯ · ДЕТАЛІ', '#ff8a1f'],
+  };
+  const v = L[pg];
+  return v && v[0] ? v : v ? [null, v[1]] : null;
+}
 
 // ---------- Місто ----------
 // Labels on the city picture (public/s2/city.webp, 1750×775): x, y of the label's foot in picture pixels.
