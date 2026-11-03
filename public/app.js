@@ -6343,8 +6343,9 @@ function coachPlace() {
 function paintGuide() {
   document.querySelectorAll('.guide-hi').forEach((el) => el.classList.remove('guide-hi'));
   const key = guideKey();
-  // Only on the five main tabs (not over Магазин, Підтримка…), and never over a race, a drift run or a spinning case.
-  if (!key || state.page || state.race || state.drift || state.opening) {
+  // Only on the five main tabs (not over Магазин, Підтримка…), and never over a race, a drift run, a spinning case
+  // or a reward reveal (rvl: the reel of a reward case / key over the whole screen).
+  if (!key || state.page || state.race || state.drift || state.opening || rvl) {
     coachClear();
     return paintNextUnlock();
   }
@@ -6362,12 +6363,13 @@ function paintGuide() {
   if (!ring) {
     ring = document.createElement('button');
     ring.id = 'coachRing';
-    ring.dataset.act = 'coachToggle';
     $('#gift').before(ring);
   }
   ring.className = `coach-ring${ready ? ' ready' : ''}`;
   ring.style.setProperty('--p', String(Math.min(1, n / total)));
   ring.setAttribute('aria-label', ready ? `Крок виконано — забрати +${money}` : `Перші кроки: крок ${n + 1} з ${total}`);
+  // A done step: the ring itself takes the reward (its label says so); otherwise it opens / folds the card.
+  ring.dataset.act = ready ? 'newbieQuest' : 'coachToggle';
   const face = ready ? ic('check') : `<b>${n + 1}<small>/${total}</small></b>`;
   if (ring.innerHTML !== face) ring.innerHTML = face;
   // the card: on its own for COACH_MS when the step (or its state) is new, or opened by hand
@@ -6382,7 +6384,7 @@ function paintGuide() {
     const title = ready ? esc(nb.text) : esc(st.title);
     const sub = ready ? 'Крок виконано' : `Перші кроки · ${n + 1}/${total}${here ? '' : ` · ${esc(tabName || TITLES[st.tab] || '')}`}`;
     const side = ready ? `<button class="coach-claim" data-act="newbieQuest">${ic('gift')}+${money}</button>` : money ? `<span class="coach-rw">+${money}</span>` : '';
-    const more = coachOpen ? `<div class="coach-more">${esc(st.text)}<div class="coach-foot">${!here ? `<button class="coach-go" data-act="guideGo">${esc(tabName || 'Перейти')} ${ic('arrow-right')}</button>` : ''}<button class="coach-off" data-act="guideOff">Сховати підказки</button></div></div>` : '';
+    const more = coachOpen && !ready ? `<div class="coach-more">${esc(st.text)}<div class="coach-foot">${!here ? `<button class="coach-go" data-act="guideGo">${esc(tabName || 'Перейти')} ${ic('arrow-right')}</button>` : ''}<button class="coach-off" data-act="guideOff">Сховати підказки</button></div></div>` : '';
     const html = `<div class="coach-row" data-act="${ready ? 'newbieQuest' : here || coachOpen ? 'coachToggle' : 'guideGo'}" role="button" tabindex="0"><span class="coach-n">${ready ? ic('check') : n + 1}</span>
       <span class="coach-tx"><small>${sub}</small><b>${!here ? ic('arrow-right') : ''}${title}</b></span>${side}</div>${more}${coachOpen || ready ? '' : '<i class="coach-bar"></i>'}`;
     let el = $('#guide');
@@ -9330,9 +9332,11 @@ function bugAskOnce(tries = 0) {
 }
 // ---------- «Що додати в гру?» (S.IDEA_ASK; owner 29.10: nobody wrote ideas under the post) ----------
 function ideaAskOnce() {
-  if (!me?.ideaAsk) return;
+  // Not over a fresh level-up (its window with the unlocks comes first; the idea ask waits for a later entry) and not
+  // over a drop that is still being looked at (it opened on top of «У гараж / Продати» right after the case).
+  if (!me?.ideaAsk || me.level > me.levelSeen) return;
   POP.offer('ideaask', () => {
-    if (!me?.ideaAsk || state.page) return false;
+    if (!me?.ideaAsk || state.page || state.drop?.some(dropAlive)) return false;
     me.ideaAsk = false;
     api('idea/seen').catch(() => {});
     const A = S.IDEA_ASK;
