@@ -2775,6 +2775,32 @@ export const INTRO_STORY = {
     { icon: 'flag-3', title: 'Гонки й колекції', text: `Драг на 402 м: «Газ» — на зелений, передачі — у зеленій зоні. Збери всі машини країни — і отримаєш секретну, якої немає в жодному кейсі.` },
   ],
 };
+// s2-intro (owner 3.11: «newbies don't understand what to do»): the first-launch motion intro (public/intro-reel.js) —
+// seven short scenes, one idea each, then the CTA that lands on the starter case. It replaces the INTRO_STORY slides
+// for a fresh player (same gate: me.intro → 'intro/seen'); INTRO_STORY stays as data for older clients. Every number
+// comes from the rules (START_BALANCE, NEWBIE_TASKS, BIZ, the cars' own prices and CLASS_INCOME) — pinned in
+// test/intro-reel.test.js. `ms` is how long a scene plays before the next one (tap = next at once).
+const reelBizList = () => {
+  const n = BIZ.list.map((b, i) => (i ? b.short.toLowerCase().replace(/^сто$/, 'СТО') : b.short));
+  return n.length > 1 ? `${n.slice(0, -1).join(', ')} й ${n[n.length - 1]}` : n.join('');
+};
+export const INTRO_REEL = {
+  id: 'reel-1',
+  // Real photos from public/cars (side views on transparent ground). hero: the turntable; race: the drag; garage: one
+  // car per floor, cheapest at the bottom like a real start.
+  cars: { hero: 'nissan-skyline-gt-r-r34', race: 'toyota-supra-a80', garage: ['lotus-evija', 'bmw-m3-e30', 'zaz-965-horbatyi'] },
+  scenes: [
+    { key: 'night', ms: 3400, kicker: `Сезон ${String(S2_RESET.season).padStart(2, '0')} · Місто`, title: 'Ніч. Асфальт. Твій старт.', text: `${carCountText()} чекають на власника.` },
+    { key: 'case', ms: 3300, kicker: '01 · Кейс', title: 'Відкривай кейси', text: 'У кожному — справжня машина. Яка саме — дізнаєшся, коли відкриєш.' },
+    { key: 'car', ms: 3600, kicker: '02 · Машина', title: 'Що рідший клас — то дорожча', text: 'Від «Запорожця» до Bugatti. Тримай у гаражі або продавай.' },
+    { key: 'garage', ms: 3600, kicker: '03 · Гараж', title: 'Гараж заробляє сам', text: 'Гроші капають щогодини — навіть коли гра закрита. Заходь і забирай.' },
+    { key: 'race', ms: 3300, kicker: '04 · Траса', title: 'Ганяй на драгу', text: '402 метри. Газ — на зелений, передачі — у зеленій зоні.' },
+    { key: 'city', ms: 3500, kicker: '05 · Місто', title: 'Будуй своє місто', text: `${reelBizList()} заробляють і вночі. А ще автоклуби й турніри.` },
+    { key: 'go', ms: 0, kicker: 'Твій хід', title: 'Перший кейс — безкоштовно', text: `А ще ${short(START_BALANCE)} на старт і до ${short(NEWBIE_TASKS.reduce((a, t) => a + t.money, 0))} за перші кроки.` },
+  ],
+  cta: 'Відкрити кейс',
+  ctaAgain: 'Поїхали',
+};
 // fix5 (crit4 №6): the same count as the collection («1/169»): the cars in cases, and the secret ones apart —
 // «169 справжніх авто і ще 10 секретних». Derived from ALL_MODELS, never written by hand.
 export function carCountText() {

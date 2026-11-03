@@ -331,6 +331,8 @@ export function createSeason2(ctx) {
       legend: a.legend, level: a.level, vipSub: !!a.vip_sub_until, // its Stars are in the credit; the VIP days are not carried
     };
   }
+  // A Season 1 player (archived by the wipe), whatever the window says.
+  const archived = (uid) => !!doneAt() && !!q('SELECT 1 FROM s1_archive WHERE user_id = ?').get(uid);
   function welcomeSeen(uid) {
     q('UPDATE s1_archive SET welcome_seen = 1 WHERE user_id = ?').run(uid);
     return {};
@@ -366,6 +368,6 @@ export function createSeason2(ctx) {
     },
     admin: { season2: () => adminStatus(), 'season2/reset': adminReset },
     mutating: ['season2/reset'],
-    run, snapshot, welcome, frameOf, framesOf, looksOf, lookOf, lookRows, framesOwned, veteranOf, grantFrame, creditAdd, doneAt,
+    run, snapshot, welcome, archived, frameOf, framesOf, looksOf, lookOf, lookRows, framesOwned, veteranOf, grantFrame, creditAdd, doneAt,
   };
 }

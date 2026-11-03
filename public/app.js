@@ -14,6 +14,7 @@ import * as DRS from './dayrace.js';
 import * as WOW from './wow.js';
 // wIntro: count-ups and swipes for the animated intros (stories, level-up, Halloween sheet, season showroom).
 import * as IFX from './intro-fx.js';
+import { playReel } from './intro-reel.js'; // s2-intro: the first-launch motion intro (S.INTRO_REEL)
 // Ghost challenges: the ghost's replay and the rules (shared with the server), the share card.
 import * as G from './ghost.js';
 // The share card is drawn only when a challenge is thrown: loaded then (like the «Заїзд дня» card), not at start.
@@ -308,7 +309,7 @@ $('#modal').addEventListener('click', (e) => {
 });
 // popups: every window that opens by itself asks POP first (gifts, level-up, «Що нового», «Нагороди» at start,
 // «Бета-тест», «Ярлик на екрані»). Calm = nothing it must not cover; idle = no window or story open.
-const popIdle = () => $('#modal').hidden && !$('.story') && !$('.confirm') && !hwIntroOpen();
+const popIdle = () => $('#modal').hidden && !$('.story') && !$('.reel') && !$('.confirm') && !hwIntroOpen();
 const POP = createPopups({
   idle: popIdle,
   // s2-fix: the Season 2 compensation window is the first thing after the wipe — every player is back on the guide's
@@ -4518,7 +4519,7 @@ TABS.menu = () => {
     ...(config.community?.channel ? [line('openLink', config.community.channel, 'share', 'Канал з анонсами', 'новини й коди')] : []),
     ...(config.community?.chat ? [line('openLink', config.community.chat, 'users', 'Чат гравців')] : []),
     line('go', 'support', 'info-circle', 'Підтримка', 'написати нам'),
-    line('howTo', '', 'player-play', 'Як грати', `${S.INTRO_STORY.slides.length} ${plural(S.INTRO_STORY.slides.length, ['слайд', 'слайди', 'слайдів'])}`),
+    line('howTo', '', 'player-play', 'Як грати', `інтро · ${reelSeconds()} с`),
     line('go', 'fair', 'shield-check', 'Чесна гра', 'перевір будь-який дроп'),
     line('settingsOpen', '', 'settings', 'Налаштування', 'звук, підказки, бот'),
     ...(me.admin ? [line('openAdmin', '', 'adjustments', 'Адмін-панель')] : []),
@@ -4566,7 +4567,8 @@ function settingsSheet() {
   const GR = '#2fd27a', Y = '#ffc400', ST = '#939497', BL = '#3b82f6';
   sheet('Налаштування', `<div class="list menu-list settings">
       <div class="li"><span class="mi" style="--c:${GR}">${ic('volume')}</span><div class="grow"><b>Звук</b><div class="tiny muted">На цьому пристрої</div></div><button class="toggle ${SFX.isOn() ? 'on' : ''}" data-act="toggleSound" aria-label="Звук" aria-pressed="${SFX.isOn()}"></button></div>
-      <div class="li"><span class="mi" style="--c:${Y}">${ic('target-arrow')}</span><div class="grow"><b>Підказки перших кроків</b><div class="tiny muted">Смужка «Перші кроки» для новачка</div></div><button class="toggle ${me.claims.includes('guide-off') ? '' : 'on'}" data-act="toggleGuide" aria-label="Підказки перших кроків"></button></div>
+      <div class="li"><span class="mi" style="--c:${Y}">${ic('target-arrow')}</span><div class="grow"><b>Підказки перших кроків</b><div class="tiny muted">Кружечок «Перші кроки» біля подарунка</div></div><button class="toggle ${me.claims.includes('guide-off') ? '' : 'on'}" data-act="toggleGuide" aria-label="Підказки перших кроків"></button></div>
+      <div class="li"><span class="mi" style="--c:${Y}">${ic('player-play')}</span><div class="grow"><b>Інтро гри</b><div class="tiny muted">Як усе влаштовано · ${reelSeconds()} с</div></div><button class="btn sm ghost" data-act="howTo">Дивитися</button></div>
       <div class="li"><span class="mi" style="--c:${ST}">${ic('bell')}</span><div class="grow"><b>Не турбувати</b><div class="tiny muted">Без запрошень на обмін і гонку</div></div><button class="toggle ${me.noInvites ? 'on' : ''}" data-act="toggleDnd" aria-label="Не турбувати"></button></div>
       <div class="li"><span class="mi" style="--c:${BL}">${ic('clock')}</span><div class="grow"><b>Нагадування від бота</b><div class="tiny muted">${me.pushOn && me.pushBlocked ? 'Бот не може написати — відкрий чат з ботом і натисни /start' : 'Бак, дохід, бонус — до 2 разів на день, не вночі'}</div></div><button class="toggle ${me.pushOn ? 'on' : ''}" data-act="togglePush" aria-label="Нагадування від бота"></button></div>
       ${pushGroupsRows()}
@@ -4574,7 +4576,7 @@ function settingsSheet() {
       <div class="li"><span class="mi" style="--c:${Y}">${ic('copy')}</span><div class="grow"><div class="tiny muted">Твій ID для обмінів</div><b class="disp">${me.id}</b></div><button class="btn sm ghost" data-act="copyId">Копіювати</button></div></div>`);
 }
 H.settingsOpen = () => settingsSheet();
-H.howTo = () => playStory(S.INTRO_STORY);
+H.howTo = () => introReel(false);
 H.openAdmin = () => {
   // Remember the exact game address (with ?as=… in DEV) so the panel's "back" button returns here.
   try {
@@ -5756,7 +5758,7 @@ function showClaimBanners(claims) {
   // Nor for what the open page claims itself (Завдання, Сезон, Досягнення, Колекція): one «Забрати» per reward on screen.
   const here = PAGE_CLAIMS[state.page] || [];
   if (!rewardBannerHere()) claims = claims.filter((c) => !REWARD_KINDS.has(c.kind)); // elsewhere: only the badge on the gift
-  const rw = claims.filter((c) => REWARD_KINDS.has(c.kind) && !(c.kind === 'daily' && skipDailyBanner) && !(c.kind === 'newbie' && $('#guide')) && !here.includes(c.kind));
+  const rw = claims.filter((c) => REWARD_KINDS.has(c.kind) && !(c.kind === 'daily' && skipDailyBanner) && !(c.kind === 'newbie' && $('#coachRing')) && !here.includes(c.kind));
   // A reward taken elsewhere (the pill, Завдання, the rewards window) takes its banner with it: a stale «Забрати» failed
   // or, for the steps, claimed the next one under the old title.
   const live = new Set(rw.map((c) => c.key));
@@ -6169,6 +6171,7 @@ PAGES.news = () => {
   return `<div class="s2-news-hero"><i class="s2-news-tape"></i><small>СЕЗОН ${String(me.season?.id || 2).padStart(2, '0')}</small><b>«Місто»${th ? ` · ${esc(th.name)}` : ''}</b><span>Мапа, бізнеси, клуби — і скоро війна районів</span></div>
     ${cards}
     <button class="s2-btn wide mt" data-act="whatsNewAgain">${ic('player-play')}Переглянути історію оновлення</button>
+    <button class="li s2-news-chat" data-act="howTo"><span class="mi" style="--c:#ffd400">${ic('player-play')}</span><span class="grow"><b>Інтро гри</b><small>кейси, гараж, траса й місто за ${reelSeconds()} секунд</small></span><span class="btn sm ghost">Дивитися</span></button>
     ${config.community?.chat ? `<button class="li s2-news-chat" data-act="openLink" data-page="${esc(config.community.chat)}"><span class="mi" style="--c:#22e3ff">${ic('users')}</span><span class="grow"><b>Чат гравців</b><small>новини першими, обміни, конкурси</small></span><span class="btn sm ghost">Відкрити</span></button>` : ''}`;
 };
 H.whatsNewAgain = () => playStory(S.WHATS_NEW);
@@ -6306,34 +6309,98 @@ function firstStepsCard(btnAct = 'newbieQuest') {
     <div class="card firststeps"><div class="fs-list">${S.NEWBIE_TASKS.map(row).join('')}</div>
       <button class="btn ${n.ready ? 'yellow' : ''} mt" data-act="${btnAct}" ${n.ready ? '' : 'disabled'}>${n.ready ? `${ic('gift')} Забрати +${S.fmt(n.money)} · +${S.XP.task} досвіду` : n.lockedTill ? `${ic('lock')} Відкриється на рівні ${n.lockedTill}` : `Крок ${n.step + 1}: ${esc(n.text)}`}</button></div>`;
 }
+// s2-intro (owner 3.11: «the thing at the top is scary»): no strip on top any more. The step lives in a small ring
+// in the header row next to the gift (step N of 8 as a progress ring; a yellow gift once it can be claimed), and when a
+// step starts (or becomes claimable) a card drops under the header for COACH_MS, then folds back into the ring. It
+// floats: the page is never pushed down, the bottom bar and the main buttons stay free. Tap the ring (or the card)
+// for the hint text and «Сховати підказки»; the button to press keeps its pulse ring (.guide-hi).
+const COACH_MS = 5200;
+let coachSig = null, coachUntil = 0, coachOpen = false, coachT = null;
+function coachClear() {
+  clearTimeout(coachT);
+  $('#guide')?.remove();
+  $('#coachRing')?.remove();
+}
+function coachFold() {
+  const el = $('#guide');
+  coachOpen = false;
+  coachUntil = 0;
+  if (!el) return;
+  el.classList.add('out');
+  setTimeout(() => el.isConnected && el.classList.contains('out') && el.remove(), 300);
+}
+// The card sits under the header with its arrow on the ring.
+function coachPlace() {
+  const el = $('#guide'), ring = $('#coachRing'), top = $('#app .top');
+  if (!el || !ring || !top) return;
+  el.style.setProperty('--coach-top', `${Math.round(top.getBoundingClientRect().bottom + 6)}px`);
+  const r = ring.getBoundingClientRect(), c = el.getBoundingClientRect();
+  el.style.setProperty('--coach-arrow', `${Math.max(14, Math.round(c.right - (r.left + r.width / 2) - 6))}px`);
+  el.style.setProperty('--coach-ox', `${Math.round(r.left + r.width / 2 - c.left)}px`);
+}
 function paintGuide() {
   document.querySelectorAll('.guide-hi').forEach((el) => el.classList.remove('guide-hi'));
-  $('#guide')?.remove();
   const key = guideKey();
   // Only on the five main tabs (not over Магазин, Підтримка…), and never over a race, a drift run or a spinning case.
-  if (!key || state.page || state.race || state.drift || state.opening) return paintNextUnlock();
+  if (!key || state.page || state.race || state.drift || state.opening) {
+    coachClear();
+    return paintNextUnlock();
+  }
   $('#nextUl')?.remove();
   const st = S.GUIDE_STEPS.find((s) => s.key === key);
+  if (!st) return coachClear();
   const nb = me.newbie;
   const ready = !!nb?.ready && key !== 'keep';
   const here = ready || !st.tab || st.tab === state.tab;
   const n = nb ? nb.step : 0, total = S.GUIDE_PATH.length;
-  const open = here && guideOpen && !ready;
-  // A slim progress pill (~36 px): on the step's own tab it says what to do and expands on tap (the hint text, hide);
-  // on another tab it says where to go and takes you there. The step's reward sits on the right — a button once done.
-  const el = document.createElement('div');
-  el.id = 'guide';
-  el.className = `guide pill${open ? ' open' : ''}${ready ? ' ready' : ''}`;
-  const title = ready ? `${ic('check')} ${esc(nb.text)}` : `${here ? '' : `<span class="guide-to">${ic('arrow-right')}${TITLES[st.tab]}:</span> `}${esc(st.title)}`;
-  const reward = nb ? (ready ? `<button class="guide-gift" data-act="newbieQuest" aria-label="Забрати нагороду за крок">${ic('gift')}Забрати +${S.short(nb.money).replace(' ₴', '')}</button>`
-    : `<span class="guide-rw">+${S.short(nb.money).replace(' ₴', '')}</span>`) : '';
-  el.innerHTML = `<div class="guide-bar"><button class="guide-main" data-act="${ready ? 'newbieQuest' : here ? 'guideToggle' : 'guideGo'}" aria-expanded="${open}">
-      <span class="guide-dots">${S.GUIDE_PATH.map((_, i) => `<i class="${i < n ? 'done' : i === n ? 'on' : ''}"></i>`).join('')}</span>
-      <span class="guide-t"><b>${n + 1}/${total}</b> ${title}</span>
-      ${ready ? '' : `<span class="guide-chev">${ic('chevron-right')}</span>`}</button>
-    ${reward}</div>
-    ${open ? `<div class="guide-more"><div class="small">${esc(st.text)}</div><button class="guide-off" data-act="guideOff">Сховати підказки (повернути: Профіль → Налаштування)</button></div>` : ''}`;
-  $('#view').prepend(el);
+  const money = nb ? S.short(nb.money).replace(' ₴', '') : '';
+  const tabName = st.tab && $(`#tabs button[data-tab="${UI2.tabBtn[st.tab] || st.tab}"] span`)?.textContent;
+  // the ring in the header row, left of the gift
+  let ring = $('#coachRing');
+  if (!ring) {
+    ring = document.createElement('button');
+    ring.id = 'coachRing';
+    ring.dataset.act = 'coachToggle';
+    $('#gift').before(ring);
+  }
+  ring.className = `coach-ring${ready ? ' ready' : ''}`;
+  ring.style.setProperty('--p', String(Math.min(1, n / total)));
+  ring.setAttribute('aria-label', ready ? `Крок виконано — забрати +${money}` : `Перші кроки: крок ${n + 1} з ${total}`);
+  const face = ready ? ic('check') : `<b>${n + 1}<small>/${total}</small></b>`;
+  if (ring.innerHTML !== face) ring.innerHTML = face;
+  // the card: on its own for COACH_MS when the step (or its state) is new, or opened by hand
+  const sig = `${key}:${ready ? 1 : 0}:${n}`;
+  if (sig !== coachSig) {
+    coachSig = sig;
+    coachUntil = Date.now() + COACH_MS;
+    coachOpen = false;
+  }
+  const left = coachUntil - Date.now();
+  if (coachOpen || left > 0) {
+    const title = ready ? esc(nb.text) : esc(st.title);
+    const sub = ready ? 'Крок виконано' : `Перші кроки · ${n + 1}/${total}${here ? '' : ` · ${esc(tabName || TITLES[st.tab] || '')}`}`;
+    const side = ready ? `<button class="coach-claim" data-act="newbieQuest">${ic('gift')}+${money}</button>` : money ? `<span class="coach-rw">+${money}</span>` : '';
+    const more = coachOpen ? `<div class="coach-more">${esc(st.text)}<div class="coach-foot">${!here ? `<button class="coach-go" data-act="guideGo">${esc(tabName || 'Перейти')} ${ic('arrow-right')}</button>` : ''}<button class="coach-off" data-act="guideOff">Сховати підказки</button></div></div>` : '';
+    const html = `<div class="coach-row" data-act="${ready ? 'newbieQuest' : here || coachOpen ? 'coachToggle' : 'guideGo'}" role="button" tabindex="0"><span class="coach-n">${ready ? ic('check') : n + 1}</span>
+      <span class="coach-tx"><small>${sub}</small><b>${!here ? ic('arrow-right') : ''}${title}</b></span>${side}</div>${more}${coachOpen || ready ? '' : '<i class="coach-bar"></i>'}`;
+    let el = $('#guide');
+    if (!el || el.classList.contains('out')) {
+      el?.remove();
+      el = document.createElement('div');
+      el.id = 'guide';
+      el.setAttribute('role', 'status');
+      document.body.append(el);
+    }
+    el.className = `coach${coachOpen ? ' open' : ''}${ready ? ' ready' : ''}`;
+    if (el.dataset.h !== html) {
+      el.innerHTML = html;
+      el.dataset.h = html;
+      el.style.setProperty('--coach-ms', `${Math.max(400, left)}ms`);
+    }
+    coachPlace();
+    clearTimeout(coachT);
+    if (!coachOpen) coachT = setTimeout(coachFold, Math.max(400, left));
+  } else $('#guide')?.remove();
   if (ready) return;
   const target = here ? $(st.target) : $(`#tabs button[data-tab="${UI2.tabBtn[st.tab] || st.tab}"]`);
   if (!target) return;
@@ -6346,12 +6413,39 @@ function paintGuide() {
     window.scrollBy({ top: below, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }
 }
-let guideScrolled = null;
-let guideOpen = false;
-H.guideToggle = () => {
-  guideOpen = !guideOpen;
+window.addEventListener('resize', () => coachPlace());
+H.coachToggle = () => {
+  coachOpen = !coachOpen;
+  if (!coachOpen) return coachFold();
   paintGuide();
 };
+// The first-launch intro (S.INTRO_REEL, public/intro-reel.js). first: the fresh player's one time (the caller already
+// sent 'intro/seen'); it ends on the DROP tab with the starter case, and the coach card shows the first step at once.
+// Otherwise a replay from Профіль / Налаштування / Новини: «Поїхали» goes to DROP, «Пропустити» stays where it was.
+const reelSeconds = () => Math.round(S.INTRO_REEL.scenes.reduce((a, x) => a + x.ms, 0) / 1000);
+function introReel(first, seen = null) {
+  if ($('.reel')) return;
+  if (!first) closeModal();
+  playReel({
+    carArt: (id) => carArt(id), haptic, again: !first,
+    onDone: async (how) => {
+      if (!first && how !== 'cta') return;
+      state.tab = 'cases';
+      state.page = null;
+      if (me?.keys?.starter) state.caseId = 'starter';
+      window.scrollTo(0, 0);
+      coachSig = null; // the first step's card drops in right after
+      if (!first) return render();
+      try {
+        await seen;
+        await refresh();
+      } catch {
+        render();
+      }
+    },
+  });
+}
+let guideScrolled = null;
 H.guideGo = () => {
   const st = S.GUIDE_STEPS.find((s) => s.key === guideKey());
   if (!st?.tab) return;
@@ -7747,14 +7841,7 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide', 'toggleChannel']) {
       try {
         localStorage.setItem(whatsNewKey(), '1');
       } catch {}
-      playStory(S.INTRO_STORY, async () => {
-        state.tab = 'cases';
-        state.caseId = 'starter';
-        try {
-          await seen;
-          await refresh();
-        } catch {}
-      });
+      introReel(true, seen);
     } else if (story === 'whatsnew') POP.offer('whatsnew', () => (whatsNewSeenHere() ? false : whatsNew())); // the event intro; lost → the next entry
   } catch (e) {
     $('#view').innerHTML = `<div class="empty">${esc(e.message)}</div>`;

@@ -40,11 +40,11 @@ test('qa: a car picked from the boss card hint stays picked (wC «Взяти …
   assert.match(src('function readyRaceCar('), /state\.raceCarPicked === cur\.id/);
 });
 
-test('qa: no «Перші кроки» banner while the steps pill is on screen; a reward claimed elsewhere drops its banner (wD × wE)', () => {
+test('qa: no «Перші кроки» banner while the coach ring is on screen; a reward claimed elsewhere drops its banner (wD × wE)', () => {
   const f = src('function showClaimBanners(');
   // newbie is one of the reward kinds now, so the pill check must sit in the reward branch
   assert.match(APP, /const REWARD_KINDS = new Set\(\[[^\]]*'newbie'/);
-  assert.match(f, /const rw = claims\.filter\([^;]*c\.kind === 'newbie' && \$\('#guide'\)/);
+  assert.match(f, /const rw = claims\.filter\([^;]*c\.kind === 'newbie' && \$\('#coachRing'\)/);
   assert.match(f, /hideBanner\(k, false\)/);
   // …and none for what the open page claims itself (the season page's own «Забрати нагороди», Завдання, …)
   assert.match(f, /const here = PAGE_CLAIMS\[state\.page\] \|\| \[\]/);
