@@ -803,10 +803,12 @@ const playTime = (ms) => {
   return m >= 60 ? `${Math.floor(m / 60)} год ${m % 60} хв` : `${m} хв`;
 };
 // ---------- the player card: «Ліцензія пілота» ----------
-// One card for me and for any other player: the frame takes the colour of the best car's class (the same class
-// lighting as everywhere), the initial sits in a metal frame inside the level ring, stamps for VIP / season places /
-// first-days players, the three dearest cars in lit bays and four numbers on a timing board.
+// One card for me and for any other player, cut like a real licence from the «Асфальт» asphalt: a yellow band with the
+// brand and a hologram, the helmet in the player's frame (UI2.ava, public/s2-ui.js), name / level / licence number,
+// stamps for VIP / season places / sets / first-days players, the best car standing on the lit road (s2/bg/car-card)
+// and the next two on small slabs, the achievement badges (tap → what it is, UI2.achRow) and four numbers as rows.
 const collPct = (have) => Math.round((have / S.ALL_MODELS.filter((m) => !m.secret).length) * 100);
+const licNo = (id) => String(id).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 function licenceCard(p) {
   const top = (p.top || []).filter((c) => M(c.model)).slice(0, 3);
   const best = top[0] && M(top[0].model);
@@ -815,24 +817,36 @@ function licenceCard(p) {
   const setB = (p.badges || []).filter((b) => b.key?.startsWith('set:'));
   const stamps = [
     p.vip ? `<span class="lstamp vip">${ic('crown')}VIP</span>` : '',
+    p.legacy ? `<span class="lstamp legacy">${ic('heart')}Гравець з перших днів</span>` : '',
     ...(p.badges || []).filter((b) => !b.key?.startsWith('set:')).map((b) => `<span class="lstamp" style="--bc:${b.key === 'fire' ? '#ff8a3d' : BADGE_COLORS[b.tier] || '#8e8e93'}">${ic(b.key === 'fire' ? 'flame' : b.key === 'tester' ? 'bug' : 'trophy')}${esc(b.title)}</span>`),
     ...setB.slice(0, 2).map((b) => `<span class="lstamp" style="--bc:${SET_TIER_COLORS[b.tier] || '#8e8e93'}">${ic('books')}${esc(b.title)}</span>`),
     setB.length > 2 ? `<span class="lstamp" style="--bc:#c9cacd">${ic('books')}+${setB.length - 2} ${plural(setB.length - 2, ['сет', 'сети', 'сетів'])}</span>` : '',
-    p.legacy ? `<span class="lstamp legacy">${ic('heart')}Гравець з перших днів</span>` : '',
   ].join('');
-  const bay = (c, i) => {
-    const m = M(c.model), r = S.rankOf(m.cls);
-    return `<div class="lbay ${i === 0 ? 'main' : ''} r${r}" style="--c:${S.CLASSES[m.cls].color}"><div class="art">${carArt(c.model, { glow: i === 0 && r >= 3, look: c.look })}</div>
-      <div class="lbay-tx">${clsBadge(m.cls)}<b class="ellipsis">${esc(m.name)}</b>${starsHtml(c)}<span>${S.short(c.value)}</span></div></div>`;
+  const hero = (c) => {
+    const m = M(c.model);
+    return `<div class="lc-hero lbay main" style="--c:${S.CLASSES[m.cls].color}"><span class="lc-tag">Найкраща машина</span>
+      <div class="lc-road"><div class="art">${carArt(c.model, { glow: S.rankOf(m.cls) >= 3, look: c.look })}</div></div>
+      <div class="lc-hero-tx">${clsBadge(m.cls)}<b>${esc(m.name)}</b><span class="lc-hero-v"><em>${S.short(c.value)}</em>${starsHtml(c)}</span></div></div>`;
   };
-  const xpFrac = p.xpNeed ? p.xp / p.xpNeed : 1;
-  return `<div class="licence r${rank}${styleCls('gl', p.style?.glow)}" style="--c:${color}">
-    <div class="lic-top"><span class="lic-brand">АВТОДРОП</span><span class="lic-kind">Ліцензія пілота</span><span class="lic-id">№ ${p.id}</span></div>
-    <div class="lic-who"><div class="lic-ava">${ring(p.level, xpFrac, 1, 76)}<span class="face">${esc(initialOf(p.name))}</span><span class="lvl">${p.level}</span></div>
-      <div class="grow"><div class="lic-name ellipsis">${nameHtml(p.name, p.style)}</div><div class="lic-sub">Рівень ${p.level}${best ? ` · найкраща: ${esc(best.name)}` : ''}</div>
-        ${stamps ? `<div class="lic-stamps">${stamps}</div>` : ''}</div></div>
-    ${top.length ? `<div class="lic-bays n${top.length}">${top.map(bay).join('')}</div>` : `<div class="lic-nobay">${ic('car')} Гараж поки порожній</div>`}
-    <div class="lic-stats"><div><b>${S.short(p.value)}</b><span>колекц. гаража</span></div><div><b>${p.cases ?? '—'}</b><span>кейсів</span></div><div><b>${p.wins ?? '—'}</b><span>перемог</span></div><div><b>${p.coll}%</b><span>колекція</span></div></div>
+  const bay = (c) => {
+    const m = M(c.model);
+    return `<div class="lc-bay lbay" style="--c:${S.CLASSES[m.cls].color}"><div class="art">${carArt(c.model, { look: c.look, thumb: true })}</div>
+      <div class="lc-bay-tx">${clsBadge(m.cls)}<b>${esc(m.name)}</b><em>${S.short(c.value)}</em></div></div>`;
+  };
+  const xpFrac = p.xpNeed ? Math.min(1, p.xp / p.xpNeed) : null;
+  const face = UI2.ava ? UI2.ava(p.id, 96, p.level) : `<span class="lc-face">${esc(initialOf(p.name))}</span>`;
+  const row = (k, v, cls = '') => `<div class="${cls}"><span>${k}</span><i></i><b>${v}</b></div>`;
+  return `<div class="licence lc r${rank}${styleCls('gl', p.style?.glow)}" style="--c:${color}" data-id="${p.id}">
+    <div class="lc-band"><span class="lc-brand">АВТОДРОП</span><span class="lc-kind">Ліцензія пілота</span><span class="lc-holo" aria-hidden="true"></span></div>
+    <div class="lc-who"><div class="lc-ava">${face}</div>
+      <div class="lc-id"><div class="lc-name">${nameHtml(p.name, p.style)}</div>
+        <div class="lc-f"><small>Рівень</small><b>${p.level}</b>${xpFrac != null ? `<span class="lc-xp"><i style="width:${Math.round(xpFrac * 100)}%"></i></span>` : ''}</div>
+        <div class="lc-f"><small>№ ліцензії</small><b class="lc-no">${licNo(p.id)}</b></div></div></div>
+    ${stamps ? `<div class="lc-stamps">${stamps}</div>` : ''}
+    ${top.length ? hero(top[0]) + (top.length > 1 ? `<div class="lc-bays n${top.length - 1}">${top.slice(1).map(bay).join('')}</div>` : '') : `<div class="lc-nobay">${ic('car')} Гараж поки порожній</div>`}
+    <div class="lc-ach" data-lc-ach="${p.id}">${UI2.achRow ? UI2.achRow(p.ach, p.id) : ''}</div>
+    <div class="lc-rows">${row('Гараж', S.short(p.value), 'acc')}${row('Колекція', `${p.coll}%`)}${row('Кейсів', p.cases != null ? Number(p.cases).toLocaleString('uk-UA') : '—')}${row('Перемог', p.wins != null ? Number(p.wins).toLocaleString('uk-UA') : '—')}</div>
+    <div class="lc-foot"><span class="lc-bar" aria-hidden="true"></span><span>UA · СЕЗОН ${me?.season?.id || 2} · DROP</span></div>
   </div>`;
 }
 H.shareCard = async () => {
@@ -848,7 +862,7 @@ function openProfile() {
   const have = me.collection.filter((id) => !M(id)?.secret).length, total = S.ALL_MODELS.filter((m) => !m.secret).length;
   const top = [...me.cars].filter((c) => c.status !== 'auction' && c.status !== 'market').sort((a, b) => b.value - a.value);
   const card = licenceCard({ id: me.id, name: me.username ? '@' + me.username : me.firstName || 'Гравець', level: me.level, xp: me.xp, xpNeed: me.xpNeed, vip: me.vip, badges: me.badges, legacy: me.legacy, style: me.style,
-    top, value: me.stats.value, cases: me.stats.cases, wins: me.stats.wins, coll: collPct(have) });
+    top, value: me.stats.value, cases: me.stats.cases, wins: me.stats.wins, coll: collPct(have), ach: state.s2ach || null });
   const boss = (me.badges || []).find((b) => b.key === 'boss');
   sheet('Профіль', `${card}${boss ? emojiOffer(boss.title) : ''}
     <div class="btns mt"><button class="btn ghost btn2" data-act="shareCard"><span>${ic('share')} Поділитися</span><small>картка гравця</small></button><button class="btn ghost btn2" data-act="go" data-page="season"><span>${ic('ticket')} Пропуск</span><small>рівень ${me.season.level}/${S.SEASON.levels}</small></button></div>
@@ -869,6 +883,9 @@ function openProfile() {
     <div class="tiny muted mt">Досвід дають гонки (перемоги більше), нові машини в колекції, щоденний бонус і завдання — без обмежень. Кейси з машинами — від ціни кейсу (Іржавий ${S.caseXp(S.CASE_BY_ID.rust)}, Еліта ${S.caseXp(S.CASE_BY_ID.elite)}), до ${S.CASE_XP_CAP} на день. Кейси деталей, номери, злиття й встановлення — до ${S.DAILY_XP_CAP} на день.</div>
     <button class="btn ghost mt" data-act="go" data-page="quests">${ic('target-arrow')} Завдання на сьогодні</button>`);
   api('achievements').then(({ list }) => {
+    state.s2ach = list;
+    const row = $(`#sheet [data-lc-ach="${me.id}"]`);
+    if (row && UI2.achRow) row.innerHTML = UI2.achRow(list, me.id);
     const box = $('#achBadges');
     if (!box) return;
     // Earned badges first (highest tier first), then the ones still to get.
@@ -6532,7 +6549,7 @@ H.playerCard = async (d, el, e, showcase) => {
   }
   if (showcase) return sheet(`Вітрина ${esc(p.name)}`, p.showcase.length ? `<div class="grid${showcaseBackdrop(p.style)}">${p.showcase.map((c) => carTile(withFrame(c, p.style), { act: 'noop' })).join('')}</div>` : emptyBox('building-arch', 'Вітрина порожня', 'Гравець ще не виставив жодної машини'), () => H.playerCard(d));
   sheet('Картка гравця', `${licenceCard({ id: p.id, name: p.name, level: p.level, vip: p.vip, badges: p.badges, legacy: p.legacy, style: p.style, top: p.top || (p.best ? [p.best] : []),
-      value: p.value, cases: p.stats?.cases, wins: p.stats?.wins, coll: collPct(p.collection) })}
+      value: p.value, cases: p.stats?.cases, wins: p.stats?.wins, coll: collPct(p.collection), ach: p.self ? state.s2ach || null : p.ach || [] })}
     <div class="row between small muted mt" style="padding:0 2px"><span>${p.carCount} ${plural(p.carCount, ['машина', 'машини', 'машин'])} · ${p.collection} у колекції</span><span>${p.stats?.races ? `${Math.round((p.stats.wins / p.stats.races) * 100)}% перемог` : ''}</span></div>
     ${p.prestige?.trophies || p.prestige?.best ? `<div class="small mt pr-card-line">${p.prestige.best ? `${p.prestige.best.stars >= 5 ? 'Легенда' : 'Рестайлінг'}: <b>${esc(M(p.prestige.best.model)?.name || '')}</b> ${starsHtml(p.prestige.best)}` : ''}${p.prestige.trophies ? `<span class="muted">${p.prestige.best ? ' · ' : ''}трофеї ${p.prestige.trophies}/10</span>` : ''}</div>` : ''}
     ${showroomStrip(p)}
@@ -9397,7 +9414,7 @@ installGoals({ me: () => me, state: () => state, H, AFTER, ic, esc, plural, coun
 
 // ---------- «АВТОДРОП: Місто» (public/s2-ui.js) ----------
 // Last, so it wraps the final TABS / AFTER of every screen above (the boot render runs after this, behind await).
-installS2({ me: () => me, refresh: () => refresh(false), state: () => state, config: () => config, tg, H, TABS, PAGES, AFTER, TITLES, PAGE_TITLES, api, act, toast, sheet, closeModal, go, render, back: () => back(), ic, esc, plural,
+installS2({ countFix, me: () => me, refresh: () => refresh(false), state: () => state, config: () => config, tg, H, TABS, PAGES, AFTER, TITLES, PAGE_TITLES, api, act, toast, sheet, closeModal, go, render, back: () => back(), ic, esc, plural,
   carArt, FX, SFX, haptic: (k) => haptic(k), isOpen: (k) => isOpen(k), pct: (p) => pct(p), caseIcon: (cs) => caseIcon(cs), caseNow: (cs) => caseNow(cs), dropPaid: (cs) => dropPaid(cs),
   dropAlive: (r) => dropAlive(r), sellPrice: (c) => sellPrice(c), sellTotal: (c) => sellTotal(c), carInc: (c) => carInc(c), pendingNow: () => pendingNow(), serverNow: () => serverNow(),
   untilSpan: (t) => untilSpan(t), tickUntil: () => tickUntil(), fmax: () => fmax(), hubTile: (o) => hubTile(o), brokeCard: () => brokeCard(), vipSaleBanner: () => vipSaleBanner(),

@@ -1906,70 +1906,16 @@ button.li:active { background-color: #ffffff08; }
 .rr-name { display: block; margin: 4px 0 2px; font-size: 18px; }
 .rr-text { margin-top: 4px; font: 800 20px/1.2 var(--f-disp); }
 
-/* ---------- the player card: «Ліцензія пілота» ---------- */
-.licence { position: relative; isolation: isolate; overflow: hidden; padding: 12px 14px; border-radius: 18px;
-  background:
-    radial-gradient(120% 70% at 100% 0%, color-mix(in srgb, var(--c) 22%, transparent), transparent 60%),
-    repeating-linear-gradient(135deg, #ffffff05 0 2px, transparent 2px 7px),
-    linear-gradient(160deg, #212225, #131417 70%);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 40%, #ffffff10), inset 0 1px 0 #ffffff1c, 0 18px 40px -18px color-mix(in srgb, var(--c) 65%, #000); }
-.licence.r3::before, .licence.r4::before, .licence.r5::before { content: ''; position: absolute; inset: 0; z-index: 2; padding: 1.5px; border-radius: inherit; pointer-events: none;
-  background: linear-gradient(155deg, #ffffffd9 0%, var(--c) 20%, color-mix(in srgb, var(--c) 30%, #000) 50%, var(--c) 80%, #ffffffb3 100%);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
-.lic-top { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding-bottom: 9px; border-bottom: 1px dashed #ffffff17; font-size: 11.5px; color: var(--muted); }
-.lic-brand { font: 800 13px var(--f-disp); letter-spacing: 1px; color: var(--accent); transform: var(--slant); }
-.lic-kind { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lic-id { padding: 2px 7px; border-radius: 5px; background: #0f1013; box-shadow: inset 0 0 0 1px #ffffff12; font: 700 12px var(--f-disp); color: #c9cacd; white-space: nowrap; }
-.lic-who { display: flex; align-items: center; gap: 12px; }
-.lic-who > .grow { min-width: 0; }
-.lic-ava { position: relative; flex: none; width: 76px; height: 76px; color: var(--accent); }
-.lic-ava svg { position: absolute; inset: 0; }
-.lic-ava .face { position: absolute; inset: 9px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font: 800 28px var(--f-disp); color: var(--text);
-  border: 2.5px solid var(--c); background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 35%, #2f3033), #17181b 75%); }
-.licence.r3 .lic-ava .face, .licence.r4 .lic-ava .face, .licence.r5 .lic-ava .face { border-color: transparent;
-  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 35%, #2f3033), #17181b 75%) padding-box, linear-gradient(155deg, #fff, var(--c) 30%, #000 55%, var(--c) 80%, #fff) border-box; }
-.lic-ava .lvl { position: absolute; right: -2px; bottom: 1px; min-width: 26px; height: 22px; padding: 0 5px; border-radius: 5px; transform: skewX(-10deg); text-align: center;
-  background: var(--accent); color: var(--accent-ink); font: 800 13px/22px var(--f-disp); box-shadow: 0 0 0 3px #17181b; }
-.lic-name { padding-right: 6px; font: 800 23px/1.1 var(--f-disp); transform: var(--slant); transform-origin: left; }
-.lic-sub { margin-top: 3px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lic-stamps { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+/* ---------- the player card «Ліцензія пілота»: see the «lc» block at the end; the stamps are shared ---------- */
 .lstamp { --bc: #c9cacd; display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px 0 6px; border-radius: 5px; transform: skewX(-8deg); white-space: nowrap;
   font: 700 12px var(--f-disp); color: var(--bc); background: color-mix(in srgb, var(--bc) 12%, #0f1013); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bc) 45%, transparent); }
 .lstamp .i { width: 13px; height: 13px; }
 .lstamp.vip { --bc: #ffc400; }
 .lstamp.legacy { --bc: #7ee8fa; }
-.lic-bays { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 6px; margin: 12px 0 10px; }
-.lic-bays.n1 { grid-template-columns: 1fr; }
-.lic-bays.n2 { grid-template-columns: 1.4fr 1fr; }
-.lbay { position: relative; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: 4px 7px 6px; border-radius: 11px;
-  background: radial-gradient(60% 16% at 50% 60%, color-mix(in srgb, var(--c) 60%, transparent), transparent 76%), linear-gradient(180deg, #1b1c1f, #0f1013 85%);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 30%, #ffffff08), inset 0 -2px 0 color-mix(in srgb, var(--c) 75%, transparent); }
-.lbay.r0 { background: radial-gradient(60% 16% at 50% 60%, #a3a4a72e, transparent 76%), linear-gradient(180deg, #1b1c1f, #0f1013 85%); box-shadow: inset 0 0 0 1px #ffffff0d, inset 0 -2px 0 #a3a4a740; }
-.lbay .art { height: 44px; }
-.lbay.main .art { height: 58px; }
-.lbay .art img { filter: drop-shadow(0 4px 3px #000a); }
-.lbay-tx { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; min-width: 0; margin-top: 2px; }
-.lbay-tx .cls { min-width: 16px; height: 14px; font-size: 10px; }
-.lbay-tx b { flex: 1; min-width: 0; font: 600 12px/1.15 var(--f-disp); }
-.lbay.main .lbay-tx b { font-size: 13.5px; }
-.lbay-tx > span:not(.cls) { width: 100%; font: 800 12.5px var(--f-disp); color: color-mix(in srgb, var(--c) 45%, #fff); }
-.lbay.r0 .lbay-tx > span:not(.cls) { color: #c9cacd; }
-.lic-nobay { margin: 12px 0 10px; padding: 14px; border: 1.5px dashed #333437; border-radius: 11px; text-align: center; font-size: 13px; color: var(--muted); }
-.lic-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; overflow: hidden; border-radius: 11px; background: #ffffff0d; }
-.lic-stats div { min-width: 0; padding: 8px 2px 7px; text-align: center; background: #0a0b0ecc; }
-.lic-stats b { display: block; font: 800 16px/1.1 var(--f-disp); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.lic-stats div:first-child b { color: var(--accent-hi); }
-.lic-stats span { font-size: 10.5px; color: var(--muted); }
 .sheet .licence + .btns .btn { min-height: 46px; font-size: 15.5px; }
 
 /* ---------- narrow phones ---------- */
 @media (max-width: 360px) {
-  .lic-ava { width: 64px; height: 64px; }
-  .lic-ava .face { inset: 8px; font-size: 24px; }
-  .lic-name { font-size: 20px; }
-  .lic-stats b { font-size: 14px; }
-  .lic-kind { display: none; }
-  .lbay-tx b { font-size: 11px; }
   .pod-ava { width: 46px; height: 46px; font-size: 19px; }
   .pod.p1 .pod-ava { width: 56px; height: 56px; }
   .pod > b, .pod-val { font-size: 12.5px; }
@@ -5183,7 +5129,6 @@ body.s2 .badge-a.s2-hasbd .tn { position: absolute; right: -2px; bottom: -2px; z
 .s2-pick.s2-fpick .s2-lk { position: absolute; top: 24%; left: 50%; transform: translateX(-50%); width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #0f1013cc; color: #fff; }
 .s2-pick.s2-fpick .s2-lk svg { width: 16px; height: 16px; }
 body.s2 .lb-ava.s2-lbf { width: 40px; height: 40px; margin: -4px 0; background: none; box-shadow: none; font-size: 0; overflow: visible; }
-.lic-ava.s2-lic { width: auto; height: auto; background: none; }
 /* the city home: the map takes what is left; the collect sheet never goes under the tab bar */
 body.s2 .s2-city { display: flex; flex-direction: column; min-height: 0; }
 body.s2 .s2-city > .s2-map { flex: 1 1 auto; min-height: 0; height: auto; }
@@ -5654,8 +5599,6 @@ body.s2[data-s2pg="market"] #view .lot-meta .chip.deal { display: none; } /* «�
 /* settings: the small toggles had a yellow knob on a yellow track */
 body.s2 .toggle.sm.on { background: var(--accent); }
 body.s2 .toggle.sm.on::after { background: #111; }
-/* licence: the garage value no longer runs into «кейсів» */
-body.s2 .lic-stats { grid-template-columns: 1.5fr 1fr 1fr 1fr; }
 /* achievements: one solid yellow button («Забрати все»), the rows' claims are outlined */
 body.s2[data-s2pg="achievements"] #view .btn.sm.yellow[data-act="achClaim"] { background: #ffd40014; color: #ffd400; box-shadow: inset 0 0 0 1px #ffd40080; }
 /* profile: locked badges fill the row until the first is earned */
@@ -6622,6 +6565,145 @@ body.s2 #view .drop-dock .dd-cnt { display: flex; align-items: center; justify-c
 body.s2 #view .drop-dock.dd-sold .dd-cnt { margin-top: 0; }
 body.s2 #view .drop-dock.dd-sold .btn.dd-back { margin-top: 14px; }
 body.s2 #view .drop-dock:not(.dd-sold) .dd-cnt + .btn.opencase { margin-top: 0; }
+
+/* ===== licence 2026-11-03 («Ліцензія пілота» in «Асфальт», owner: «перероби профіль карточку»): an ID card cut from
+   matte asphalt (grain + a sodium lamp from the top-right), a yellow band with the brand and a hologram seal, the helmet
+   in the player's frame, mono licence number, stamps, the best car standing on the lit road (s2/bg/car-card.webp) and
+   the next two on small slabs, tappable achievement badges, the numbers as rows with dotted leaders, a barcode foot.
+   The achievement popover (.s2-bdp) is shared by the profile hero, my licence and other players' cards. ===== */
+.licence.lc { --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .11 0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  position: relative; isolation: isolate; overflow: hidden; padding: 0 14px 12px; border-radius: 20px; color: var(--text);
+  background: radial-gradient(85% 55% at 100% 0%, #ffb04a24, #ff9a3a0c 55%, transparent 78%), var(--grain) 0 0 / 140px 140px, linear-gradient(170deg, #26282d 0%, #1a1b1f 45%, #121316 100%);
+  box-shadow: inset 0 1px 0 #ffffff26, inset 0 0 0 1px #ffffff0f, 0 6px 0 #0c0d10, 0 18px 34px -10px #000d; }
+/* a faint guilloche — the security print of a real licence */
+.licence.lc::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .5;
+  background: repeating-radial-gradient(circle at 115% 22%, transparent 0 9px, #ffd4000a 9px 10px), repeating-linear-gradient(115deg, transparent 0 13px, #ffffff05 13px 14px); }
+.lc-band { display: flex; align-items: center; gap: 8px; height: 34px; margin: 0 -14px 12px; padding: 0 12px 0 14px; color: #111;
+  background: linear-gradient(180deg, #ffe24d, #ffc800); box-shadow: inset 0 -2px 0 #a87f00, 0 1px 0 #00000080; }
+.lc-brand { font: 800 15px/1 var(--f-fc); letter-spacing: 1.2px; transform: skewX(-8deg); }
+.lc-kind { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 800 11px/1 var(--f-fc); letter-spacing: 1.6px; text-transform: uppercase; opacity: .72; }
+.lc-holo { flex: none; width: 24px; height: 24px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px #0000004d, 0 1px 0 #fff8;
+  background: radial-gradient(circle at 35% 30%, #fff 0 8%, transparent 30%), conic-gradient(from 20deg, #7ee8fa, #c084fc, #ff7eb6, #ffd400, #3ddc84, #7ee8fa); animation: lcHolo 6s linear infinite; }
+@keyframes lcHolo { to { transform: rotate(360deg); } }
+.lc-who { display: flex; align-items: center; gap: 12px; }
+.lc-ava { flex: none; position: relative; display: grid; place-items: center; }
+.lc-ava .s2-ava .s2lv { right: 10%; bottom: 8%; min-width: 26px; height: 26px; border-radius: 13px; font-size: 12px; line-height: 20px; }
+.lc-face { width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; background: #0f1013; font: 800 30px var(--f-fc); }
+.lc-id { flex: 1; min-width: 0; display: grid; gap: 7px; }
+.lc-name { font: 800 22px/1.05 var(--f-fc); letter-spacing: .2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lc-f { display: flex; align-items: center; gap: 8px; min-width: 0; padding-top: 6px; border-top: 1px dashed #ffffff1a; }
+.lc-f small { flex: none; width: 74px; font: 700 10px/1 var(--f-fc); letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+.lc-f b { font: 700 15px/1 var(--s2-mono, ui-monospace, monospace); color: var(--text); white-space: nowrap; }
+.lc-f .lc-no { font-size: 14px; letter-spacing: .5px; color: #e9e1c4; }
+.lc-xp { flex: 1; min-width: 24px; max-width: 90px; height: 4px; border-radius: 2px; background: #00000080; box-shadow: inset 0 0 0 1px #ffffff0d; overflow: hidden; }
+.lc-xp i { display: block; height: 100%; border-radius: inherit; background: var(--accent); box-shadow: 0 0 6px #ffd40088; }
+.lc-stamps { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.lc-stamps .lstamp { height: 21px; font-size: 11.5px; transform: rotate(-1.5deg); border-radius: 4px; background: color-mix(in srgb, var(--bc) 10%, #0f1013cc);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--bc) 55%, transparent); text-transform: uppercase; letter-spacing: .3px; }
+.lc-stamps .lstamp:nth-child(2n) { transform: rotate(1deg); }
+/* the best car: on the road under the street lamps */
+.lc-hero { position: relative; margin: 12px -4px 0; border-radius: 14px; overflow: hidden; background: #07080b; box-shadow: inset 0 0 0 1px #ffffff12, 0 4px 0 #0b0c0e; }
+.lc-tag { position: absolute; z-index: 4; left: 10px; top: 9px; padding: 3px 7px; border-radius: 5px; background: #07080bb3; font: 800 10px/1 var(--f-fc); letter-spacing: 1.2px; text-transform: uppercase; color: var(--accent); box-shadow: inset 0 0 0 1px #ffd40040; }
+.lc-road { position: relative; aspect-ratio: 1100 / 470; background: url('s2/bg/car-card.webp') center 78% / 100% auto no-repeat, #07080b; }
+.lc-road::after { content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none; background: radial-gradient(40% 30% at 50% 74%, color-mix(in srgb, var(--c) 22%, transparent), transparent 70%), linear-gradient(#07080b, transparent 16%, transparent 84%, #0b0c0f); }
+.lc-road > .art { position: absolute; left: 16%; width: 68%; bottom: 23%; height: auto; aspect-ratio: 2.5 / 1; margin: 0; z-index: 2; }
+.lc-road > .art img, .lc-road > .art svg { width: 100%; height: 100%; object-fit: contain; object-position: 50% 100%; filter: drop-shadow(0 3px 3px #000d); }
+.lc-hero-tx { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 3px 8px; padding: 0 12px 11px; background: #0b0c0f; }
+.lc-hero-tx b { min-width: 0; font: 800 17px/1.12 var(--f-fc); text-transform: uppercase; letter-spacing: .3px; overflow-wrap: anywhere; }
+.lc-hero-v { grid-column: 2; display: flex; align-items: center; gap: 8px; }
+.lc-hero-v em { font: 700 15px var(--s2-mono, monospace); font-style: normal; color: var(--accent); }
+.lc .cls { flex: none; min-width: 22px; height: 19px; border-radius: 5px; transform: none; font: 800 12px/1 var(--f-fc); color: #111; box-shadow: 0 2px 0 #00000066; }
+/* the next cars: small slabs, names on two lines instead of «Mercedes-…» */
+.lc-bays { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 8px -4px 0; }
+.lc-bays.n1 { grid-template-columns: 1fr; }
+.lc-bay { position: relative; min-width: 0; padding: 6px 9px 9px; border-radius: 12px;
+  background: radial-gradient(60% 18% at 50% 49%, color-mix(in srgb, var(--c) 30%, transparent), transparent 75%), var(--grain) 0 0 / 140px 140px, linear-gradient(180deg, #2b2d33, #1d1e22);
+  box-shadow: inset 0 1px 0 #ffffff1c, inset 0 -3px 0 color-mix(in srgb, var(--c) 80%, #000), 0 3px 0 #0b0c0e; }
+.lc-bay .art { height: 50px; margin: 0 2px 4px; }
+.lc-bays.n1 .lc-bay { display: flex; align-items: center; gap: 10px; }
+.lc-bays.n1 .lc-bay .art { flex: none; width: 110px; margin: 0; }
+.lc-bay .art img { filter: drop-shadow(0 4px 3px #000b); }
+.lc-bay-tx { display: grid; grid-template-columns: auto 1fr; align-items: start; gap: 3px 6px; min-width: 0; }
+.lc-bay-tx b { min-width: 0; font: 700 12.5px/1.15 var(--f-fc); text-transform: uppercase; letter-spacing: .2px;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: break-word; }
+.lc-bay-tx em { grid-column: 1 / -1; font: 700 13px var(--s2-mono, monospace); font-style: normal; color: color-mix(in srgb, var(--accent) 80%, #fff); }
+.lc-nobay { margin: 12px 0 0; padding: 16px; border-radius: 12px; text-align: center; font: 600 13px var(--f-body); color: var(--muted); background: #0f1013; box-shadow: inset 0 0 0 1.5px #ffffff10; }
+/* achievement badges */
+.lc-ach { margin-top: 12px; }
+.lc-ach-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.lc-ach-h span, .lc-rows span { font: 800 11px/1 var(--f-fc); letter-spacing: 1.3px; text-transform: uppercase; color: var(--muted); }
+.lc-ach-h small { font: 600 11px var(--f-body); color: #6f737c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lc-ach-row { display: flex; align-items: center; gap: 2px; min-height: 48px; }
+.lc-ach-row .s2-bdb .s2-bd { width: 46px; height: 46px; }
+.lc-ach-row.sk i { width: 40px; height: 40px; margin: 3px; border-radius: 50%; background: #ffffff0a; }
+.lc-ach-more { margin-left: 4px; font: 700 13px var(--s2-mono, monospace); color: var(--muted); }
+.lc-ach-none { padding: 8px 0 2px; font: 600 12.5px var(--f-body); color: #6f737c; }
+/* the numbers as rows */
+.lc-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; margin-top: 10px; padding-top: 4px; border-top: 2px dashed #ffd40038; }
+.lc-rows > div { display: flex; align-items: baseline; gap: 6px; min-width: 0; padding: 8px 0 7px; border-bottom: 1px solid #ffffff0c; }
+.lc-rows > div:nth-last-child(-n + 2) { border-bottom: 0; }
+.lc-rows i { flex: 1; min-width: 6px; border-bottom: 1.5px dotted #ffffff26; transform: translateY(-3px); }
+.lc-rows b { font: 700 15px var(--s2-mono, monospace); white-space: nowrap; color: var(--text); }
+.lc-rows .acc b { color: var(--accent); }
+.lc-foot { display: flex; align-items: center; gap: 10px; margin: 6px -2px 0; padding-top: 9px; border-top: 1px solid #ffffff0c; font: 700 9.5px/1 var(--s2-mono, monospace); letter-spacing: 1.5px; color: #5d616a; }
+.lc-bar { flex: 1; height: 14px; opacity: .5;
+  background: repeating-linear-gradient(90deg, #c9cacd 0 1px, transparent 1px 3px, #c9cacd 3px 5px, transparent 5px 6px, #c9cacd 6px 7px, transparent 7px 10px, #c9cacd 10px 13px, transparent 13px 14px); }
+.licence.lc.r4 .lc-hero, .licence.lc.r5 .lc-hero { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent), 0 4px 0 #0b0c0e, 0 0 24px -8px var(--c); }
+@media (max-width: 370px) {
+  .licence.lc { padding: 0 12px 11px; }
+  .lc-band { margin: 0 -12px 10px; }
+  .lc-kind { letter-spacing: 1px; }
+  .lc-name { font-size: 19px; }
+  .lc-f small { width: 64px; }
+  .lc-hero-tx b { font-size: 15.5px; }
+  .lc-bay-tx b { font-size: 12px; }
+  .lc-rows { gap: 0 12px; }
+  .lc-rows b { font-size: 14px; }
+  .lc-ach-row .s2-bdb .s2-bd { width: 42px; height: 42px; }
+}
+/* tappable badges (profile hero, licence) */
+.s2-bdb { display: inline-grid; place-items: center; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform .12s; }
+.s2-bdb:active { transform: scale(.92); }
+/* the popover: a small sheet over everything (it sits above an open licence sheet) */
+.s2-bdp { position: fixed; inset: 0; z-index: 30; display: flex; align-items: flex-end; justify-content: center; }
+.s2-bdp-bg { position: absolute; inset: 0; background: #050609b3; opacity: 0; transition: opacity .18s; }
+.s2-bdp-card { position: relative; width: 100%; max-width: 520px; padding: 16px 18px calc(18px + var(--safe-b, 0px)); border-radius: 24px 24px 0 0; text-align: center;
+  background: radial-gradient(70% 45% at 50% 0%, color-mix(in srgb, var(--tc) 22%, transparent), transparent 70%), linear-gradient(180deg, #2a2c32, #1a1b1f);
+  box-shadow: inset 0 1px 0 #ffffff26, 0 -10px 30px #000a; transform: translateY(100%); transition: transform .24s cubic-bezier(.2, .9, .3, 1); }
+.s2-bdp.on .s2-bdp-bg { opacity: 1; }
+.s2-bdp.on .s2-bdp-card { transform: none; }
+.s2-bdp-x { position: absolute; right: 12px; top: 12px; width: 34px; height: 34px; border-radius: 12px; background: #1b1c20; color: var(--muted); box-shadow: var(--slab-sh-sm, none); font-size: 14px; }
+.s2-bdp-pic { display: grid; place-items: center; }
+.s2-bdp-pic .s2-bd { width: 116px; height: 116px; margin-top: -2px; }
+.s2-bdp-pic .s2-bd.t-off { opacity: .55; }
+.s2-bdp-tier { display: inline-block; margin-top: 4px; padding: 4px 10px; border-radius: 7px; font: 800 11.5px/1 var(--f-fc); letter-spacing: 1px; text-transform: uppercase; color: var(--tc);
+  background: color-mix(in srgb, var(--tc) 13%, #0f1013); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tc) 45%, transparent); }
+.s2-bdp-card h3 { margin: 8px 0 2px; font: 800 24px/1.1 var(--f-fc); text-transform: uppercase; letter-spacing: .3px; }
+.s2-bdp-card p { margin: 0 auto; max-width: 320px; font: 600 13.5px/1.35 var(--f-body); color: var(--muted); }
+.s2-bdp-how { margin: 10px auto 0; max-width: 340px; padding: 9px 12px; border-radius: 12px; background: #0f1013; box-shadow: inset 0 0 0 1px #ffffff10; font: 700 13.5px/1.3 var(--f-body); }
+.s2-bdp-how small { display: block; margin-bottom: 3px; font: 800 10px/1 var(--f-fc); letter-spacing: 1.2px; text-transform: uppercase; color: var(--accent); }
+.s2-bdp-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 14px 0 0; }
+.s2-bdp-steps.n3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.s2-bdp-steps > div { display: grid; justify-items: center; gap: 3px; min-width: 0; padding: 8px 2px 7px; border-radius: 11px; background: #15161a; box-shadow: inset 0 0 0 1px #ffffff0a; opacity: .6; }
+.s2-bdp-steps > div.on { opacity: 1; background: color-mix(in srgb, var(--tc) 10%, #15161a); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tc) 40%, transparent); }
+.s2-bdp-steps > div.nx { opacity: 1; box-shadow: inset 0 0 0 1.5px #ffd40080; }
+.s2-bdp-steps i { width: 12px; height: 12px; border-radius: 50%; background: #2c2e34; }
+.s2-bdp-steps .on i { background: var(--tc); box-shadow: 0 0 8px var(--tc); }
+.s2-bdp-steps small { font: 800 10.5px/1 var(--f-fc); letter-spacing: .5px; text-transform: uppercase; color: var(--text); }
+.s2-bdp-steps em { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 11.5px var(--s2-mono, monospace); font-style: normal; color: var(--muted); }
+.s2-bdp-prog { margin-top: 12px; text-align: left; }
+.s2-bdp-bar { height: 8px; border-radius: 4px; background: #0b0c0f; box-shadow: inset 0 1px 2px #000a; overflow: hidden; }
+.s2-bdp-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ffc800, #ffe24d); box-shadow: 0 0 8px #ffd40088; }
+.s2-bdp-num { display: flex; justify-content: space-between; margin-top: 4px; font: 700 11.5px var(--s2-mono, monospace); color: var(--muted); }
+.s2-bdp-prog > b { display: block; margin-top: 6px; text-align: center; font: 800 15px/1.25 var(--f-fc); color: var(--accent); }
+.s2-bdp-max { margin-top: 12px; font: 800 14px var(--f-fc); color: var(--green, #3ddc84); }
+.s2-bdp-card > .s2-btn { width: 100%; margin-top: 14px; }
+.s2-bdp-card > .s2-btn.ghost { background: #1b1c20; color: var(--text); box-shadow: var(--slab-sh-sm, none); }
+@media (prefers-reduced-motion: reduce) {
+  .lc-holo { animation: none; }
+  .s2-bdp-card, .s2-bdp-bg { transition: none; }
+}
+/* ===== /licence */
 
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's

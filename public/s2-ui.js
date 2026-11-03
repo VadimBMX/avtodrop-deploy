@@ -42,6 +42,8 @@ const holeOf = (f) => HOLES['f' + f] || [0.5, 0.5, 0.3, 1, 1];
 const ACH_BADGE = { cases: 1, wins: 2, pvp: 9, battles: 10, collection: 3, rarest: 11, secrets: 12, garage: 0, level: 13, play: 14, streak: 6, merges: 15, tuned: 16, plates: 17, friends: 5, dream: 18 };
 const TIER_CLS = ['br', 'sv', 'gd', 'dm'];
 const badgeImg = (key, tier, cls = '') => `<img class="s2-bd t-${tier < 0 ? 'off' : TIER_CLS[Math.min(tier, 3)]} ${cls}" src="s2/bd/b${ACH_BADGE[key] ?? 19}.webp" alt="" loading="lazy">`;
+// A badge you can tap: the popover (achPop) says what it is, the tier and what is left to the next one.
+const badgeBtn = (key, tier, owner, cls = '') => `<button class="s2-bdb ${cls}" data-act="s2Ach" data-k="${key}" data-o="${owner}" aria-label="${esc(S.ACH_BY_KEY[key]?.title || '')}">${badgeImg(key, tier)}</button>`;
 
 // s2-fix: the look lives on the server — me.helmet (0…8) and me.frame (S.PROFILE_FRAMES id or null; S.frameAllowed),
 // set with 'frames/helmet' / 'frames/equip'. Other players: `helmet` + `frame` on every player object the API returns
@@ -116,13 +118,9 @@ export function installS2(x) {
       lookSeen(j);
     } catch {}
   };
-  // s2-fix: the player card (licence) shows the player's helmet in his frame
-  const cardBase = X.H.playerCard;
-  if (cardBase) X.H.playerCard = async (...a) => {
-    const r = await cardBase(...a);
-    licenceAva();
-    return r;
-  };
+  // The licence (app.js licenceCard): the player's helmet in his frame and his achievement badges (tap → what it is).
+  UI2.ava = (id, size, lvl) => avatar(lookOf(id), size, lvl);
+  UI2.achRow = achRow;
   document.getElementById('s2back')?.addEventListener('click', () => X.back());
   // DROP pressed again on the DROP tab → back to the market (capture: before app.js switches the tab).
   document.getElementById('tabs')?.addEventListener('click', (e) => {
@@ -730,7 +728,7 @@ function profileHero() {
   const stat = (t, v) => `<div class="s2-stat"><small>${t}</small><b>${v}</b></div>`;
   return `<div class="s2-prof"><button class="s2-prof-ava" data-act="s2Look" aria-label="Змінити шолом і рамку">${avatar(look, 150, m.level)}</button>
     <h2>${esc(name)}</h2><div class="s2-prof-sub">${m.club?.name ? `<span class="acc">${esc(m.club.tag ? m.club.tag + ' · ' : '')}${esc(m.club.name)}</span>` : ''}${m.vip ? `<span class="acc">${X.ic('crown')} VIP</span>` : ''}<span>рівень ${m.level}</span></div>
-    <div class="s2-badges" id="s2Badges">${badges.length ? badges.map((a) => badgeImg(a.key, a.claimed - 1)).join('') : Object.keys(ACH_BADGE).slice(0, 5).map((k) => badgeImg(k, -1)).join('')}</div>
+    <div class="s2-badges" id="s2Badges">${heroBadges(badges, m.id)}</div>
     <div class="s2-stats">${stat('Гараж', S.short(m.stats?.value || 0).replace(' ₴', ''))}${stat('Рейтинг', C.place ? '#' + C.place : '—').replace('class="s2-stat"', 'class="s2-stat" id="s2Rank"')}${stat('Кейсів', n0(m.stats?.cases))}
       ${stat('Перемог', n0(m.stats?.wins))}${stat('Колекція', have)}${stat('У грі', `${playH} год`)}</div>
     <div class="s2-prof-act"><button class="s2-btn ghost" data-act="profileOpen">${X.ic('license')}Ліцензія</button><button class="s2-btn" data-act="go" data-page="trades">${X.ic('arrows-exchange')}Обмін</button></div></div>`;
@@ -745,7 +743,7 @@ async function profileAfter() {
     if (s.tab === 'menu' && !s.page) {
       const el = document.getElementById('s2Badges');
       const badges = list.filter((a) => a.claimed > 0).sort((a, b) => b.claimed - a.claimed).slice(0, 5);
-      if (el && badges.length) el.innerHTML = badges.map((a) => badgeImg(a.key, a.claimed - 1)).join('');
+      if (el) el.innerHTML = heroBadges(badges, me().id);
     }
   } catch {}
 }
@@ -767,17 +765,78 @@ async function lookSheet(fresh = true) {
   const n = frameList.filter((f) => f.allowed).length;
   X.sheet('Мій вигляд', `<div class="s2-look-pv">${avatar(l, 120, me().level)}</div><div class="s2-h"><b>Шолом</b></div><div class="s2-picks">${hs}</div><div class="s2-h"><b>Рамка</b><span>відкрито ${n} з ${frameList.length}</span></div><div class="s2-picks s2-fpicks">${fs}</div>`);
 }
-// The licence (player card / my licence): the helmet in the frame instead of the initial.
-function licenceAva() {
-  document.querySelectorAll('.licence .lic-ava').forEach((a) => {
-    if (a.dataset.s2) return;
-    const id = Number((a.closest('.licence')?.querySelector('.lic-id')?.textContent || '').replace(/\D/g, ''));
-    if (!id) return;
-    a.dataset.s2 = '1';
-    const lvl = a.querySelector('.lvl')?.textContent;
-    a.innerHTML = avatar(lookOf(id), 84, lvl ?? null);
-    a.classList.add('s2-lic');
-  });
+// ---------- achievement badges: tap → what it is ----------
+// What each achievement is for (one line) and the unit its progress counts in (plural forms for «ще N … до золота»);
+// achievements with per-tier labels (rarest, tuned, plates, dream) name the next step instead of a number.
+const ACH_ABOUT = {
+  cases: ['За відкриті кейси з машинами', ['кейс', 'кейси', 'кейсів']], wins: ['За виграні заїзди', ['перемога', 'перемоги', 'перемог']],
+  pvp: ['За перемоги в PvP-заїздах', ['перемога', 'перемоги', 'перемог']],
+  battles: ['За перемоги в кейс-батлах', ['перемога', 'перемоги', 'перемог']],
+  collection: ['За різні машини в колекції', ['машина', 'машини', 'машин']], rarest: ['За найрідкіснішу машину, що тобі випала', null],
+  secrets: ['За секретні машини в колекції', ['машина', 'машини', 'машин']], garage: ['За колекційну ціну гаража', 'money'],
+  level: ['За рівень гравця', ['рівень', 'рівні', 'рівнів']], play: ['За години в грі', ['година', 'години', 'годин']],
+  streak: ['За щоденний бонус кілька днів поспіль', ['день', 'дні', 'днів']], merges: ['За злиття деталей', ['злиття', 'злиття', 'злиттів']],
+  tuned: ['За машину з повним тюнінгом', null], plates: ['За рідкісний номер, який згенерував сам', null],
+  friends: ['За друзів, що дійшли до 3-го рівня', ['друг', 'друзі', 'друзів']], dream: ['За здійснену машину мрії', null],
+};
+const TIER_TO = ['бронзи', 'срібла', 'золота', 'діаманта'];
+const ACH_OF = new Map(); // owner id → his achievement list (the licence / profile row that was drawn last)
+function heroBadges(badges, owner) {
+  if (badges.length) return badges.map((a) => badgeBtn(a.key, a.claimed - 1, owner)).join('');
+  return Object.keys(ACH_BADGE).slice(0, 5).map((k) => badgeBtn(k, -1, owner)).join('');
+}
+// The badge strip of the licence: earned badges, best first; my own card shows the next ones to get while none is.
+function achRow(list, owner) {
+  if (!list) return `<div class="lc-ach-h"><span>Значки</span></div><div class="lc-ach-row sk">${'<i></i>'.repeat(5)}</div>`;
+  ACH_OF.set(Number(owner), list);
+  const mine = Number(owner) === me()?.id;
+  const got = list.filter((a) => a.claimed > 0).sort((a, b) => b.claimed - a.claimed || (b.value || 0) - (a.value || 0));
+  const done = list.reduce((n, a) => n + (a.claimed || 0), 0);
+  const total = S.ACHIEVEMENTS.reduce((n, a) => n + a.goals.length, 0);
+  const show = got.length ? got.slice(0, 6).map((a) => badgeBtn(a.key, a.claimed - 1, owner)) : mine ? list.slice(0, 5).map((a) => badgeBtn(a.key, -1, owner)) : [];
+  return `<div class="lc-ach-h"><span>Значки</span><small>${got.length ? `${mine ? `${done}/${total} · ` : ''}натисни на значок` : mine ? 'як отримати — натисни' : ''}</small></div>
+    ${show.length ? `<div class="lc-ach-row">${show.join('')}${got.length > 6 ? `<span class="lc-ach-more">+${got.length - 6}</span>` : ''}</div>` : '<div class="lc-ach-none">Ще жодного значка</div>'}`;
+}
+function achPop(key, owner, list) {
+  const a = S.ACH_BY_KEY[key];
+  if (!a) return;
+  const mine = Number(owner) === me()?.id;
+  const s = list?.find((x) => x.key === key) || { key, value: null, claimed: 0, reached: 0 };
+  const tier = s.claimed - 1, n = a.goals.length, max = s.claimed >= n;
+  const [about, unit] = ACH_ABOUT[key] || [X.esc(a.title), null];
+  const tierName = tier >= 0 ? S.ACH_TIERS[tier].name : 'Ще не отримано';
+  const fmtGoal = (g, i) => (a.labels ? a.labels[i] : a.money ? S.short(g) : n0(g));
+  let prog = '';
+  if (max) prog = `<div class="s2-bdp-max">${X.ic('check')} Усі рівні пройдено — це найвищий значок</div>`;
+  else if (s.value != null) {
+    const g = a.goals[s.claimed], v = s.value || 0, frac = a.labels ? 0 : Math.min(1, v / g);
+    const left = Math.max(0, g - v);
+    const to = TIER_TO[s.claimed];
+    let line;
+    if (s.reached > s.claimed) line = mine ? `Рівень «${S.ACH_TIERS[s.claimed].name}» уже виконано — забери нагороду` : `Наступний рівень — ${S.ACH_TIERS[s.claimed].name}`;
+    else if (a.labels) line = `До ${to}: ${X.esc(a.labels[s.claimed].replace(/^./, (c) => c.toLowerCase()))}`;
+    else if (unit === 'money') line = `Ще ${S.short(left)} до ${to}`;
+    else line = `Ще ${n0(left)} ${X.plural(left, unit || ['', '', ''])} до ${to}`;
+    prog = `<div class="s2-bdp-prog">${a.labels ? '' : `<div class="s2-bdp-bar"><i style="width:${Math.round((s.reached > s.claimed ? 1 : frac) * 100)}%"></i></div>
+      <div class="s2-bdp-num"><span>${a.money ? S.short(v) : n0(v)}</span><span>${fmtGoal(g, s.claimed)}</span></div>`}<b>${line}</b></div>`;
+  }
+  const how = tier < 0 ? `<div class="s2-bdp-how"><small>Як отримати</small>${X.esc((X.countFix || String)(S.achText(a, 0)))}</div>` : '';
+  const steps = a.goals.map((g, i) => `<div class="${i < s.claimed ? 'on' : ''}${i === s.claimed && !max ? ' nx' : ''}" style="--tc:${S.ACH_TIERS[i].color}"><i></i><small>${S.ACH_TIERS[i].name}</small>${a.labels ? '' : `<em>${fmtGoal(g, i)}</em>`}</div>`).join('');
+  const btn = mine ? `<button class="s2-btn${s.reached > s.claimed ? '' : ' ghost'}" data-act="s2AchGo">${s.reached > s.claimed ? `${X.ic('gift')}Забрати нагороду` : 'Усі досягнення'}</button>` : '';
+  achPopClose();
+  const el = document.createElement('div');
+  el.className = 's2-bdp';
+  el.innerHTML = `<div class="s2-bdp-bg" data-act="s2AchX"></div><div class="s2-bdp-card" role="dialog" aria-label="${X.esc(a.title)}" style="--tc:${tier >= 0 ? S.ACH_TIERS[tier].color : '#6b6f78'}">
+    <button class="s2-bdp-x" data-act="s2AchX" aria-label="Закрити">✕</button>
+    <div class="s2-bdp-pic">${badgeImg(key, tier)}</div>
+    <span class="s2-bdp-tier">${tierName}${tier >= 0 ? ` · ${s.claimed}/${n}` : ''}</span>
+    <h3>${X.esc(a.title)}</h3><p>${about}</p>${how}
+    <div class="s2-bdp-steps n${n}">${steps}</div>${prog}${btn}</div>`;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('on'));
+}
+function achPopClose() {
+  document.querySelectorAll('.s2-bdp').forEach((e) => e.remove());
 }
 
 // ---------- re-skins of existing pages (decoration after app.js drew them) ----------
@@ -842,6 +901,23 @@ function achAfter() {
 
 // ---------- handlers ----------
 const handlers = {
+  s2Ach: async (d) => {
+    const owner = Number(d.o) || me().id;
+    let list = ACH_OF.get(owner) || (owner === me().id ? st().s2ach : null);
+    if (!list && owner === me().id) {
+      try {
+        list = (await X.api('achievements')).list;
+        st().s2ach = list;
+      } catch {}
+    }
+    achPop(d.k, owner, list);
+  },
+  s2AchX: () => achPopClose(),
+  s2AchGo: () => {
+    achPopClose();
+    if (!document.getElementById('modal').hidden) X.closeModal();
+    X.go('achievements');
+  },
   s2City: (d) => {
     st().cityView = d.k === 'war' ? 'war' : 'city';
     X.render();

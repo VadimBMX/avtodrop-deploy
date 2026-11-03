@@ -2581,6 +2581,8 @@ export function createGame(db, opts = {}) {
       // Read-only extras for the player card: the three dearest cars, a few counters, the first-days badge.
       top: [...cars].sort((a, b) => b.value - a.value).slice(0, 3),
       stats: { cases: u.cases_opened, wins: u.wins, races: u.races }, legacy: isLegacy(pid),
+      // The achievement badges he has earned (read-only: tier and progress for the tap-to-explain popover).
+      ach: achievementState(pid).filter((a) => a.claimed > 0).map(({ key, value, claimed }) => ({ key, value, claimed })),
     };
   }
   const isLegacy = (uid) => !!q('SELECT 1 FROM legacy WHERE id = ?').get(uid);
