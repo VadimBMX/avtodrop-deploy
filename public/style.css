@@ -6045,6 +6045,12 @@ body.s2 .slot .slot-plus { background: #1b1c20; color: var(--accent); box-shadow
 body.s2 .dr-dock, body.s2 #view .drop-dock { background: #07080b; box-shadow: 0 -14px 14px -2px #07080b; }
 body.s2 .dr-dock::after, body.s2 #view .drop-dock::after { content: ''; position: absolute; z-index: -1; left: 0; right: 0; top: 100%; height: 40px; background: #07080b; pointer-events: none; }
 
+/* the guide pill when a step is done: no yellow rings — the claim is a dark slab with yellow text and a cyan pulse */
+body.s2 .guide.pill.ready { border: 0; box-shadow: var(--slab-sh-sm), inset 3px 0 0 var(--accent); }
+body.s2 .guide.pill.ready .guide-gift { outline: 0; animation: aGift 1.4s ease-in-out infinite; }
+@keyframes aGift { 50% { box-shadow: var(--slab-sh-sm), 0 0 0 2px #22d3ee88; } }
+@media (prefers-reduced-motion: reduce) { body.s2 .guide.pill.ready .guide-gift { animation: none; } }
+
 /* ---------- profile ---------- */
 body.s2 .s2-prof { background: none; }
 body.s2 .s2-prof h2 { font-size: 26px; }
@@ -6095,7 +6101,7 @@ body.s2 .guide-hi { outline: 2px solid #22d3ee; outline-offset: 4px; animation: 
 @keyframes aGuide { 50% { outline-color: #22d3ee55; } }
 body.s2 .tabs button.guide-hi { outline: 0; animation: none; }
 body.s2 .tabs button.guide-hi::after { background: #22d3ee; border-color: #1f2024; box-shadow: 0 0 8px #22d3ee; }
-body.s2 .guide .guide-claim, body.s2 .guide-claim { background: var(--slab) !important; color: var(--accent) !important; border: 0 !important; box-shadow: var(--slab-sh-sm) !important; font-family: var(--f-fc); font-weight: 800; text-transform: uppercase; letter-spacing: .3px; }
+body.s2 .guide .guide-claim, body.s2 .guide-claim, body.s2 .guide .guide-gift, body.s2 .guide-gift { background: var(--slab) !important; color: var(--accent) !important; border: 0 !important; box-shadow: var(--slab-sh-sm) !important; font-family: var(--f-fc); font-weight: 800; text-transform: uppercase; letter-spacing: .3px; }
 
 /* ---------- car card / СТО / races / result (page sheets) ---------- */
 /* the car card: the car's side photo stands on the asphalt slab under two street lamps (s2/bg/car-card.webp 1100×614).
