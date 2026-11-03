@@ -6021,6 +6021,18 @@ body.s2 .hub-pass, body.s2 .hub-pass.ready { background: var(--slab); border: 0;
 body.s2 .hub-pass.ready { box-shadow: var(--slab-sh), inset 0 -3px 0 var(--accent); }
 body.s2 .drs, body.s2 .dry, body.s2 .drh, body.s2 .drr, body.s2 .drb, body.s2 .drt { border: 0; background: var(--slab); box-shadow: var(--slab-sh-sm); }
 
+/* ---------- the showroom (intro slides, season car, store/VIP showroom cards): the lit asphalt turntable of the case
+   result instead of the violet SVG scene. Box 360:200, picture band 22.9…78.5 % — the wheels stand on 74 %. ---------- */
+body.s2 .season-car { background: var(--slab-dk); border: 0; }
+body.s2 .season-car .showroom { background: url('s2/bg/stage-reveal.webp') center 51.6% / 100% auto no-repeat; }
+body.s2 .season-car .showroom::after { content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none; background: linear-gradient(90deg, #07080b, transparent 9%, transparent 91%, #07080b), linear-gradient(#07080b00 80%, #07080b); }
+body.s2 .season-car .sr-scene, body.s2 .season-car .sr-refl, body.s2 .season-car .st-streaks, body.s2 .season-car .st-sweep { display: none; }
+body.s2 .season-car .showroom .art { bottom: 26%; }
+body.s2 .season-car .showroom .art::after { content: ''; position: absolute; left: 4%; right: 4%; bottom: -5%; height: 14%; border-radius: 50%; z-index: -1; background: radial-gradient(closest-side, #000d, transparent); }
+body.s2 .story-car.season-car { background: none; }
+body.s2 .story-car .showroom::after { background: linear-gradient(90deg, #07080b, transparent 9%, transparent 91%, #07080b), linear-gradient(#07080b, #07080b00 14%, #07080b00 80%, #07080b); }
+body.s2 .story { background: #07080b; }
+
 /* ---------- profile ---------- */
 body.s2 .s2-prof { background: none; }
 body.s2 .s2-prof h2 { font-size: 26px; }
@@ -6091,7 +6103,7 @@ body.s2 .s2c-act .i { color: var(--accent); }
 body.s2 .s2t-carpill { background: var(--slab-dk); border: 0; box-shadow: var(--slab-sh-sm); }
 body.s2 .s2t-img { border-radius: 10px; background: #1b1c20; border: 0; box-shadow: var(--slab-sh-in); }
 body.s2 .s2r-fuel { background: var(--slab-dk); border: 0; box-shadow: var(--slab-sh-sm); border-radius: 11px; }
-body.s2 .s2r::before { background: conic-gradient(#ffffff06 25%, transparent 0 50%, #ffffff06 0 75%, transparent 0) 0 0 / 36px 36px; }
+body.s2 .s2r::before { height: 330px; opacity: .55; -webkit-mask: none; mask: none; background: linear-gradient(#07080b00 40%, #07080b), url('s2/bg/race-lobby.webp') center 30% / cover no-repeat; }
 body.s2 .s2r-medal { background: radial-gradient(circle at 50% 35%, #3a3d44, #1b1c20 70%); box-shadow: 0 0 0 4px #ffd400, 0 5px 0 4px #a87f00, 0 14px 24px rgba(0,0,0,.6); }
 body.s2 .s2r.s2r-l .s2r-medal { box-shadow: 0 0 0 4px #8b8f98, 0 5px 0 4px #45484f; }
 body.s2 .s2r-medal b { font-family: var(--f-fc); }
