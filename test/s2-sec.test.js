@@ -89,3 +89,26 @@ test('prototype / non-integer keys: admin give-car and the after-call refresh ar
     s.app.close();
   }
 });
+
+test('double spend: the same star-credit purchase / business buy sent 10× in parallel goes through once', async () => {
+  const s = await serve({ dev: true });
+  try {
+    const dev = { 'x-dev-user': encodeURIComponent(JSON.stringify({ id: 11, first_name: 'R' })), 'content-type': 'application/json' };
+    const post = (name, body) => fetch(s.url(`/api/${name}`), { method: 'POST', headers: dev, body: JSON.stringify(body) }).then((r) => r.status);
+    assert.equal(await post('me', {}), 200);
+    s.app.db.prepare('UPDATE users SET star_credit = 1000, level = 60, level_seen = 60, balance = 1e12 WHERE id = 11').run();
+    const once = S.SHOP_ITEMS.find((it) => it.once);
+    const a = await Promise.all(Array.from({ length: 10 }, () => post('shop/credit', { item: once.id, confirm: true })));
+    assert.equal(a.filter((c) => c === 200).length, 1, `one purchase: ${a}`);
+    const u = s.app.db.prepare('SELECT star_credit, starter_bought FROM users WHERE id = 11').get();
+    assert.equal(u.star_credit, 1000 - once.stars);
+    assert.equal(s.app.db.prepare("SELECT COUNT(*) n FROM star_credit_log WHERE user_id = 11").get().n, 1);
+    const biz = s.app.game.api.biz(11, {}).list.find((b) => b.unlocked);
+    const before = s.app.db.prepare('SELECT balance FROM users WHERE id = 11').get().balance;
+    const b = await Promise.all(Array.from({ length: 10 }, () => post('biz/buy', { id: biz.id })));
+    assert.equal(b.filter((c) => c === 200).length, 1, `one business: ${b}`);
+    assert.equal(s.app.db.prepare('SELECT balance FROM users WHERE id = 11').get().balance, before - biz.price);
+  } finally {
+    s.app.close();
+  }
+});
