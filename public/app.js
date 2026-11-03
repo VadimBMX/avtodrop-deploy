@@ -5609,7 +5609,7 @@ H.tradeDecline = (d) => act('trade/decline', { id: Number(d.id) }, 'Відхил
 H.tradeCancel = (d) => act('trade/cancel', { id: Number(d.id) }, 'Скасовано');
 PAGES.tradeNew = () => {
   const t = state.trade || (state.trade = { partner: null, give: new Set(), get: new Set() });
-  if (!t.partner) return `<div class="card"><b>З ким обмінюємось?</b><div class="small muted">ID гравця (є в його «Ліцензії» в профілі) або @username</div><input id="partner" class="mt" placeholder="123456789 або @username" autocomplete="off"><button class="btn mt" data-act="findPartner">Знайти</button></div>`;
+  if (!t.partner) return `<div class="card"><b>З ким обмінюємось?</b><div class="small muted">ID гравця (свій — у Профіль → Налаштування) або @username</div><input id="partner" class="mt" placeholder="123456789 або @username" autocomplete="off"><button class="btn mt" data-act="findPartner">Знайти</button></div>`;
   const p = t.partner;
   const mine = me.cars.filter((c) => c.status === 'garage' && !M(c.model).secret);
   const vg = mine.filter((c) => t.give.has(c.id)).reduce((s, c) => s + c.value, 0);
