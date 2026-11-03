@@ -158,11 +158,12 @@ test('«Перші кроки»: a new player walks all 8 steps with real action
   set(1, 'balance = 1e8');
   call(1, 'case/open', { caseId: 'rust' });
   claim();
-  // Install: locked until level 2 → the pill says so; then a part case; then the install.
-  set(1, 'level = 1, xp = 0');
+  // Install: locked until the parts open (level 3 since 03.11) → the pill says so; then a part case; then the install.
+  set(1, 'level = 2, level_seen = 2, xp = 0');
   assert.equal(call(1, 'me').guide, 'level2');
-  assert.equal(step().lockedTill, 2);
-  set(1, 'level = 2, level_seen = 2');
+  assert.equal(step().lockedTill, S.unlockLevel('parts'));
+  assert.equal(step().lockedTill, 3);
+  set(1, 'level = 3, level_seen = 3');
   assert.equal(call(1, 'me').guide, 'part_case');
   call(1, 'parts/open', { caseId: 'scrap', count: 1 });
   assert.equal(call(1, 'me').guide, 'install');

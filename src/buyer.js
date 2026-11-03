@@ -1,5 +1,5 @@
 // «Таємний покупець» on the server (the rules and the premium cap are in public/buyer.js, shared with the app).
-// The offer of the day is made on the player's first `me` of the Kyiv day (market open, level 2): the request is
+// The offer of the day is made on the player's first `me` of the Kyiv day (market open, level 3): the request is
 // picked by a generator seeded with HMAC(meta 'buyer_seed', uid:day) from what the player has at that moment (his
 // garage, his balance), then frozen in buyer_offers — the same player and day always get the same offer, and a deploy
 // or a later garage change can't swap it. It lives BUYER.hours; one car can be sold to it, through the ordinary sale

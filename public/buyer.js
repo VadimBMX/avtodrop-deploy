@@ -15,7 +15,7 @@
 import * as S from './shared.js';
 
 export const BUYER = {
-  feature: 'market', // opens with the market (S.UNLOCKS, level 2)
+  feature: 'market', // opens with the market (S.UNLOCKS, level 3)
   hours: 3,
   prem: { own: [0.25, 0.4], reach: [0.3, 0.5], stretch: [0.45, 0.6] }, // premium rolls by kind of request
   minPrem: 0.15, // under this a request is not worth a card: another one is picked

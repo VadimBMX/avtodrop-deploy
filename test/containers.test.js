@@ -123,7 +123,7 @@ test('server: nothing about the content leaves the server before the end; afterw
 test('bids: minimum step, 50% cap, leader can\'t rebid, level gate, one bid a second, two lots at most', () => {
   const { db, mk, call, lotOf, muteBots, add } = setup();
   mk(5, { balance: 100000 });
-  mk(6, { level: 4 });
+  mk(6, { level: 5 }); // the pier opens with the auctions (S.UNLOCKS: level 5); Митниця still needs 6
   const od = lotOf(5, 'odesa');
   muteBots(od.id);
   assert.throws(() => call(5, 'containers/bid', { id: od.id, amount: od.minBid - 1 }), /Мінімальна ставка/);
@@ -471,7 +471,7 @@ test('evening: the lot comes up at 19:30 (no bids yet), reminds only the subscri
   const { g, mk, call, set, add, pushes, db, at } = setup();
   mk(5);
   mk(6);
-  mk(7, { level: 3 });
+  mk(7, { level: 5 });
   set(KY('2026-10-23T19:00:00'));
   assert.equal(call(5, 'containers').evening.lot, null);
   assert.equal(call(5, 'containers').evening.at, KY('2026-10-23T20:00:00'));

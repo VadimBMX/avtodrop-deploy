@@ -486,7 +486,7 @@ function renderHeader() {
   $('#title').textContent = state.page ? PAGE_TITLES[state.page] : TITLES[state.tab];
   $('#title').classList.toggle('long', $('#title').textContent.length > 8);
   for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('on', b.dataset.tab === state.tab && !state.page);
-  for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('locked', !!TAB_FEATURE[b.dataset.tab] && !isOpen(TAB_FEATURE[b.dataset.tab]));
+  for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('locked', !!tabFeature(b.dataset.tab));
   if (tg?.initData && tg.BackButton) state.page ? tg.BackButton.show() : tg.BackButton.hide();
   UI2.header?.();
 }
@@ -586,7 +586,7 @@ async function render() {
   const seq = ++renderSeq;
   if (me?.guide === 'starter' && me.keys.starter && !state.drop) state.caseId = 'starter';
   const fn = state.page ? PAGES[state.page] : TABS[state.tab];
-  const feat = state.page ? PAGE_FEATURE[state.page] : TAB_FEATURE[state.tab];
+  const feat = state.page ? PAGE_FEATURE[state.page] : tabFeature(state.tab);
   const locked = feat && !isOpen(feat);
   try {
     const html = locked ? lockedView(feat) : await fn();
@@ -623,7 +623,13 @@ const casinoOff = () => me.casino === 'off';
 const lockChip = (key) => `<span class="lockchip">${ic('lock')} рів. ${S.unlockLevel(key)}</span>`;
 // Pages and the tab behind a feature: opening them while locked shows the lock card instead.
 const PAGE_FEATURE = { plates: 'plates', market: 'market', tradein: 'tradein', trades: 'trades', tradeNew: 'trades', room: 'trades', battles: 'battles', battle: 'battles', upgrade: 'upgrade', casino: 'casino' };
-const TAB_FEATURE = { shop: 'parts' };
+// Майстерня holds the part cases and the stock (parts), Фарбування (paint) and Мийка (wash). Since 03.11 the wash
+// opens a level before the parts (S.UNLOCKS), so the tab is locked only while none of its views is open; the lock card
+// then shows the first of them to open. SHOP_FEATURE: the feature behind each view of the tab.
+const SHOP_FEATURE = { cases: 'parts', stock: 'parts', paint: 'paint', wash: 'wash' };
+const shopOpenViews = () => ['cases', 'wash', 'paint', 'stock'].filter((k) => isOpen(SHOP_FEATURE[k]));
+const shopLockKey = () => ['wash', 'parts', 'paint'].sort((a, b) => S.unlockLevel(a) - S.unlockLevel(b))[0];
+const tabFeature = (tab) => (tab === 'shop' && !shopOpenViews().length ? shopLockKey() : null);
 installBarn({ me: () => me, state: () => state, api, act, H, ic, esc, sheet, go, carArt, FX, PAGES, PAGE_TITLES, PAGE_FEATURE, isOpen, lockChip,
   untilSpan: (t) => untilSpan(t), serverNow: () => serverNow(), confirmBox: (t) => confirmBox(t), toast: (...a) => toast(...a), render: () => render(), closeModal: () => closeModal() });
 installBuyer({ me: () => me, state: () => state, act, H, ic, esc, sheet, closeModal: () => closeModal(), untilSpan: (t) => untilSpan(t), serverNow: () => serverNow() });
@@ -3770,8 +3776,8 @@ async function pvpAutopilot(id, carId) {
 
 // ---------- workshop ----------
 TABS.shop = () => {
-  const seg = `<div class="seg seg4">${[['cases', 'Кейси'], ['stock', `Склад${me.parts.length ? ' · ' + me.parts.reduce((s, p) => s + p.count, 0) : ''}`], ['paint', 'Фарбування'], ['wash', 'Мийка']].map(([k, t]) => `<button class="${state.shopView === k ? 'on' : ''} ${isOpen(k) ? '' : 'locked'}" data-act="shopView" data-k="${k}">${isOpen(k) ? '' : ic('lock')}${t}</button>`).join('')}</div>`;
-  if (!isOpen(state.shopView)) state.shopView = 'cases';
+  const seg = `<div class="seg seg4">${[['cases', 'Кейси'], ['stock', `Склад${me.parts.length ? ' · ' + me.parts.reduce((s, p) => s + p.count, 0) : ''}`], ['paint', 'Фарбування'], ['wash', 'Мийка']].map(([k, t]) => `<button class="${state.shopView === k ? 'on' : ''} ${isOpen(SHOP_FEATURE[k]) ? '' : 'locked'}" data-act="shopView" data-k="${k}">${isOpen(SHOP_FEATURE[k]) ? '' : ic('lock')}${t}</button>`).join('')}</div>`;
+  if (!isOpen(SHOP_FEATURE[state.shopView] || 'parts')) state.shopView = shopOpenViews()[0] || 'cases';
   if (state.shopView === 'stock') return seg + stockView();
   if (state.shopView === 'wash') return seg + washView();
   if (state.shopView === 'paint') return seg + paintView();
@@ -3920,7 +3926,7 @@ async function sellParts(list) {
   await refresh();
 }
 H.shopView = (d) => {
-  if (!isOpen(d.k)) return lockedSheet(d.k);
+  if (!isOpen(SHOP_FEATURE[d.k] || d.k)) return lockedSheet(SHOP_FEATURE[d.k] || d.k);
   state.shopView = d.k;
   state.partDrop = null;
   render();
@@ -4958,7 +4964,10 @@ PAGES.market = async () => {
   state.marketKind ||= 'car';
   const kinds = `<div class="seg mk-kinds">${[['car', 'car', 'Машини'], ['part', 'engine', 'Деталі'], ['plate', 'license', 'Номери']].map(([k, i, t]) => `<button class="${state.marketKind === k ? 'on' : ''}" data-act="mKind" data-k="${k}">${ic(i)}${t}</button>`).join('')}</div>`;
   if (state.marketKind !== 'car') return kinds + (await itemMarket(state.marketKind));
-  const seg = kinds + `<div class="seg mk-seg4">${[['buy', 'Купити'], ['auction', 'Аукціони'], ['pier', 'Причал'], ['mine', 'Мої лоти']].map(([k, t]) => `<button class="${state.marketTab === k ? 'on' : ''}" data-act="mTab" data-k="${k}">${t}</button>`).join('')}</div>`;
+  // Аукціони and Причал open later than the market (S.UNLOCKS: auction): until then the tabs carry a lock and show the lock card.
+  const aucOpen = isOpen('auction');
+  const seg = kinds + `<div class="seg mk-seg4">${[['buy', 'Купити'], ['auction', 'Аукціони'], ['pier', 'Причал'], ['mine', 'Мої лоти']].map(([k, t]) => `<button class="${state.marketTab === k ? 'on' : ''}" data-act="mTab" data-k="${k}">${!aucOpen && (k === 'auction' || k === 'pier') ? ic('lock') : ''}${t}</button>`).join('')}</div>`;
+  if (!aucOpen && (state.marketTab === 'auction' || state.marketTab === 'pier')) return seg + lockedView('auction');
   const info = (c) => `<span class="chip">${partCount(c)}/${partSlots(c)} деталей</span>${c.stars ? `<span class="chip pr-chip">★${c.stars} · вкладено ${S.short(c.starSpent || 0)}</span>` : ''}`;
   if (state.marketTab === 'buy') {
     const { list, dealer, now } = await api('market/list', { cls: state.marketCls, sort: state.marketSort });

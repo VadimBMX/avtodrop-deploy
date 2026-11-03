@@ -1,4 +1,4 @@
-// «Таємний покупець» (public/buyer.js, src/buyer.js): one offer a Kyiv day from level 2, frozen per player + day from a
+// «Таємний покупець» (public/buyer.js, src/buyer.js): one offer a Kyiv day from level 3 (the market), frozen per player + day from a
 // server seed, 3 hours, one matching car sold in one tap for the dealer's price + a premium (never the last car, not a car
 // on the market, no secret / edition cars), the «чекає ще 1 год» reminder, the admin numbers — and the economy: opening
 // cases to sell to the buyer is never profitable on average.
@@ -91,7 +91,7 @@ test('offers: premium within its range and the cap, never above 80 % of the mode
 });
 
 // ---------- the offer of the day ----------
-test('offer: from level 2, once a Kyiv day, deterministic per player + day + seed, frozen once made, 3 hours', () => {
+test('offer: from level 3 (market), once a Kyiv day, deterministic per player + day + seed, frozen once made, 3 hours', () => {
   const a = setup(), b = setup();
   for (const x of [a, b]) {
     x.mk(10, 1);
@@ -99,7 +99,9 @@ test('offer: from level 2, once a Kyiv day, deterministic per player + day + see
     x.car(10, C_CAR);
   }
   assert.equal(a.call(10, 'me').buyer, null, 'level 1: no buyer');
-  for (const x of [a, b]) x.db.prepare('UPDATE users SET level = 2 WHERE id = 10').run();
+  a.db.prepare('UPDATE users SET level = 2 WHERE id = 10').run();
+  assert.equal(a.call(10, 'me').buyer, null, 'level 2: the market is not open yet — no buyer');
+  for (const x of [a, b]) x.db.prepare('UPDATE users SET level = 3 WHERE id = 10').run();
   const o1 = a.call(10, 'me').buyer, o2 = b.call(10, 'me').buyer;
   assert.ok(o1 && o1.text && o1.city && o1.prem >= B.BUYER.minPrem);
   assert.deepEqual({ ...o1, cars: null }, { ...o2, cars: null }, 'same seed, player, day, garage → same offer');
@@ -166,7 +168,7 @@ test('sell: one tap, dealer price + premium; never twice, never a car he does no
   // Level 1: the call is refused by the gate.
   const z = x.mk(13, 1);
   x.car(13, D_CAR);
-  assert.throws(() => x.call(z, 'buyer/sell', { carId: x.car(13, D_CAR) }), /рівні 2/);
+  assert.throws(() => x.call(z, 'buyer/sell', { carId: x.car(13, D_CAR) }), /рівні 3/);
 });
 
 test('sell: a «class + country» request takes any such car, parts go back to the warehouse', () => {

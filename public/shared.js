@@ -1965,26 +1965,34 @@ export const caseXp = (cs) => Math.max(XP.case, Math.round(XP.case * (1 + 1.5 * 
 // Locked items stay visible with a lock and «Відкриється на рівні N»; the server refuses them too (game.js GATES).
 // A player keeps a feature he already used before the ladder existed (users.feats, see db.js); admins and the owner
 // are never locked.
-// Owner 27.10: «їх пару днів треба збирати» — the whole ladder moved down: everything but the upgrade (4) and the
-// casino (off) opens by level 3, within the first ~20 minutes (L2 ≈ 4 min, L3 ≈ 18, L4 ≈ 47).
+// Owner 27.10: «їх пару днів треба збирати» — the whole ladder moved down to level 2–3. Owner 03.11: «все зразу не
+// треба» — level 2 used to open ten things at once; now every level-up opens two or three, in the order a newcomer
+// needs them: first what feeds the core loop (wash, drift, the day race), then trading with the dealer (parts, market,
+// trade-in), then the cosmetics and the risky upgrade, then deals with other players. With the businesses (ECON.business:
+// Автомийка 3, АЗС 5, СТО 7, салон 10) no level-up opens more than four things. Raising a level only closes a feature
+// for players below it who never used it before the first ladder (users.feats); reads, cancels and cash-outs stay open
+// (game.js GATES), so nothing already listed or started gets stuck.
 export const UNLOCKS = [
-  { key: 'parts', level: 2, name: 'Деталі й склад', icon: 'tool', text: 'Кейси з деталями, установка й злиття — машина їде швидше' },
+  // L2 ≈ 4 min: the core loop gets richer.
   { key: 'wash', level: 2, name: 'Мийка', icon: 'droplet', text: `Бруд не знижує дохід; помита машина ${WASH.shineHours} год блищить: +${Math.round(WASH.shine * 100)}% до її доходу` },
-  // A new feature, not a gate on anything players had: open by level only (no feats backfill needed — L2 ≈ 4 min).
-  { key: 'dayrace', level: 2, name: 'Заїзд дня', icon: 'flag-3', text: 'Щодня одна машина для всіх: 3 спроби, таблиця й нагороди опівночі' },
   { key: 'drift', level: 2, name: 'Дрифт', icon: 'tornado', text: 'Другий режим гонок: траса дня й три суперники' },
-  { key: 'plates', level: 2, name: 'Номери', icon: 'license', text: 'Генеруй номерні знаки — рідкісні коштують мільйони' },
-  // The social side opens on the first evening (audit №5: it used to be level 4–5, day 3+, after most players had left);
-  // the auction is a tab of the market, so it opens with it. Lowering a level only ever opens things: nobody loses a
-  // feature (feats keep what was used before), see test/social.test.js.
-  { key: 'market', level: 2, name: 'Ринок', icon: 'building-store', text: 'Дилер і лоти інших гравців: машини, деталі, номери' },
-  { key: 'trades', level: 2, name: 'Обміни', icon: 'arrows-exchange', text: 'Трейд-зал і обміни з іншими гравцями' },
-  { key: 'auction', level: 2, name: 'Аукціони', icon: 'hammer', text: 'Виставляй машини на торги й роби ставки' },
-  { key: 'paint', level: 2, name: 'Фарбування', icon: 'palette', text: 'Колір кузова й ліврея для твоїх машин' },
-  { key: 'tradein', level: 2, name: 'Трейд-ін', icon: 'refresh', text: '3 машини одного класу → 1, з шансом класу вище' },
-  { key: 'pvp', level: 3, name: 'PvP-заїзди', icon: 'flag-3', text: 'Драг проти живих гравців на ставку' },
-  { key: 'battles', level: 3, name: 'Кейс-батли', icon: 'flame', text: 'Відкривай кейси наввипередки з іншим гравцем' },
+  // A new feature, not a gate on anything players had: open by level only (no feats backfill needed).
+  { key: 'dayrace', level: 2, name: 'Заїзд дня', icon: 'flag-3', text: 'Щодня одна машина для всіх: 3 спроби, таблиця й нагороди опівночі' },
+  // L3 ≈ 18 min: the dealer side — faster cars and something to do with duplicates (+ the business «Автомийка»).
+  { key: 'parts', level: 3, name: 'Деталі й склад', icon: 'tool', text: 'Кейси з деталями, установка й злиття — машина їде швидше' },
+  { key: 'market', level: 3, name: 'Ринок', icon: 'building-store', text: 'Дилер і лоти інших гравців: машини, деталі, номери' },
+  { key: 'tradein', level: 3, name: 'Трейд-ін', icon: 'refresh', text: '3 машини одного класу → 1, з шансом класу вище' },
+  // L4 ≈ 47 min (first evening): looks and the risky upgrade.
+  { key: 'plates', level: 4, name: 'Номери', icon: 'license', text: 'Генеруй номерні знаки — рідкісні коштують мільйони' },
+  { key: 'paint', level: 4, name: 'Фарбування', icon: 'palette', text: 'Колір кузова й ліврея для твоїх машин' },
   { key: 'upgrade', level: 4, name: 'Апгрейд', icon: 'arrow-big-up-lines', text: 'Ризикни машинами заради дорожчої' },
+  // L5 ≈ 87 min (day 2): deals with other players (+ the business «АЗС» and creating a club). The auction is a tab of
+  // the market; it shows a lock there until L5.
+  { key: 'trades', level: 5, name: 'Обміни', icon: 'arrows-exchange', text: 'Трейд-зал і обміни з іншими гравцями' },
+  { key: 'auction', level: 5, name: 'Аукціони', icon: 'hammer', text: 'Виставляй машини на торги й роби ставки' },
+  // L6 ≈ 155 min (day 3): head-to-head with live players.
+  { key: 'pvp', level: 6, name: 'PvP-заїзди', icon: 'flag-3', text: 'Драг проти живих гравців на ставку' },
+  { key: 'battles', level: 6, name: 'Кейс-батли', icon: 'flame', text: 'Відкривай кейси наввипередки з іншим гравцем' },
   { key: 'casino', level: 10, name: 'Казино', icon: 'cards', text: 'Краш, міни, рулетка, слоти — на ігрові гривні' },
 ];
 export const UNLOCK_BY_KEY = Object.fromEntries(UNLOCKS.map((u) => [u.key, u]));
@@ -2839,7 +2847,9 @@ export const GUIDE_STEPS = [
   { key: 'open_case', tab: 'cases', target: '[data-act="openCase"]', title: 'Відкрий кейс з машиною', text: 'Нова машина — ще й досвід. «Іржавий гараж» — найдешевший.' },
   { key: 'part_case', tab: 'shop', target: '[data-act="openParts"]', title: 'Відкрий кейс з деталями', text: 'Деталь випаде з тих, що підходять твоїм машинам. Далі — встанови її.' },
   { key: 'install', tab: 'garage', target: '#view .car[data-act="car"]', title: 'Встанови деталь на машину', text: 'Тисни на машину → слот деталі → «Встановити». Більше к.с. — швидше в гонках.' },
-  { key: 'level2', tab: 'race', target: '.rival', title: 'Досягни 2-го рівня', text: 'Рівень 2 відкриє Майстерню з деталями. Досвід дають заїзди, нові машини й завдання.' },
+  // 'level2' is the key of the «install» step while parts are still locked (its name stays for players and tests);
+  // the level itself comes from UNLOCKS (parts: level 3 since 03.11).
+  { key: 'level2', tab: 'race', target: '.rival', title: `Досягни ${UNLOCK_BY_KEY.parts.level}-го рівня`, text: `Рівень ${UNLOCK_BY_KEY.parts.level} відкриє деталі в Майстерні. Досвід дають заїзди, нові машини й завдання.` },
   { key: 'level3', tab: 'race', target: '.rival', title: 'Досягни 3-го рівня', text: 'Досвід дають заїзди (перемога — більше), нові машини в колекції й завдання.' },
 ];
 // p: { introSeen (the player came through the intro stories), off (hints turned off), keys, garage (cars in the garage),

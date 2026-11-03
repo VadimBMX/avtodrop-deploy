@@ -112,11 +112,11 @@ test('weekly find: once a Kyiv week, again from Monday, at most 3 waiting; level
   assert.equal(B.weeklyOdds(1).S, undefined);
 });
 
-test('gate: the shed opens with the parts (level 2)', () => {
+test('gate: the shed opens with the parts (level 3)', () => {
   const { mk, call } = setup();
   mk(5, 1);
   assert.equal(call(5, 'me').barn, null);
-  assert.throws(() => call(5, 'barn/weekly'), /рівні 2/);
+  assert.throws(() => call(5, 'barn/weekly'), /рівні 3/);
 });
 
 // ---------- the four stages ----------

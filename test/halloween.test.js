@@ -274,7 +274,7 @@ test('ghost container: through the server — level gate, commitment, the winner
   mk(3, 4);
   mk(5);
   const l = call(5, 'containers').lots.find((x) => x.tier === 'ghost');
-  assert.throws(() => call(3, 'containers/bid', { id: l.id, amount: l.minBid }), /рівня 5/);
+  assert.throws(() => call(3, 'containers/bid', { id: l.id, amount: l.minBid }), /рівн[яі] 5/); // the pier itself opens at 5 too (auction)
   // Put the №13 inside (as if the seed drew it) and let a persistent player win.
   db.prepare("UPDATE container_lots SET model = ?, ed = 1, junk = 0 WHERE id = ?").run(HW.HW_EDITION, l.id);
   let d;
