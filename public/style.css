@@ -5237,7 +5237,7 @@ body.s2 .rivals .rival .center b.win { color: var(--green); font: 800 17px var(-
 body.s2 .rival .diff { border-radius: 999px; font: 700 11px var(--f-body); }
 body.s2 .dr-fuel { background: var(--glass); border: 1px solid var(--glass-b); border-radius: 14px; }
 /* the run */
-body.s2 .dr-scene { height: 360px; border-radius: 22px; box-shadow: inset 0 0 0 1px #ffffff14, 0 18px 40px -20px #000; }
+body.s2 .dr-scene { border-radius: 22px; box-shadow: inset 0 0 0 1px #ffffff14, 0 18px 40px -20px #000; }
 body.s2 .dr-sky { height: 210px; background: linear-gradient(#070a1200 55%, #070a12cc), url('s2/bg/race-bg2.webp') center 22% / cover no-repeat; }
 body.s2 .dr-city { display: none; }
 body.s2 .dr-hud { left: 10px; right: 10px; top: 10px; }
@@ -5492,6 +5492,37 @@ body.s2 .boss-next .taunt { border-radius: 14px; background: #ffffff08; border: 
 .s2-gas-info .li b { font: 700 13px var(--s2-mono); color: var(--accent); }
 .s2-gas-row .btn { width: 100%; }
 .s2r-fuel { cursor: pointer; }
+/* collection (mockup 09): progress by country */
+.s2-cty { display: grid; gap: 7px; }
+.s2-cty-r { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 14px; text-align: left; border-radius: 16px; background: var(--glass); border: 1px solid var(--glass-b); color: var(--text); }
+.s2-cty-r.on { border-color: var(--c); }
+.s2-cty-r .flag-emb { width: 30px; height: 22px; flex: none; border-radius: 5px; overflow: hidden; }
+.s2-cty-r .flag-emb svg { width: 100%; height: 100%; display: block; }
+.s2-cty-r b { font: 700 14px var(--f-body); }
+.s2-cty-r em { font: 600 11.5px var(--s2-mono); font-style: normal; color: var(--muted); }
+.s2-cty-r i { display: block; height: 5px; margin-top: 6px; border-radius: 3px; background: #ffffff10; overflow: hidden; }
+.s2-cty-r i b { display: block; height: 100%; background: var(--c); border-radius: 3px; }
+body.s2 .coll-sum { border-radius: 22px; background: radial-gradient(70% 90% at 0% 0%, #a26bff22, transparent 70%), var(--glass); }
+body.s2 .coll-ring { color: #a26bff; }
+body.s2 .ctile { border-radius: 16px; background: var(--glass); border: 1px solid var(--glass-b); }
+/* news (mockup 34) */
+.s2-news-hero { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 2px; padding: 64px 16px 16px; border-radius: 22px; border: 1px solid #ffd40055; background: linear-gradient(160deg, #1d1806, #0b0f1a 70%); }
+.s2-news-tape { position: absolute; left: -20px; right: -20px; top: 10px; height: 34px; background: repeating-linear-gradient(-55deg, #ffd400 0 22px, #111 22px 44px); transform: rotate(-5deg); }
+.s2-news-hero small { font: 800 11px var(--s2-mono); letter-spacing: 2px; color: var(--accent); }
+.s2-news-hero b { font: 900 24px/1.1 var(--f-disp); letter-spacing: -.5px; }
+.s2-news-hero span { font: 600 12px var(--f-body); color: var(--muted); }
+.s2-news { margin-top: 10px; padding: 12px 14px; border-radius: 20px; background: var(--glass); border: 1px solid var(--glass-b); }
+.s2-news-h { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.s2-news-ic { width: 28px; height: 28px; border-radius: 9px; display: flex; align-items: center; justify-content: center; color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); }
+.s2-news-h small { font: 600 11px var(--s2-mono); color: var(--muted); }
+.s2-news-h em { padding: 2px 7px; border-radius: 6px; background: #ff3df0; color: #fff; font: 800 9.5px var(--f-body); font-style: normal; letter-spacing: .5px; }
+.s2-news b { display: block; font: 800 15px var(--f-disp); }
+.s2-news p { margin: 4px 0 0; font: 500 12.5px/1.45 var(--f-body); color: #c3c9d5; }
+.s2-news-chat { margin-top: 10px; width: 100%; border-radius: 18px; background: var(--glass); border: 1px solid var(--glass-b); display: flex; align-items: center; gap: 10px; padding: 10px 12px; text-align: left; }
+.s2-news-chat small { display: block; font: 500 11.5px var(--f-body); color: var(--muted); }
+/* a run takes the whole screen: the bar hides like it did before the new shell (its display:flex outranked body.racing) */
+body.s2.racing .tabs.s2tabs { display: none; }
+body.s2.racing #app { padding-bottom: calc(16px + var(--safe-b)); }
 /* ===== /s2-ui2 */
 
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and

@@ -4506,6 +4506,7 @@ TABS.menu = () => {
   const store = `<button class="hub-store" data-act="go" data-page="store"><span class="hub-ic">${ic('crown')}</span><span class="grow"><b>Магазин</b><span class="hub-i">${me.packOffer ? `${ic('flame')} ×${me.packOffer.mult} гривень на пакети · ще ${untilSpan(me.packOffer.until)}` : me.vip ? `VIP ще ${untilSpan(me.vipUntil)} · «Стиль»` : 'Гривні, VIP-підписка, «Стиль»'}</span></span>${me.packOffer ? `<span class="hc pk-badge">×${me.packOffer.mult}</span>` : ''}${me.stars ? `<span class="hc">${ic('star')} ${me.stars}</span>` : ''}<span class="chev">${ic('chevron-right')}</span></button>`;
   const line = (act, page, icon, title, sub = '', count = 0) => `<button class="li" data-act="${act}" data-page="${page}"><span class="mi" style="--c:${ST}">${ic(icon)}</span><b>${title}</b>${count ? `<span class="cnt" style="margin-left:auto">${count}</span>` : `<span class="sub">${sub}</span>`}<span class="chev">${ic('chevron-right')}</span></button>`;
   const help = [
+    line('go', 'news', 'bell', 'Новини', 'що нового в грі'),
     line('go', 'promo', 'ticket', 'Промокод', 'коди — у каналі'),
     ...(config.community?.channel ? [line('openLink', config.community.channel, 'share', 'Канал з анонсами', 'новини й коди')] : []),
     ...(config.community?.chat ? [line('openLink', config.community.chat, 'users', 'Чат гравців')] : []),
@@ -4690,6 +4691,11 @@ const collectionCars = () => {
         ${done ? '<span class="win">✓</span>' : ready ? `<button class="btn sm ghost" data-act="collClaim" data-k="${r.key}">Забрати</button>` : `<span class="small muted">${r.have}/${r.need}</span>`}</div>`;
     }).join('')}
     <button class="li txtlink coll-all" data-act="collAll">${state.collAll ? 'Згорнути' : `Показати всі · ще ${rows.length - visible.length}`}</button></div>
+    <div class="h2"><span>За країнами</span><span>${S.MAIN_COUNTRIES.length}</span></div>
+    <div class="s2-cty">${S.MAIN_COUNTRIES.map((c, i) => {
+      const [h, l] = countryCount(c), col = ['#ffd400', '#ff3d5a', '#ff8a3d', '#39e58c', '#3d8bff', '#a26bff', '#22c3e6'][i % 7];
+      return `<button class="s2-cty-r ${filter === c ? 'on' : ''}" data-act="collFilter" data-k="${filter === c ? '' : c}" style="--c:${col}">${flagEmblem(c)}<span class="grow"><span class="row between"><b>${S.COUNTRIES[c].name}</b><em>${h}/${l}</em></span><i><b style="width:${l ? (h / l) * 100 : 0}%"></b></i></span></button>`;
+    }).join('')}</div>
     <div class="h2"><span>Машини</span><button class="gsort" data-act="collMissing">${ic(missing ? 'books' : 'lock')}${missing ? 'Усі машини' : 'Лише відсутні'}</button></div>
     <div class="chips cchips"><button class="${!filter ? 'on' : ''}" data-act="collFilter" data-k="">Усі</button>${S.MAIN_COUNTRIES.map((c) => {
       const [h, l] = countryCount(c);
@@ -6148,6 +6154,17 @@ H.passClaim = async () => {
   else await refresh();
 };
 
+// s2-ui2 (mockup 34): «Новини» — the season hero on hazard tape, then every «Що нового» slide as a dated card.
+PAGE_TITLES.news = 'Новини';
+PAGES.news = () => {
+  const th = S.seasonTheme(me.season?.id || 2);
+  const cards = S.WHATS_NEW.slides.map((x, i) => `<div class="s2-news" style="--c:${x.c || '#ffd400'}"><div class="s2-news-h"><span class="s2-news-ic">${ic(x.icon)}</span><small>${esc(x.tag || '')}</small>${i < 2 ? '<em>НОВЕ</em>' : ''}</div><b>${esc(x.title)}</b><p>${esc(x.text)}</p></div>`).join('');
+  return `<div class="s2-news-hero"><i class="s2-news-tape"></i><small>СЕЗОН ${String(me.season?.id || 2).padStart(2, '0')}</small><b>«Місто»${th ? ` · ${esc(th.name)}` : ''}</b><span>Мапа, бізнеси, клуби, війна районів</span></div>
+    ${cards}
+    <button class="s2-btn wide mt" data-act="whatsNewAgain">${ic('player-play')}Переглянути історію оновлення</button>
+    ${config.community?.chat ? `<button class="li s2-news-chat" data-act="openLink" data-page="${esc(config.community.chat)}"><span class="mi" style="--c:#22e3ff">${ic('users')}</span><span class="grow"><b>Чат гравців</b><small>новини першими, обміни, конкурси</small></span><span class="btn sm ghost">Відкрити</span></button>` : ''}`;
+};
+H.whatsNewAgain = () => playStory(S.WHATS_NEW);
 // ---------- what's new (shown once per S.WHATS_NEW.id) ----------
 const whatsNewKey = () => 'avtodrop-story-' + S.WHATS_NEW.id;
 function whatsNewSeenHere() {

@@ -167,7 +167,7 @@ function pageLabel(pg) {
     support: ['ВІДПОВІДАЄМО ДО 24 ГОД', '#22e3ff'], leaderboard: ['ТОП ГРАВЦІВ', '#ffcc33'], store: ['ЗІРКИ TELEGRAM', '#ffcc33'], battles: ['КЕЙС-БАТЛИ', '#ff3d5a'], battle: ['КЕЙС-БАТЛ', '#ff3d5a'],
     upgrade: ['АПГРЕЙД МАШИН', '#a26bff'], casino: ['КАЗИНО', '#ff3df0'], tradein: ['ТРЕЙД-ІН', '#ff8a3d'], challenges: ['ВИКЛИКИ ДРУЗЯМ', '#ff8a1f'], dayrace: ['ЗАЇЗД ДНЯ', '#ff8a1f'],
     tourney: ['ТУРНІР ВИХІДНИХ', '#ff8a1f'], barn: ['САРАЙ · ЗНАХІДКА', '#ff8a3d'], biz: ['МОЇ БІЗНЕСИ', '#39e58c'], bizOne: ['БІЗНЕС', '#39e58c'], showroom: ['ШОУРУМ', '#5ee7f0'],
-    fair: ['ЧЕСНА ГРА', '#22e3ff'], promo: ['ПРОМОКОДИ', '#ffcc33'], contest: ['КОНКУРС', '#ff3df0'],
+    fair: ['ЧЕСНА ГРА', '#22e3ff'], news: ['ОНОВЛЕННЯ ГРИ', '#3d8bff'], promo: ['ПРОМОКОДИ', '#ffcc33'], contest: ['КОНКУРС', '#ff3df0'],
     race: [null, '#ff8a1f'], shop: [s.shopView === 'wash' ? 'МИЙКА · БЛИСК' : s.shopView === 'paint' ? 'ФАРБУВАННЯ' : 'МАЙСТЕРНЯ · ДЕТАЛІ', '#ff8a1f'],
   };
   const v = L[pg];
