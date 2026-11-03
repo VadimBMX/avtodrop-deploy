@@ -283,3 +283,15 @@ test('season 2: the wipe takes businesses too (user_business)', () => {
   assert.ok(e.call(2, 'biz').list.every((b) => !b.owned));
   assert.equal(e.call(2, 'me').fuelMax, S.FUEL_MAX, 'no «Заправка» perk left');
 });
+
+// s2-qa: the wipe deletes the dealer's lots with every listing; the market must restock at once, not after the batch.
+test('season 2: the dealer restocks right after the wipe', () => {
+  const e = setup();
+  e.setT(S2_T);
+  e.call(1, 'market/list', {}); // the dealer's batch of this hour is out
+  assert.ok(e.get('SELECT COUNT(*) n FROM listings WHERE seller_id = 0').n > 0);
+  e.setT(S2_T + 60e3); // same dealer batch
+  ownerReset(e.g);
+  const lots = e.call(1, 'market/list', {}).list.filter((l) => l.dealer);
+  assert.equal(lots.length, S.DEALER.lots);
+});
