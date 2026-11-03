@@ -631,9 +631,18 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
   };
 }
 
+// DEV mode (sign-in by the x-dev-user header, admin from this computer, /api/dev/*): DEV=1 or no BOT_TOKEN on the
+// owner's computer — never in a production build (the Dockerfile sets NODE_ENV=production), so a server that lost its
+// BOT_TOKEN variable or kept DEV=1 can't let anybody sign in as any player.
+export function devModeFrom(env = {}) {
+  if (env.NODE_ENV === 'production') return false;
+  return env.DEV === '1' || !env.BOT_TOKEN;
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const token = process.env.BOT_TOKEN || '';
-  const dev = process.env.DEV === '1' || !token;
+  const dev = devModeFrom(process.env);
+  if (!dev && process.env.NODE_ENV === 'production' && (process.env.DEV === '1' || !token)) console.warn(`Увага: NODE_ENV=production — DEV-режим вимкнено${token ? '' : ' (BOT_TOKEN не задано: вхід у гру неможливий)'}.`);
   const dbFile = path.join(process.env.DATA_DIR || path.join(ROOT, 'data'), 'avtodrop.db');
   // Moving to a new host: a snapshot shipped as src/seed/avtodrop.db becomes the database on the very first start
   // (only when there is no database yet, so it can never overwrite live data).
