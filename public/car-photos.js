@@ -113,6 +113,7 @@ export const CAR_PHOTOS = [
   'nio-et7',
   'nissan-200sx-s13',
   'nissan-gt-r-r35',
+  'nissan-gt-r-r35-mp',
   'nissan-leaf',
   'nissan-silvia-s15',
   'nissan-skyline-gt-r-r32',

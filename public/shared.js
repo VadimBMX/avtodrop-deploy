@@ -496,7 +496,7 @@ for (const [name, hp, kg, body, country, year, price, ev] of SECRETS) {
 // only if its old option is kept in OLD_SEASON_CARS).
 export const SEASON2_CAR_OPTIONS = [
   { season: 2, name: 'Nissan GT-R R35 «Midnight Purple»', hp: 600, kg: 1720, body: 'coupe', country: 'JP', year: 2017, price: ECON.seasonCar,
-    img: 'nissan-gt-r-r35', filter: 'hue-rotate(248deg) saturate(.78) brightness(.6) contrast(1.12)' },
+    img: 'nissan-gt-r-r35-mp' }, // 03.11: its own Midnight Purple III photo (the hue-rotate filter looked plastic)
   { season: 2, name: 'Toyota Supra A80 «Neon Tokyo»', hp: 520, kg: 1510, body: 'coupe', country: 'JP', year: 1997, price: ECON.seasonCar,
     img: 'toyota-supra-a80', filter: 'sepia(1) saturate(5) hue-rotate(255deg) brightness(.62)' },
   { season: 2, name: 'Porsche 911 Turbo S «Aurora»', hp: 650, kg: 1640, body: 'super', country: 'DE', year: 2021, price: ECON.seasonCar,

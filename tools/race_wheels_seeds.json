@@ -1,5 +1,6 @@
 {
   "_": "Wheel seeds [cx, cy, tyre r] in photo px for photos whose paint/meta.json wheels are missing or bogus (found by a tyre/rim ring fit, checked by eye). tools/race_wheels.py refines every wheel from here or from meta.json.",
+  "nissan-gt-r-r35-mp": [[160, 252, 60], [662, 252, 60]],
   "bugatti-bolide": [[155, 272.7, 72.7], [695.2, 273.7, 76.7]],
   "audi-100-c3-syhara": [[207.1, 304.9, 67.4], [734.2, 301.9, 65.4]],
   "bmw-750i-e38-bumer": [[198.7, 299.9, 70.6], [770.1, 299.8, 73.3]],

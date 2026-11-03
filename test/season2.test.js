@@ -34,7 +34,7 @@ test('season 2: starts when season 1 ends (2.11 23:00 Kyiv), its car is a real m
   assert.equal(car2, S.SEASON2_CAR_OPTIONS[0].id, 'the first option is the default');
   const m = S.MODELS[car2];
   assert.equal(m.season, 2);
-  assert.ok(m.secret && m.cls === 'X' && m.filter);
+  assert.ok(m.secret && m.cls === 'X' && (m.filter || m.img !== 'nissan-gt-r-r35'), 'a livery: a CSS filter or its own photo');
   assert.ok(fs.existsSync(new URL(`../public/cars/${m.img}.webp`, import.meta.url)), 'the livery uses an existing photo');
   assert.equal(S.SEASON2_CAR_OPTIONS.length, 3);
   for (const o of S.SEASON2_CAR_OPTIONS) assert.ok(fs.existsSync(new URL(`../public/cars/${o.img}.webp`, import.meta.url)), o.name);
