@@ -4854,12 +4854,35 @@ body.s2 #app:has(.s2-city) { padding-bottom: calc(var(--s2-bar) + var(--safe-b))
 .s2-leg img { width: 16px; height: 18px; object-fit: contain; }
 .s2-leg b { color: #fff; }
 .s2-ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.s2-ov polygon { filter: drop-shadow(0 0 8px currentColor); }
-.s2-dl { position: absolute; z-index: 2; transform: translate(-50%, -50%); text-align: center; white-space: nowrap; pointer-events: none; }
-.s2-dl b { display: block; margin-top: 3px; font: 800 14px var(--f-disp); text-shadow: 0 2px 8px #000, 0 0 2px #000; }
-.s2-dl .ow { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px 0 3px; border-radius: 11px; background: #0e0f12e6; border: 1px solid color-mix(in srgb, var(--c) 60%, transparent); font: 700 10.5px var(--f-body); color: #e7e8eb; }
-.s2-dl .ow img { width: 16px; height: 18px; object-fit: contain; }
-.s2-dl .fx { display: inline-flex; height: 22px; padding: 0 9px; border-radius: 11px; background: var(--red); color: #fff; font: 800 10px var(--f-disp); align-items: center; box-shadow: 0 0 14px #ff3d5aaa; }
+/* s2-districts: a club's district = underglow on the ground round the plinth + LED strip on its front base + one pin. */
+.s2-dg { overflow: visible; mix-blend-mode: screen; }
+.s2-dg > g:not(.s2-led) { opacity: .36; }
+.s2-led path { fill: none; stroke-width: 2.2; stroke-linecap: round; filter: drop-shadow(0 0 3px currentColor); }
+.s2-led { opacity: .9; }
+.s2-fight1, .s2-fight2 { will-change: opacity; animation: s2Fight 4.8s ease-in-out infinite; }
+.s2-fight2 { animation-delay: -2.4s; }
+@keyframes s2Fight { 0%, 100% { opacity: .15; } 50% { opacity: 1; } }
+.s2-dl { position: absolute; z-index: 2; width: 0; height: 0; pointer-events: none; }
+.s2-pin { position: absolute; left: 0; bottom: 30px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 11px 0 5px; border-radius: 10px; white-space: nowrap;
+  background: rgba(12, 13, 16, .82); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07), inset 0 -2px 0 color-mix(in srgb, var(--c) 70%, transparent), 0 8px 18px -8px #000; }
+.s2-pin-ic { width: 22px; height: 25px; object-fit: contain; flex: none; }
+.s2-pin-ic.x { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; color: #fff; background: linear-gradient(135deg, var(--c), var(--c2)); }
+.s2-pin-ic.x svg { width: 15px; height: 15px; }
+.s2-pin-t { display: flex; flex-direction: column; line-height: 1; text-align: left; }
+.s2-pin-t b { font: 800 13px var(--f-disp); color: #fff; letter-spacing: .2px; }
+.s2-pin-t small { margin-top: 3px; font: 700 9.5px var(--f-body); color: color-mix(in srgb, var(--c) 75%, #fff); letter-spacing: .2px; }
+.s2-dl.fight .s2-pin-t small { text-transform: uppercase; letter-spacing: .6px; font-size: 8.5px; background: linear-gradient(90deg, var(--c), var(--c2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.s2-pin-stem { position: absolute; left: -.5px; bottom: 2px; width: 1px; height: 28px; background: linear-gradient(180deg, color-mix(in srgb, var(--c) 80%, transparent), transparent); }
+.s2-pin-dot { position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 25%, transparent), 0 0 10px var(--c); }
+.s2-dl.fight .s2-pin-dot { animation: s2FightDot 4.8s ease-in-out infinite; }
+@keyframes s2FightDot { 0%, 100% { background: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 25%, transparent), 0 0 10px var(--c); } 50% { background: var(--c2); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c2) 25%, transparent), 0 0 10px var(--c2); } }
+@media (max-height: 720px) { /* short screens: the map is ~240 px tall — a smaller pin on a shorter stem */
+  .s2-pin { bottom: 18px; height: 28px; gap: 5px; padding: 0 9px 0 4px; border-radius: 9px; }
+  .s2-pin-ic { width: 18px; height: 21px; } .s2-pin-ic.x { width: 20px; height: 20px; border-radius: 6px; } .s2-pin-ic.x svg { width: 13px; height: 13px; }
+  .s2-pin-t b { font-size: 11.5px; } .s2-pin-t small { margin-top: 2px; font-size: 8.5px; } .s2-dl.fight .s2-pin-t small { font-size: 7.5px; }
+  .s2-pin-stem { height: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { .s2-fight1, .s2-fight2, .s2-dl.fight .s2-pin-dot { animation: none; } .s2-fight1, .s2-fight2 { opacity: .6; } }
 .s2-war { flex-direction: column; align-items: stretch; gap: 8px; padding: 12px 14px 14px; }
 .s2-war-h { display: flex; align-items: center; justify-content: space-between; }
 .s2-war-h b { font: 800 17px var(--f-disp); }
@@ -5835,7 +5858,6 @@ body.s2 .s2-hint { box-shadow: none; background: #1c1d21cc; }
 body.s2 .s2-sheet { margin-top: 10px; padding: 10px 10px 10px 14px; border-radius: 16px; backdrop-filter: none; -webkit-backdrop-filter: none; }
 body.s2 .s2-dots i { box-shadow: 0 0 0 2px #2e3036; }
 body.s2 .s2-st b { font-size: 19px; }
-body.s2 .s2-dl .ow { background: var(--slab-dk); border: 0; box-shadow: var(--slab-sh-sm); }
 body.s2 .s2-soon { background: #1b1c20; color: #ffb36b; }
 
 /* ---------- DROP: market & case ---------- */
