@@ -6041,6 +6041,10 @@ body.s2 .slot.buy, body.s2 .slot.free { background: var(--slab-dk); border: 2px 
 body.s2 .slot.buy b { color: var(--accent); font-family: var(--s2-mono); }
 body.s2 .slot .slot-plus { background: #1b1c20; color: var(--accent); box-shadow: var(--slab-sh-in); border: 0; }
 
+/* sticky docks: a solid strip under them down to the floating bar, so no content peeks between the dock and the bar */
+body.s2 .dr-dock, body.s2 #view .drop-dock { background: #07080b; box-shadow: 0 -14px 14px -2px #07080b; }
+body.s2 .dr-dock::after, body.s2 #view .drop-dock::after { content: ''; position: absolute; z-index: -1; left: 0; right: 0; top: 100%; height: 40px; background: #07080b; pointer-events: none; }
+
 /* ---------- profile ---------- */
 body.s2 .s2-prof { background: none; }
 body.s2 .s2-prof h2 { font-size: 26px; }
@@ -6111,6 +6115,7 @@ body.s2 .s2c-act .i { color: var(--accent); }
 body.s2 .s2t-carpill { background: var(--slab-dk); border: 0; box-shadow: var(--slab-sh-sm); }
 body.s2 .s2t-img { border-radius: 10px; background: #1b1c20; border: 0; box-shadow: var(--slab-sh-in); }
 body.s2 .s2r-fuel { background: var(--slab-dk); border: 0; box-shadow: var(--slab-sh-sm); border-radius: 11px; }
+body.s2 .s2r { isolation: isolate; }
 body.s2 .s2r::before { height: 330px; opacity: .55; -webkit-mask: none; mask: none; background: linear-gradient(#07080b00 40%, #07080b), url('s2/bg/race-lobby.webp') center 30% / cover no-repeat; }
 body.s2 .s2r-medal { background: radial-gradient(circle at 50% 35%, #3a3d44, #1b1c20 70%); box-shadow: 0 0 0 4px #ffd400, 0 5px 0 4px #a87f00, 0 14px 24px rgba(0,0,0,.6); }
 body.s2 .s2r.s2r-l .s2r-medal { box-shadow: 0 0 0 4px #8b8f98, 0 5px 0 4px #45484f; }
