@@ -560,6 +560,7 @@ async function refresh(rerender = true) {
 // entry) it becomes the toast «Рівень N! …» — seen, nothing stacks.
 function autoLevel() {
   if (!(me.level > me.levelSeen)) return;
+  if (WOW.isOpen()) return void setTimeout(autoLevel, 1200); // s2-screens: never over the celebrated car
   if (guideOn()) return levelToast();
   if (!$('#modal').hidden || state.opening || state.race || battleTimers.length || WOW.isOpen()) return;
   const r = POP.offer('level', () => (me.level > me.levelSeen ? showLevelUp() : false), () => me.level > me.levelSeen && levelToast());
@@ -1667,7 +1668,6 @@ TABS.cases = () => {
       if (!alive.length) return `<div class="drop-dock dd-sold">${openBlock()}<button class="btn outline dd-back" data-act="toGarage">До гаража</button></div>${wowShareRow(d)}`;
       return `<div class="drop-dock"><div class="btns"><button class="btn" data-act="toGarage">У гараж</button>${sellBtn}</div>${last ? '<div class="tiny muted center mt dd-last">Перша машина — її не можна продати</div>' : ''}${openBlock()}</div>${wowShareRow(d)}`;
     })() : ''}
-    <div class="fastrow"><span>${ic('bolt')} Швидке відкриття <small>без рулетки</small></span><button class="toggle ${state.fast ? 'on' : ''}" data-act="toggleFast" aria-label="Швидке відкриття"></button></div>
     ${cs.starter ? '' : (() => {
       const fr = me.fragments?.[cs.id] || 0, need = S.FRAGMENTS_PER_KEY;
       return `<div class="card hooks mt">
@@ -1743,7 +1743,10 @@ H.sellDrops = (d, el) => {
   if (armed(el, `Точно продати? · ${S.short(sum)}`)) sellDrops(ids);
 };
 H.pickCount = (d) => (state.count = state.countWant = Number(d.n), state.countPicked = true, render());
-H.toggleFast = () => (state.fast = !state.fast, render());
+// s2-screens: the quick open is a stored choice (prefSet 'fast'); the toggle sits in the case dock and on the opening
+// overlay (public/s2-ui.js), the old footer row is gone.
+const setFast = (on) => (state.fast = !!on, prefSet('fast', !!on));
+H.toggleFast = () => (setFast(!state.fast), render());
 // Right after a drop, «Продати все», the total and «Відкрити ще» wait until every card has flipped in (owner 23.10: with
 // the quick open you saw the money and sold before looking at the cars). Pure CSS (.lockin): hidden, then shown.
 const dropLockMs = (d) => (!d?.length ? 0 : d.length > 1 ? 700 + d.length * 180 : state.fast ? 900 : 400);
@@ -7723,6 +7726,7 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide', 'toggleChannel']) {
     await firstRefresh();
     if (me.keys.starter) state.caseId = 'starter';
     else state.caseId = prefGet('caseId', (id) => !!S.CASE_BY_ID[id] && !S.CASE_BY_ID[id].starter) || state.caseId;
+    state.fast = prefGet('fast', (v) => typeof v === 'boolean') ?? state.fast;
     if (me.dailyReady && !me.cars.length) state.tab = 'cases';
     const story = S.storyFor(me, whatsNewSeenHere());
     const st = guideOn() && S.GUIDE_STEPS.find((s) => s.key === me.guide);
@@ -9308,4 +9312,4 @@ installS2({ me: () => me, refresh: () => refresh(false), state: () => state, con
   carArt, FX, SFX, haptic: (k) => haptic(k), isOpen: (k) => isOpen(k), pct: (p) => pct(p), caseIcon: (cs) => caseIcon(cs), caseNow: (cs) => caseNow(cs), dropPaid: (cs) => dropPaid(cs),
   dropAlive: (r) => dropAlive(r), sellPrice: (c) => sellPrice(c), sellTotal: (c) => sellTotal(c), carInc: (c) => carInc(c), pendingNow: () => pendingNow(), serverNow: () => serverNow(),
   untilSpan: (t) => untilSpan(t), tickUntil: () => tickUntil(), fmax: () => fmax(), hubTile: (o) => hubTile(o), brokeCard: () => brokeCard(), vipSaleBanner: () => vipSaleBanner(),
-  paBanner: () => paBanner(), originText: (m) => originText(m), prefSet: (k, v) => prefSet(k, v) });
+  paBanner: () => paBanner(), originText: (m) => originText(m), prefSet: (k, v) => prefSet(k, v), setFast: (on) => setFast(on) });

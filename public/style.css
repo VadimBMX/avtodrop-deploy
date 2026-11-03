@@ -6172,6 +6172,104 @@ body.s2 .s2-sp-logo { font-family: var(--f-fc); letter-spacing: 1px; text-transf
 }
 /* ===== /ASPHALT */
 
+/* ===== S2-SCREENS 2026-11-03 (owner's phone feedback): the city without vertical scroll, ×3/×6 on one screen, the calm
+   asphalt reveal (public/wow.css), «Швидко» in the case dock. ===== */
+/* --- Місто: one fixed 100dvh column — header · (guide) · toggle · map (takes the rest) · cash strip — above the bar.
+   Only the map pans sideways; the page itself never scrolls (no void under the map, no band over the header). --- */
+html:has(body.s2 .s2-city), body.s2:has(.s2-city) { height: 100%; overflow: hidden; overscroll-behavior: none; }
+body.s2 #app:has(.s2-city) { box-sizing: border-box; height: 100vh; height: 100dvh; min-height: 0; display: flex; flex-direction: column; overflow: hidden;
+  padding-bottom: calc(var(--s2-bar) + var(--safe-b) + 14px); }
+body.s2 #app:has(.s2-city) > .top { flex: none; }
+body.s2 #view:has(.s2-city) { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+body.s2 #view:has(.s2-city) > * { flex: none; }
+body.s2 #view > .s2-city { flex: 1 1 auto; min-height: 0; height: auto; overflow: hidden; }
+body.s2 .s2-city > .s2-seg { margin: 0 0 6px; }
+body.s2 .s2-city > .s2-map { flex: 1 1 0; min-height: 120px; }
+body.s2 .s2-city > .s2-sheet { margin-top: 6px; }
+body.s2 .s2-city .s2-war .s2-war-t { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+@media (max-height: 700px) {
+  body.s2 .s2-city > .s2-seg { height: 40px; }
+  body.s2 .s2-city > .s2-seg button { height: 32px; }
+  body.s2 .s2-city .s2-war .s2-war-t { -webkit-line-clamp: 2; }
+}
+
+/* --- DROP ×3 / ×6: every car on one screen, small turntables in a grid (3 → 3 in a row, 4 → 2×2, 6 → 3×2) --- */
+body.s2 .a-grid { display: grid; gap: 8px; margin: 0 0 10px; }
+body.s2 .a-grid.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+body.s2 .a-grid.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+body.s2 .a-gt { position: relative; display: flex; flex-direction: column; min-width: 0; border-radius: 14px; overflow: hidden; background: var(--slab-dk); box-shadow: var(--slab-sh-sm); }
+body.s2 .a-gt::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--c); opacity: .85; pointer-events: none; }
+body.s2 .a-gt-st { position: relative; aspect-ratio: 1 / .62; overflow: hidden; background: url('s2/bg/stage-reveal.webp') center 55% / 104% auto no-repeat, #07080b; }
+body.s2 .a-gt-st::before { content: ''; position: absolute; left: 50%; top: 60%; width: 70%; aspect-ratio: 2.3 / 1; transform: translate(-50%, -50%); border-radius: 50%; z-index: 1;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--c) 34%, transparent), transparent); opacity: .7; pointer-events: none; }
+body.s2 .a-gt-st::after { content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none; background: linear-gradient(#07080b 0, transparent 14%, transparent 78%, #1f2125 100%); }
+body.s2 .a-gt-st .a-car { left: 7%; width: 86%; bottom: 25%; }
+body.s2 .a-gt-tx { position: relative; z-index: 4; padding: 0 8px; min-width: 0; }
+body.s2 .a-gt-h { display: flex; align-items: center; gap: 6px; margin-top: -9px; min-width: 0; }
+body.s2 .a-gt .a-cls { height: 18px; padding: 0 6px; border-radius: 5px; font-size: 11.5px; }
+body.s2 .a-gt-new { font: 700 10.5px var(--f-body); color: var(--green); white-space: nowrap; }
+body.s2 .a-gt-n { display: block; margin-top: 4px; font: 800 12px/1.12 var(--f-fc); text-transform: uppercase; letter-spacing: .2px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.s2 .a-gt-p { margin-top: 2px; font: 700 12.5px var(--s2-mono); letter-spacing: -.5px; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.s2 .a-gt-sell { position: relative; z-index: 4; display: flex; align-items: center; justify-content: center; gap: 4px; height: 30px; margin: 6px 6px 8px; border-radius: 9px;
+  background: var(--slab); box-shadow: var(--slab-sh-sm); color: var(--text); font: 800 11.5px var(--f-fc); text-transform: uppercase; letter-spacing: .4px; white-space: nowrap; }
+body.s2 .a-gt-sell .i { width: 14px; height: 14px; color: var(--accent); }
+body.s2 .a-gt-sell.done { background: #16171a; box-shadow: none; color: var(--muted); }
+body.s2 .a-gt.sold .a-gt-st, body.s2 .a-gt.sold .a-gt-tx { opacity: .45; }
+body.s2 .a-grid.c2 .a-gt-n { font-size: 14px; }
+body.s2 .a-grid.c2 .a-gt-p { font-size: 14px; }
+body.s2 .a-grid.c2 .a-gt-sell { height: 34px; font-size: 12.5px; }
+body.s2 .a-grid.c2 .a-gt .a-cls { height: 20px; font-size: 12.5px; }
+body.s2 .a-multi > .a-from { margin: 0 0 6px; }
+body.s2 .a-multi .multi-sum { position: relative; margin: 0; padding: 8px 54px 8px 12px; }
+body.s2 .a-multi .multi-sum > span { font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.s2 .a-multi .multi-sum > span em { font-style: normal; color: var(--muted); }
+body.s2 .a-multi .multi-sum > b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.s2 .a-multi .multi-sum b { font-size: 13.5px; }
+body.s2 .a-share { position: absolute; right: 7px; top: 50%; transform: translateY(-50%); width: 38px; height: 38px; display: grid; place-items: center; border-radius: 11px;
+  background: var(--slab); box-shadow: var(--slab-sh-sm); color: var(--text); }
+body.s2 .a-share .i { width: 18px; height: 18px; }
+body.s2 .a-multi .drop-dock { margin-top: 8px; padding: 10px 16px 8px; }
+body.s2 #view .a-multi .drop-dock .btns .btn { min-height: 48px; }
+body.s2 #view .a-multi .drop-dock .btn.opencase { min-height: 44px; margin-top: 8px; }
+body.s2 .a-multi .drop-dock .dd-last { margin-top: 6px; }
+@media (max-height: 700px) {
+  body.s2 .a-gt-st { aspect-ratio: 1 / .5; background-position: center 60%; }
+  body.s2 .a-gt-st .a-car { left: 14%; width: 72%; bottom: 22%; }
+  body.s2 .a-grid { gap: 6px; margin-bottom: 8px; }
+  body.s2 .a-gt-sell { height: 28px; margin: 5px 5px 7px; }
+  body.s2 #view .a-multi .drop-dock .btns .btn { min-height: 44px; }
+  body.s2 #view .a-multi .drop-dock .btn.opencase { min-height: 40px; margin-top: 6px; }
+}
+
+/* --- «Швидко»: a pill with a small switch next to ×1/×3/×6 (the open button below them), and on the opening overlay --- */
+body.s2 .s2-dock.s2-dock2 { flex-direction: column; align-items: stretch; gap: 8px; }
+body.s2 .s2-dock-r { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+body.s2 .s2-dock2 .s2-open { flex: none; width: 100%; }
+.s2-fast { display: inline-flex; align-items: center; gap: 7px; height: 44px; padding: 0 10px 0 12px; border-radius: 14px; background: var(--slab-dk); box-shadow: var(--slab-sh-sm);
+  font: 800 13px var(--f-fc); text-transform: uppercase; letter-spacing: .5px; color: #a3a6ad; white-space: nowrap; }
+.s2-fast > .i { width: 17px; height: 17px; }
+.s2-fast > i { position: relative; width: 30px; height: 18px; border-radius: 9px; background: #0d0e10; box-shadow: inset 0 1px 2px #000a; transition: background .15s; }
+.s2-fast > i::after { content: ''; position: absolute; left: 3px; top: 3px; width: 12px; height: 12px; border-radius: 50%; background: #6b6f78; transition: transform .15s, background .15s; }
+.s2-fast.on { color: #fff; }
+.s2-fast.on > .i { color: var(--accent); }
+.s2-fast.on > i { background: #ffd400; }
+.s2-fast.on > i::after { transform: translateX(12px); background: #111; }
+.s2-ov-skip { position: absolute; left: 0; right: 0; bottom: calc(36px + var(--safe-b, 0px)); z-index: 6; display: flex; justify-content: center; }
+.s2-openov.out .s2-ov-skip { opacity: 0; }
+
+/* --- the celebration (public/wow.css) — the older style.css overrides of the shouting look, neutralised --- */
+body.s2 .wow.wow .wow-kicker { font: 800 12px/1 var(--f-fc); letter-spacing: 1.6px; }
+body.s2 .wow.wow.k-warn .wow-kicker { height: auto; padding: 6px 12px; font: 700 14px/1.2 var(--f-body); letter-spacing: 0; text-transform: none; }
+body.s2 .wow.wow.hit .wow-tags { animation-delay: 0s; }
+body.s2 .wow.wow.hit .wow-name { animation-delay: .08s; }
+body.s2 .wow.wow.hit .wow-val { animation-delay: .16s; }
+body.s2 .wow.wow.hit .wow-dream { animation-delay: .22s; }
+body.s2 .wow.wow.hit .wow-acts { animation-delay: .26s; }
+body.s2 .wow.wow .wow-num { color: var(--accent); }
+body.s2 .wow.wow .wow-acts { margin-top: 16px; }
+body.s2 .wow .wow-acts .btn.ghost { background: var(--slab); color: var(--text); box-shadow: var(--slab-sh-sm); border: 0; }
+body.s2 .wow .wow-acts .btn.yellow { background: var(--yel); color: #111; box-shadow: var(--yel-sh); border: 0; }
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */

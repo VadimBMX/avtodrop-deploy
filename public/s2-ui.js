@@ -321,21 +321,27 @@ function cityAfter() {
 // s2-fix: measured against the tab bar's real top (it is fixed: its rect is the viewport's), and measured again when the
 // newbie guide strip is put above the city after this render (app.js paintGuide prepends #guide to #view) — the old
 // 420 px floor pushed «Зібрати» under the bar on short screens. The map takes what is left (flex), never < 150 px.
+// s2-screens (owner 03.11, iPhone): the measured height went stale while Telegram resized the webview (a void under the
+// map, or the page scrolling with an empty band over the header). Now the layout is pure CSS — on «Місто» #app is one
+// fixed 100dvh flex column (header · guide · toggle · map · cash strip), nothing scrolls vertically — and the map is
+// re-measured for panning whenever its box changes size (ResizeObserver).
 function fitCity() {
   const el = document.getElementById('s2City');
   if (!el) return;
   window.scrollTo(0, 0);
-  const top = el.getBoundingClientRect().top;
-  const tabs = document.getElementById('tabs');
-  const tr = tabs?.getBoundingClientRect();
-  // the bar's highest part (the raised DROP button sticks out above the bar)
-  const barTop = tr && tr.height ? Math.min(tr.top, ...[...tabs.querySelectorAll('*')].map((b) => b.getBoundingClientRect()).filter((r) => r.width > 30 && r.top > 0).map((r) => r.top)) : window.innerHeight - 76;
-  const gap = 8;
-  const want = Math.floor(barTop - top - gap);
-  const sheet = el.querySelector('.s2-sheet'), seg = el.querySelector('.s2-seg'), leg = el.querySelector('.s2-leg');
-  const fixed = (sheet?.offsetHeight || 0) + (seg?.offsetHeight || 0) + (leg?.offsetHeight || 0) + 24;
-  const h = Math.max(fixed + 150, want);
-  if (el.style.height !== h + 'px') el.style.height = h + 'px';
+  if (el.style.height) el.style.height = '';
+  const vp = document.getElementById('s2Map');
+  if (vp && !vp._ro && window.ResizeObserver) {
+    let h0 = vp.clientHeight, w0 = vp.clientWidth;
+    vp._ro = new ResizeObserver(() => {
+      if (!vp.isConnected) return vp._ro.disconnect();
+      if (vp.clientHeight === h0 && vp.clientWidth === w0) return;
+      h0 = vp.clientHeight; w0 = vp.clientWidth;
+      mountPan();
+      fitLabels();
+    });
+    vp._ro.observe(vp);
+  }
 }
 let fitObs = null;
 function watchCity() { // s2-fix
@@ -493,11 +499,15 @@ function openBtn(cs, n) {
   if (paid && price * paid > m.balance) return `<button class="s2-open" disabled>Бракує ${S.short(price * paid - m.balance)}</button>`;
   return `<button class="s2-open opencase" data-act="openCase" data-expect="${price * paid}">${X.ic('box')}<span class="l">${cs.starter ? 'Відкрити' : 'Відкрити'}</span><span class="p">${cs.starter ? 'безкоштовно' : paid ? shortN(price * paid) + ' ₴' : `${X.ic('key')} ${n}`}</span></button>`;
 }
+const fastPill = (on) => `<button class="s2-fast${on ? ' on' : ''}" data-act="toggleFast" aria-pressed="${on ? 'true' : 'false'}" aria-label="Швидке відкриття — без анімації">${X.ic('player-track-next')}<span>Швидко</span><i></i></button>`;
 function dock(cs) {
   const s = st(), n = cs.starter ? 1 : s.count || 1;
   const free = me().slots - me().used;
   const counts = cs.starter ? '' : `<div class="s2-cnt">${[1, 3, 6].map((k) => `<button class="${k === n ? 'on' : ''}" data-act="pickCount" data-n="${k}">×${k}</button>`).join('')}</div>`;
-  return `<div class="s2-dock">${counts}${openBtn(cs, n)}</div>${free < n && free >= 0 && !cs.starter ? `<div class="s2-note">${free > 0 ? `Не вистачає місця для ×${n} — обери ×1 або продай машину` : 'Гараж заповнений — продай машину або купи місце в гаражі'} · <a class="txtlink" data-act="sellCheap" data-n="${Math.max(1, n - free)}">продати найдешевші</a></div>` : ''}`;
+  // s2-screens (owner 03.11): «Швидко» lives right here, next to ×1/×3/×6 and the open button (it was a footer row under
+  // the bar nobody saw); the same pill sits on the opening overlay and skips the animation mid-way.
+  const fast = cs.starter ? '' : fastPill(st().fast);
+  return `<div class="s2-dock${cs.starter ? '' : ' s2-dock2'}">${counts || fast ? `<div class="s2-dock-r">${counts}${fast}</div>` : ''}${openBtn(cs, n)}</div>${free < n && free >= 0 && !cs.starter ? `<div class="s2-note">${free > 0 ? `Не вистачає місця для ×${n} — обери ×1 або продай машину` : 'Гараж заповнений — продай машину або купи місце в гаражі'} · <a class="txtlink" data-act="sellCheap" data-n="${Math.max(1, n - free)}">продати найдешевші</a></div>` : ''}`;
 }
 function oddsTiles(cs, weights) {
   const tw = Object.values(weights).reduce((a, b) => a + b, 0);
@@ -525,7 +535,6 @@ function marketView(base) {
     <div class="s2-h"><b>Усі кейси</b><span>за рідкістю · країни</span></div><div class="s2-cgrid">${rar.map(tile).join('')}</div>
     <div class="s2-h"><b>Країни</b><span>${cty.length}</span></div><div class="s2-cgrid">${cty.map(tile).join('')}</div>
     ${dock(cs)}
-    <div class="fastrow"><span>${X.ic('bolt')} Швидке відкриття <small>без анімації</small></span><button class="toggle ${s.fast ? 'on' : ''}" data-act="toggleFast" aria-label="Швидке відкриття"></button></div>
     ${X.brokeCard()}</div>`;
 }
 function caseView(base) {
@@ -562,8 +571,7 @@ function caseView(base) {
     <div class="s2-h"><b>Що всередині · ${cars.length} ${X.plural(cars.length, ['машина', 'машини', 'машин'])}</b>${cars.length > 9 ? `<button class="s2-link" data-act="s2All">${s.s2all ? 'Згорнути' : 'Всі'} ${X.ic('chevron-right')}</button>` : ''}</div>
     <div class="s2-cgrid cars">${grid}</div>
     ${cs.starter ? '' : `<div class="s2-card s2-frag"><div class="row between"><span>${X.ic('key')} Фрагменти ключа</span><b>${fr}/${need}</b></div><div class="pips">${Array.from({ length: need }, (_, i) => `<i class="${i < fr ? 'on' : ''}"></i>`).join('')}</div><div class="tiny muted">${need} фрагментів = безкоштовне відкриття. Фрагмент дає машина, дешевша за кейс.</div></div>`}
-    ${dock(cs)}
-    <div class="fastrow"><span>${X.ic('bolt')} Швидке відкриття <small>без анімації</small></span><button class="toggle ${s.fast ? 'on' : ''}" data-act="toggleFast" aria-label="Швидке відкриття"></button></div></div>`;
+    ${dock(cs)}</div>`;
 }
 // The result (asphalt, owner 03.11): the won car stands ON the lit asphalt turntable (s2/bg/stage-reveal.webp) — no card
 // frame, no floating case, no ghost class letter. Under it: the class tag, the name, «нова в колекції N/174», one grid
@@ -579,20 +587,29 @@ function dropResult(base) {
   const fresh = s.fx?.type === 'case';
   const have = me().collection.filter((id) => !M(id)?.secret).length, total = S.ALL_MODELS.filter((x) => !x.secret).length;
   if (d.length !== 1) {
+    // s2-screens (owner 03.11: «no swiping»): every dropped car on one screen — a grid of small turntables (3 → one row of
+    // 3, 4 → 2×2, 6 → 3×2), each tile: the car on its mini stage (tap → the car card), class, «нова», name, sale price and
+    // its own «Продати». The summary (with a share icon) and the dock fit above the bar on 390×844 for ×6.
     const sum = tpl.content.querySelector('.multi-sum');
+    const shareId = tpl.content.querySelector('[data-act="shareDrop"]')?.dataset.id;
+    if (sum) { // two lines: «6 машин · 4 нові · колекційна X» over «Продаж разом Y» (three lines slid under the dock on 360)
+      const first = sum.querySelector(':scope > span')?.innerHTML || '';
+      sum.innerHTML = `<span class="a-sum1">${first}<em> · колекційна ${S.short(d.reduce((a, r) => a + r.car.value, 0))}</em></span><b>Продаж разом ${S.short(X.sellTotal(d.map((r) => r.car)))}</b>`;
+    }
+    if (sum && shareId) sum.insertAdjacentHTML('beforeend', `<button class="a-share" data-act="shareDrop" data-id="${shareId}" aria-label="Поділитися">${X.ic('share')}</button>`);
+    const cols = d.length === 4 || d.length === 2 ? 2 : 3;
     const cell = (r, i) => {
       const md = M(r.car.model), rank = S.rankOf(md.cls), color = clsCol(md.cls);
-      const sell = X.dropAlive(r) ? `<button class="dropsell" data-act="sellDrop" data-id="${r.car.id}">${X.ic('cash')}Продати · ${S.short(X.sellPrice(r.car))}</button>`
-        : r.sold ? '<div class="dropsell done">Продано</div>' : '';
-      return `<div class="a-mc r${rank} ${fresh ? 'flip-in' : ''}" style="--c:${color};animation-delay:${i * 160}ms">
-        <div class="a-stage sm" ${r.sold ? '' : `data-act="car" data-id="${r.car.id}" role="button"`}><i class="a-fade"></i><div class="a-car"><div class="art">${X.carArt(r.car.model, { glow: rank >= 3 })}</div></div></div>
-        <div class="a-mc-tx"><div class="a-head"><span class="a-cls" style="--c:${color}">${md.cls}</span><span class="a-clsn">${esc(S.CLASSES[md.cls].name)}</span>${r.isNew ? '<span class="a-new">нова</span>' : ''}</div>
-        <b class="a-mc-n ellipsis">${esc(md.name)}</b><div class="a-mc-p">${S.short(X.sellPrice(r.car))}<small>${X.carInc(r.car) ? ` · +${shortN((X.carInc(r.car).rate ?? X.carInc(r.car).income ?? X.carInc(r.car)))}/год` : ''}</small></div>${sell}</div></div>`;
+      const sell = X.dropAlive(r) ? `<button class="a-gt-sell" data-act="sellDrop" data-id="${r.car.id}" aria-label="Продати ${esc(md.name)}">${X.ic('cash')}Продати</button>`
+        : r.sold ? '<div class="a-gt-sell done">Продано</div>' : '';
+      return `<div class="a-gt r${rank}${r.sold ? ' sold' : ''} ${fresh ? 'flip-in' : ''}" style="--c:${color};animation-delay:${i * 110}ms">
+        <div class="a-gt-st" ${r.sold ? '' : `data-act="car" data-id="${r.car.id}" role="button"`}><div class="a-car"><div class="art">${X.carArt(r.car.model, { glow: rank >= 3 })}</div></div></div>
+        <div class="a-gt-tx"><div class="a-gt-h"><span class="a-cls" style="--c:${color}">${md.cls}</span>${r.isNew ? '<span class="a-gt-new">нова</span>' : ''}</div>
+        <b class="a-gt-n">${esc(md.name)}</b><div class="a-gt-p">${S.short(X.sellPrice(r.car))}</div></div>${sell}</div>`;
     };
     return `<div class="s2-multi a-multi"><div class="a-from">${esc(cs.name)} · ×${d.length} відкрито</div>
-      <div class="a-car3" id="aCar3">${d.map(cell).join('')}</div>
-      <div class="a-dots">${d.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div>
-      ${sum ? sum.outerHTML : ''}${dockEl ? dockEl.outerHTML : ''}${share}</div>`;
+      <div class="a-grid c${cols} n${d.length}">${d.map(cell).join('')}</div>
+      ${sum ? sum.outerHTML : ''}${dockEl ? dockEl.outerHTML : ''}${shareId ? '' : share}</div>`;
   }
   const { car, isNew, forced } = d[0];
   const md = M(car.model), rank = S.rankOf(md.cls), color = clsCol(md.cls);
@@ -617,12 +634,6 @@ function dropResult(base) {
 function dropAfter() {
   const res = document.querySelector('.s2-res');
   if (res) document.body.style.setProperty('--s2rc', getComputedStyle(res).getPropertyValue('--c'));
-  // ×3/×6 carousel: the dots follow the scroll
-  const car3 = document.getElementById('aCar3');
-  if (car3) car3.onscroll = () => {
-    const k = Math.round(car3.scrollLeft / (car3.firstElementChild?.offsetWidth + 12 || 1));
-    car3.parentElement.querySelectorAll('.a-dots i').forEach((el, i) => el.classList.toggle('on', i === k));
-  };
 }
 // Opening: the closed case shakes harder and harder, a flash in the drop's colour, the lid flies open — then the result.
 function openAnim(cs, r) {
@@ -632,21 +643,37 @@ function openAnim(cs, r) {
     const ov = document.createElement('div');
     ov.className = 's2-openov';
     ov.style.setProperty('--c', color);
-    ov.innerHTML = `<div class="s2-rays"></div><div class="s2-oc">${caseArt(cs)}</div><div class="s2-oc open">${caseArt(cs, true)}</div><div class="s2-flash"></div><div class="s2-ot">${esc(cs.name)}${r.results.length > 1 ? ` · ×${r.results.length}` : ''}</div>`;
+    ov.innerHTML = `<div class="s2-rays"></div><div class="s2-oc">${caseArt(cs)}</div><div class="s2-oc open">${caseArt(cs, true)}</div><div class="s2-flash"></div><div class="s2-ot">${esc(cs.name)}${r.results.length > 1 ? ` · ×${r.results.length}` : ''}</div>
+      <div class="s2-ov-skip">${fastPill(false)}</div>`;
     document.body.appendChild(ov);
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const T = reduce ? [200, 300, 500] : [1300, 1550, 2050];
     X.haptic('light');
     const ticks = reduce ? [] : [250, 500, 700, 880, 1020, 1140, 1240].map((t) => setTimeout(() => (X.haptic('light'), X.SFX.tick?.(1 + t / 2000)), t));
-    requestAnimationFrame(() => ov.classList.add('go'));
-    setTimeout(() => (ov.classList.add('burst'), X.haptic(best >= 3 ? 'heavy' : 'medium'), X.SFX.pop?.(best)), T[0]);
-    setTimeout(() => ov.classList.add('opened'), T[1]);
-    setTimeout(() => {
+    const timers = [];
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
       ticks.forEach(clearTimeout);
+      timers.forEach(clearTimeout);
       ov.classList.add('out');
       setTimeout(() => ov.remove(), 300);
       resolve();
-    }, T[2]);
+    };
+    // s2-screens: «Швидко» on the overlay — turns the quick open on (stored) and skips the rest of this animation.
+    ov.querySelector('.s2-fast')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.currentTarget.classList.add('on');
+      e.currentTarget.setAttribute('aria-pressed', 'true');
+      X.setFast?.(true);
+      X.haptic('light');
+      finish();
+    });
+    requestAnimationFrame(() => ov.classList.add('go'));
+    timers.push(setTimeout(() => (ov.classList.add('burst'), X.haptic(best >= 3 ? 'heavy' : 'medium'), X.SFX.pop?.(best)), T[0]));
+    timers.push(setTimeout(() => ov.classList.add('opened'), T[1]));
+    timers.push(setTimeout(finish, T[2]));
   });
 }
 

@@ -30,20 +30,9 @@ export function pickDrop(results, { fast = false } = {}) {
 }
 export const isOpen = () => !!document.querySelector('.wow');
 
-// Per class: how big the show is. A = gold glow, S = the full show, X (secret) = cyan + star storm.
-const TUNE = {
-  3: { confetti: 0.8, burst: 60, power: 9, waves: 1, shake: false, rays: false },
-  4: { confetti: 1.6, burst: 90, power: 13, waves: 2, shake: true, rays: true },
-  5: { confetti: 1.4, burst: 90, power: 14, waves: 3, shake: true, rays: true },
-};
-const TITLES = { 3: 'ЛЕГЕНДАРНА!', 4: 'МІФІЧНА!', 5: 'СЕКРЕТНА!' };
-
-// Showroom scene recoloured into the class colour (own ids, so it never clashes with the season card's copy).
-const scenes = {};
-function scene(color) {
-  if (!ctx.showroom) return '';
-  return (scenes[color] ||= ctx.showroom.replace(/\bsr(?=[A-Z])/g, 'ww').replace(/#ffc400/gi, color).replace(/#ffe27a/gi, color));
-}
+// s2-screens (owner 03.11: the red sunburst + «МІФІЧНА!» looked like the old design and scary): a calm label over the
+// turntable instead of a shout; the class colour only lights the rim and the floor.
+const TITLES = { 3: 'Легендарний дроп', 4: 'Міфічний дроп', 5: 'Секретна машина' };
 
 // result: one case result ({ car, isNew, dream }); casePrice: what one opening cost (for the ×multiplier).
 // Resolves when the player taps through (or after a long idle), so the caller can then play the normal result.
@@ -55,7 +44,6 @@ export function celebrate(result, { casePrice = 0, onShare, kicker = '', priceLa
     const car = result.car, m = S.MODELS[car.model];
     const rank = Math.max(3, S.rankOf(m.cls)), dream = !!result.dream;
     const color = dream && rank < 4 ? '#ffc400' : S.CLASSES[m.cls].color;
-    const t = TUNE[Math.min(5, rank)];
     // Honest numbers (reports/audit.md №1): the big figure is the sale — what the dealer pays right now — and «×N від
     // ціни кейсу» is that against the case (green only when it pays back); the collection price follows in grey. A
     // secret car can't be sold: its collection price is the figure.
@@ -74,9 +62,9 @@ export function celebrate(result, { casePrice = 0, onShare, kicker = '', priceLa
     el.setAttribute('role', 'dialog');
     el.setAttribute('aria-label', `${m.name} — ${S.CLASSES[m.cls].name}`);
     el.innerHTML = `<div class="wow-body">
-        <div class="wow-kicker">${dream ? `${ic('heart')} МАШИНА МРІЇ!` : kicker ? esc(kicker) : TITLES[Math.min(5, rank)]}</div>
-        <div class="wow-stage"><div class="wow-rays"></div><div class="wow-scene">${scene(color)}</div>
-          <div class="wow-refl" aria-hidden="true">${carArt(car.model, { look: car.look })}</div><div class="wow-car">${carArt(car.model, { look: car.look })}</div></div>
+        <div class="wow-kicker">${dream ? `${ic('heart')} Машина мрії` : kicker ? esc(kicker) : `<i class="wow-dot"></i>${TITLES[Math.min(5, rank)]}`}</div>
+        <div class="wow-stage"><i class="wow-floor"></i><i class="wow-rim"></i><i class="wow-dark"></i>
+          <div class="wow-car">${carArt(car.model, { look: car.look })}<i class="wow-shine"></i></div></div>
         <div class="wow-tags"><span class="stamp r${S.rankOf(m.cls)}" style="--c:${S.CLASSES[m.cls].color}"><b>${m.cls}</b>${S.CLASSES[m.cls].name}</span>${result.isNew ? `<span class="wow-new">${ic('sparkles')} Нова в колекції</span>` : ''}</div>
         <div class="wow-name">${esc(m.name)}</div>
         <div class="wow-val"><span class="wow-lbl">${sale == null ? 'Колекційна ціна' : 'Продаж'}</span><b class="wow-num">${S.fmt(main)}</b>${mult ? `<span class="wow-mult ${mult >= 1 ? 'up' : ''}">${S.multText(mult)} <small>${esc(priceLabel)}</small></span>` : ''}
@@ -113,30 +101,17 @@ export function celebrate(result, { casePrice = 0, onShare, kicker = '', priceLa
     // The sequence: dark-out → light sweep → the car slides in → hit (flash, burst, rays, confetti, sound) → details.
     SFX.tease(reduced ? 300 : 700);
     haptic('light');
+    // s2-screens: the asphalt reveal, all within ~1.2 s — the street lamps flicker on (CSS, 0–0.5 s), the car settles on
+    // the turntable, then the hit: the rim and the floor light up in the class colour and a shine sweeps the car once.
     later(650, () => {
       el.classList.add('hit');
-      const target = el.querySelector('.wow-car');
-      const [x, y] = FX.centerOf(target);
-      const pal = [color, '#ffffff', rank >= 5 ? '#a5f3fc' : '#ffd500'];
-      FX.flash(color, rank >= 4 ? 0.45 : 0.28, 600);
-      FX.burst(x, y, pal, { count: t.burst, power: t.power, shape: rank >= 4 ? 'mix' : 'spark', life: 90 });
-      if (t.rays) FX.rays(el.querySelector('.wow-rays'), color, true);
-      if (t.shake) FX.shake(el.querySelector('.wow-stage'), 420, rank >= 5);
       SFX.rare(Math.min(5, rank));
       if (dream) SFX.fanfare();
-      haptic('heavy');
-      later(160, () => haptic(rank >= 4 ? 'heavy' : 'medium'));
+      haptic(rank >= 4 ? 'heavy' : 'medium');
       later(380, () => haptic('success'));
-      FX.tween(el.querySelector('.wow-num'), 0, main, 1100, S.fmt, 250);
+      FX.tween(el.querySelector('.wow-num'), 0, main, 700, S.fmt, 120);
     });
     later(900, () => el.classList.add('ready'));
-    later(1000, () => FX.confetti([color, '#ffd500', '#ffffff', rank >= 5 ? '#22d3ee' : '#2f7bff'], t.confetti));
-    for (let w = 1; w < t.waves; w++) later(1000 + w * 650, () => {
-      const [x, y] = FX.centerOf(el.querySelector('.wow-car'));
-      FX.burst(x, y, [color, '#fff', '#ffd500'], { count: 50, power: 15, shape: 'star', life: 100, gravity: 0.08 });
-      if (w === 2) FX.confetti([color, '#ffffff', '#a5f3fc'], 0.9);
-    });
-    later(1500, () => FX.sparkle(el.querySelector('.wow-name'), [color, '#ffffff'], 12));
     timers.push(setTimeout(close, 25000)); // idle: never trap the player (not shortened under reduced motion)
   });
 }
