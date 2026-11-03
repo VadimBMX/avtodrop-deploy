@@ -8,32 +8,23 @@ import { createGame } from '../src/game.js';
 import * as S from '../public/shared.js';
 import { caseReturns, natural } from '../tools/sim-cases.mjs';
 
-const PRICES = { rust: 60000, city: 300000, tuning: 900000, sport: 2000000, premium: 5000000, elite: 10000000,
-  'c-ua': 55000, 'c-jp': 450000, 'c-de': 400000, 'c-cn': 480000, 'c-us': 2400000, 'c-gb': 3100000, 'c-it': 3200000 };
-// The odds before (cfa39b3): no class above the floor class may drop less often than this.
-const BEFORE = {
-  rust: { D: 96.4, C: 3.4, B: 0.18, A: 0.02 }, city: { C: 95.5, B: 4.3, A: 0.18, S: 0.02 }, tuning: { C: 80, B: 19, A: 0.95, S: 0.05 },
-  sport: { B: 93, A: 6.8, S: 0.2 }, premium: { B: 58, A: 40.5, S: 1.5 }, elite: { A: 94, S: 6 },
-  'c-ua': { D: 98.55, C: 1.3, A: 0.15 }, 'c-jp': { C: 96.76, B: 3.06, A: 0.162, S: 0.018 }, 'c-de': { C: 98.32, B: 1.554, A: 0.118, S: 0.008 },
-  'c-cn': { C: 97.776, B: 2.08, A: 0.108, S: 0.036 }, 'c-us': { B: 85.6, A: 14, S: 0.4 }, 'c-gb': { B: 79.3, A: 20, S: 0.7 }, 'c-it': { B: 79.3, A: 20, S: 0.7 },
-};
-// Floors per open (shown odds + hidden boost, no guarantee): the class players wait for comes this often at least.
+// Season 2 (public/econ.js): every case was re-priced for an honest open-and-sell at the flat 50 % sale (no per-case
+// buy-back tables any more). PRICES pins them so a change is deliberate; S1 in the comment.
+const PRICES = { rust: 65000, city: 450000, tuning: 1000000, sport: 3700000, premium: 9000000, elite: 19000000,
+  'c-ua': 70000, 'c-jp': 450000, 'c-de': 500000, 'c-cn': 280000, 'c-us': 4200000, 'c-gb': 5500000, 'c-it': 6000000 };
+// S1: rust 60k, city 300k, tuning 900k, sport 2M, premium 5M, elite 10M, UA 55k, JP 450k, DE 400k, CN 480k, US 2,4M, GB 3,1M, IT 3,2M.
+// Floors per open (shown odds + hidden boost, no guarantee): the class players wait for comes this often at least. S2 keeps
+// the guarantee steps (rust blue by 25, city purple by 30 …) and lowered the natural odds where the old ones only worked
+// because a car sold for 22–45 % (S1 floors: rust C 1/14, city B 1/12,5, elite S 1/12,5, JP/DE/CN B 1/12,5–1/14).
 const FLOOR = {
-  rust: { C: 1 / 14 }, city: { B: 1 / 12.5 }, tuning: { A: 1 / 80 }, sport: { A: 1 / 12 }, premium: { S: 1 / 50 }, elite: { S: 1 / 12.5 },
-  'c-ua': { C: 1 / 13, A: 1 / 300 }, 'c-jp': { B: 1 / 12.5 }, 'c-de': { B: 1 / 14 }, 'c-cn': { B: 1 / 14 }, 'c-us': { S: 1 / 150 },
-  'c-gb': { S: 1 / 105 }, 'c-it': { S: 1 / 105 },
+  rust: { C: 1 / 18 }, city: { B: 1 / 20 }, tuning: { A: 1 / 110 }, sport: { A: 1 / 15 }, premium: { S: 1 / 70 }, elite: { S: 1 / 15 },
+  'c-ua': { C: 1 / 17, A: 1 / 300 }, 'c-jp': { B: 1 / 20 }, 'c-de': { B: 1 / 17 }, 'c-cn': { B: 1 / 38 }, 'c-us': { S: 1 / 180 },
+  'c-gb': { S: 1 / 180 }, 'c-it': { S: 1 / 180 },
 };
-const share = (w, c) => w[c] / Object.values(w).reduce((a, b) => a + b, 0);
 
-test('caseev: prices unchanged; every class above the floor drops at least as often as before, and the floors hold', () => {
-  // Owner 22.10: Elite red (S) 7.5 → 5.5; Italy/Britain rarer A/S, Ukraine rarer C.
-  const RETUNED = new Set(['elite', 'c-it', 'c-gb', 'c-ua']);
+test('caseev (S2): the prices of public/econ.js, the floors hold, every case keeps its classes', () => {
   for (const cs of S.CASES.filter((c) => !c.starter)) {
     assert.equal(cs.price, PRICES[cs.id], `${cs.id} price`);
-    if (RETUNED.has(cs.id)) continue;
-    const cl = Object.keys(BEFORE[cs.id]);
-    assert.deepEqual(Object.keys(cs.weights), cl, `${cs.id} classes`);
-    for (const c of cl.slice(1)) assert.ok(share(cs.weights, c) >= share(BEFORE[cs.id], c) - 1e-12, `${cs.id} ${c}: ${cs.weights[c]} < ${BEFORE[cs.id][c]}`);
     for (const [c, p] of Object.entries(FLOOR[cs.id])) assert.ok(natural(cs, c) >= p, `${cs.id} ${c}+: 1 in ${(1 / natural(cs, c)).toFixed(1)}`);
   }
 });

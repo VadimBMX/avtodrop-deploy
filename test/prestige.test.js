@@ -169,7 +169,7 @@ test('★ stay with the car in a trade and on the market; a dealer sale pays the
   assert.equal(r.got, S.sellPriceOf(S_CAR.id, Infinity, null));
   assert.equal(T.bal(a.id), before + r.got);
   assert.equal(T.db.prepare('SELECT COUNT(*) n FROM car_restyle WHERE car_id = ?').get(a.cars[0]).n, 0);
-  assert.deepEqual(S.SELL_RATES, { D: 0.5, C: 0.45, B: 0.4, A: 0.35, S: 0.3, X: 0.3 });
+  assert.deepEqual(S.SELL_RATES, { D: 0.5, C: 0.5, B: 0.5, A: 0.5, S: 0.5, X: 0.5 }); // Season 2: a flat 50 % (public/econ.js)
 });
 
 test('a restyled car is refused by the upgrade and the trade-in; B cars and listed cars cannot be restyled', () => {

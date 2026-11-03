@@ -30,7 +30,7 @@ function setup() {
 
 test('rules: the four businesses, rate / cap / step costs from one config', () => {
   assert.deepEqual(B.BIZ.list.map((b) => [b.id, b.level, b.price, b.income]), [
-    ['wash', 3, 2e6, 30000], ['gas', 5, 6e6, 80000], ['sto', 8, 15e6, 180000], ['salon', 15, 50e6, 500000]]);
+    ['wash', 3, 2e6, 30000], ['gas', 5, 6e6, 80000], ['sto', 7, 15e6, 180000], ['salon', 10, 50e6, 500000]]); // S2: СТО 8 → 7, Автосалон 15 → 10 (S1 players reached L10 after ~18 h; L15 never in a 14-day season)
   assert.equal(B.rateOf({ id: 'wash', level: 1 }), 30000);
   assert.equal(B.rateOf({ id: 'wash', level: 2, eq: 1, ads: 1 }), Math.round(30000 * 1.25 * 1.14));
   assert.equal(B.rateOf({ id: 'wash', level: 1 }, 0.15), 34500); // the district hook multiplies in
@@ -53,7 +53,7 @@ test('buy: level gate, money, once; the price leaves through biz/buy', () => {
   assert.throws(() => T.call(poor, 'biz/buy', { id: 'wash' }), /Недостатньо/);
   const u = T.mk(12, { level: 5, balance: 10e6 });
   assert.throws(() => T.call(u, 'biz/buy', { id: 'nope' }), /Невідомий/);
-  assert.throws(() => T.call(u, 'biz/buy', { id: 'sto' }), /8-го рівня/);
+  assert.throws(() => T.call(u, 'biz/buy', { id: 'sto' }), /7-го рівня/);
   const r = T.call(u, 'biz/buy', { id: 'wash' });
   assert.equal(r.paid, 2e6);
   assert.equal(T.bal(u), 8e6);
@@ -224,7 +224,7 @@ test('perk «СТО»: part cases −15% — only when owned', () => {
   assert.equal(paidU, Math.round((price * 0.85) / 100) * 100);
 });
 
-test('perk «Автосалон»: +5% on a car sale and on the car.sell shown — only when owned', () => {
+test('perk «Автосалон»: +2% (S2; S1 +5%) on a car sale and on the car.sell shown — only when owned', () => {
   const T = setup();
   const u = T.mk(31), v = T.mk(32);
   T.call(u, 'biz/buy', { id: 'salon' });
@@ -232,9 +232,9 @@ test('perk «Автосалон»: +5% on a car sale and on the car.sell shown �
   const [cv] = [T.g.giveCar(v, CAR.id).id, T.g.giveCar(v, CAR.id).id];
   T.add(48 * H); // past the fresh-sale window
   const base = S.sellPriceOf(CAR.id, 48 * H, null);
-  assert.equal(T.call(u, 'me').cars.find((c) => c.id === cu).sell, Math.floor(base * 1.05));
+  assert.equal(T.call(u, 'me').cars.find((c) => c.id === cu).sell, Math.floor(base * (1 + B.BIZ.perks.salonSell)));
   assert.equal(T.call(v, 'me').cars.find((c) => c.id === cv).sell, base);
-  assert.equal(T.call(u, 'sell', { carIds: [cu] }).got, Math.floor(base * 1.05));
+  assert.equal(T.call(u, 'sell', { carIds: [cu] }).got, Math.floor(base * (1 + B.BIZ.perks.salonSell)));
   assert.equal(T.call(v, 'sell', { carIds: [cv] }).got, base);
 });
 

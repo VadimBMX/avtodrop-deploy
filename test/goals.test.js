@@ -192,7 +192,8 @@ test('evening bot line: from 18:00 Kyiv, one goal short or a 3+ day run; not whe
   assert.equal(pickReminder({ ...g.pushCandidates(PUSH).find((x) => x.uid === e), mute: 'bonus' }, clock.t)?.includes('goals') || false, false);
 });
 
-test('balance: day keys and the run add at most +35% to what the old daily tasks paid (level 3–60); no per-goal cut', () => {
+test('balance: day keys and the run add at most +40% to what the old daily tasks paid (level 3–60); no per-goal cut', () => {
+  // Season 2: +35% → +40%: a key's instant-sale value rose with the flat 50 % sale (the money per task is unchanged).
   const sell = (id) => S.CASE_BY_ID[id].sellEv;
   for (let lvl = 3; lvl <= 60; lvl++) {
     // The old tasks: (8000 + 4000 × average target) × level^1.3 each, three a day.
@@ -201,7 +202,7 @@ test('balance: day keys and the run add at most +35% to what the old daily tasks
     const rw = S.goalStreakReward(lvl);
     const extra = 7 * sell(S.goalKey(lvl)) + rw.count * sell(rw.caseId);
     assert.ok(Math.abs(money - old) / old < 0.01, `level ${lvl}: the money per task stays`);
-    assert.ok((money + extra) / old <= 1.35, `level ${lvl}: +${(((money + extra) / old - 1) * 100).toFixed(1)}%`);
+    assert.ok((money + extra) / old <= 1.4, `level ${lvl}: +${(((money + extra) / old - 1) * 100).toFixed(1)}%`);
   }
   // The ladders only go up, and the run's key is always the better one.
   const order = S.CASES.map((c) => c.id);

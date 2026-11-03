@@ -4,7 +4,7 @@ import { openDb } from '../src/db.js';
 import { createGame } from '../src/game.js';
 import * as S from '../public/shared.js';
 
-test('packs on sale; «мега-пропозиція»: from level 3, ×2 hryvnias for 6 h, then not again for 3 days', () => {
+test('packs on sale; «мега-пропозиція»: from level 3, ×PACK_OFFER.mult hryvnias (S2 ×1,5; S1 ×2) for 6 h, then not again for 3 days', () => {
   let t = Date.parse('2026-10-28T12:00:00Z');
   const db = openDb(':memory:');
   const g = createGame(db, { now: () => t, notify: () => {}, admins: [1] });
@@ -26,7 +26,7 @@ test('packs on sale; «мега-пропозиція»: from level 3, ×2 hryvni
   assert.ok(g.api.me(5).packOffer, 'the next one after the pause');
   // A paid invoice credits the amount fixed in it (the offer amount), once.
   const r = g.creditPayment({ chargeId: 'c1', userId: 5, packId: 'p1', stars: 50, amount: g.packAmountFor(5, 'p1') });
-  assert.equal(r.amount, S.packAmount(S.PACKS.find((p) => p.id === 'p1'), 3, 0) * 2);
+  assert.equal(r.amount, S.packAmount(S.PACKS.find((p) => p.id === 'p1'), 3, 0) * S.PACK_OFFER.mult);
   assert.ok(g.creditPayment({ chargeId: 'c1', userId: 5, packId: 'p1', stars: 50, amount: 1 }).duplicate);
 });
 
@@ -36,7 +36,7 @@ test('first Stars purchase: the first pack gives ×FIRST_BUY_MULT (not on top of
   const g = createGame(db, { now: () => t, notify: () => {}, admins: [1] });
   g.ensureUser({ id: 7, first_name: 'F' });
   db.prepare('UPDATE users SET level = 3 WHERE id = 7').run();
-  g.api.me(7); // the offer (×2) starts too
+  g.api.me(7); // the offer (×PACK_OFFER.mult) starts too
   const base = S.packAmount(S.PACKS.find((p) => p.id === 'p1'), 3, 0);
   assert.equal(g.packAmountFor(7, 'p1'), base * S.FIRST_BUY_MULT);
   assert.equal(g.api.shop(7).firstBuy, S.FIRST_BUY_MULT);

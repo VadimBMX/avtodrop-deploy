@@ -302,6 +302,6 @@ test('no case price, odds or sell rate changes during the event', () => {
   const me1 = call(5, 'me');
   assert.ok(me1.halloween && !me0.halloween);
   assert.equal(snap(), before);
-  assert.deepEqual(S.SELL_RATES, { D: 0.5, C: 0.45, B: 0.4, A: 0.35, S: 0.3, X: 0.3 });
+  assert.deepEqual(S.SELL_RATES, { D: 0.5, C: 0.5, B: 0.5, A: 0.5, S: 0.5, X: 0.5 }); // Season 2: a flat 50 % (public/econ.js)
   assert.ok(!S.EVENT_IDS.includes('halloween'), 'not a weekly event: no case effects');
 });

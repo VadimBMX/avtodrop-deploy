@@ -43,11 +43,11 @@ test('late rewards: achievement claim at level 30 pays the cut + tuning keys; le
   mk(1, 30);
   mk(2, 9);
   // «Ветеран» 10 000 / 60 000 / 500 000 / 2 500 000 at level 30: bronze and silver stay money (too small for a key),
-  // gold → 100 000 + 1 «Міський» (a step down: a «Тюнінг» key is dearer than 400 000), diamond → 500 000 + 2 «Тюнінг».
+  // gold → 100 000 + 2 «Іржавий» (S2: a «Міський» key is 450 000, dearer than the 400 000 budget), diamond → 500 000 + 2 «Тюнінг».
   const r30 = call(1, 'ach/claim', { key: 'level' });
   assert.equal(r30.tiers, 4);
   assert.equal(r30.got, 10000 + 60000 + 100000 + 500000);
-  assert.deepEqual(r30.keys, [{ caseId: 'city', count: 1 }, { caseId: 'tuning', count: 2 }]);
+  assert.deepEqual(r30.keys, [{ caseId: 'rust', count: 2 }, { caseId: 'tuning', count: 2 }]);
   assert.equal(keys(1).tuning, 2);
   assert.match(r30.text, /2 × ключ «Тюнінг-ательє»/);
   const r9 = call(2, 'ach/claim', { key: 'level' });
@@ -82,7 +82,7 @@ test('late rewards: collection milestone and «Забрати все» at level 
 
 test('late rewards: country collection at level 9 pays the full sum, at 10+ the cut and two keys', () => {
   const { db, call, mk, keys } = setup();
-  const c = 'UA', need = S.countryNeed(c);
+  const c = 'JP', need = S.countryNeed(c); // S2: the UA reward is 1,5 млн (its secret car 30 млн) — too small for two keys
   for (const [id, level] of [[1, 9], [2, 25]]) {
     mk(id, level);
     const ins = db.prepare('INSERT OR IGNORE INTO collection (user_id, model) VALUES (?, ?)');

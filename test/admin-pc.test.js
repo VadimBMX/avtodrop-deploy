@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { openDb } from '../src/db.js';
 import { createGame } from '../src/game.js';
+import * as S from '../public/shared.js';
 import { createApp } from '../server.js';
 import { csvField, csvLine, MASK } from '../src/admin-pc.js';
 
@@ -49,7 +50,7 @@ test('admin-pc: the dashboard counts today, case opens by case with real vs theo
   const E = g.adminCall('local', 'pc/economy', {});
   const rust = E.cases.find((c) => c.id === 'rust');
   assert.equal(rust.opens, 3);
-  assert.equal(rust.spent, 3 * 60000);
+  assert.equal(rust.spent, 3 * S.CASE_BY_ID.rust.price); // S2: 65 000 (S1 60 000)
   assert.ok(rust.evRet > 0 && rust.sellRet > 0 && rust.ret > 0);
   // a day later the balance of player 3 jumped by 30M: an anomaly, and «Підозріле» on his card
   clock(25 * 3600e3);

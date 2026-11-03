@@ -3,6 +3,7 @@
 // game only once its photo is there.
 import { CAR_PHOTOS } from './car-photos.js';
 import { BIZ_SHOP_ITEMS } from './business.js'; // s2-biz: «Менеджер» Stars items of «Мої бізнеси»
+import { ECON } from './econ.js'; // every economy number (prices, payouts, odds, sinks) — see public/econ.js
 
 export const CURRENCY = '₴';
 
@@ -10,11 +11,11 @@ export const CLASSES = {
   // Each class starts at least 1.33× above the top of the one below: a rare drop is worth several times its case, never
   // a hundred times, so the cheap end of a case is never worthless next to its price (see CASE_CORRIDOR). The upper
   // classes are wide, so dream cars feel dear (hypercars up to 300M); D/C stay cheap for beginners.
-  D: { name: 'Звичайний', color: '#9aa4b2', lo: 40000, hi: 100000 },
-  C: { name: 'Рідкісний', color: '#3b82f6', lo: 200000, hi: 600000 },
-  B: { name: 'Епічний', color: '#a855f7', lo: 2000000, hi: 8000000 },
-  A: { name: 'Легендарний', color: '#ff8a3d', lo: 12000000, hi: 45000000 },
-  S: { name: 'Міфічний', color: '#ef4444', lo: 60000000, hi: 300000000 },
+  D: { name: 'Звичайний', color: '#9aa4b2', ...ECON.classes.D },
+  C: { name: 'Рідкісний', color: '#3b82f6', ...ECON.classes.C },
+  B: { name: 'Епічний', color: '#a855f7', ...ECON.classes.B },
+  A: { name: 'Легендарний', color: '#ff8a3d', ...ECON.classes.A },
+  S: { name: 'Міфічний', color: '#ef4444', ...ECON.classes.S },
   X: { name: 'Секретний', color: '#22d3ee', lo: 0, hi: 0 },
 };
 export const CLASS_ORDER = ['D', 'C', 'B', 'A', 'S', 'X'];
@@ -245,13 +246,13 @@ const PHOTO = new Set(CAR_PHOTOS);
 // that collection costs on average with the country case (the rarest models decide it: Ukraine's four gold cars
 // at 0.5% together, Italy's four mythics), so a quick collection can't hand out a fortune and a long hunt is worth it.
 const SECRETS = [
-  ['АВТОДРОП Прототип «Синьо-жовтий»', 2000, 1200, 'super', 'UA', 2026, 500000000],
-  ['Toyota GR Super Sport', 1000, 1250, 'super', 'JP', 2024, 625000000],
-  ['Mercedes-Benz CLK GTR', 612, 1000, 'super', 'DE', 1999, 1000000000],
-  ['Pagani Zonda R', 750, 1070, 'super', 'IT', 2009, 1500000000],
-  ['Hennessey Venom F5', 1817, 1360, 'super', 'US', 2022, 1000000000],
-  ['McLaren F1', 627, 1138, 'super', 'GB', 1995, 1250000000],
-  ['Yangwang U9 Xtreme', 3000, 2480, 'super', 'CN', 2025, 875000000, 'ev'],
+  ['АВТОДРОП Прототип «Синьо-жовтий»', 2000, 1200, 'super', 'UA', 2026, ECON.secrets.UA],
+  ['Toyota GR Super Sport', 1000, 1250, 'super', 'JP', 2024, ECON.secrets.JP],
+  ['Mercedes-Benz CLK GTR', 612, 1000, 'super', 'DE', 1999, ECON.secrets.DE],
+  ['Pagani Zonda R', 750, 1070, 'super', 'IT', 2009, ECON.secrets.IT],
+  ['Hennessey Venom F5', 1817, 1360, 'super', 'US', 2022, ECON.secrets.US],
+  ['McLaren F1', 627, 1138, 'super', 'GB', 1995, ECON.secrets.GB],
+  ['Yangwang U9 Xtreme', 3000, 2480, 'super', 'CN', 2025, ECON.secrets.CN, 'ev'],
 ];
 
 // Stable id from the name, so cars can be added anywhere in the list without breaking saved games.
@@ -482,20 +483,20 @@ for (const [name, hp, kg, body, country, year, price, ev] of SECRETS) {
 // another option to the top BEFORE the season starts (the model id follows the name, so a car already given stays valid
 // only if its old option is kept in OLD_SEASON_CARS).
 export const SEASON2_CAR_OPTIONS = [
-  { season: 2, name: 'Nissan GT-R R35 «Midnight Purple»', hp: 600, kg: 1720, body: 'coupe', country: 'JP', year: 2017, price: 150000000,
+  { season: 2, name: 'Nissan GT-R R35 «Midnight Purple»', hp: 600, kg: 1720, body: 'coupe', country: 'JP', year: 2017, price: ECON.seasonCar,
     img: 'nissan-gt-r-r35', filter: 'hue-rotate(248deg) saturate(.78) brightness(.6) contrast(1.12)' },
-  { season: 2, name: 'Toyota Supra A80 «Neon Tokyo»', hp: 520, kg: 1510, body: 'coupe', country: 'JP', year: 1997, price: 150000000,
+  { season: 2, name: 'Toyota Supra A80 «Neon Tokyo»', hp: 520, kg: 1510, body: 'coupe', country: 'JP', year: 1997, price: ECON.seasonCar,
     img: 'toyota-supra-a80', filter: 'sepia(1) saturate(5) hue-rotate(255deg) brightness(.62)' },
-  { season: 2, name: 'Porsche 911 Turbo S «Aurora»', hp: 650, kg: 1640, body: 'super', country: 'DE', year: 2021, price: 150000000,
+  { season: 2, name: 'Porsche 911 Turbo S «Aurora»', hp: 650, kg: 1640, body: 'super', country: 'DE', year: 2021, price: ECON.seasonCar,
     img: 'porsche-911-turbo-s', filter: 'sepia(.9) saturate(3.2) hue-rotate(115deg) brightness(.72)' },
 ];
 export const SEASON_CARS = [
-  { season: 1, name: 'BMW X5 M E70 «Monte Carlo Blue»', hp: 555, kg: 2380, body: 'suv', country: 'DE', year: 2010, price: 150000000 },
+  { season: 1, name: 'BMW X5 M E70 «Monte Carlo Blue»', hp: 555, kg: 2380, body: 'suv', country: 'DE', year: 2010, price: ECON.seasonCar },
   SEASON2_CAR_OPTIONS[0],
 ];
 // Former season prizes: no longer given, kept as models so a car already in a garage stays valid.
 const OLD_SEASON_CARS = [
-  { season: 1, name: 'Nissan Skyline GT-R R34 «Сезон 1»', hp: 600, kg: 1540, body: 'coupe', country: 'JP', year: 2002, price: 150000000,
+  { season: 1, name: 'Nissan Skyline GT-R R34 «Сезон 1»', hp: 600, kg: 1540, body: 'coupe', country: 'JP', year: 2002, price: ECON.seasonCar,
     img: 'nissan-skyline-gt-r-r34', filter: 'hue-rotate(42deg) saturate(1.3) brightness(.9)' },
 ];
 for (const c of [...SEASON_CARS, ...OLD_SEASON_CARS]) {
@@ -516,7 +517,7 @@ export const countryModels = (c) => ALL_MODELS.filter((m) => m.country === c && 
 // after ALL_MODELS on purpose: no case, dealer, rival pool, collection, set or country secret ever sees them. They can
 // be sold on the market, auctioned and swapped; the dealer buys them back for EDITION_SELL; no upgrade, no trade-in, no
 // repaint. Class, price and stats are the base model's.
-export const EDITION_SELL = 0.1;
+export const EDITION_SELL = ECON.editionSell;
 export const EDITION_CARS = [
   { base: 'vaz-2101-kopiika', tag: 'port', label: 'Портова', filter: 'hue-rotate(185deg) saturate(1.5) brightness(.95)' },
   { base: 'haz-24-volha', tag: 'port', label: 'Портова', filter: 'hue-rotate(160deg) saturate(1.3) brightness(.9)' },
@@ -558,7 +559,7 @@ export const serialText = (n) => `№ ${String(n).padStart(3, '0')}`;
 // income), with a serial number. Like a «тиражна» (edition: true, after ALL_MODELS): never in a case, the dealer, a
 // collection or a set; market and swaps yes; no upgrade, trade-in or repaint. The dealer pays what a plain base car
 // sells for (sellRate), so restoring to sell at once is a loss — the gain is the income and the garage value.
-export const R_MULT = 1.6;
+export const R_MULT = ECON.restoredMult;
 const R_TINTS = [0, 145, 205, 320];
 export const BARN_MODELS = ALL_MODELS.filter((m) => !m.secret && !m.homeOnly && !m.ev && m.year <= 1992 && (m.cls !== 'D' || m.price >= 50000)).map((m) => m.id);
 export const R_OF = {}; // base model → its «R» id
@@ -579,17 +580,17 @@ export const isRestored = (model) => !!MODELS[model]?.restored;
 // never a wipe-out, and a jackpot is a few times the price, not a hundred. Inside a class cheaper cars drop more often
 // (weight ∝ 1/√price). Owner decisions: eco3 — the old case prices with the dear B/A/S cars; caseev — prices never
 // change, the odds went up, and ORIGIN_SELL keeps open-and-sell ~0.9 (reports/caseev.md).
-export const CASE_CORRIDOR = { lo: 0.5, hi: 12 };
+export const CASE_CORRIDOR = ECON.caseCorridor;
 // Key fragments: every drop worth less than its case leaves a fragment of that case's key; FRAGMENTS_PER_KEY of them
 // make a free key. With ~40–80% of drops below the price, a free case comes every ~10–20 paid opens.
-export const FRAGMENTS_PER_KEY = 8;
+export const FRAGMENTS_PER_KEY = ECON.fragmentsPerKey;
 // Instant sale by class: grey 60%, blue 55%, purple 50%, gold 45%, red and secret 40%; no daily limit; a car out of a
 // case gets ORIGIN_SELL of that. With boost, luck, the losing-streak save and key fragments counted, open-and-sell is
 // 0.82–0.92 on a plain day and under ~1 on deal days (tools/sim-cases.mjs, tools/sim-events.mjs, test/caseev.test.js).
-export const SELL_RATES = { D: 0.5, C: 0.45, B: 0.4, A: 0.35, S: 0.3, X: 0.3 }; // owner 22.10 (3rd): grey 50 / blue 45 / purple 40 / gold 35 / red 30 — some dear cases stay above 1 (owner OK)
+export const SELL_RATES = ECON.sellRates; // owner 22.10 (3rd): grey 50 / blue 45 / purple 40 / gold 35 / red 30 — some dear cases stay above 1 (owner OK)
 // Collector cars (homeOnly: the gold Soviet rarities) sell instantly for this share of their value instead (1,2–2,3 M,
 // still 22–41× the 55k case), so a gold car every ~230 opens keeps the case's open-and-sell at ~1.00 (tools/sim-ua.mjs).
-export const HOME_SELL_RATE = 0.1;
+export const HOME_SELL_RATE = ECON.homeSellRate;
 export const isCollector = (model) => !!MODELS[model]?.homeOnly;
 // Safety valve 1 (off: rate 1). A car obtained less than `hours` ago sells instantly at `rate` × its usual price, so
 // «open and sell at once» can be cooled down without touching players who sell older cars. E.g. { rate: 0.6, hours: 24 }.
@@ -614,15 +615,7 @@ export const FRESH_SELL = { rate: 1, hours: 24 };
 // of 28%, Преміум gold 22% / purple 30%, Спорткар purple 28%), while the top-class guarantee of these cases is gone (CASES
 // below). Open-and-sell stays 0,85–0,91 plain and ≤ 0,95 on every deal day; a 10-open session of Еліта ends in profit 31%
 // of the time instead of 22%, doubles 3,7% of the time instead of 0,2% (tools/econ-audit.mjs jackpot).
-export const ORIGIN_SELL = {
-  city: 0.79, tuning: 0.95, 'c-ua': 0.9, // tuning 0.96 → 0.95 (29.10): the five Italian B cars lifted its EV to the line
-  sport: { B: 0.28, A: 0.266, S: 0.4 },
-  premium: { B: 0.3, A: 0.22, S: 0.4 },
-  elite: { A: 0.22, S: 0.45 },
-  'c-it': { B: 0.27, A: 0.245, S: 0.3 },
-  'c-us': { B: 0.28, A: 0.259, S: 0.3 },
-  'c-gb': { B: 0.27, A: 0.248, S: 0.3 },
-};
+export const ORIGIN_SELL = structuredClone(ECON.originSell);
 // The instant-sale share of a drop of class `cls` out of case `origin` (no origin / not a case: the class rate).
 export const caseSellShare = (origin, cls) => {
   const v = origin ? ORIGIN_SELL[origin] : null;
@@ -709,6 +702,8 @@ const niceRound = (n) => {
 };
 
 const byClass = (cls) => ALL_MODELS.filter((m) => m.cls === cls && !m.secret);
+// A rarity case's numbers from ECON.rarityCases (price, class odds, guarantee steps, corridor), copied so nothing mutates the config.
+const rarityCase = (id) => { const c = structuredClone(ECON.rarityCases[id]); return { ...c, pity: c.pity || [] }; };
 export const CASES = [
   // icon = id of a symbol in public/icons.svg
   { id: 'starter', name: 'Стартовий', icon: 'gift', group: 'gift', weights: { D: 100 }, starter: true },
@@ -719,14 +714,14 @@ export const CASES = [
   // Odds (reports/caseev.md, owner: «гра має бути легшою», prices stay): every class above the floor ~1.3–2× more often
   // (rust blue 1 in ~12, city purple 1 in ~11 …), each step still felt (test/pity.test.js: 5–60 %); the instant sale
   // of these drops is paid for by ORIGIN_SELL.
-  { id: 'rust', name: 'Іржавий гараж', icon: 'tool', group: 'rarity', price: 60000, weights: { D: 93.56, C: 6, B: 0.4, A: 0.04 }, pity: [['C', 25]], hi: 2000 },
-  { id: 'city', name: 'Міський', icon: 'building-skyscraper', group: 'rarity', price: 300000, weights: { C: 92.61, B: 7, A: 0.35, S: 0.04 }, pity: [['B', 30]], hi: 1000 },
-  { id: 'tuning', name: 'Тюнінг-ательє', icon: 'tool', group: 'rarity', price: 900000, weights: { C: 74.83, B: 24, A: 1.1, S: 0.07 }, pity: [['A', 200]], hi: 340 },
-  { id: 'sport', name: 'Спорткар', icon: 'flag-3', group: 'rarity', price: 2000000, weights: { B: 92.15, A: 7.6, S: 0.25 }, pity: [['A', 30]], hi: 150 },
+  { id: 'rust', name: 'Іржавий гараж', icon: 'tool', group: 'rarity', ...rarityCase('rust') },
+  { id: 'city', name: 'Міський', icon: 'building-skyscraper', group: 'rarity', ...rarityCase('city') },
+  { id: 'tuning', name: 'Тюнінг-ательє', icon: 'tool', group: 'rarity', ...rarityCase('tuning') },
+  { id: 'sport', name: 'Спорткар', icon: 'flag-3', group: 'rarity', ...rarityCase('sport') },
   // Option «jackpot» (owner 28.10): no guarantee of the red in Преміум and Еліта any more (it was S after 130 / 30 opens and
   // added 0,01 / 0,03 to open-and-sell) — the red is a jackpot, not a timetable. Sport keeps its gold step (the middle class).
-  { id: 'premium', name: 'Преміум', icon: 'diamond', group: 'rarity', price: 5000000, weights: { B: 55.2, A: 43, S: 1.8 }, pity: [], hi: 61 },
-  { id: 'elite', name: 'Еліта', icon: 'crown', group: 'rarity', price: 10000000, weights: { A: 94.5, S: 5.5 }, pity: [], hi: 31 },
+  { id: 'premium', name: 'Преміум', icon: 'diamond', group: 'rarity', ...rarityCase('premium') },
+  { id: 'elite', name: 'Еліта', icon: 'crown', group: 'rarity', ...rarityCase('elite') },
 ];
 // Country cases start cheap and have a wider ceiling (hi), so the country's dear cars — the ones its collection needs —
 // can still drop from its own case, rarely. Ukraine's gold Soviet rarities drop only from here (homeOnly).
@@ -738,21 +733,11 @@ const COUNTRY_CASES = {
   // reports/caseev.md (owner: «за годину 2 сині»): blue 1.3 → 6.5 (1 in ~12 opens), gold 0.15 → 0.3 (1 in ~190 with the
   // step); the blue cars sell for ORIGIN_SELL['c-ua']. There are no purple (B) Ukrainian cars, so no purple here.
   // JP/DE/CN: purple ×2–4 (1 in 7–12 opens), gold ×2. US/GB/IT already beat the competitor per open: only S a bit up.
-  UA: { price: 55000, weights: { D: 94.7, C: 5, A: 0.3 }, pity: [['C', 35], ['A', 300, { missing: true }]], hi: 460 },
-  JP: { price: 450000, weights: { C: 92.67, B: 7, A: 0.3, S: 0.03 }, pity: [['B', 30]], hi: 400 },
-  DE: { price: 400000, weights: { C: 93.68, B: 6, A: 0.3, S: 0.02 }, pity: [['B', 30]], hi: 570 },
-  // CN (econ audit 28.10, reports/econ-fable): every Chinese C car is worth less than the case, so it sat at 0.66 on
-  // open-and-sell (0.68 on its week) while JP/DE give 0.85–0.87 — the one case that only loses. Purple ×1.5, gold ×2.4,
-  // red ×2 (never rarer than before): B+ 1 in ~9 opens, 0.81 plain / 0.83 on its week; the step moved to 25 so it still fires.
-  CN: { price: 480000, weights: { C: 90.3, B: 9, A: 0.6, S: 0.1 }, pity: [['B', 25]], hi: 400 },
-  // Option «jackpot»: the red of США / Британія / Італія has no guarantee step any more (it fired after 250–300 opens).
-  US: { price: 2400000, weights: { B: 83.4, A: 16, S: 0.6 }, pity: [], hi: 130 },
-  GB: { price: 3100000, weights: { B: 87, A: 12.4, S: 0.6 }, pity: [], hi: 91 },
-  IT: { price: 3200000, weights: { B: 89.5, A: 10, S: 0.5 }, pity: [], hi: 58 },
+  ...structuredClone(ECON.countryCases),
 };
 for (const c of MAIN_COUNTRIES) {
   const cc = COUNTRY_CASES[c];
-  CASES.push({ id: 'c-' + c.toLowerCase(), name: COUNTRIES[c].name, icon: 'world', group: 'country', country: c, price: cc.price, weights: { ...cc.weights }, pity: cc.pity, hi: cc.hi });
+  CASES.push({ id: 'c-' + c.toLowerCase(), name: COUNTRIES[c].name, icon: 'world', group: 'country', country: c, price: cc.price, weights: { ...cc.weights }, pity: cc.pity, hi: cc.hi, ...(cc.lo != null ? { lo: cc.lo } : {}), ...(cc.poolPrice ? { poolPrice: cc.poolPrice } : {}) });
 }
 // Luck: a real run of bad luck builds up luck. The game keeps fading totals (over ~20 opens) of what the opened cases
 // should have given on average (their expected value) and what the drops were actually worth; when drops come to
@@ -762,7 +747,7 @@ for (const c of MAIN_COUNTRIES) {
 // Luck only ever improves a roll, is never shown to players, and fades as soon as drops pay off again.
 // Boost: on top of the odds shown, every case roll has this chance to throw the class twice and keep the better one
 // (the shown odds are the minimum; players get a little more than promised).
-export const BOOST = 0.15;
+export const BOOST = ECON.boost;
 // Losing streak: after `streak` drops in a row worth less than the case price, the next roll is thrown up to
 // `tries` times until a car worth the price comes; after `hardStreak` it is guaranteed (the cheapest such car).
 // newbie: a player's first `newbieOpens` case opens get at least `newbie` luck, so the start is not a losing streak.
@@ -808,12 +793,15 @@ export function effectiveWeights(cs, steps = pitySteps(cs)) {
 }
 // Safety valve 2 (off: {}). Price multiplier per case id, e.g. { elite: 1.6, 'c-gb': 2 }: the case costs more but drops
 // exactly the same cars (the pool and odds are fixed at the old price), so open-and-sell falls by that factor.
-export const CASE_PRICE_MULT = {};
+export const CASE_PRICE_MULT = { ...ECON.casePriceMult };
 for (const cs of CASES) {
   if (cs.starter) cs.price = 0;
   // Country cases have no lower bound: every car of the country in the case's classes drops from its own case
   // (the cheap Land Cruiser 80 or BYD Atto 3 too), so a country collection never depends on another case.
-  const lo = cs.country ? 0 : cs.price * CASE_CORRIDOR.lo, hi = cs.price * (cs.hi || CASE_CORRIDOR.hi);
+  // cs.lo: a case of its own floor; cs.poolPrice: the price the corridor is measured from when it differs from what the case
+  // costs (ECON: the pool stays put while the price is tuned for an honest open-and-sell).
+  const base = cs.poolPrice ?? cs.price;
+  const lo = base * (cs.lo ?? (cs.country ? 0 : CASE_CORRIDOR.lo)), hi = base * (cs.hi || CASE_CORRIDOR.hi);
   cs.pool = (cls) => byClass(cls)
     .filter((m) => (cs.country ? m.country === cs.country : !m.homeOnly))
     .filter((m) => cs.starter ? m.cls === 'D' && m.country === 'UA' : m.price >= lo && m.price <= hi);
@@ -844,7 +832,7 @@ export const countryNeed = (c) => {
 export const countryDone = (c, owned) => countryNeed(c).every((m) => owned.has(m.id));
 // Case of the day: one rarity case (never the starter) is CASE_OF_DAY.off cheaper for the whole Kyiv day; its hidden
 // boost is CASE_OF_DAY.boost instead of BOOST (that is what keeps the discount from farming money).
-export const CASE_OF_DAY = { off: 0.1, boost: 0 };
+export const CASE_OF_DAY = { off: ECON.caseOfDayOff, boost: 0 };
 const DAY_CASES = CASES.filter((c) => c.group === 'rarity');
 export function caseOfDay(day) {
   let h = 0;
@@ -855,11 +843,11 @@ export const casePrice = (cs, day) => (cs.id === caseOfDay(day) ? Math.round((cs
 
 // ---------- parts ----------
 export const TIERS = [
-  { id: 'stock', name: 'Stock', cls: 'D', price: 8000 },
-  { id: 'street', name: 'Street', cls: 'C', price: 25000 },
-  { id: 'sport', name: 'Sport', cls: 'B', price: 90000 },
-  { id: 'pro', name: 'Pro', cls: 'A', price: 350000 },
-  { id: 'race', name: 'Race', cls: 'S', price: 1400000 },
+  { id: 'stock', name: 'Stock', cls: 'D', price: ECON.partTiers.stock },
+  { id: 'street', name: 'Street', cls: 'C', price: ECON.partTiers.street },
+  { id: 'sport', name: 'Sport', cls: 'B', price: ECON.partTiers.sport },
+  { id: 'pro', name: 'Pro', cls: 'A', price: ECON.partTiers.pro },
+  { id: 'race', name: 'Race', cls: 'S', price: ECON.partTiers.race },
 ];
 export const TIER_BY_ID = Object.fromEntries(TIERS.map((t, i) => [t.id, { ...t, index: i }]));
 // Tier index of a part must be ≥ the car's class rank (X cars need Race parts).
@@ -916,7 +904,7 @@ export const PART_CASES = [
 for (const pc of PART_CASES) {
   const total = Object.values(pc.weights).reduce((a, b) => a + b, 0);
   const ev = Object.entries(pc.weights).reduce((s, [t, w]) => s + (w / total) * TIER_BY_ID[t].price, 0);
-  pc.price = niceRound(ev * 0.6);
+  pc.price = niceRound(ev * ECON.partCaseMarkup);
 }
 export const PART_CASE_BY_ID = Object.fromEntries(PART_CASES.map((c) => [c.id, c]));
 export const PICK_PART_EXTRA = 0.15;
@@ -1009,7 +997,7 @@ export function carValue(car) {
 // slow (a starter garage needed ~5 h of income for one 60k case, now ~3.5 h); A/S stay: their cases already pay
 // 1.5–2.6× on open-and-sell (eco3), and A/S garages grow to hundreds of millions within weeks. Secret cars are 2.5×
 // dearer since the wide class ranges, so their rate is 2.5× lower and they earn as before.
-export const CLASS_INCOME = { D: 0.07, C: 0.04, B: 0.016, A: 0.005, S: 0.0025, X: 0.0006 };
+export const CLASS_INCOME = ECON.classIncome;
 export const incomeRateOf = (model) => CLASS_INCOME[MODELS[model].cls];
 // Income per hour of a car: its class rate on the car itself; installed parts and the plate earn only the lowest
 // rate (X), so dear parts on a cheap high-rate car can't print money.
@@ -1276,12 +1264,12 @@ export function dragReplay(stats, reaction, shiftAt, claims = []) {
 }
 // One shared tank: FUEL_MAX races, +1 every FUEL_REGEN_MIN minutes, on any car. CAR_TANK is the old per-car tank —
 // gone from the game (no per-car limit); the cars.tank column stays unused and the API reports it full for old apps.
-export const FUEL_MAX = 15;
+export const FUEL_MAX = ECON.fuel.max;
 export const CAR_TANK = 5;
-export const FUEL_REGEN_MIN = 20;
+export const FUEL_REGEN_MIN = ECON.fuel.regenMin;
 // «Більший бак» (player feedback 28.10): a permanent upgrade of the shared tank, bought in the garage with in-game ₴ only
 // (never Stars; VIP speeds the refill up but gives no tank). users.tank_lvl = how many steps are bought (0 = FUEL_MAX).
-export const TANK_UPGRADES = [{ max: 18, cost: 2000000, level: 5 }, { max: 21, cost: 10000000, level: 10 }, { max: 25, cost: 50000000, level: 15 }];
+export const TANK_UPGRADES = ECON.fuel.tanks;
 export const fuelMaxOf = (lvl) => (lvl > 0 ? TANK_UPGRADES[Math.min(lvl, TANK_UPGRADES.length) - 1].max : FUEL_MAX);
 export const nextTank = (lvl) => TANK_UPGRADES[lvl || 0] || null;
 // «Каністра»: fuel earned by play — with the daily bonus and with every finished daily quest, never above the tank.
@@ -1551,7 +1539,7 @@ export const TRAINING_PLAIN = 0.9;
 export const ownShifts = (shifts) => (Array.isArray(shifts) ? shifts.filter((q) => q && q !== 'late').length : 0);
 // Money per race for a good driver racing a model of this price: ~10k for a 40k car, ~33k at 350k, ~130k at 4M,
 // ~350k at 23M, ~950k at 140M, ~1.45M at 300M — a full tank (15 races) is about one case of the car's class.
-export const raceEv = (value) => 10000 * Math.pow(Math.max(value, 1000) / 40000, 0.56);
+export const raceEv = (value) => ECON.race.base * Math.pow(Math.max(value, 1000) / ECON.race.ref, ECON.race.pow);
 // Prizes follow the car's price up to the dearest real car (the top of class S). Only the secret cars are above it (0,5–1,5
 // млрд): without the cap the US secret car paid 2,9 млн a race — twice a Bolide — for a collection that costs ~50 млн net
 // to finish (reports/econ-fable/economy.md). With it a secret car races like the dearest hypercar.
@@ -1904,22 +1892,17 @@ export const DEALER = {
 
 
 // ---------- garage ----------
-export const START_SLOTS = 6;
-export const MAX_SLOTS = 40;
+export const START_SLOTS = ECON.startSlots;
+export const MAX_SLOTS = ECON.maxSlots;
 // ×1.6 per place up to P16, then a gentle ×1.25 (the old endless ×1.6 asked 4 млрд for P31 — owner 3.11: «ні»).
-export const SLOT_SOFT_FROM = 16;
+export const SLOT_SOFT_FROM = ECON.slot.softFrom;
 export const slotCost = (slots) => {
   const steep = Math.min(slots, SLOT_SOFT_FROM) - START_SLOTS;
   const soft = Math.max(0, slots - SLOT_SOFT_FROM);
-  return niceRound(50000 * Math.pow(1.6, steep) * Math.pow(1.25, soft));
+  return niceRound(ECON.slot.base * Math.pow(ECON.slot.steep, steep) * Math.pow(ECON.slot.soft, soft));
 };
 // Income storage: the first step is within reach of a D/C garage (race2: 1M/10M/100M before).
-export const CAP_LEVELS = [
-  { hours: 4, cost: 0 },
-  { hours: 6, cost: 400000 },
-  { hours: 8, cost: 4000000 },
-  { hours: 12, cost: 40000000 },
-];
+export const CAP_LEVELS = ECON.capLevels;
 // The next cash upgrade as the player would really have it: the bought level's hours plus the extra hours on top now
 // (VIP or the comeback gift, the larger — capH is what the server reports), so a VIP at 4 + 4 = 8 h is offered
 // 6 + 4 = 10 h, never «до 6 год». null at the top level.
@@ -1931,10 +1914,10 @@ export function nextCapOffer(capLevel, capH) {
 }
 // The very first garage income (owner: «+25 ₴ ображає»): opening the starter case puts this into the cash at once,
 // so the first «Забрати» is a real sum. Once per player (the starter case opens once); CLASS_INCOME is untouched.
-export const FIRST_CASH = 2500;
-export const SHOWCASE_START = 4;
-export const SHOWCASE_MAX = 12;
-export const showcaseCost = (n) => niceRound(300000 * Math.pow(2, n - SHOWCASE_START));
+export const FIRST_CASH = ECON.firstCash;
+export const SHOWCASE_START = ECON.showcase.start;
+export const SHOWCASE_MAX = ECON.showcase.max;
+export const showcaseCost = (n) => niceRound(ECON.showcase.base * Math.pow(2, n - SHOWCASE_START));
 
 // ---------- levels, rewards, tasks ----------
 // xp needed to go from lvl to lvl+1. Levels 1–7 are a table made for the first days (tools/sim-unlock.mjs: L4 ≈ 47 min,
@@ -1945,7 +1928,7 @@ export const xpForLevel = (lvl) => (lvl >= 1 && lvl <= XP_TABLE.length ? XP_TABL
 // The curve before the table (300·L^1.8). game.js migrateProgress rescales a player's xp within his level by it, once.
 export const xpForLevelV1 = (lvl) => Math.round(300 * Math.pow(lvl, 1.8));
 export function levelReward(lvl) {
-  const r = { money: 15000 * lvl * lvl };
+  const r = { money: ECON.levelMoney * lvl * lvl };
   if (lvl % 5 === 0) r.caseId = lvl >= 15 ? 'sport' : 'city';
   if (lvl % 10 === 0) r.slots = 1;
   return r;
@@ -2074,14 +2057,14 @@ export const REWARD_CASE_ODDS = { money: 0.5, part: 0.3, fuel: 0.12, car: 0.08 }
 // features open (UNLOCKS, `feature`). Done by: a flag (game.js flag()), except daily (a daily bonus ever claimed) and
 // level3. NEWBIE_ORDER_V1 / V2 are the older tracks — game.js migrates players who were in the middle of them.
 export const NEWBIE_TASKS = [
-  { key: 'open_starter', text: 'Відкрий стартовий кейс', money: 10000 },
-  { key: 'collect', text: 'Забери дохід гаража', money: 20000 },
-  { key: 'race', text: 'Проїдь перший заїзд', money: 30000 },
-  { key: 'daily', text: 'Забери щоденний бонус', money: 10000 },
-  { key: 'win', text: 'Виграй заїзд', money: 40000 },
-  { key: 'open_case', text: 'Відкрий кейс з машиною', money: 50000 },
-  { key: 'install', text: 'Встанови деталь на машину', money: 50000, feature: 'parts' },
-  { key: 'level3', text: 'Досягни 3-го рівня', money: 150000 },
+  { key: 'open_starter', text: 'Відкрий стартовий кейс', money: ECON.newbieMoney.open_starter },
+  { key: 'collect', text: 'Забери дохід гаража', money: ECON.newbieMoney.collect },
+  { key: 'race', text: 'Проїдь перший заїзд', money: ECON.newbieMoney.race },
+  { key: 'daily', text: 'Забери щоденний бонус', money: ECON.newbieMoney.daily },
+  { key: 'win', text: 'Виграй заїзд', money: ECON.newbieMoney.win },
+  { key: 'open_case', text: 'Відкрий кейс з машиною', money: ECON.newbieMoney.open_case },
+  { key: 'install', text: 'Встанови деталь на машину', money: ECON.newbieMoney.install, feature: 'parts' },
+  { key: 'level3', text: 'Досягни 3-го рівня', money: ECON.newbieMoney.level3 },
 ];
 export const NEWBIE_ORDER_V1 = ['open_starter', 'collect', 'part_case', 'install', 'race', 'win', 'plate', 'open_case', 'merge', 'level3'];
 export const NEWBIE_ORDER_V2 = ['open_starter', 'collect', 'race', 'win', 'open_case', 'part_case', 'install', 'merge', 'level3', 'plate'];
@@ -2111,7 +2094,7 @@ export const QUESTS = {
   pvp: { text: 'Зіграй {n} PvP-заїзд', range: [1, 2], feature: 'pvp', off: true },
 };
 export const QUEST_COUNT = 3;
-export const QUEST_PAY = 3.6; // the old formula's «target» every goal is paid as (its old average): (8000 + 4000 × 3,6) × level^1,3
+export const QUEST_PAY = ECON.questPay; // the old formula's «target» every goal is paid as (its old average): (8000 + 4000 × 3,6) × level^1,3
 export const questReward = (lvl) => Math.round((8000 + 4000 * QUEST_PAY) * Math.pow(Math.max(1, lvl), 1.3) / 100) * 100;
 // The key for a day with all three goals: cheap early (second accounts can't farm dear cars), better with the level.
 export const goalKey = (lvl) => (lvl < 12 ? 'rust' : lvl < 25 ? 'city' : lvl < 50 ? 'tuning' : 'sport');
@@ -2281,7 +2264,7 @@ export function achLate(rw, tier, lvl) {
 
 // Money for finishing a country collection (on top of its secret car): 4.4% of that secret car's value (the same sums
 // as 11% before the secret cars became 2.5× dearer).
-export const COUNTRY_REWARD = Object.fromEntries(MAIN_COUNTRIES.map((c) => [c, Math.round((MODELS[SECRET_BY_COUNTRY[c]].price * 0.044) / 10000) * 10000]));
+export const COUNTRY_REWARD = Object.fromEntries(MAIN_COUNTRIES.map((c) => [c, Math.round((MODELS[SECRET_BY_COUNTRY[c]].price * ECON.countryRewardShare) / 10000) * 10000]));
 
 // ---------- collection sets ----------
 // Themed sets that cut across countries. A set counts models ever found (the collection table — bought or traded cars
@@ -2375,8 +2358,8 @@ export function setIncomeBonus(model, claimed) {
 // Trade-in at the dealer: three cars of one class go in, one car comes out — of the next class with `chance`, else
 // of the same class. The car out is drawn from that class with price up to `maxMult` × what went in, cheaper cars more
 // often, so three cheap cars can't buy a jackpot. On average ~85% of the value goes back: a fair way to clear doubles.
-export const TRADE_IN = { cars: 3, chance: 0.3, maxMult: 2.5 };
-export const UPGRADE = { maxCars: 6, minMult: 1.2, maxMult: 50, edge: 0.92, perExtraCar: 0.01, maxChance: 0.75 };
+export const TRADE_IN = ECON.tradeIn;
+export const UPGRADE = ECON.upgrade;
 // Value put in = model prices only; installed parts and plates go back to the warehouse either way.
 // Each car beyond the first costs 1% of edge, so dumping a pile of cheap cars is slightly worse than one good car.
 export const upgradeEdge = (cars = 1) => UPGRADE.edge - UPGRADE.perExtraCar * Math.max(0, cars - 1);
@@ -2427,7 +2410,7 @@ export function slotPayout(reels) {
 }
 
 export const WEEKLY_PRIZES = [3000000, 1500000, 1000000, 250000, 250000, 250000, 250000, 250000, 250000, 250000];
-export const REF_REWARD = 1000000; // to the inviter when the friend reaches level 3
+export const REF_REWARD = ECON.refReward; // to the inviter when the friend reaches level 3
 // The invited friend: money and a free «Міський» case at the start (shown as a welcome window), and a little more
 // when they reach level 3 together with the inviter's reward.
 export const REF_FRIEND_BONUS = 200000;
@@ -2442,7 +2425,7 @@ export const IDEA_TAGS = { cars: '🚘 Нові машини', mech: '⚙️ М�
 export const CONTEST = { days: 14, minLevel: 3, prizes: [1000, 500, 250], extraUpTo: 10, extra: 'ключ «Еліта»', showAfterH: 72 };
 export const REF_FRIEND_KEY = 'city';
 export const REF_FRIEND_L3 = 100000;
-export const START_BALANCE = 250000; // ~5 rusty-garage cases on top of the free starter one
+export const START_BALANCE = ECON.startBalance; // ~5 rusty-garage cases on top of the free starter one
 
 // Packs grow with the player, so buying stays worth it with billions in the garage: the base amount × the larger of
 // a level multiplier (×1.25 per level) and a garage multiplier ((garage / 20M)^0.85). Fixed when the invoice is made.
@@ -2450,7 +2433,7 @@ export const START_BALANCE = 250000; // ~5 rusty-garage cases on top of the free
 // ×646 at level 30 (50 ⭐ = 970 млн ₴, 1 500 ⭐ = 42 млрд, ×2 on a «Мега-пропозиція»), i.e. a top garage for the price of a
 // coffee. Capped at ×25 (reached at level ~15 or a 900 млн garage): 50 ⭐ ≤ 38 млн, 1 500 ⭐ ≤ 1,6 млрд (×2: 3,3 млрд) —
 // still a week or two of an active late player's income per pack. The owner can lift it (Infinity = the old behaviour).
-export const PACK_SCALE = { level: 1.25, garageBase: 20e6, garagePow: 0.85, max: 25 };
+export const PACK_SCALE = ECON.packScale;
 export function packMult(level, garage) {
   return Math.min(PACK_SCALE.max, Math.max(1, Math.pow(PACK_SCALE.level, Math.max(0, level - 1)), Math.pow(Math.max(1, garage / PACK_SCALE.garageBase), PACK_SCALE.garagePow)));
 }
@@ -2460,10 +2443,10 @@ export const PACKS_ON_SALE = true;
 // «Мега-пропозиція»: now and then (from level PACK_OFFER.minLevel, at most every everyDays days) a player gets
 // PACK_OFFER.hours hours in which every pack gives ×mult hryvnias for the same stars (Telegram invoices have a fixed
 // star price, so the deal is more hryvnias, not fewer stars). The amount is fixed when the invoice is made.
-export const PACK_OFFER = { minLevel: 3, everyDays: 3, hours: 6, mult: 2 };
+export const PACK_OFFER = ECON.packOffer;
 // Owner 28.10 «шоб донатили, дешево»: the very first Stars purchase of a pack gives ×FIRST_BUY_MULT (instead of, not on
 // top of, the «Мега-пропозиція»).
-export const FIRST_BUY_MULT = 3;
+export const FIRST_BUY_MULT = ECON.firstBuyMult;
 // «Угода дня»: one cheap Stars offer a day (Kyiv day), the same for everyone, at most once a day per player (from
 // level DAY_DEAL_MIN_LEVEL). Each is its own shop item (`daily: true`); dayDealOf(t) picks today's.
 export const DAY_DEAL_MIN_LEVEL = 2;
@@ -2475,13 +2458,7 @@ export const DAY_DEALS = [
   { id: 'dd_city5', name: 'Угода дня: 5 ключів «Міський»', stars: 15, daily: true, keys: { city: 5 } },
 ];
 export const dayDealOf = (t) => DAY_DEALS[Math.floor(Date.parse(kyivDateOf(t)) / 86400e3) % DAY_DEALS.length];
-export const PACKS = [
-  { id: 'p0', stars: 15, amount: 400000, title: '400 тис ₴' }, // owner 28.10: a cheap first step
-  { id: 'p1', stars: 50, amount: 1500000, title: '1,5 млн ₴' },
-  { id: 'p2', stars: 150, amount: 5000000, title: '5 млн ₴', tag: '+11%' },
-  { id: 'p3', stars: 500, amount: 19000000, title: '19 млн ₴', tag: '+27%' },
-  { id: 'p4', stars: 1500, amount: 65000000, title: '65 млн ₴', tag: '+44%' },
-];
+export const PACKS = ECON.packs;
 
 export function fmt(n) {
   return Math.round(n).toLocaleString('uk-UA').replace(/ /g, ' ') + ' ' + CURRENCY;
@@ -2651,7 +2628,7 @@ export function seasonBadge(place) {
 }
 
 // ---------- VIP and the star shop ----------
-export const VIP = { days: 14, stars: 300, fuelMult: 2, extraHours: 4, daily: 150000 };
+export const VIP = ECON.vip;
 // What stars buy besides money packs. Paid in Telegram Stars or from the stars on the account (season prizes).
 // `slot` gets dearer with every slot bought for stars (×2), `starter` can be bought once.
 // VIP as a Telegram Stars subscription (createInvoiceLink subscription_period: Telegram allows only 30 days): renews by
