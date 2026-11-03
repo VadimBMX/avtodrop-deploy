@@ -13,7 +13,8 @@
     "car-photos": "node tools/car_photos.mjs",
     "car-thumbs": "python -I tools/car_thumbs.py",
     "paint-masks": "python -I tools/paint/masks.py",
-    "green-cars": "python -I tools/paint/green.py"
+    "green-cars": "python -I tools/paint/green.py",
+    "cars-import": "node tools/cars-import/run.mjs"
   },
   "engines": { "node": ">=22.13" }
 }
