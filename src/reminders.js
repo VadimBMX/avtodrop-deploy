@@ -73,7 +73,7 @@ export function reminderText(items) {
   const list = items.filter(Boolean);
   const top = new Set([...list].sort((a, b) => rankOf(a.kind) - rankOf(b.kind)).slice(0, BUNDLE.lines));
   const shown = list.filter((r) => top.has(r)), more = list.length - shown.length;
-  return shown.map((r) => r.text).join('\n') + (more > 0 ? `\n…і ще ${more} — у грі` : '') + '\n\nНалаштувати: Меню → Налаштування в грі · вимкнути все: /stop';
+  return shown.map((r) => r.text).join('\n') + (more > 0 ? `\n…і ще ${more} — у грі` : '') + '\n\nНалаштувати: Профіль → Налаштування в грі · вимкнути все: /stop';
 }
 
 const realSleep = (ms) => new Promise((r) => setTimeout(r, Math.max(0, ms)));

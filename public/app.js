@@ -1428,7 +1428,7 @@ H.carPlate = (d) => {
   sheet('Номер', `${c.plate ? `<div class="center">${plate(c.plate.text, 'lg')}<div class="mt">${clsBadge(c.plate.cls)} <b>${S.fmt(c.plate.value)}</b></div></div><button class="btn ghost mt" data-act="plateDetach" data-pid="${c.plate.id}" data-id="${c.id}">Зняти номер</button>` : ''}
     <div class="h2"><span>Мої номери</span></div>
     ${free.length ? `<div class="list">${free.map((p) => `<div class="li">${plate(p.text)}<div class="grow small">${clsBadge(p.cls)} ${S.short(p.value)}</div><button class="btn sm" data-act="plateAttach" data-pid="${p.id}" data-id="${c.id}">Повісити</button></div>`).join('')}</div>`
-      : emptyBox('license', 'Вільних номерів немає', 'Їх генерують у «Меню → Номери»', '<button class="btn sm" data-act="go" data-page="plates">До номерів</button>')}
+      : emptyBox('license', 'Вільних номерів немає', 'Їх генерують у «Профіль → Номери»', '<button class="btn sm" data-act="go" data-page="plates">До номерів</button>')}
     <div class="tiny muted">Ціна номера додається до колекційної ціни машини та її доходу. У продаж машини номер не входить — він лишається тобі.</div>`, () => carSheet(c.id));
 };
 H.plateAttach = async (d) => {
@@ -2055,7 +2055,7 @@ TABS.race = async () => {
 // s2-ui2: the lobby head (mockup 15): section label, title, the fuel pill and the track picture.
 function s2RaceHead() {
   const v = state.raceView;
-  const lab = { race: 'ТРАСА · ДРАГ 402 М', career: 'КАР’ЄРА · БОСИ КРАЇН', drift: 'ТРАСА · ДРИФТ', pvp: 'PVP · НАЖИВО' }[v] || 'ТРАСА';
+  const lab = { race: 'ТРАСА · ДРАГ 402 М', career: 'КАР’ЄРА · БОСИ КРАЇН', drift: 'ТРАСА · ДРИФТ', pvp: 'PvP · НАЖИВО' }[v] || 'ТРАСА';
   return `<div class="s2r-head ${v}"><div class="s2r-ht"><small>${lab}</small><h2>Гонки</h2>
     <span class="s2r-fuel ${me.fuel < 1 ? 'out' : ''}" data-act="s2Fuel" role="button">${ic('gas-station')}<b>${me.fuel}</b>/${fmax()}${me.fuelNext && me.fuel < fmax() ? ` · +1 <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : ''}</span></div>
     <img class="s2r-track" src="s2/bg/track.webp" alt="" draggable="false"></div>`;
@@ -5609,7 +5609,7 @@ H.tradeDecline = (d) => act('trade/decline', { id: Number(d.id) }, 'Відхил
 H.tradeCancel = (d) => act('trade/cancel', { id: Number(d.id) }, 'Скасовано');
 PAGES.tradeNew = () => {
   const t = state.trade || (state.trade = { partner: null, give: new Set(), get: new Set() });
-  if (!t.partner) return `<div class="card"><b>З ким обмінюємось?</b><div class="small muted">ID гравця (є в «Меню») або @username</div><input id="partner" class="mt" placeholder="123456789 або @username" autocomplete="off"><button class="btn mt" data-act="findPartner">Знайти</button></div>`;
+  if (!t.partner) return `<div class="card"><b>З ким обмінюємось?</b><div class="small muted">ID гравця (є в його «Ліцензії» в профілі) або @username</div><input id="partner" class="mt" placeholder="123456789 або @username" autocomplete="off"><button class="btn mt" data-act="findPartner">Знайти</button></div>`;
   const p = t.partner;
   const mine = me.cars.filter((c) => c.status === 'garage' && !M(c.model).secret);
   const vg = mine.filter((c) => t.give.has(c.id)).reduce((s, c) => s + c.value, 0);
@@ -6163,7 +6163,7 @@ PAGE_TITLES.news = 'Новини';
 PAGES.news = () => {
   const th = S.seasonTheme(me.season?.id || 2);
   const cards = S.WHATS_NEW.slides.map((x, i) => `<div class="s2-news" style="--c:${x.c || '#ffd400'}"><div class="s2-news-h"><span class="s2-news-ic">${ic(x.icon)}</span><small>${esc(x.tag || '')}</small>${i < 2 ? '<em>НОВЕ</em>' : ''}</div><b>${esc(x.title)}</b><p>${esc(x.text)}</p></div>`).join('');
-  return `<div class="s2-news-hero"><i class="s2-news-tape"></i><small>СЕЗОН ${String(me.season?.id || 2).padStart(2, '0')}</small><b>«Місто»${th ? ` · ${esc(th.name)}` : ''}</b><span>Мапа, бізнеси, клуби, війна районів</span></div>
+  return `<div class="s2-news-hero"><i class="s2-news-tape"></i><small>СЕЗОН ${String(me.season?.id || 2).padStart(2, '0')}</small><b>«Місто»${th ? ` · ${esc(th.name)}` : ''}</b><span>Мапа, бізнеси, клуби — і скоро війна районів</span></div>
     ${cards}
     <button class="s2-btn wide mt" data-act="whatsNewAgain">${ic('player-play')}Переглянути історію оновлення</button>
     ${config.community?.chat ? `<button class="li s2-news-chat" data-act="openLink" data-page="${esc(config.community.chat)}"><span class="mi" style="--c:#22e3ff">${ic('users')}</span><span class="grow"><b>Чат гравців</b><small>новини першими, обміни, конкурси</small></span><span class="btn sm ghost">Відкрити</span></button>` : ''}`;
@@ -6329,7 +6329,7 @@ function paintGuide() {
       <span class="guide-t"><b>${n + 1}/${total}</b> ${title}</span>
       ${ready ? '' : `<span class="guide-chev">${ic('chevron-right')}</span>`}</button>
     ${reward}</div>
-    ${open ? `<div class="guide-more"><div class="small">${esc(st.text)}</div><button class="guide-off" data-act="guideOff">Сховати підказки (повернути: Меню → Налаштування)</button></div>` : ''}`;
+    ${open ? `<div class="guide-more"><div class="small">${esc(st.text)}</div><button class="guide-off" data-act="guideOff">Сховати підказки (повернути: Профіль → Налаштування)</button></div>` : ''}`;
   $('#view').prepend(el);
   if (ready) return;
   const target = here ? $(st.target) : $(`#tabs button[data-tab="${UI2.tabBtn[st.tab] || st.tab}"]`);
@@ -6360,7 +6360,7 @@ H.guideGo = () => {
 };
 H.guideOff = async () => {
   if (!(await confirmBox('Сховати підказки перших кроків?'))) return;
-  await act('guide/off', {}, 'Підказки сховано — увімкнути знову можна в Меню → Налаштування');
+  await act('guide/off', {}, 'Підказки сховано — увімкнути знову можна в Профіль → Налаштування');
 };
 H.toggleGuide = async () => {
   const off = me.claims.includes('guide-off');
@@ -6409,7 +6409,7 @@ PAGES.leaderboard = async () => {
       <div class="mybar"><span>Ти: #${lb.me.place}</span><span class="grow"></span><span>${lb.me.score.toLocaleString('uk-UA')} досвіду</span></div>`;
   }
   if (lb.type === 'wealth') {
-    return `${segs}<div class="tiny muted" style="margin:0 2px 10px">«Статок» = колекційна вартість гаража + вкладене в ★ рестайлінгу + Трофейна зала (Меню → Престиж)</div>
+    return `${segs}<div class="tiny muted" style="margin:0 2px 10px">«Статок» = колекційна вартість гаража + вкладене в ★ рестайлінгу + Трофейна зала (Профіль → Престиж)</div>
       ${lb.list.length ? board((r) => S.short(r.score), (r) => (r.trophies ? `<span class="chip">${ic('trophy')} ${r.trophies}</span>` : '')) : empty('Поки порожньо')}
       <div class="mybar"><span>Ти: #${lb.me.place}</span><span class="grow"></span><span>${S.short(lb.me.score)}</span></div>`;
   }
@@ -7492,7 +7492,7 @@ function showGift() {
     art = `<div class="gift-ic" style="--c:${color}">${ic('bug')}</div>${d.amount ? `<div class="gift-sum win">+${S.fmt(d.amount)}</div>` : ''}
       ${(d.keys || []).map((k) => `<div class="mt"><b>${ic('key')} ${esc(S.CASE_BY_ID[k.caseId]?.name || '')} × ${k.count}</b></div>`).join('')}
       ${d.badge ? `<div class="mt"><span class="lstamp" style="--bc:${BADGE_COLORS[d.badge === 'Тестувальник' ? 1 : 3]}">${ic('bug')}${esc(d.badge)}</span></div><div class="small muted">новий значок у профілі</div>` : ''}
-      <div class="small muted mt">знахідок: ${d.count || 1} · пиши ще в «Меню → Підтримка»</div>`;
+      <div class="small muted mt">знахідок: ${d.count || 1} · пиши ще в «Профіль → Підтримка»</div>`;
   } else if (g.kind === 'thanks') {
     title = 'Дякуємо! 💛';
     color = '#ffd60a';
@@ -9247,7 +9247,7 @@ function ideaAskOnce() {
       <b class="disp idea-h">Що додати чи змінити в грі?</b>
       <div class="muted small mt">Готуємо велике оновлення — напиши, чого тобі бракує. Читаємо кожну відповідь.</div>
       <div class="idea-tags mt">${Object.entries(S.IDEA_TAGS).map(([k, t]) => `<button class="idea-tag" data-act="ideaTag" data-k="${k}">${t}</button>`).join('')}</div>
-      <textarea id="ideaText" maxlength="${A.maxLen}" placeholder="Наприклад: більше японських машин, турніри кланів, дешевший бензин…"></textarea>
+      <textarea id="ideaText" maxlength="${A.maxLen}" placeholder="Наприклад: більше японських машин, турніри клубів, дешевше пальне…"></textarea>
       <button class="btn yellow mt" data-act="ideaSend">${ic('arrow-right')} Надіслати${A.reward ? ` · +${S.short(A.reward)}` : ''}</button>
       <div class="tiny muted center mt">${A.reward ? `Бонус — за першу відповідь від ${A.minLen} символів` : ''}</div></div>`);
     // ✕ unlocks after lockSec: a countdown in its place, taps outside do nothing until then

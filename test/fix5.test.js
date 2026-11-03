@@ -221,7 +221,7 @@ test('bot bundle: at most 3 lines, the most important first, «…і ще N — 
   assert.equal(lines.length, BUNDLE.lines + 1);
   assert.deepEqual(lines, ['<event>', '<goals>', '<daily>', '…і ще 5 — у грі']);
   assert.equal(reminderText([it('fuel'), it('daily')]).split('\n\n')[0], '<fuel>\n<daily>', 'short bundles as before');
-  assert.match(t, /Налаштувати: Меню → Налаштування в грі/);
+  assert.match(t, /Налаштувати: Профіль → Налаштування в грі/);
 });
 
 test('beta sheet: not for a player who already has the tester badge (a rewarded bug)', () => {

@@ -19,7 +19,7 @@ export function createPrestige(ctx) {
     if (ever(uid)) return true;
     if (!P.prestigeOpen({ level: u.level, value: u.total_value })) return false;
     q('INSERT OR IGNORE INTO claims (user_id, key) VALUES (?, ?)').run(uid, OPEN_KEY);
-    tell(uid, '🏆 Відкрито «Престиж»: рестайлінг ★1–★5 для машин A, S і секретних (+3% доходу за ★) і «Трофейна зала». Меню → Престиж');
+    tell(uid, `🏆 Відкрито «Престиж»: рестайлінг ★1–★${P.PRESTIGE.max} для машин A, S і секретних (+${Math.round(S.STAR_INCOME * 100)}% доходу за ★) і «Трофейна зала». Профіль → Престиж`);
     return true;
   }
   function needOpen(uid) {

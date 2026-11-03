@@ -102,7 +102,7 @@ export function createTgGroups({ db, q, now, fail, metaGet, metaSet, addKeys, ev
       const got = claimed(u.id), open = groups.filter((w) => !got.has(w));
       if (!open.length) continue;
       const names = open.map((w) => `${w === 'channel' ? 'канал з новинами' : 'чат гравців'} ${c[w].startsWith('@') ? c[w] : c[`${w}Link`]}`).join(' і ');
-      const text = `📣 Заходь у ${names} — за ${open.length > 1 ? 'кожну' : 'вступ'} ${rewardText(TGG.reward[open[0]])} у подарунок. Забрати: Меню → «Наші групи в Telegram»`;
+      const text = `📣 Заходь у ${names} — за ${open.length > 1 ? 'кожну' : 'вступ'} ${rewardText(TGG.reward[open[0]])} у подарунок. Забрати: Профіль → «Наші групи в Telegram»`;
       const item = { kind: 'tggroup', at: t, text };
       const cand = byId.get(u.id);
       if (cand) {

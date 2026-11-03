@@ -75,7 +75,7 @@ const helmet = (h, size) => `<span class="s2-hel" style="width:${size}px;height:
 // ---------- install ----------
 export function installS2(x) {
   X = x;
-  Object.assign(X.TITLES, { city: 'Місто', bazaar: 'Ринок', menu: 'Профіль', cases: 'Дроп-маркет', garage: 'Мій паркінг' });
+  Object.assign(X.TITLES, { city: 'Місто', bazaar: 'Ринок', menu: 'Профіль', cases: 'Дроп-маркет', garage: 'Мій гараж' });
   X.TABS.city = cityView;
   X.AFTER.city = cityAfter;
   X.TABS.bazaar = bazaarView;
@@ -651,7 +651,7 @@ function garageView(base) {
 function parkHead() {
   const m = me();
   const all = m.cars.filter((c) => c.status !== 'showcase');
-  return `<div class="s2-phead"><h2>Мій паркінг</h2><div><b>${S.short(X.sellTotal(all.filter((c) => !M(c.model).secret)))}</b><small>+${shortN(m.income?.rate || 0)}/год · ${all.length}/${m.slots}</small></div></div>`;
+  return `<div class="s2-phead"><h2>Мій гараж</h2><div><b>${S.short(X.sellTotal(all.filter((c) => !M(c.model).secret)))}</b><small>+${shortN(m.income?.rate || 0)}/год · ${all.length}/${m.slots}</small></div></div>`;
 }
 
 // ---------- Профіль ----------

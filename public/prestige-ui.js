@@ -95,7 +95,7 @@ async function doRestyle(d, el) {
   const c = X.me().cars.find((x) => x.id === Number(d.id));
   if (!c) return;
   const n = c.stars || 0, cost = P.restyleCost(c.model, n);
-  if (!(await spendConfirm({ title: `Рестайлінг ${S.MODELS[c.model].name} · ${P.STAR}${n + 1}`, amount: cost, balance: X.me().balance, note: 'Гроші не повертаються: ★ — це статус і +3% доходу, ціни продажу вони не додають.', ok: 'Зробити', force: true }))) return;
+  if (!(await spendConfirm({ title: `Рестайлінг ${S.MODELS[c.model].name} · ${P.STAR}${n + 1}`, amount: cost, balance: X.me().balance, note: `Гроші не повертаються: ★ — це статус і +${Math.round(S.STAR_INCOME * 100)}% доходу, ціни продажу вони не додають.`, ok: 'Зробити', force: true }))) return;
   el.disabled = true;
   const r = await X.act('prestige/restyle', { carId: c.id }, (r) => `${S.MODELS[c.model].name}: ${P.STAR}${r.stars} · +${Math.round(r.bonus * 100)}% доходу`, { rerender: true });
   restyleSheet(c.id);
@@ -150,7 +150,7 @@ function pickForRestyle() {
 export function carRestyleLi(c) {
   if (!X || !P.canRestyle(c.model)) return '';
   const open = pr().open, n = c.stars || 0;
-  const sub = !open ? `з ${P.PRESTIGE.level}-го рівня й гаража від ${S.short(P.PRESTIGE.garage)}` : n >= P.PRESTIGE.max ? 'легенда: +15% доходу' : !P.starReady(c.starAt || 0, X.serverNow()) ? `наступна ${P.STAR} через ${left(P.nextStarAt(c.starAt) - X.serverNow()).replace(/:\d\d$/, '')}` : `${P.STAR}${n + 1} за ${S.short(P.restyleCost(c.model, n))} · +3% доходу`;
+  const sub = !open ? `з ${P.PRESTIGE.level}-го рівня й гаража від ${S.short(P.PRESTIGE.garage)}` : n >= P.PRESTIGE.max ? `легенда: +${Math.round(S.STAR_INCOME * P.PRESTIGE.max * 100)}% доходу` : !P.starReady(c.starAt || 0, X.serverNow()) ? `наступна ${P.STAR} через ${left(P.nextStarAt(c.starAt) - X.serverNow()).replace(/:\d\d$/, '')}` : `${P.STAR}${n + 1} за ${S.short(P.restyleCost(c.model, n))} · +${Math.round(S.STAR_INCOME * 100)}% доходу`;
   return `<button class="li" data-act="prRestyle" data-id="${c.id}"><span class="ic">${X.ic(open ? 'sparkles' : 'lock')}</span><div class="grow"><b>Рестайлінг</b><div class="small muted">${sub}</div></div>${n ? starsHtml(c, { full: true }) : '<span class="chev">›</span>'}</button>`;
 }
 // Menu: one wide row under the challenges.
