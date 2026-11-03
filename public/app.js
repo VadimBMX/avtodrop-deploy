@@ -2058,7 +2058,7 @@ function s2RaceHead() {
   const lab = { race: 'ТРАСА · ДРАГ 402 М', career: 'КАР’ЄРА · БОСИ КРАЇН', drift: 'ТРАСА · ДРИФТ', pvp: 'PVP · НАЖИВО' }[v] || 'ТРАСА';
   return `<div class="s2r-head ${v}"><div class="s2r-ht"><small>${lab}</small><h2>Гонки</h2>
     <span class="s2r-fuel ${me.fuel < 1 ? 'out' : ''}" data-act="s2Fuel" role="button">${ic('gas-station')}<b>${me.fuel}</b>/${fmax()}${me.fuelNext && me.fuel < fmax() ? ` · +1 <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : ''}</span></div>
-    <img class="s2r-track" src="s2/bg/track.webp" alt="" draggable="false"></div>`;
+    <i class="s2r-art" aria-hidden="true"></i></div>`;
 }
 // s2-ui2 (mockup 21): «Заправка» — the tank as a picture, how it refills, the ways to fill it (the existing buttons).
 H.s2Fuel = () => {

@@ -5989,6 +5989,14 @@ body.s2 .gsort { height: 36px; border-radius: 11px; background: #24262b; color: 
 body.s2 .chips.gfilter button i { border-radius: 3px; }
 body.s2 .chips.gfilter button small { font-family: var(--s2-mono); }
 
+/* ---------- races: the lobby head is the night drag start line (s2/bg/race-lobby.webp 1100×614) ---------- */
+body.s2 .s2r-head { display: flex; align-items: flex-end; min-height: 0; aspect-ratio: 1100 / 560; margin: -8px -16px 12px; padding: 0 16px 12px; overflow: hidden; }
+body.s2 .s2r-art { position: absolute; inset: 0; z-index: 0; background: linear-gradient(#07080b 0, transparent 14%, transparent 48%, #07080bf0 92%, #07080b), url('s2/bg/race-lobby.webp') center 38% / cover no-repeat; }
+body.s2 .s2r-track { display: none; }
+body.s2 .s2r-ht h2 { font-size: 34px; margin: 2px 0 8px; }
+body.s2 .s2r-ht small { font: 800 11px var(--f-fc); letter-spacing: 2px; text-shadow: 0 1px 6px #000; }
+body.s2 .s2r-fuel { height: 30px; border-radius: 10px; }
+
 /* ---------- profile ---------- */
 body.s2 .s2-prof { background: none; }
 body.s2 .s2-prof h2 { font-size: 26px; }
