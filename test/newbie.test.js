@@ -85,9 +85,12 @@ test('«Перші кроки»: one track of 8 — the pill follows the step; n
   assert.equal(call(3, 'me').newbie.key, 'collect', 'hints off: the track stays in Завдання');
 });
 
-test('first steps add no money: newbie task rewards are unchanged', () => {
-  assert.deepEqual(S.NEWBIE_TASKS.slice(0, 2).map((t) => t.money), [10000, 20000]);
-  assert.equal(S.START_BALANCE, 250000);
+test('first steps: newbie task rewards and the start money come from public/econ.js (S2: ×2,8, start 500 000)', () => {
+  // Season 2: the first session pays ~1 млн over the 8 steps (S1 360 000) and starts with 500 000 (S1 250 000), so the
+  // first 10 minutes are a string of wins (tools/econ-sim.mjs).
+  assert.deepEqual(S.NEWBIE_TASKS.slice(0, 2).map((t) => t.money), [30000, 50000]);
+  assert.equal(S.NEWBIE_TASKS.reduce((a, t) => a + t.money, 0), 1010000);
+  assert.equal(S.START_BALANCE, 500000);
   const { mk, call } = setup();
   mk(4);
   call(4, 'intro/seen');

@@ -737,7 +737,7 @@ const COUNTRY_CASES = {
 };
 for (const c of MAIN_COUNTRIES) {
   const cc = COUNTRY_CASES[c];
-  CASES.push({ id: 'c-' + c.toLowerCase(), name: COUNTRIES[c].name, icon: 'world', group: 'country', country: c, price: cc.price, weights: { ...cc.weights }, pity: cc.pity, hi: cc.hi });
+  CASES.push({ id: 'c-' + c.toLowerCase(), name: COUNTRIES[c].name, icon: 'world', group: 'country', country: c, price: cc.price, weights: { ...cc.weights }, pity: cc.pity, hi: cc.hi, ...(cc.lo != null ? { lo: cc.lo } : {}), ...(cc.poolPrice ? { poolPrice: cc.poolPrice } : {}) });
 }
 // Luck: a real run of bad luck builds up luck. The game keeps fading totals (over ~20 opens) of what the opened cases
 // should have given on average (their expected value) and what the drops were actually worth; when drops come to
@@ -798,7 +798,10 @@ for (const cs of CASES) {
   if (cs.starter) cs.price = 0;
   // Country cases have no lower bound: every car of the country in the case's classes drops from its own case
   // (the cheap Land Cruiser 80 or BYD Atto 3 too), so a country collection never depends on another case.
-  const lo = cs.country ? 0 : cs.price * CASE_CORRIDOR.lo, hi = cs.price * (cs.hi || CASE_CORRIDOR.hi);
+  // cs.lo: a case of its own floor; cs.poolPrice: the price the corridor is measured from when it differs from what the case
+  // costs (ECON: the pool stays put while the price is tuned for an honest open-and-sell).
+  const base = cs.poolPrice ?? cs.price;
+  const lo = base * (cs.lo ?? (cs.country ? 0 : CASE_CORRIDOR.lo)), hi = base * (cs.hi || CASE_CORRIDOR.hi);
   cs.pool = (cls) => byClass(cls)
     .filter((m) => (cs.country ? m.country === cs.country : !m.homeOnly))
     .filter((m) => cs.starter ? m.cls === 'D' && m.country === 'UA' : m.price >= lo && m.price <= hi);
@@ -2054,14 +2057,14 @@ export const REWARD_CASE_ODDS = { money: 0.5, part: 0.3, fuel: 0.12, car: 0.08 }
 // features open (UNLOCKS, `feature`). Done by: a flag (game.js flag()), except daily (a daily bonus ever claimed) and
 // level3. NEWBIE_ORDER_V1 / V2 are the older tracks — game.js migrates players who were in the middle of them.
 export const NEWBIE_TASKS = [
-  { key: 'open_starter', text: 'Відкрий стартовий кейс', money: 10000 },
-  { key: 'collect', text: 'Забери дохід гаража', money: 20000 },
-  { key: 'race', text: 'Проїдь перший заїзд', money: 30000 },
-  { key: 'daily', text: 'Забери щоденний бонус', money: 10000 },
-  { key: 'win', text: 'Виграй заїзд', money: 40000 },
-  { key: 'open_case', text: 'Відкрий кейс з машиною', money: 50000 },
-  { key: 'install', text: 'Встанови деталь на машину', money: 50000, feature: 'parts' },
-  { key: 'level3', text: 'Досягни 3-го рівня', money: 150000 },
+  { key: 'open_starter', text: 'Відкрий стартовий кейс', money: ECON.newbieMoney.open_starter },
+  { key: 'collect', text: 'Забери дохід гаража', money: ECON.newbieMoney.collect },
+  { key: 'race', text: 'Проїдь перший заїзд', money: ECON.newbieMoney.race },
+  { key: 'daily', text: 'Забери щоденний бонус', money: ECON.newbieMoney.daily },
+  { key: 'win', text: 'Виграй заїзд', money: ECON.newbieMoney.win },
+  { key: 'open_case', text: 'Відкрий кейс з машиною', money: ECON.newbieMoney.open_case },
+  { key: 'install', text: 'Встанови деталь на машину', money: ECON.newbieMoney.install, feature: 'parts' },
+  { key: 'level3', text: 'Досягни 3-го рівня', money: ECON.newbieMoney.level3 },
 ];
 export const NEWBIE_ORDER_V1 = ['open_starter', 'collect', 'part_case', 'install', 'race', 'win', 'plate', 'open_case', 'merge', 'level3'];
 export const NEWBIE_ORDER_V2 = ['open_starter', 'collect', 'race', 'win', 'open_case', 'part_case', 'install', 'merge', 'level3', 'plate'];

@@ -14,8 +14,8 @@ const sellBack = (cs) => {
   return v / cs.price;
 };
 
-test('instant sale: grey 50%, blue 45%, purple 40%, gold 35%, red 30%, no daily limit', () => {
-  assert.deepEqual(S.SELL_RATES, { D: 0.5, C: 0.45, B: 0.4, A: 0.35, S: 0.3, X: 0.3 });
+test('instant sale (Season 2): half the collection price for every class, no daily limit', () => {
+  assert.deepEqual(S.SELL_RATES, { D: 0.5, C: 0.5, B: 0.5, A: 0.5, S: 0.5, X: 0.5 });
   const db = openDb(':memory:');
   const g = createGame(db, { now: () => Date.parse('2026-10-19T10:00:00Z'), notify: () => {} });
   g.ensureUser({ id: 1, first_name: 'A' });
@@ -25,12 +25,17 @@ test('instant sale: grey 50%, blue 45%, purple 40%, gold 35%, red 30%, no daily 
   assert.equal(g.api.sell(1, { carIds: ids }).got, S.sellPriceOf('lexus-lfa') * 8, 'every car at the full rate');
 });
 
-test('class ladder: every class is clearly dearer than the one below, secrets above the S floor', () => {
+test('class ladder: every class is clearly dearer than the one below; a secret car crowns its own collection', () => {
   for (let i = 1; i < 5; i++) {
     const lo = S.CLASSES[S.CLASS_ORDER[i]].lo, prevHi = S.CLASSES[S.CLASS_ORDER[i - 1]].hi;
     assert.ok(lo >= prevHi * 1.33, `${S.CLASS_ORDER[i]} starts well above ${S.CLASS_ORDER[i - 1]}`);
   }
-  for (const m of S.ALL_MODELS.filter((x) => x.secret && !x.season)) assert.ok(m.price > S.CLASSES.S.hi, m.name);
+  // Season 2: a secret car is priced from what finishing its collection costs (public/econ.js secrets), no longer «above
+  // every S car» (UA paid 500 млн for ~13 млн of net spend) — but it is always the dearest car of its collection.
+  for (const c of S.MAIN_COUNTRIES) {
+    const top = Math.max(...S.countryNeed(c).map((m) => m.price));
+    assert.ok(S.MODELS[S.SECRET_BY_COUNTRY[c]].price >= top * 1.25, c);
+  }
 });
 
 test('every regular car drops from some case, and from its country case when that case has its class', () => {

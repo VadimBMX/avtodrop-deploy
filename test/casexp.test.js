@@ -5,10 +5,10 @@ import { openDb } from '../src/db.js';
 import { createGame } from '../src/game.js';
 import * as S from '../public/shared.js';
 
-test('case xp: 5 for the cheapest case, more for dearer ones, 22 for Еліта', () => {
+test('case xp: 5 for the cheapest case, more for dearer ones, 24 for Еліта (S2: 19 млн; 22 at 10 млн)', () => {
   assert.equal(S.caseXp(S.CASE_BY_ID.rust), 5);
-  assert.equal(S.caseXp(S.CASE_BY_ID['c-ua']), 5);
-  assert.equal(S.caseXp(S.CASE_BY_ID.elite), 22);
+  assert.equal(S.caseXp(S.CASE_BY_ID['c-ua']), 6); // S2: 70 000 (S1 55 000 → 5)
+  assert.equal(S.caseXp(S.CASE_BY_ID.elite), 24);
   let prev = 0;
   for (const id of ['rust', 'city', 'tuning', 'sport', 'premium', 'elite']) {
     const x = S.caseXp(S.CASE_BY_ID[id]);
@@ -26,7 +26,7 @@ test('case xp: own daily cap, part cases keep the shared 300', () => {
   const xpOf = () => { const u = db.prepare('SELECT level, xp FROM users WHERE id = 1').get(); return Array.from({ length: u.level - 1 }, (_, i) => S.xpForLevel(i + 1)).reduce((a, b) => a + b, 0) + u.xp; };
   const used = () => db.prepare('SELECT xp_case_used FROM users WHERE id = 1').get().xp_case_used;
   g.api['case/open'](1, { caseId: 'elite', count: 6 });
-  assert.equal(used(), 6 * 22);
+  assert.equal(used(), 6 * 24);
   for (let i = 0; i < 20; i++) g.api['case/open'](1, { caseId: 'elite', count: 6 });
   assert.equal(used(), S.CASE_XP_CAP);
   assert.ok(xpOf() >= S.CASE_XP_CAP);

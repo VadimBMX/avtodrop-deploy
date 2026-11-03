@@ -8,13 +8,14 @@ test('packs grow with level and garage, never below the base amount', () => {
   const p = S.PACKS.find((p) => p.id === 'p1');
   assert.equal(S.packAmount(p, 1, 0), p.amount, 'a newcomer gets the base amount');
   assert.ok(S.packAmount(p, 10, 0) > p.amount * 5, 'level 10 gets several times more');
-  assert.ok(S.packAmount(p, 5, 17e9) > 20 * p.amount, 'a 17B garage makes the pack worth it');
+  assert.ok(S.packAmount(p, 5, 17e9) >= S.PACK_SCALE.max * p.amount, 'a 17B garage gets the full multiplier');
   assert.ok(S.packAmount(p, 10, 1e9) > S.packAmount(p, 10, 1e8));
   // Econ audit 28.10: the multiplier has a ceiling (PACK_SCALE.max) — level 30 or a 20 млрд garage no longer turns 50 ⭐ into
-  // ~1 млрд ₴; the biggest pack at the cap (×2 on a «Мега-пропозиція») stays under ~3,5 млрд.
+  // ~1 млрд ₴. Season 2: the ceiling ×25 → ×10 and the offer ×2 → ×1,5, so the biggest pack is ≤ ~1 млрд (an active player's
+  // garage after about two weeks, tools/econ-sim.mjs) — paying jumps ahead, it doesn't end the season.
   assert.equal(S.packMult(30, 0), S.PACK_SCALE.max);
   assert.equal(S.packMult(50, 100e9), S.PACK_SCALE.max);
-  assert.ok(S.packAmount(S.PACKS[3], 50, 100e9) * S.PACK_OFFER.mult <= 3.5e9);
+  assert.ok(S.packAmount(S.PACKS[4], 50, 100e9) * S.PACK_OFFER.mult <= 1e9);
 });
 
 test('payment credits the amount fixed in the invoice; a broken amount falls back to the current one', () => {

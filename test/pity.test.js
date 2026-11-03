@@ -17,9 +17,11 @@ const steps = (id) => S.pitySteps(S.CASE_BY_ID[id]).map((s) => [s.cls, s.n]);
 // The guarantee table of reports/pity.md (tools/sim-cases.mjs): change it there first.
 test('guarantee steps per case', () => {
   const want = {
-    // Option «jackpot» (owner 28.10): the red of Преміум, Еліта, США, Британія and Італія has no guarantee any more.
+    // Option «jackpot» (owner 28.10): the red of Преміум and Еліта has no guarantee. Season 2: a country case guarantees a red
+    // still MISSING from the collection (2500 opens in the blue cases, 500 in the purple ones) — DE took ~18 000 opens otherwise.
     rust: [['C', 25]], city: [['B', 30]], tuning: [['A', 200]], sport: [['A', 30]], premium: [], elite: [],
-    'c-ua': [['C', 35], ['A', 300]], 'c-jp': [['B', 30]], 'c-de': [['B', 30]], 'c-cn': [['B', 25]], 'c-us': [], 'c-gb': [], 'c-it': [],
+    'c-ua': [['C', 35], ['A', 300]], 'c-jp': [['B', 30], ['S', 2500]], 'c-de': [['B', 30], ['S', 2500]], 'c-cn': [['B', 25], ['S', 2500]],
+    'c-us': [['S', 500]], 'c-gb': [['S', 500]], 'c-it': [['S', 500]],
   };
   for (const cs of S.CASES) assert.deepEqual(steps(cs.id), want[cs.id] || [], cs.id);
   assert.deepEqual(S.pitySteps(S.CASE_BY_ID.rust)[0].key, 'rust:C', 'one counter per case and class');

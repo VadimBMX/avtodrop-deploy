@@ -2,8 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { openDb } from '../src/db.js';
 import { createGame } from '../src/game.js';
+import * as S from '../public/shared.js';
 
 test('origin sell hotfix: cars from the dear cases made before it keep the full rate (origin cleared once)', () => {
+  // Season 2 has no buy-back table (S.ORIGIN_SELL = {}); the S1 migration is checked with the S1 entries it was made for.
+  const saved = { ...S.ORIGIN_SELL };
+  Object.assign(S.ORIGIN_SELL, { elite: { A: 0.22, S: 0.45 } });
+  try {
   const db = openDb(':memory:');
   db.exec("INSERT INTO meta (key, value) VALUES ('secret_backfill_1', '1') ON CONFLICT DO NOTHING");
   let g = createGame(db, { notify: () => {} });
@@ -19,4 +24,8 @@ test('origin sell hotfix: cars from the dear cases made before it keep the full 
   db.prepare("UPDATE cars SET origin = 'elite' WHERE id = ?").run(id);
   g = createGame(db, { notify: () => {} });
   assert.equal(db.prepare('SELECT origin FROM cars WHERE id = ?').get(id).origin, 'elite');
+  } finally {
+    for (const k of Object.keys(S.ORIGIN_SELL)) delete S.ORIGIN_SELL[k];
+    Object.assign(S.ORIGIN_SELL, saved);
+  }
 });

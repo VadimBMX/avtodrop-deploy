@@ -229,7 +229,8 @@ test('cases: every drop of a rarity case is worth at least half the price, fragm
       const pool = cs.pool(cls);
       assert.ok(pool.length, `${cs.id}/${cls}`);
       // Country cases have no floor on purpose: every car of the country must drop from its own case.
-      if (cs.group === 'rarity') for (const m of pool) assert.ok(m.price >= cs.price * S.CASE_CORRIDOR.lo, `${cs.id}: ${m.name} ${m.price} < half of ${cs.price}`);
+      // Season 2: a case may set its own floor (public/econ.js `lo`), never under half the price.
+      if (cs.group === 'rarity') for (const m of pool) assert.ok(m.price >= cs.price * Math.max(0.5, cs.lo ?? S.CASE_CORRIDOR.lo), `${cs.id}: ${m.name} ${m.price} < half of ${cs.price}`);
     }
     // Static EV (without the hidden boost and fragments). Owner's decision (eco3): old case prices with the dear cars, so
     // the B/A/S cases give 3–5× the price and c-cn ~0.9×; only a sanity range is left.

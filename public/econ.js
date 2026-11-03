@@ -10,7 +10,7 @@
 // Tests that pin these numbers: test/econ-s2.test.js (the Season 2 targets), test/econ-ev.test.js, test/economy.test.js.
 // ============================================================================================================================
 export const ECON = {
-  version: 's1',
+  version: 's2',
 
   // ---------- car values ----------
   // Collection value («колекційна ціна») of a model = its place in its class ladder, log-spread from lo to hi
@@ -24,48 +24,43 @@ export const ECON = {
   },
   // Secret cars (class X): the reward for a finished country collection. Value in ₴ (counts in the garage value, income
   // and rating; a secret car can never be sold).
+  // S2 rule: ≈ 1.5 × the median NET cash cost of finishing the collection with its own case (money paid − instant sale of
+  // every duplicate; tools/econ-table.mjs «collections»), never under 1.25 × the dearest car of that collection. S1 values
+  // ignored the resale: UA paid 500 млн for ~13 млн net (×39, «за 5–10 хвилин»), DE paid 1 млрд for ~1,7 млрд net (×0,6).
   secrets: {
-    UA: 500000000, JP: 625000000, DE: 1000000000, IT: 1500000000, US: 1000000000, GB: 1250000000, CN: 875000000,
+    UA: 30000000, JP: 450000000, DE: 1800000000, IT: 2700000000, US: 400000000, GB: 2000000000, CN: 600000000,
   },
   seasonCar: 150000000, // the premium pass's level-30 car of every season (class X, never sold)
-  countryRewardShare: 0.044, // money for a finished country collection = this × its secret car's value
+  countryRewardShare: 0.05, // money for a finished country collection = this × its secret car's value
 
   // ---------- instant sale to the dealer ----------
-  sellRates: { D: 0.5, C: 0.45, B: 0.4, A: 0.35, S: 0.3, X: 0.3 }, // share of the model's value
+  sellRates: { D: 0.5, C: 0.5, B: 0.5, A: 0.5, S: 0.5, X: 0.5 }, // share of the model's value
   homeSellRate: 0.1, // UA collector cars (gold Soviet rarities)
   editionSell: 0.1, // «тиражні» cars
   restoredMult: 1.6, // a barn find restored to «R» is worth this × the base car
   // Per-case buy-back of a fresh drop: a number (× the class rate) or a per-class table of shares.
-  originSell: {
-    city: 0.79, tuning: 0.95, 'c-ua': 0.9,
-    sport: { B: 0.28, A: 0.266, S: 0.4 },
-    premium: { B: 0.3, A: 0.22, S: 0.4 },
-    elite: { A: 0.22, S: 0.45 },
-    'c-it': { B: 0.27, A: 0.245, S: 0.3 },
-    'c-us': { B: 0.28, A: 0.259, S: 0.3 },
-    'c-gb': { B: 0.27, A: 0.248, S: 0.3 },
-  },
+  originSell: {},
 
   // ---------- cases ----------
   // A case's pool = the cars of its classes priced inside [lo × price, hi × price] (country cases: no lower bound).
-  caseCorridor: { lo: 0.5, hi: 12 },
+  caseCorridor: { lo: 0.6, hi: 12 },
   // id → { price, weights (class odds, %), pity: [[class, n, opts?]] (guarantee steps), hi (corridor top × price) }
   rarityCases: {
-    rust: { price: 60000, weights: { D: 93.56, C: 6, B: 0.4, A: 0.04 }, pity: [['C', 25]], hi: 2000 },
-    city: { price: 300000, weights: { C: 92.61, B: 7, A: 0.35, S: 0.04 }, pity: [['B', 30]], hi: 1000 },
-    tuning: { price: 900000, weights: { C: 74.83, B: 24, A: 1.1, S: 0.07 }, pity: [['A', 200]], hi: 340 },
-    sport: { price: 2000000, weights: { B: 92.15, A: 7.6, S: 0.25 }, pity: [['A', 30]], hi: 150 },
-    premium: { price: 5000000, weights: { B: 55.2, A: 43, S: 1.8 }, pity: [], hi: 61 },
-    elite: { price: 10000000, weights: { A: 94.5, S: 5.5 }, pity: [], hi: 31 },
+    rust: { price: 65000, weights: { D: 95, C: 4.65, B: 0.32, A: 0.03 }, pity: [['C', 25]], hi: 2000 },
+    city: { price: 450000, weights: { C: 95.5, B: 4.2, A: 0.27, S: 0.03 }, pity: [['B', 30]], hi: 1000 },
+    tuning: { price: 1000000, lo: 0.5, weights: { C: 84.36, B: 14.8, A: 0.8, S: 0.04 }, pity: [['A', 200]], hi: 340 },
+    sport: { price: 3700000, weights: { B: 93.9, A: 5.9, S: 0.2 }, pity: [['A', 30]], hi: 150 },
+    premium: { price: 9000000, weights: { B: 66.8, A: 31.9, S: 1.3 }, pity: [], hi: 61 },
+    elite: { price: 19000000, weights: { A: 94, S: 6 }, pity: [], hi: 31 },
   },
   countryCases: {
-    UA: { price: 55000, weights: { D: 94.7, C: 5, A: 0.3 }, pity: [['C', 35], ['A', 300, { missing: true }]], hi: 460 },
-    JP: { price: 450000, weights: { C: 92.67, B: 7, A: 0.3, S: 0.03 }, pity: [['B', 30]], hi: 400 },
-    DE: { price: 400000, weights: { C: 93.68, B: 6, A: 0.3, S: 0.02 }, pity: [['B', 30]], hi: 570 },
-    CN: { price: 480000, weights: { C: 90.3, B: 9, A: 0.6, S: 0.1 }, pity: [['B', 25]], hi: 400 },
-    US: { price: 2400000, weights: { B: 83.4, A: 16, S: 0.6 }, pity: [], hi: 130 },
-    GB: { price: 3100000, weights: { B: 87, A: 12.4, S: 0.6 }, pity: [], hi: 91 },
-    IT: { price: 3200000, weights: { B: 89.5, A: 10, S: 0.5 }, pity: [], hi: 58 },
+    UA: { price: 70000, weights: { D: 94.2, C: 5.5, A: 0.3 }, pity: [['C', 35], ['A', 300, { missing: true }]], hi: 460 },
+    JP: { price: 450000, lo: 0.45, weights: { C: 95.6, B: 4.2, A: 0.18, S: 0.02 }, pity: [['B', 30], ['S', 2500, { missing: true }]], hi: 400 },
+    DE: { price: 500000, lo: 0.45, weights: { C: 94.62, B: 5.1, A: 0.26, S: 0.02 }, pity: [['B', 30], ['S', 2500, { missing: true }]], hi: 570 },
+    CN: { price: 280000, lo: 0.45, weights: { C: 97.63, B: 2.2, A: 0.15, S: 0.02 }, pity: [['B', 25], ['S', 2500, { missing: true }]], hi: 400 },
+    US: { price: 4200000, lo: 0.5, weights: { B: 85.2, A: 14.3, S: 0.5 }, pity: [['S', 500, { missing: true }]], hi: 130 },
+    GB: { price: 5500000, lo: 0.5, weights: { B: 90.2, A: 9.3, S: 0.5 }, pity: [['S', 500, { missing: true }]], hi: 91 },
+    IT: { price: 6000000, lo: 0.5, weights: { B: 88.8, A: 10.7, S: 0.5 }, pity: [['S', 500, { missing: true }]], hi: 58 },
   },
   casePriceMult: {}, // safety valve: × price after the pool is fixed (same cars, dearer case)
   caseOfDayOff: 0.1, // the case of the day is this much cheaper (and has no hidden boost)
@@ -73,19 +68,19 @@ export const ECON = {
   fragmentsPerKey: 8, // drops below the case price leave a fragment; this many make a free key
 
   // ---------- garage ----------
-  startBalance: 250000,
+  startBalance: 500000,
   firstCash: 2500, // the first garage income, put in the cash box by the starter case
   startSlots: 6,
   maxSlots: 40,
   slot: { base: 50000, steep: 1.6, softFrom: 16, soft: 1.25 }, // place n costs base × steep^(min(n,softFrom)−start) × soft^(n−softFrom)
   showcase: { start: 4, max: 12, base: 300000 },
   // Garage income per hour, share of the car's value, by class (X: secret/season cars and parts/plates on a car).
-  classIncome: { D: 0.07, C: 0.04, B: 0.016, A: 0.005, S: 0.0025, X: 0.0006 },
+  classIncome: { D: 0.08, C: 0.05, B: 0.016, A: 0.004, S: 0.002, X: 0.0006 },
   capLevels: [{ hours: 4, cost: 0 }, { hours: 6, cost: 400000 }, { hours: 8, cost: 4000000 }, { hours: 12, cost: 40000000 }],
 
   // ---------- races ----------
   // Money per race for a good driver racing a car of value v: base × (v / ref)^pow (v capped at the top of class S).
-  race: { base: 10000, ref: 40000, pow: 0.56 },
+  race: { base: 20000, ref: 40000, pow: 0.5 },
   fuel: { max: 15, regenMin: 20, tanks: [{ max: 18, cost: 2000000, level: 5 }, { max: 21, cost: 10000000, level: 10 }, { max: 25, cost: 50000000, level: 15 }] },
 
   // ---------- parts ----------
@@ -93,8 +88,10 @@ export const ECON = {
   partCaseMarkup: 0.6, // a part case costs this × the average value of what it drops
 
   // ---------- progression ----------
-  levelMoney: 15000, // level-up reward = levelMoney × level²
+  levelMoney: 40000, // level-up reward = levelMoney × level²
   questPay: 3.6,
+  // «Перші кроки» (S.NEWBIE_TASKS): money per step, in the order of the track.
+  newbieMoney: { open_starter: 30000, collect: 50000, race: 80000, daily: 30000, win: 120000, open_case: 150000, install: 150000, level3: 400000 },
   refReward: 1000000,
 
   // ---------- trading risk ----------
@@ -109,9 +106,9 @@ export const ECON = {
     { id: 'p3', stars: 500, amount: 19000000, title: '19 млн ₴', tag: '+27%' },
     { id: 'p4', stars: 1500, amount: 65000000, title: '65 млн ₴', tag: '+44%' },
   ],
-  packScale: { level: 1.25, garageBase: 20e6, garagePow: 0.85, max: 25 },
-  packOffer: { minLevel: 3, everyDays: 3, hours: 6, mult: 2 },
-  firstBuyMult: 3,
+  packScale: { level: 1.2, garageBase: 20e6, garagePow: 0.8, max: 10 },
+  packOffer: { minLevel: 3, everyDays: 3, hours: 6, mult: 1.5 },
+  firstBuyMult: 2,
   vip: { days: 14, stars: 300, fuelMult: 2, extraHours: 4, daily: 150000 },
 
   // ---------- «Мої бізнеси» (public/business.js) ----------
@@ -119,10 +116,10 @@ export const ECON = {
     list: [
       { id: 'wash', level: 3, price: 2_000_000, income: 30_000 },
       { id: 'gas', level: 5, price: 6_000_000, income: 80_000 },
-      { id: 'sto', level: 8, price: 15_000_000, income: 180_000 },
-      { id: 'salon', level: 15, price: 50_000_000, income: 500_000 },
+      { id: 'sto', level: 7, price: 15_000_000, income: 180_000 },
+      { id: 'salon', level: 10, price: 50_000_000, income: 500_000 },
     ],
     capHours: 4, vipCapHours: 8, growth: 1.75,
-    salonSell: 0.05, stoParts: 0.15,
+    salonSell: 0.02, stoParts: 0.15,
   },
 };

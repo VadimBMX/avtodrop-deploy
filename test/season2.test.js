@@ -154,7 +154,7 @@ test('scheduler on the server: seeded once, applied through eventEffects, the ro
   clock.t = K('2026-11-12T10:00:00');
   assert.equal(call('me').caseOfDay, 'sport');
   const fx = S.eventEffects(call('me').gameEvents.active);
-  assert.equal(S.caseDeal(S.CASE_BY_ID.sport, '2026-11-12', fx).price, 1800000);
+  assert.equal(S.caseDeal(S.CASE_BY_ID.sport, '2026-11-12', fx).price, Math.round((S.CASE_BY_ID.sport.price * (1 - S.CASE_OF_DAY.off)) / 1000) * 1000); // S2 3,7 млн → 3,33 млн (S1 2 млн → 1,8 млн)
   assert.equal(S.caseDeal(S.CASE_BY_ID.sport, '2026-11-12', fx).why, 'day');
   // Drift night Fri 6.11 18:00–24:00: drift prizes +25%, drag unchanged.
   const car = g.giveCar(1, S.ALL_MODELS.find((m) => m.cls === 'B' && !m.secret).id).id;

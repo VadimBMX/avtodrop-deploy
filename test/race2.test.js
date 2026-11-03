@@ -131,14 +131,16 @@ test('race2: prizes grow with the tier and with the car price; the expected mone
   }
 });
 
-test('race2: earning without cases is worthwhile but no farm — a full tank of good races is 1–5 cases of the class, and income/h rises with class', () => {
+test('race2: earning without cases is worthwhile but no farm — a full tank of good races is 1–6,5 cases of the class, and income/h rises with class', () => {
+  // Season 2: early races pay double (raceEv 20 000 × (v / 40 000)^0,5; S1 10 000 × …^0,56), so a D tank is ~6 «Іржавих» (S1 ~3)
+  // — the first hours are not a drain; the S tank stays ~1 «Еліта».
   const caseOf = { D: 'rust', C: 'city', B: 'sport', A: 'premium', S: 'elite' };
   for (const [cls, cs] of Object.entries(caseOf)) {
     const l = regular.filter((m) => m.cls === cls);
     const mid = l.sort((a, b) => a.price - b.price)[l.length >> 1];
     const tank = S.FUEL_MAX * S.raceEv(mid.price);
     const cases = tank / S.CASE_BY_ID[cs].price;
-    assert.ok(cases >= 0.8 && cases <= 5, `${cls}: a tank = ${cases.toFixed(2)} × ${cs}`);
+    assert.ok(cases >= 0.8 && cases <= 6.5, `${cls}: a tank = ${cases.toFixed(2)} × ${cs}`);
   }
   const med = (cls) => {
     const l = regular.filter((m) => m.cls === cls).sort((a, b) => a.price - b.price);

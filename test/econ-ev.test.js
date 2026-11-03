@@ -59,11 +59,12 @@ test('economy: «Таємний покупець» cannot lift a case over the p
   }
 });
 
-test('economy: China case — purple at least 1 in 10 opens (was 1 in 14), its guarantee still fires; prices unchanged', () => {
+test('economy (S2): China case — priced at its cheap blue cars (S1: 480 тис over 206–291 тис cars), purple guaranteed by 25', () => {
   const cn = S.CASE_BY_ID['c-cn'];
-  assert.ok(natural(cn, 'B') >= 0.1, `B+ 1 in ${(1 / natural(cn, 'B')).toFixed(1)}`);
-  assert.deepEqual(S.pitySteps(cn).map((s) => [s.cls, s.n]), [['B', 25]]);
-  assert.equal(cn.price, 480000);
+  const blue = cn.pool('C').map((m) => m.price).sort((a, b) => a - b);
+  assert.ok(cn.price <= blue[blue.length - 1] && cn.price >= blue[0], 'the price sits inside its blue cars');
+  assert.ok(natural(cn, 'B') >= 1 / 38, `B+ 1 in ${(1 / natural(cn, 'B')).toFixed(1)}`);
+  assert.deepEqual(S.pitySteps(cn).map((s) => [s.cls, s.n]), [['B', 25], ['S', 2500]]);
 });
 
 test('economy: race prizes stop growing above the dearest real car — a secret car races like a 300 млн hypercar', () => {
@@ -84,32 +85,36 @@ test('economy: a per-class buy-back table reads like a factor (caseSellShare / o
     assert.equal(S.caseSellShare('elite', 'B'), S.SELL_RATES.B, 'a class the table does not name keeps its rate');
     assert.equal(S.originSellOf('elite', 'S'), 0.45 / S.SELL_RATES.S);
     assert.ok(Math.abs(S.originSellOf('elite') - 0.22 / S.SELL_RATES.A) < 1e-9, 'without a class: the lowest factor (what an upgrade inherits)');
-    assert.equal(S.originSellText('elite'), 'золоті ×0,63 · червоні ×1,5');
+    assert.equal(S.originSellText('elite'), `золоті ×${(0.22 / S.SELL_RATES.A).toFixed(2).replace(/0$/, '').replace('.', ',')} · червоні ×${(0.45 / S.SELL_RATES.S).toFixed(2).replace(/0$/, '').replace('.', ',')}`); // S2 rates: ×0,44 · ×0,9
     const s = S.ALL_MODELS.find((m) => m.cls === 'S' && !m.secret && !m.edition && !m.restored);
     assert.equal(S.sellPriceOf(s.id, Infinity, 'elite'), Math.floor(s.price * 0.45));
     assert.equal(S.sellPriceOf(s.id), Math.floor(s.price * S.SELL_RATES.S), 'the same car not from a case: the class rate');
   } finally {
-    S.ORIGIN_SELL.elite = saved;
+    if (saved == null) delete S.ORIGIN_SELL.elite;
+    else S.ORIGIN_SELL.elite = saved;
   }
+  const savedCity = S.ORIGIN_SELL.city;
+  S.ORIGIN_SELL.city = 0.79;
   assert.equal(S.originSellText('city'), '×0,79');
+  if (savedCity == null) delete S.ORIGIN_SELL.city;
+  else S.ORIGIN_SELL.city = savedCity;
   assert.equal(S.originSellText('c-jp'), '');
   assert.equal(S.originSellOf(null), 1);
 });
 
-// Option «jackpot» (owner 28.10): the red from a dear case is a jackpot (×5–8 the case for the median red of Еліта, ×9+ in
-// Преміум and the country cases), with no guarantee step for it; the lower classes of those cases pay for it.
-test('jackpot: the red of the dear cases pays ×5+ the case and has no guarantee; open-and-sell still under 1 everywhere', () => {
+// Season 2: the red is still the jackpot — at the flat 50 % sale an average red pays ×3,5 Еліта, ×7 Преміум, ×10+ the dear
+// country cases — and rarity cases never guarantee it. Country cases do guarantee a red still MISSING from the collection
+// (after 500 / 2500 opens), so a collection never hangs on one 0,02 % car (S1: DE ~18 000 opens for its last red).
+test('jackpot (S2): the red of the dear cases pays ×3+ the case; only a missing red of a collection is guaranteed', () => {
   const medianRed = (cs) => {
     const list = cs.pool('S'), w = S.modelWeights(list), sw = w.reduce((a, b) => a + b, 0);
     return list.reduce((s, m, i) => s + (S.sellPriceOf(m.id, Infinity, cs.id) * w[i]) / sw, 0) / cs.price;
   };
   for (const id of ['elite', 'premium', 'c-it', 'c-us', 'c-gb']) {
     const cs = S.CASE_BY_ID[id];
-    assert.deepEqual(S.pitySteps(cs).filter((s) => s.cls === 'S'), [], `${id}: no guarantee of the red`);
-    assert.ok(medianRed(cs) >= 5, `${id}: an average red pays ×${medianRed(cs).toFixed(1)}`);
-    assert.ok(S.caseSellShare(id, 'S') >= S.SELL_RATES.S, `${id}: the red never sells under the class rate`);
+    assert.ok(medianRed(cs) >= 3, `${id}: an average red pays ×${medianRed(cs).toFixed(1)}`);
+    for (const st of S.pitySteps(cs).filter((x) => x.cls === 'S')) assert.ok(cs.country && st.missing, `${id}: a red step only for a missing collection car`);
   }
-  assert.ok(S.caseSellShare('elite', 'S') >= 0.45 && S.caseSellShare('elite', 'A') <= 0.24);
   assert.deepEqual(S.pitySteps(S.CASE_BY_ID.sport).map((s) => s.cls), ['A'], 'Спорткар keeps its gold step (the middle class)');
   for (const id of ['rust', 'city', 'c-ua', 'tuning', 'c-jp', 'c-de', 'c-cn']) assert.ok(S.pitySteps(S.CASE_BY_ID[id]).length >= 1, `${id} keeps its guarantee (newcomer insurance)`);
 });
