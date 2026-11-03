@@ -4062,7 +4062,10 @@ export function createGame(db, opts = {}) {
       const owned = it.cos && q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(userId, it.cos);
       const running = it.sub && !renewal ? subActive(userId) : null;
       const twoSubs = !!(running && running.charge_id !== chargeId);
-      if ((it.once && u.starter_bought) || (it.id === 'pass' && u.premium_season === S.seasonOf(now())) || owned || twoSubs) {
+      // s2-qa: a «Менеджер» paid for a business the player doesn't own (an invoice from before the Season 2 wipe) is
+      // refunded, not swallowed — applyManager would give nothing for it.
+      const noBiz = !!(BIZ && bizOfItem(itemId) && !BIZ.owns(userId, bizOfItem(itemId)));
+      if ((it.once && u.starter_bought) || (it.id === 'pass' && u.premium_season === S.seasonOf(now())) || owned || twoSubs || noBiz) {
         q('INSERT INTO payments (charge_id, user_id, pack, stars, amount, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(chargeId, userId, 'refund:' + itemId, stars, 0, now());
         return { refund: true, item: itemId, ...(twoSubs ? { cancelSub: true } : {}) };
       }
