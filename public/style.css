@@ -6104,6 +6104,9 @@ body.s2 .slot .slot-plus { background: #1b1c20; color: var(--accent); box-shadow
 /* sticky docks: a solid strip under them down to the floating bar, so no content peeks between the dock and the bar */
 body.s2 .dr-dock, body.s2 #view .drop-dock { background: #07080b; box-shadow: 0 -14px 14px -2px #07080b; }
 body.s2 .dr-dock::after, body.s2 #view .drop-dock::after { content: ''; position: absolute; z-index: -1; left: 0; right: 0; top: 100%; height: 40px; background: #07080b; pointer-events: none; }
+/* …but when the dock isn't stuck (a short drop screen) that 40px strip lay over the top of the next card («Фрагменти
+   ключа» was cut off). Cards after the dock are never under it (they come after its natural place), so they go on top. */
+body.s2 #view .drop-dock ~ .card { position: relative; z-index: 6; }
 
 /* the guide pill when a step is done: no yellow rings — the claim is a dark slab with yellow text and a cyan pulse */
 body.s2 .guide.pill.ready { border: 0; box-shadow: var(--slab-sh-sm), inset 3px 0 0 var(--accent); }
