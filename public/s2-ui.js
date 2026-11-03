@@ -4,6 +4,7 @@
 // *-ui.js modules); game logic stays in app.js — every action here is an existing data-act handler.
 import * as S from './shared.js';
 import * as B from './business.js';
+import { playOpen } from './s2-reel.js';
 
 let X = null;
 // Hooks app.js reads: the opening animation and the header painter; tabs that live inside another tab's button.
@@ -677,46 +678,11 @@ function dropAfter() {
   const res = document.querySelector('.s2-res');
   if (res) document.body.style.setProperty('--s2rc', getComputedStyle(res).getPropertyValue('--c'));
 }
-// Opening: the closed case shakes harder and harder, a flash in the drop's colour, the lid flies open — then the result.
+// Opening (owner 03.11: «анімація прокрута машини»): the case drops and unlocks, then the reel (public/s2-reel.js) stops
+// on the car the server rolled; ×3 / ×6 stacked rows. «Швидко» on the overlay skips it and turns the quick open on.
 function openAnim(cs, r) {
-  return new Promise((resolve) => {
-    const best = r.results.reduce((a, x) => Math.max(a, S.rankOf(M(x.car.model).cls)), 0);
-    const color = S.CLASSES[S.CLASS_ORDER[best]].color;
-    const ov = document.createElement('div');
-    ov.className = 's2-openov';
-    ov.style.setProperty('--c', color);
-    ov.innerHTML = `<div class="s2-rays"></div><div class="s2-oc">${caseArt(cs)}</div><div class="s2-oc open">${caseArt(cs, true)}</div><div class="s2-flash"></div><div class="s2-ot">${esc(cs.name)}${r.results.length > 1 ? ` · ×${r.results.length}` : ''}</div>
-      <div class="s2-ov-skip">${fastPill(false)}</div>`;
-    document.body.appendChild(ov);
-    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const T = reduce ? [200, 300, 500] : [1300, 1550, 2050];
-    X.haptic('light');
-    const ticks = reduce ? [] : [250, 500, 700, 880, 1020, 1140, 1240].map((t) => setTimeout(() => (X.haptic('light'), X.SFX.tick?.(1 + t / 2000)), t));
-    const timers = [];
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      ticks.forEach(clearTimeout);
-      timers.forEach(clearTimeout);
-      ov.classList.add('out');
-      setTimeout(() => ov.remove(), 300);
-      resolve();
-    };
-    // s2-screens: «Швидко» on the overlay — turns the quick open on (stored) and skips the rest of this animation.
-    ov.querySelector('.s2-fast')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      e.currentTarget.classList.add('on');
-      e.currentTarget.setAttribute('aria-pressed', 'true');
-      X.setFast?.(true);
-      X.haptic('light');
-      finish();
-    });
-    requestAnimationFrame(() => ov.classList.add('go'));
-    timers.push(setTimeout(() => (ov.classList.add('burst'), X.haptic(best >= 3 ? 'heavy' : 'medium'), X.SFX.pop?.(best)), T[0]));
-    timers.push(setTimeout(() => ov.classList.add('opened'), T[1]));
-    timers.push(setTimeout(finish, T[2]));
-  });
+  return playOpen({ cs, r, caseArt: (open) => caseArt(cs, open), carArt: X.carArt, haptic: X.haptic, SFX: X.SFX, draw: () => X.weightedModel(cs),
+    fastPill: fastPill(false), onFast: () => X.setFast?.(true) });
 }
 
 // ---------- Гараж: «Мій паркінг» ----------

@@ -1820,7 +1820,7 @@ H.openCase = async (d, el) => {
   }
   if (!state.fast && UI2.openAnim) {
     state.drop = null;
-    await UI2.openAnim(cs, r); // s2: the case shakes, flashes and opens (public/s2-ui.js) instead of the reel
+    await UI2.openAnim(cs, r); // s2: the case unlocks, then the «Асфальт» reel stops on the server's car (public/s2-reel.js)
   } else if (!state.fast) {
     state.drop = null;
     if (r.results.length === 1) {
@@ -9401,4 +9401,4 @@ installS2({ me: () => me, refresh: () => refresh(false), state: () => state, con
   carArt, FX, SFX, haptic: (k) => haptic(k), isOpen: (k) => isOpen(k), pct: (p) => pct(p), caseIcon: (cs) => caseIcon(cs), caseNow: (cs) => caseNow(cs), dropPaid: (cs) => dropPaid(cs),
   dropAlive: (r) => dropAlive(r), sellPrice: (c) => sellPrice(c), sellTotal: (c) => sellTotal(c), carInc: (c) => carInc(c), pendingNow: () => pendingNow(), serverNow: () => serverNow(),
   untilSpan: (t) => untilSpan(t), tickUntil: () => tickUntil(), fmax: () => fmax(), hubTile: (o) => hubTile(o), brokeCard: () => brokeCard(), vipSaleBanner: () => vipSaleBanner(),
-  paBanner: () => paBanner(), originText: (m) => originText(m), prefSet: (k, v) => prefSet(k, v), setFast: (on) => setFast(on) });
+  paBanner: () => paBanner(), originText: (m) => originText(m), prefSet: (k, v) => prefSet(k, v), setFast: (on) => setFast(on), weightedModel: (cs) => weightedModel(cs) });
