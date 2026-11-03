@@ -10,7 +10,7 @@
 .wow.ready { cursor: pointer; }
 .wow-bg { position: absolute; inset: 0; background:
   radial-gradient(70% 45% at 50% 42%, color-mix(in srgb, var(--c) 30%, transparent), transparent 70%),
-  radial-gradient(120% 70% at 50% 38%, #1a1446 0%, #0a0c18 55%, #030408 100%); }
+  radial-gradient(120% 70% at 50% 38%, #1a1446 0%, #0d0e11 55%, #030408 100%); }
 .wow-bg::after { content: ''; position: absolute; inset: 0; background: #000; animation: wowDark .7s ease-out both; }
 @keyframes wowDark { 0% { opacity: 1; } 100% { opacity: 0; } }
 /* the light sweep: a soft diagonal band crossing the screen once */
@@ -57,13 +57,13 @@
 .wow-name { margin-top: 10px; font: 800 clamp(26px, 8vw, 36px)/1.05 var(--f-disp); color: #fff; letter-spacing: .3px; text-shadow: 0 0 26px color-mix(in srgb, var(--c) 75%, transparent); max-width: 100%; overflow-wrap: anywhere; }
 .wow-val { display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
 .wow-num { font: 800 24px/1 var(--f-disp); color: var(--accent); font-variant-numeric: tabular-nums; }
-.wow-mult { padding: 4px 9px; border-radius: 6px; transform: skewX(-10deg); font: 800 17px/1.1 var(--f-disp); background: #ffffff10; color: #c3cad6; }
+.wow-mult { padding: 4px 9px; border-radius: 6px; transform: skewX(-10deg); font: 800 17px/1.1 var(--f-disp); background: #ffffff10; color: #c9cacd; }
 .wow-mult small { font: 600 12px var(--f-body); opacity: .85; }
 .wow-mult.up { background: #2fd27a22; color: #4be08f; box-shadow: inset 0 0 0 1px #2fd27a66, 0 0 18px -6px #2fd27a; }
 .wow-dream { margin-top: 12px; display: inline-flex; gap: 6px; align-items: center; color: #ffd500; font-weight: 700; }
 .wow-acts { margin-top: 18px; width: 100%; max-width: 320px; }
 .wow-acts .btn { width: 100%; margin: 0; }
-.wow-tap { margin-top: 12px; font-size: 13px; color: #c3cad6b0; }
+.wow-tap { margin-top: 12px; font-size: 13px; color: #c9cacdb0; }
 /* S: the neon breathes; secret: a cyan shimmer over the name */
 .wow.r4.hit .wow-stage, .wow.r5.hit .wow-stage { animation: wowThump .5s ease-out; }
 @keyframes wowThump { 30% { transform: scale(1.04); } }
@@ -78,7 +78,7 @@
 
 /* ---------- share ---------- */
 .share-drop { width: 100%; }
-.share-prev { position: relative; width: min(62vw, 250px); aspect-ratio: 9 / 16; margin: 2px auto 14px; border-radius: 16px; overflow: hidden; background: #0b0f1c;
+.share-prev { position: relative; width: min(62vw, 250px); aspect-ratio: 9 / 16; margin: 2px auto 14px; border-radius: 16px; overflow: hidden; background: #0f1013;
   box-shadow: 0 0 0 1px #ffffff14, 0 18px 40px -12px color-mix(in srgb, var(--c, #ffc400) 55%, transparent); display: grid; place-items: center; }
 .share-prev img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .share-wait { padding: 16px; color: var(--muted); font-size: 13px; display: flex; gap: 6px; align-items: center; text-align: center; }
@@ -87,8 +87,8 @@
 .share-acts .btns:empty { display: none; }
 
 /* ---------- dream car card (garage) and picker ---------- */
-.card.dream { position: relative; overflow: hidden; border-color: color-mix(in srgb, var(--c) 35%, #2a2f52);
-  background: radial-gradient(90% 120% at 18% 30%, color-mix(in srgb, var(--c) 16%, #141433) 0%, #0d1020 55%, var(--card) 100%); }
+.card.dream { position: relative; overflow: hidden; border-color: color-mix(in srgb, var(--c) 35%, #313235);
+  background: radial-gradient(90% 120% at 18% 30%, color-mix(in srgb, var(--c) 16%, #17181b) 0%, #111215 55%, var(--card) 100%); }
 .dream-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; font: 700 15px var(--f-disp); letter-spacing: .4px; text-transform: uppercase; color: #ffd500; }
 .dream-h > span { display: inline-flex; gap: 6px; align-items: center; }
 .dream-x { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); background: #ffffff0a; }
@@ -121,5 +121,5 @@
 /* claim / event banners wait while the takeover is on screen */
 body:has(.wow) #banners { visibility: hidden; }
 /* Чесні цифри: «Продаж» над сумою, колекційна ціна сірим рядком під нею */
-.wow-lbl { flex-basis: 100%; text-align: center; font: 600 12px var(--f-body); letter-spacing: .8px; text-transform: uppercase; color: #c3cad6; opacity: .8; margin-bottom: -4px; }
-.wow-coll { flex-basis: 100%; text-align: center; font: 500 13px var(--f-body); color: #8b919c; }
+.wow-lbl { flex-basis: 100%; text-align: center; font: 600 12px var(--f-body); letter-spacing: .8px; text-transform: uppercase; color: #c9cacd; opacity: .8; margin-bottom: -4px; }
+.wow-coll { flex-basis: 100%; text-align: center; font: 500 13px var(--f-body); color: #909194; }
