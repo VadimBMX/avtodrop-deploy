@@ -5713,7 +5713,7 @@ body.s2 .btn, body.s2 .s2-btn, body.s2 .s2-open, body.s2 .bz-btn, body.s2 .raceb
   font-family: var(--f-fc); font-weight: 800; text-transform: uppercase; letter-spacing: .5px; border: 0; border-radius: 14px; transition: transform .08s, box-shadow .08s;
 }
 body.s2 .btn:not(.ghost):not(.outline):not(.red):not(.green):not(.second):not(.sm):not([disabled]), body.s2 .btn.yellow:not([disabled]), body.s2 .s2-btn:not(.ghost):not(.sm):not([disabled]),
-body.s2 .s2-open:not([disabled]):not(.s2-full-g), body.s2 .bz-btn:not([disabled]), body.s2 .racebtn.shift, body.s2 .s2-mybar, body.s2 .guide-claim {
+body.s2 .s2-open:not([disabled]):not(.s2-full-g), body.s2 .bz-btn:not([disabled]), body.s2 .racebtn.shift, body.s2 .s2-mybar {
   background: var(--yel); color: #111; box-shadow: var(--yel-sh); text-shadow: none;
 }
 body.s2 .btn:not(.ghost):not(.outline):not(.red):not(.green):not(.second):not(.sm):not([disabled]):active, body.s2 .btn.yellow:not([disabled]):active, body.s2 .s2-btn:not(.ghost):not(.sm):active,
@@ -5861,40 +5861,83 @@ body.s2 .s2-cc::after { left: 12px; right: 12px; height: 3px; }
 body.s2 .s2-cc em { font-family: var(--s2-mono); }
 body.s2 .fastrow { background: none; }
 
-/* ---------- DROP: the result (owner's notes on the starter Таврія) ---------- */
-body.s2 #view:has(.s2-res) { background: none; }
-body.s2 .s2-res { align-items: stretch; text-align: left; }
-body.s2 .s2-res-top { justify-content: flex-start; margin: 0 0 2px; }
-body.s2 .s2-res-from { height: auto; padding: 0; background: none; border: 0; box-shadow: none; font: 700 11px var(--f-fc); letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted); max-width: 100%; }
-body.s2 .s2-res-name.result-name { margin: 2px 0 2px; font-size: 28px; line-height: 1.05; letter-spacing: .3px; text-align: left; color: #fff; text-shadow: none; }
-body.s2 .s2-res-sub { font: 600 12.5px var(--f-body); color: var(--muted); }
-body.s2 .s2-res-sub .nw { color: var(--green); }
-body.s2 .s2-res-card { margin: 12px 0 14px; padding: 12px 12px 12px; border-radius: 18px; overflow: hidden; background: radial-gradient(70% 55% at 50% 42%, color-mix(in srgb, var(--c) 18%, transparent), transparent 75%), var(--slab); box-shadow: var(--slab-sh); }
-body.s2 .s2-res-chip { position: absolute; left: 12px; top: 12px; z-index: 3; height: 24px; padding: 0 9px 0 0; gap: 6px; border-radius: 7px; background: #1b1c20; color: #e6e8ec;
-  font: 800 11.5px var(--f-fc); letter-spacing: .6px; text-transform: uppercase; box-shadow: var(--slab-sh-in); text-shadow: none; overflow: hidden; }
-body.s2 .s2-res-chip b { align-self: stretch; display: inline-flex; align-items: center; padding: 0 8px; background: var(--c); color: #111; font-size: 13px; }
-body.s2 .s2-res-chip .i { color: var(--c); }
-body.s2 .s2-res-card .reveal-wrap { height: 150px; margin: 26px 0 0; padding: 0 6px; background: none; overflow: visible; }
-body.s2 .s2-res-card .reveal-wrap .art { width: 100%; height: 100%; }
-body.s2 .s2-res-card .reveal-wrap .art img, body.s2 .s2-res-card .reveal-wrap .art svg { max-width: 100%; max-height: 100%; object-fit: contain; }
-body.s2 .s2-res-ghost, body.s2 .s2-res-case { display: none; }
-body.s2 .s2-res-stats { gap: 8px; margin-top: 10px; }
-body.s2 .s2-res-stats > div { padding: 8px 8px; text-align: center; }
-body.s2 .s2-res-stats small, body.s2 .s2-res-money small { font: 600 10.5px var(--f-body); color: var(--muted); }
-body.s2 .s2-res-stats b { font-size: 13.5px; color: #fff; }
-body.s2 .s2-res-money { padding: 10px 6px; border-radius: 16px; text-align: center; }
-body.s2 .s2-res-money b { font-size: 15.5px; }
-body.s2 .s2-res .drop-dock { width: auto; margin: 12px -16px 0; padding: 14px 16px 10px; }
-body.s2 .s2-res .drop-dock .btns .btn:first-child { background: var(--yel); color: #111; box-shadow: var(--yel-sh); }
-body.s2 #view .drop-dock .btn.opencase, body.s2 #view .drop-dock .btn.opencase.second, body.s2 .s2-res .drop-dock .opencase, body.s2 .s2-res .drop-dock .opencase.second {
+/* ---------- DROP: the result — the car ON the lit asphalt turntable (s2/bg/stage-reveal.webp, owner 03.11) ----------
+   The stage is 1 : .74 of the page width, the picture's band 18.7 %…92.7 % (bg 100 % wide, y 72 %): the turntable's top is
+   at 37–70 % of the box, the wheels of the car stand on 61 % with a soft contact shadow. */
+body.s2 #view:has(.s2-res), body.s2 #view:has(.a-multi) { background: none; }
+body.s2 .s2-res.a-res, body.s2 .a-multi { display: block; text-align: left; padding: 0; margin: 0; background: none; box-shadow: none; }
+body.s2 .a-stage { position: relative; margin: -6px -16px 0; aspect-ratio: 1 / .62; overflow: hidden;
+  background: url('s2/bg/stage-reveal.webp') center 52.6% / 100% auto no-repeat, #07080b; }
+body.s2 .a-stage::before { content: ''; position: absolute; left: 50%; top: 50%; width: 64%; aspect-ratio: 2.3 / 1; transform: translate(-50%, -50%); border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--c) 30%, transparent), transparent); opacity: .55; pointer-events: none; }
+body.s2 .a-from { position: static; margin: 0 0 2px; z-index: 3; font: 700 11px var(--f-fc); letter-spacing: 1.4px; text-transform: uppercase; color: #8e929b; }
+body.s2 .a-multi > .a-from { margin: 2px 0 8px; }
+body.s2 .a-stage > i.a-fade { position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(#07080b 0, transparent 9%, transparent 80%, #07080b 100%), linear-gradient(90deg, #07080b 0, transparent 7%, transparent 93%, #07080b 100%); }
+body.s2 .a-stage.sm > i.a-fade { background: linear-gradient(transparent 78%, #25272c 100%); }
+body.s2 .a-car { position: absolute; left: 12%; right: auto; width: 76%; top: auto; bottom: 29%; height: auto; aspect-ratio: 2.5 / 1; margin: 0; padding: 0; display: block; background: none; overflow: visible; z-index: 2; }
+body.s2 .a-car::after { content: ''; position: absolute; left: 4%; right: 4%; bottom: -5%; top: auto; height: 16%; border-radius: 50%; z-index: -1;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, .85), rgba(0, 0, 0, .45) 55%, transparent); filter: blur(2px); }
+body.s2 .a-car::before { display: none; }
+body.s2 .a-car .art { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+body.s2 .a-car .art img, body.s2 .a-car .art svg { width: 100%; height: 100%; max-width: none; max-height: none; object-fit: contain; object-position: 50% 100%; filter: drop-shadow(0 2px 2px #000c); }
+body.s2 .a-car .art img.glow { filter: drop-shadow(0 2px 2px #000c) drop-shadow(0 0 14px color-mix(in srgb, var(--c) 55%, transparent)); }
+body.s2 .a-stage.go .a-car .art { animation: aDrop .55s cubic-bezier(.2, .9, .3, 1.15) both; }
+@keyframes aDrop { from { transform: translateY(-14%) scale(.92); opacity: 0; } to { transform: none; opacity: 1; } }
+body.s2 .a-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: -4px 0 4px; position: relative; z-index: 3; }
+body.s2 .a-cls { display: inline-flex; align-items: center; gap: 3px; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--c); color: #111; font: 800 13px/1 var(--f-fc); box-shadow: 0 2px 0 #00000080; }
+body.s2 .a-cls .i { width: 13px; height: 13px; }
+body.s2 .a-clsn { font: 800 12px var(--f-fc); letter-spacing: 1px; text-transform: uppercase; color: #c9ccd2; }
+body.s2 .a-new { font: 700 12px var(--f-body); color: var(--green); }
+body.s2 .a-new::before { content: '·'; margin-right: 8px; color: #5c606a; }
+body.s2 .a-x { height: 20px; padding: 0 7px; display: inline-flex; align-items: center; gap: 3px; border-radius: 6px; background: #1b1c20; color: var(--accent); font: 800 11px var(--f-fc); text-transform: uppercase; letter-spacing: .4px; }
+body.s2 .a-res .s2-res-name.result-name { margin: 0 0 12px; font: 800 30px/1.02 var(--f-fc); letter-spacing: .3px; text-transform: uppercase; text-align: left; color: #fff; text-shadow: none; }
+body.s2 .a-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 8px; margin: 0 0 4px; }
+body.s2 .a-stats > div { min-width: 0; padding: 8px 10px 9px; border-radius: 12px; background: var(--slab); box-shadow: var(--slab-sh-sm); }
+body.s2 .a-stats small { display: block; font: 600 10.5px var(--f-body); color: var(--muted); white-space: nowrap; }
+body.s2 .a-stats b { display: block; margin-top: 2px; font: 700 14px var(--s2-mono); letter-spacing: -.4px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.s2 .a-stats .y b { color: var(--accent); }
+body.s2 .a-stats .g b { color: var(--green); }
+body.s2 .a-stats > div:nth-child(n+4) { background: var(--slab-dk); }
+body.s2 .a-stats > div:nth-child(n+4) b { font: 700 13px var(--f-body); }
+/* ×3 / ×6: a carousel of small stages */
+body.s2 .a-car3 { display: flex; gap: 12px; margin: 0 -16px; padding: 0 16px 10px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding: 0 16px; scrollbar-width: none; }
+body.s2 .a-car3::-webkit-scrollbar { display: none; }
+body.s2 .a-mc { flex: 0 0 76%; scroll-snap-align: start; border-radius: 18px; overflow: hidden; background: var(--slab-dk); box-shadow: var(--slab-sh); }
+body.s2 .a-car3:has(> .a-mc:only-child) .a-mc { flex-basis: 100%; }
+body.s2 .a-stage.sm { margin: 0; border-radius: 18px 18px 0 0; }
+body.s2 .a-stage.sm .a-car { left: 10%; width: 80%; }
+body.s2 .a-mc-tx { padding: 0 12px 12px; }
+body.s2 .a-mc .a-head { margin: -10px 0 4px; }
+body.s2 .a-mc-n { display: block; font: 800 18px/1.1 var(--f-fc); text-transform: uppercase; letter-spacing: .3px; color: #fff; }
+body.s2 .a-mc-p { margin: 3px 0 10px; font: 700 15px var(--s2-mono); color: var(--accent); letter-spacing: -.4px; }
+body.s2 .a-mc-p small { font: 600 11.5px var(--f-body); color: var(--muted); letter-spacing: 0; }
+body.s2 .a-mc .dropsell { position: static; width: 100%; height: 40px; display: flex; align-items: center; justify-content: center; gap: 6px; border-radius: 12px; font: 800 13px var(--f-fc); text-transform: uppercase; letter-spacing: .4px; }
+body.s2 .a-mc .dropsell.done { color: var(--muted); background: #1b1c20; box-shadow: var(--slab-sh-in); }
+body.s2 .a-dots { display: flex; justify-content: center; gap: 6px; margin: 2px 0 12px; }
+body.s2 .a-dots i { width: 6px; height: 6px; border-radius: 3px; background: #3a3d44; transition: width .2s; }
+body.s2 .a-dots i.on { width: 18px; background: var(--accent); }
+body.s2 .a-multi .multi-sum { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; text-align: left; }
+body.s2 .a-multi .multi-sum b { font: 700 15px var(--s2-mono); color: var(--accent); letter-spacing: -.4px; }
+body.s2 .a-multi .multi-sum b small { font: 600 11px var(--f-body); color: var(--muted); letter-spacing: 0; }
+body.s2 .a-multi .multi-sum > span { font: 600 12px var(--f-body); color: #c9ccd2; }
+/* the dock under the result: one yellow «У гараж», «Продати» and «Відкрити ще» are dark slabs */
+body.s2 .a-res .drop-dock, body.s2 .a-multi .drop-dock { width: auto; margin: 12px -16px 0; padding: 14px 16px 10px; }
+body.s2 #view .drop-dock .btns { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; }
+body.s2 #view .drop-dock .btns .btn { min-width: 0; width: auto; min-height: 52px; white-space: nowrap; }
+body.s2 #view .drop-dock .btns .btn[data-act="toGarage"] { background: var(--yel); color: #111; box-shadow: var(--yel-sh); outline: 0; }
+body.s2 #view .drop-dock .btns .btn.btn2 { background: var(--slab) !important; color: var(--text) !important; box-shadow: var(--slab-sh-sm) !important; border: 0 !important; }
+body.s2 #view .drop-dock .btns .btn.btn2 small { color: var(--accent); font-family: var(--s2-mono); }
+body.s2 #view .drop-dock .btn.opencase, body.s2 #view .drop-dock .btn.opencase.second, body.s2 #view .drop-dock .btn.opencase.yellow {
   min-height: 46px; margin-top: 10px; padding: 8px 14px; background: var(--slab) !important; color: var(--text) !important; box-shadow: var(--slab-sh-sm) !important; border: 0 !important; border-radius: 14px; }
-body.s2 .drop-dock .btn.opencase .oc-l, body.s2 .s2-res .drop-dock .opencase .oc-l { color: var(--text); text-decoration: none; }
+body.s2 #view .drop-dock.dd-sold .btn.opencase { background: var(--yel) !important; color: #111 !important; box-shadow: var(--yel-sh) !important; }
+body.s2 #view .drop-dock.dd-sold .btn.opencase .oc-l, body.s2 #view .drop-dock.dd-sold .btn.opencase .oc-p { color: #111; }
+body.s2 .drop-dock .btn.opencase .oc-l { color: var(--text); text-decoration: none; }
 body.s2 .drop-dock .btn.opencase .oc-p { color: var(--accent); font-family: var(--s2-mono); font-weight: 700; text-transform: none; letter-spacing: -.3px; }
 body.s2 .drop-dock .dd-last { margin-top: 8px; font: 600 12px var(--f-body); color: var(--muted); }
-body.s2 .drop-dock .btn.dd-back { background: var(--slab); color: var(--text); box-shadow: var(--slab-sh-sm); }
-body.s2 .s2-multi .stage { border-radius: 18px; }
-body.s2 .multi .dcell { border-radius: 14px; }
+body.s2 .drop-dock .btn.dd-back { background: var(--slab); color: var(--text); box-shadow: var(--slab-sh-sm); border: 0; }
 body.s2 .multi-sum { background: var(--slab); border: 0; border-radius: 14px; box-shadow: var(--slab-sh-sm); }
+/* leftovers of the old rarity card, never shown */
+body.s2 .s2-res-ghost, body.s2 .s2-res-case, body.s2 .s2-res-card, body.s2 .s2-res-chip, body.s2 .s2-res-money, body.s2 .s2-res .newtag, body.s2 .s2-res .s2-res-top { display: none; }
 /* opening overlay: plain black, the drop colour only in the flash */
 body.s2 .s2-openov { background: radial-gradient(55% 40% at 50% 50%, color-mix(in srgb, var(--c) 12%, #07080b), #07080b 80%); }
 body.s2 .s2-ot { font: 800 15px var(--f-fc); letter-spacing: 1px; text-transform: uppercase; color: #c9ccd2; }
@@ -5951,7 +5994,12 @@ body.s2 #banners > * { backdrop-filter: none; -webkit-backdrop-filter: none; }
 /* ---------- newbie guide strip ---------- */
 body.s2 .guide { background: var(--slab-dk); border: 0; border-radius: 14px; box-shadow: var(--slab-sh-sm), inset 3px 0 0 var(--accent); }
 body.s2 .guide-ic { border-radius: 9px; background: var(--yel); box-shadow: 0 2px 0 #a87f00; }
-body.s2 .guide-hi { outline-color: var(--accent); }
+/* the newbie target: a cyan neon ring (never a second yellow outline around the yellow button) */
+body.s2 .guide-hi { outline: 2px solid #22d3ee; outline-offset: 4px; animation: aGuide 1.4s ease-in-out infinite; }
+@keyframes aGuide { 50% { outline-color: #22d3ee55; } }
+body.s2 .tabs button.guide-hi { outline: 0; animation: none; }
+body.s2 .tabs button.guide-hi::after { background: #22d3ee; border-color: #1f2024; box-shadow: 0 0 8px #22d3ee; }
+body.s2 .guide .guide-claim, body.s2 .guide-claim { background: var(--slab) !important; color: var(--accent) !important; border: 0 !important; box-shadow: var(--slab-sh-sm) !important; font-family: var(--f-fc); font-weight: 800; text-transform: uppercase; letter-spacing: .3px; }
 
 /* ---------- car card / СТО / races / result (page sheets) ---------- */
 body.s2 .s2c-cone, body.s2 .s2t-cone { opacity: .25; }
@@ -6008,8 +6056,7 @@ body.s2 .s2-sp-logo { font-family: var(--f-fc); letter-spacing: 1px; text-transf
   body.s2 .s2-hudme .s2-who b { font-size: 13.5px; }
   body.s2 .balance { font-size: 13.5px; padding-right: 11px; }
   body.s2 .s2tabs button > span:last-of-type { font-size: 10px; }
-  body.s2 .s2-res-name.result-name { font-size: 25px; }
-  body.s2 .s2-res-card .reveal-wrap { height: 130px; }
+  body.s2 .a-res .s2-res-name.result-name { font-size: 26px; }
 }
 /* ===== /ASPHALT */
 

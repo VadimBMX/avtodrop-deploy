@@ -565,45 +565,64 @@ function caseView(base) {
     ${dock(cs)}
     <div class="fastrow"><span>${X.ic('bolt')} Швидке відкриття <small>без анімації</small></span><button class="toggle ${s.fast ? 'on' : ''}" data-act="toggleFast" aria-label="Швидке відкриття"></button></div></div>`;
 }
-// The result: one car → the rarity card of the mockup (the opened case under the car); several → app.js's grid.
-// The actions (У гараж / Продати / Відкрити ще / share) are app.js's own drop dock, taken from its markup.
+// The result (asphalt, owner 03.11): the won car stands ON the lit asphalt turntable (s2/bg/stage-reveal.webp) — no card
+// frame, no floating case, no ghost class letter. Under it: the class tag, the name, «нова в колекції N/174», one grid
+// of stat slabs and app.js's own drop dock (one yellow «У гараж», the rest dark slabs). ×3/×6 → a carousel of stages.
 function dropResult(base) {
   const s = st(), d = s.drop;
   const html = base();
-  if (d.length !== 1) {
-    const cs0 = S.CASE_BY_ID[s.dropCase] || S.CASE_BY_ID[s.caseId];
-    return `<div class="s2-multi"><div class="s2-res-top"><span class="s2-res-from">${caseArt(cs0, false, 'mini')}${esc(cs0.name)} · ×${d.length} відкрито</span><button class="s2-rb" data-act="toGarage" aria-label="Закрити">${X.ic('x')}</button></div>${html}</div>`;
-  }
   const tpl = document.createElement('template');
   tpl.innerHTML = html;
   const dockEl = tpl.content.querySelector('.drop-dock');
   const share = dockEl?.nextElementSibling?.outerHTML || '';
-  const { car, isNew, forced } = d[0];
-  const md = M(car.model), rank = S.rankOf(md.cls), color = clsCol(md.cls);
   const cs = S.CASE_BY_ID[s.dropCase] || S.CASE_BY_ID[s.caseId];
   const fresh = s.fx?.type === 'case';
+  const have = me().collection.filter((id) => !M(id)?.secret).length, total = S.ALL_MODELS.filter((x) => !x.secret).length;
+  if (d.length !== 1) {
+    const sum = tpl.content.querySelector('.multi-sum');
+    const cell = (r, i) => {
+      const md = M(r.car.model), rank = S.rankOf(md.cls), color = clsCol(md.cls);
+      const sell = X.dropAlive(r) ? `<button class="dropsell" data-act="sellDrop" data-id="${r.car.id}">${X.ic('cash')}Продати · ${S.short(X.sellPrice(r.car))}</button>`
+        : r.sold ? '<div class="dropsell done">Продано</div>' : '';
+      return `<div class="a-mc r${rank} ${fresh ? 'flip-in' : ''}" style="--c:${color};animation-delay:${i * 160}ms">
+        <div class="a-stage sm" ${r.sold ? '' : `data-act="car" data-id="${r.car.id}" role="button"`}><i class="a-fade"></i><div class="a-car"><div class="art">${X.carArt(r.car.model, { glow: rank >= 3 })}</div></div></div>
+        <div class="a-mc-tx"><div class="a-head"><span class="a-cls" style="--c:${color}">${md.cls}</span><span class="a-clsn">${esc(S.CLASSES[md.cls].name)}</span>${r.isNew ? '<span class="a-new">нова</span>' : ''}</div>
+        <b class="a-mc-n ellipsis">${esc(md.name)}</b><div class="a-mc-p">${S.short(X.sellPrice(r.car))}<small>${X.carInc(r.car) ? ` · +${shortN((X.carInc(r.car).rate ?? X.carInc(r.car).income ?? X.carInc(r.car)))}/год` : ''}</small></div>${sell}</div></div>`;
+    };
+    return `<div class="s2-multi a-multi"><div class="a-from">${esc(cs.name)} · ×${d.length} відкрито</div>
+      <div class="a-car3" id="aCar3">${d.map(cell).join('')}</div>
+      <div class="a-dots">${d.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div>
+      ${sum ? sum.outerHTML : ''}${dockEl ? dockEl.outerHTML : ''}${share}</div>`;
+  }
+  const { car, isNew, forced } = d[0];
+  const md = M(car.model), rank = S.rankOf(md.cls), color = clsCol(md.cls);
   const sp = X.sellPrice(car), paid = X.dropPaid(cs), mult = paid ? sp / paid : 0;
   const inc = X.carInc(car);
-  const have = me().collection.filter((id) => !M(id)?.secret).length, total = S.ALL_MODELS.filter((x) => !x.secret).length;
   const origin = X.originText(md);
-  // asphalt (owner's notes on the starter result): no case floating in the card, no giant cut class letter, the car fits
-  // inside the slab, no «Шанс 100% на клас»; the class is a small tag on the card; one yellow button in the dock.
-  const sub = [isNew ? `<span class="nw">нова в колекції ${have}/${total}</span>` : '', forced ? 'гарантія' : '', d[0].fragment ? `${X.ic('key')} +фрагмент` : ''].filter(Boolean).join(' · ');
-  return `<div class="s2-res r${rank}" style="--c:${color}">
-    <div class="s2-res-top"><span class="s2-res-from">${esc(cs.name)} · відкрито</span></div>
+  const extra = [forced ? 'гарантія' : '', d[0].fragment ? `${X.ic('key')} +фрагмент` : ''].filter(Boolean).map((t) => `<span class="a-x">${t}</span>`).join('');
+  return `<div class="s2-res a-res r${rank}" style="--c:${color}">
+    <div class="a-from">${esc(cs.name)} · відкрито</div>
+    <div class="a-stage ${fresh ? 'go' : ''}"><i class="a-fade"></i>
+      <div class="a-car reveal-wrap r${rank}" id="revealWrap" style="--c:${color}"><div class="art ${fresh ? 'reveal' : ''}" id="dropArt">${X.carArt(car.model, { glow: rank >= 3 })}</div></div></div>
+    <div class="a-head ${fresh ? 'pop' : ''}"><span class="a-cls" style="--c:${color}">${rank >= 3 ? X.ic('crown') : ''}${md.cls}</span><span class="a-clsn">${esc(S.CLASSES[md.cls].name)}</span>${isNew ? `<span class="a-new">нова в колекції ${have}/${total}</span>` : ''}${extra}</div>
     <div class="result-name s2-res-name ${fresh ? 'pop' : ''}">${esc(md.name)}</div>
-    ${sub ? `<div class="s2-res-sub">${sub}</div>` : ''}
-    <div class="s2-res-card"><span class="s2-res-chip ${fresh ? 'pop' : ''}">${rank >= 3 ? X.ic('crown') : ''}<b>${md.cls}</b>${esc(S.CLASSES[md.cls].name)}</span>
-      <div class="reveal-wrap r${rank}" id="revealWrap" style="--c:${color}"><div class="art ${fresh ? 'reveal' : ''}" id="dropArt">${X.carArt(car.model, { glow: rank >= 2 })}</div></div>
-      <div class="s2-res-stats"><div><small>Потужність</small><b>${md.hp} к.с.</b></div><div><small>Маса</small><b>${n0(md.kg)} кг</b></div><div><small>Країна</small><b class="ellipsis">${esc(origin)}</b></div></div></div>
-    <div class="s2-res-money"><div><small>Продаж</small><b id="dropValue">${S.short(sp)}</b></div><div><small>Дохід/год</small><b>${inc ? '+' + shortN(inc.rate ?? inc.income ?? inc) : '—'}</b></div>${mult ? `<div><small>Від ціни кейса</small><b class="${mult >= 1 ? 'up' : ''}">${S.multText(mult)}</b></div>` : `<div><small>Колекційна</small><b>${S.short(car.value)}</b></div>`}</div>
+    <div class="a-stats">
+      <div class="y"><small>Продаж</small><b id="dropValue">${S.short(sp)}</b></div>
+      <div class="y"><small>Дохід/год</small><b>${inc ? '+' + shortN(inc.rate ?? inc.income ?? inc) : '—'}</b></div>
+      ${mult ? `<div class="${mult >= 1 ? 'g' : ''}"><small>Від ціни кейса</small><b>${S.multText(mult)}</b></div>` : `<div><small>Колекційна</small><b>${S.short(car.value)}</b></div>`}
+      <div><small>Потужність</small><b>${md.hp} к.с.</b></div><div><small>Маса</small><b>${n0(md.kg)} кг</b></div><div><small>Країна</small><b class="ellipsis">${esc(origin)}</b></div></div>
     ${d[0].sold ? `<div class="s2-note win">${X.ic('check')} Продано за ${S.short(sp)}</div>` : ''}
     ${dockEl ? dockEl.outerHTML : ''}${share}</div>`;
 }
 function dropAfter() {
   const res = document.querySelector('.s2-res');
   if (res) document.body.style.setProperty('--s2rc', getComputedStyle(res).getPropertyValue('--c'));
-  // The «Відкрити ще» in app.js's dock: yellow text link under the main buttons (mockup 13).
+  // ×3/×6 carousel: the dots follow the scroll
+  const car3 = document.getElementById('aCar3');
+  if (car3) car3.onscroll = () => {
+    const k = Math.round(car3.scrollLeft / (car3.firstElementChild?.offsetWidth + 12 || 1));
+    car3.parentElement.querySelectorAll('.a-dots i').forEach((el, i) => el.classList.toggle('on', i === k));
+  };
 }
 // Opening: the closed case shakes harder and harder, a flash in the drop's colour, the lid flies open — then the result.
 function openAnim(cs, r) {
