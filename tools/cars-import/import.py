@@ -220,23 +220,26 @@ def disk_struct(r):
     return x * x + y * y <= r * r
 
 
-def largest_with_parts(mask, keep_frac=0.004):
-    """Largest component + components that are big enough and overlap its box (mirrors, wings split off by a gap)."""
+def largest_with_parts(mask, keep_frac=0.0005):
+    """Largest component + the pieces right next to it (a bumper tip, mirror or wing split off by a thin seam in the
+    background colour): any component of at least keep_frac of the main one within ~1.5 % of its length."""
     lab, n = ndi.label(mask)
     if n == 0:
         return mask, 0, 0
     sizes = ndi.sum(mask, lab, range(1, n + 1))
     big = int(np.argmax(sizes)) + 1
-    sl = ndi.find_objects(lab)
-    y0, y1, x0, x1 = sl[big - 1][0].start, sl[big - 1][0].stop, sl[big - 1][1].start, sl[big - 1][1].stop
-    keep = [big]
-    dropped = 0
+    main = lab == big
+    if n == 1:
+        return main, 0, 0
+    xs = np.where(main.any(0))[0]
+    reach = max(12, 0.015 * (xs[-1] - xs[0] + 1))
+    dist = ndi.distance_transform_edt(~main)
+    keep, dropped = [big], 0
     for i in range(1, n + 1):
         if i == big:
             continue
-        s = sl[i - 1]
-        inside = s[0].start >= y0 - 5 and s[0].stop <= y1 + 5 and s[1].start >= x0 - 5 and s[1].stop <= x1 + 5
-        if inside and sizes[i - 1] >= keep_frac * sizes[big - 1]:
+        near = ndi.minimum(dist, lab, i) <= reach
+        if near and sizes[i - 1] >= max(20, keep_frac * sizes[big - 1]):
             keep.append(i)
         else:
             dropped += int(sizes[i - 1])
@@ -303,7 +306,7 @@ def tesseract_words(img):
         if len(f) == 12 and f[11].strip():
             t, conf = f[11].strip(), float(f[10])
             alnum = re.sub(r'[^0-9A-Za-zА-Яа-яІіЇїЄє]', '', t)
-            if conf >= 75 and len(alnum) >= 3 and not re.fullmatch(r'(.)\1+', alnum):
+            if conf >= 85 and len(alnum) >= 4 and not re.fullmatch(r'(.)\1+', alnum):
                 words.append({'text': t, 'conf': round(conf), 'box': [int(f[6]), int(f[7]), int(f[8]), int(f[9])]})
     return words
 
@@ -610,8 +613,13 @@ def cut_car(path, car, lib, opts, override):
         prob('text_or_logo', 'warn', f'{junk_n} mark(s) on the background (text, logo or watermark) — removed with it')
     words = tesseract_words(img) if opts.get('ocr', True) else None
     if words:
+        # spokes and tyre lettering read as words: ignore anything inside a wheel
+        k_ocr = W / min(W, 1800)
+        words = [w for w in words if not in_wheel(w, k_ocr, wh0)]
+    if words:
         on_car = [w['text'] for w in words]
-        prob('text_or_logo', 'error' if len(on_car) >= 1 and any(len(t) >= 4 for t in on_car) else 'warn',
+        strong = len(on_car) >= 2 or any(len(re.sub(r'[^0-9A-Za-zА-Яа-яІіЇїЄє]', '', t)) >= 5 for t in on_car)
+        prob('text_or_logo', 'error' if strong else 'warn',
              'text in the picture: ' + ', '.join(on_car[:6]) + ' (badges, plate or watermark: regenerate)')
     if dropped_n and dropped_px > 0.002 * area:
         prob('background_left', 'info', f'{dropped_n} loose piece(s) next to the car dropped')
@@ -628,6 +636,11 @@ def cut_car(path, car, lib, opts, override):
             'out_size': list(canvas.size), 'green_share': round(float(gshare), 3), 'hl': round(hl_ratio, 3),
             'wheels': [[round(float(a), 1), round(float(b), 1), round(float(c), 1)] for a, b, c in fw]}
     return canvas, P, info
+
+
+def in_wheel(w, k, wheels):
+    x, y = (w['box'][0] + w['box'][2] / 2) * k, (w['box'][1] + w['box'][3] / 2) * k
+    return any((x - cx) ** 2 + (y - cy) ** 2 <= (1.1 * r) ** 2 for cx, cy, r in wheels)
 
 
 def rgb_from_lab(lab):

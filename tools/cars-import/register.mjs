@@ -34,7 +34,7 @@ const applied = () => { try { return JSON.parse(fs.readFileSync(REPORT, 'utf8'))
 const hasGreen = (id) => fs.existsSync(path.join(PUB, 'cars', 'base', id + '.webp')) || applied().includes(id);
 const hasPhoto = (id) => fs.existsSync(path.join(PUB, 'cars', id + '.webp')) || fs.existsSync(path.join(PUB, 'cars', 'base', id + '.webp'));
 
-async function loadShared(file = SHARED) {
+async function loadShared(file) {
   // a fresh copy each time (the module cache would hand back the old one)
   return import(pathToFileURL(file).href + '?t=' + Date.now() + Math.random());
 }
@@ -164,15 +164,18 @@ async function main() {
     }
   }
 
-  // ---- what the game sees now
-  const S = await loadShared();
-  console.log('\n n   id                                   class  price         in game  cases');
-  for (const c of CATALOG.filter((x) => want.has(x.id))) {
-    const m = S.MODELS[c.id] || S.PENDING_MODELS[c.id];
-    const live = !!S.MODELS[c.id];
-    const cases = live ? S.CASES.filter((cs) => cs.weights[m.cls] && cs.pool(m.cls).some((x) => x.id === c.id)).map((cs) => cs.id).join(' ') : '';
-    console.log(`${String(c.n).padStart(3, '0')}  ${c.id.padEnd(36)} ${m.cls.padEnd(5)}  ${String(m.price).padStart(12)}  ${live ? 'yes    ' : 'waiting'}  ${cases}${c.redo ? '  (re-shot key photo)' : ''}`);
-  }
+  // ---- what the game sees now (a fresh node: this process has the old car-photos.js in its module cache)
+  const list = CATALOG.filter((x) => want.has(x.id)).map((c) => [c.n, c.id, !!c.redo]);
+  const code = `
+    const S = await import(${JSON.stringify(pathToFileURL(SHARED).href)});
+    console.log('\\n n   id                                   class  price         in game  cases');
+    for (const [n, id, redo] of ${JSON.stringify(list)}) {
+      const m = S.MODELS[id] || S.PENDING_MODELS[id], live = !!S.MODELS[id];
+      const cases = live ? S.CASES.filter((cs) => cs.weights[m.cls] && cs.pool(m.cls).some((x) => x.id === id)).map((cs) => cs.id).join(' ') : '';
+      console.log(String(n).padStart(3, '0') + '  ' + id.padEnd(36) + ' ' + m.cls.padEnd(5) + '  ' + String(m.price).padStart(12) + '  ' + (live ? 'yes    ' : 'waiting') + '  ' + cases + (redo ? '  (re-shot key photo)' : ''));
+    }`;
+  const r = spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
+  process.stdout.write(r.stdout + (r.status ? r.stderr : ''));
 }
 
 // Race wheels need a seed per wheel: green.py's mask meta usually has them; when it found none (or bogus ones), take
