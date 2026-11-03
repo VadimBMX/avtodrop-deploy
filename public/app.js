@@ -7631,6 +7631,12 @@ function showGift() {
       ${(d.keys || []).map((k) => `<div class="mt"><b>${ic('key')} ${esc(S.CASE_BY_ID[k.caseId]?.name || '')} × ${k.count}</b></div>`).join('')}
       ${d.badge ? `<div class="mt"><span class="lstamp" style="--bc:${BADGE_COLORS[d.badge === 'Тестувальник' ? 1 : 3]}">${ic('bug')}${esc(d.badge)}</span></div><div class="small muted">новий значок у профілі</div>` : ''}
       <div class="small muted mt">знахідок: ${d.count || 1} · пиши ще в «Профіль → Підтримка»</div>`;
+  } else if (g.kind === 'stars') {
+    // Owner 03.11: the Season 1 prize stars, back as shop credit (src/season2.js restorePrizeStars).
+    title = `Приз Сезону ${d.season || 1}`;
+    color = '#ffd60a';
+    art = `<div class="gift-ic" style="--c:${color}">${ic('star')}</div><div class="gift-sum" style="color:${color}">+${d.stars} ⭐</div>
+      <div class="small muted">${d.place ? `${d.place}-е місце · ` : ''}кредит у Магазині${d.credit ? ` · усього ${d.credit} ⭐` : ''}</div>`;
   } else if (g.kind === 'thanks') {
     title = 'Дякуємо! 💛';
     color = '#ffd60a';

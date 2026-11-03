@@ -39,6 +39,10 @@ import * as S from '../public/shared.js';
 
 const R = S.S2_RESET;
 const MARKER = `season_reset_s${R.season}`;
+// Owner 03.11: the Season 1 prize stars (top-10: S.SEASON_PRIZES, settled into users.stars right before the wipe) were
+// archived in s1_archive.prize_stars and then zeroed with the rest — lost. They come back once, as shop credit (the
+// way bought Stars came back), with an in-game gift. Meta flag: never twice; no wipe yet → nothing to do.
+export const PRIZE_RESTORE = 's1_prize_restore_done';
 const KEEP_CLAIMS = "key = 'intro' OR key LIKE 'story:%' OR key = 'guide-off' OR key = 'home-screen' OR key LIKE 'emoji:%'";
 const WIPE_ALL = ['car_parts', 'rivals', 'cars', 'parts', 'parts_cool', 'plates', 'keys', 'fragments', 'collection', 'pity', 'races', 'drift_runs',
   'challenges', 'challenge_tries', 'listings', 'auctions', 'item_listings', 'item_sales', 'trades', 'trade_items', 'trade_rooms', 'trade_room_items',
@@ -51,7 +55,7 @@ const WIPE_ALL = ['car_parts', 'rivals', 'cars', 'parts', 'parts_cool', 'plates'
 
 export function createSeason2(ctx) {
   const { db, q, now, fail, name, userRow, addMoney, event, alog, itemPrice, applyItem, packAmountFor, settleSeason, weekOf, metaGet, metaSet,
-    moneyFlow, actorRole } = ctx;
+    moneyFlow, actorRole, gift } = ctx;
   db.exec(`CREATE TABLE IF NOT EXISTS s1_archive (user_id INTEGER PRIMARY KEY, level INTEGER NOT NULL, xp INTEGER NOT NULL, season_xp INTEGER NOT NULL,
       season_place INTEGER, garage_value INTEGER NOT NULL, balance INTEGER NOT NULL, cars INTEGER NOT NULL, stars_spent INTEGER NOT NULL,
       friends_l3 INTEGER NOT NULL, vip_sub_until INTEGER, prize_stars INTEGER NOT NULL DEFAULT 0, banned INTEGER NOT NULL DEFAULT 0,
@@ -187,6 +191,32 @@ export function createSeason2(ctx) {
     q('INSERT INTO events (user_id, text, created_at) VALUES (?, ?, ?)').run(uid, `🏁 Сезон ${R.season} стартував — прогрес обнулено для всіх, акаунт і друзі на місці.${parts.length ? ` Твоя компенсація: ${parts.join(', ')}.` : ''}`, t);
   }
 
+  // ---------- the Season 1 prize stars, back as credit (owner 03.11) ----------
+  // Once per database (meta PRIZE_RESTORE, written in the same transaction): every archived player with prize_stars > 0
+  // gets them as star credit through creditAdd (star_credit_log 's1-prize'), an event and a gift window. Before the
+  // wipe it does nothing and leaves no flag (the wipe calls it itself). A player who already has an 's1-prize' credit
+  // row is skipped, so even a lost flag can't pay twice. Returns the bot messages for after start ([uid, text]).
+  function restorePrizeStars() {
+    if (!doneAt() || metaGet(PRIZE_RESTORE)) return null;
+    const what = `s${R.prevSeason}-prize`;
+    const rows = q(`SELECT a.user_id, a.prize_stars, a.season_place FROM s1_archive a JOIN users u ON u.id = a.user_id
+      WHERE a.prize_stars > 0 ORDER BY a.user_id`).all();
+    const notes = [];
+    let stars = 0;
+    for (const r of rows) {
+      if (q('SELECT 1 FROM star_credit_log WHERE user_id = ? AND what = ?').get(r.user_id, what)) continue;
+      const bal = creditAdd(r.user_id, r.prize_stars, what);
+      const text = `Повернули ⭐ ${r.prize_stars} — приз за місце в Сезоні ${R.prevSeason}. Зірки чекають у Магазині як кредит (усього ${bal} ⭐).`;
+      q('INSERT INTO events (user_id, text, created_at) VALUES (?, ?, ?)').run(r.user_id, `⭐ ${text}`, now());
+      gift?.(r.user_id, 'stars', { stars: r.prize_stars, season: R.prevSeason, place: r.season_place || null, credit: bal }, text);
+      notes.push([r.user_id, `⭐ ${text}`]);
+      stars += r.prize_stars;
+    }
+    metaSet(PRIZE_RESTORE, now());
+    alog('system', 's1-prize-restore', null, { users: notes.length, stars });
+    return { users: notes.length, stars, notes };
+  }
+
   function run(who, { dryRun = false } = {}) {
     if (doneAt()) fail(`Сезон ${R.season} вже запущено ${new Date(doneAt()).toISOString().slice(0, 16).replace('T', ' ')} UTC — повторно не можна`);
     if (!dryRun) settleSeason(); // Season 1's prizes and top-100 badges first: their places go into the archive
@@ -204,6 +234,7 @@ export function createSeason2(ctx) {
     wipe(t);
     for (const r of rows) compensate(r, t);
     metaSet(MARKER, t);
+    restorePrizeStars(); // the prize stars come back with the rest of the compensation (owner 03.11)
     alog(who, 'season2-reset', null, { users: out.users, credit: out.credit, patrons: out.patrons, veterans: out.veterans, friendKeys: out.friendKeys,
       vipSubs: out.vipSubs, legends: out.legends.map((l) => l.id), wipe: out.wipe });
     return { ...out, done: true, at: t };
@@ -349,7 +380,9 @@ export function createSeason2(ctx) {
       const a = q(`SELECT COUNT(*) users, COALESCE(SUM(credit), 0) credit, COALESCE(SUM(credit > 0), 0) creditUsers, COALESCE(SUM(keys), 0) keys,
         COALESCE(SUM(welcome_seen), 0) seen FROM s1_archive`).get();
       const left = q('SELECT COALESCE(SUM(star_credit), 0) n FROM users').get().n;
-      return { ...st, archive: { ...a, creditLeft: left, creditSpent: a.credit - left },
+      // The Season 1 prize stars returned as credit (owner 03.11) are in the credit too: spent = given − left.
+      const prize = q(`SELECT COUNT(*) users, COALESCE(SUM(delta), 0) stars FROM star_credit_log WHERE what = 's${R.prevSeason}-prize'`).get();
+      return { ...st, archive: { ...a, prizeStars: prize.stars, prizeUsers: prize.users, creditLeft: left, creditSpent: a.credit + prize.stars - left },
         legends: q('SELECT user_id, legend, season_place, season_xp, level FROM s1_archive WHERE legend IS NOT NULL ORDER BY legend').all()
           .map((r) => ({ rank: r.legend, place: r.season_place, id: r.user_id, name: name(r.user_id), seasonXp: r.season_xp, level: r.level })) };
     }
@@ -368,6 +401,6 @@ export function createSeason2(ctx) {
     },
     admin: { season2: () => adminStatus(), 'season2/reset': adminReset },
     mutating: ['season2/reset'],
-    run, snapshot, welcome, archived, frameOf, framesOf, looksOf, lookOf, lookRows, framesOwned, veteranOf, grantFrame, creditAdd, doneAt,
+    run, snapshot, welcome, archived, restorePrizeStars, frameOf, framesOf, looksOf, lookOf, lookRows, framesOwned, veteranOf, grantFrame, creditAdd, doneAt,
   };
 }

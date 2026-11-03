@@ -17,7 +17,7 @@ export async function season2Page({ api, esc, date, state }) {
     const a = v.archive || {};
     return `<div class="head"><h1>Сезон ${R.season}</h1><button class="btn ghost sm" data-act="reload">Оновити</button></div>
       <div class="panel"><h2>Запущено <span class="sub">${date(v.at)}</span></h2>
-        <p>Гравців в архіві S${R.prevSeason}: <b>${n(a.users)}</b> · кредит отримали: <b>${n(a.creditUsers)}</b> · видано кредиту: <b>${n(a.credit)} ⭐</b>
+        <p>Гравців в архіві S${R.prevSeason}: <b>${n(a.users)}</b> · кредит отримали: <b>${n(a.creditUsers)}</b> · видано кредиту: <b>${n(a.credit)} ⭐</b>${a.prizeStars ? ` · повернуто призових: <b>${n(a.prizeStars)} ⭐</b> (${n(a.prizeUsers)} гравц.)` : ''}
         · витрачено: <b>${n(a.creditSpent)} ⭐</b> · лишилось: <b>${n(a.creditLeft)} ⭐</b> · ключів за друзів: <b>${n(a.keys)}</b> · вікно компенсації побачили: <b>${n(a.seen)}</b></p></div>
       <div class="panel"><h2>Легенда S${R.prevSeason}</h2>${legends}</div>`;
   }

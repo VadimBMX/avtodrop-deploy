@@ -5540,7 +5540,7 @@ export function createGame(db, opts = {}) {
   // (owner only), profile frames (shown next to players in the rating and on the card), the star credit in the shop,
   // the one-time welcome window (`me.s2Welcome`).
   const S2 = createSeason2({ db, q, now, fail, name, userRow, addMoney, event, alog: (...a) => alog(...a), itemPrice, applyItem, packAmountFor,
-    settleSeason: () => settleSeason(), weekOf, metaGet, metaSet, moneyFlow, actorRole });
+    settleSeason: () => settleSeason(), weekOf, metaGet, metaSet, moneyFlow, actorRole, gift: (...a) => gift(...a) });
   Object.assign(handlers, S2.api);
   {
     const meBase = handlers.me, shopBase = handlers.shop;
@@ -6058,6 +6058,9 @@ export function createGame(db, opts = {}) {
     return list.length;
   }
   backfillSecrets();
+  // Owner 03.11: the Season 1 prize stars lost in the wipe come back once as star credit (src/season2.js
+  // restorePrizeStars, meta 's1_prize_restore_done'); its bot messages go out with the other start-up notes.
+  for (const n of db.tx(() => S2.restorePrizeStars())?.notes || []) startupNotes.push(n);
   // Owner 28.10 hotfix (S.ORIGIN_SELL for the dear cases): cars that came out of those cases before it keep the full
   // sale rate — their origin is cleared once (origin only sets the instant-sale share).
   if (!metaGet('origin_sell_fix_1')) {

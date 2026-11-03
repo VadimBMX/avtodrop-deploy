@@ -140,8 +140,10 @@ test('season 2: compensation — credit 100%, frames, veteran tiers from level 3
   e.setT(S2_T);
   ownerReset(e.g);
   const me1 = e.call(1, 'me');
-  assert.equal(me1.starCredit, 450);
-  assert.equal(e.call(1, 'shop').starCredit, 450);
+  // 450 bought Stars + the prize stars on the account at the wipe (250 + the Season 1 first place), owner 03.11
+  const prize = 250 + S.SEASON_PRIZES[0];
+  assert.equal(me1.starCredit, 450 + prize);
+  assert.equal(e.call(1, 'shop').starCredit, 450 + prize);
   assert.equal(me1.frame, 'legend_s1');
   assert.deepEqual(e.call(1, 'frames').list.filter((f) => f.owned).map((f) => f.id), ['patron', 'legend_s1', 'veteran_s1']);
   assert.equal(e.call(2, 'me').frame, 'legend_s1');
@@ -195,6 +197,9 @@ test('season 2: buying with the star credit gives the same goods as an invoice a
   const e = setup();
   e.setT(S2_T);
   ownerReset(e.g);
+  // This test spends the bought-Stars credit only: the prize stars (test/s1-prize-restore.test.js) are taken out again.
+  e.run("UPDATE users SET star_credit = star_credit - (SELECT SUM(delta) FROM star_credit_log WHERE user_id = 1 AND what = 's1-prize') WHERE id = 1");
+  e.run("DELETE FROM star_credit_log WHERE what = 's1-prize'");
   // a quote changes nothing
   assert.deepEqual(e.call(1, 'shop/credit', { item: 'vip' }), { price: S.VIP.stars, credit: 450, enough: true });
   assert.equal(e.call(1, 'me').starCredit, 450);
