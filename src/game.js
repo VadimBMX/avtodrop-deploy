@@ -5544,7 +5544,15 @@ export function createGame(db, opts = {}) {
     const meBase = handlers.me, shopBase = handlers.shop;
     handlers.me = (uid, b) => {
       const u = userRow(uid), look = S2.lookOf(uid);
-      return { ...meBase(uid, b), starCredit: u.star_credit, frame: look.frame, helmet: look.helmet, frames: S2.framesOwned(uid), s2Welcome: S2.welcome(uid) };
+      let base = meBase(uid, b);
+      // s2-intro: a Season 1 player is back at 0 cases after the wipe, which looked like a brand-new player to the
+      // intro gate. Players from before the intro never got its 'intro' claim: give it now (the first steps follow it),
+      // so the intro is never forced on a veteran — Новини / Налаштування offer it instead.
+      if (base.intro && S2.archived(uid)) {
+        q('INSERT OR IGNORE INTO claims (user_id, key) VALUES (?, ?)').run(uid, 'intro');
+        base = meBase(uid, b);
+      }
+      return { ...base, starCredit: u.star_credit, frame: look.frame, helmet: look.helmet, frames: S2.framesOwned(uid), s2Welcome: S2.welcome(uid) };
     };
     handlers.shop = (uid, b) => ({ ...shopBase(uid, b), starCredit: userRow(uid).star_credit });
     // s2-fix: every list of players carries each one's look (helmet 0…8, worn frame or null) — S2.lookRows.
