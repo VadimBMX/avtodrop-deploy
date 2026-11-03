@@ -18,7 +18,7 @@
 //     pvp, battles, crash_games, mines_games, quests, weekly_quests, race_streak, goal_days, goal_streak, dealer_buys,
 //     boss_runs, dayrace_tries, dayrace_best, tourney_entries, tourney_brackets, tourney_matches, badges (the veteran
 //     badge is written back), trophies, buyer_offers, barn_finds, hw_tasks, container_expert, showroom, showroom_likes,
-//     club_points, club_day, club_wins, club_goal, club_perks.
+//     club_points, club_day, club_wins, club_goal, club_perks, user_business («Мої бізнеси» bought before the wipe).
 //   PARTLY: claims (kept: 'intro', 'story:*', 'guide-off', 'home-screen', 'emoji:*' — seen-once flags, not progress);
 //     trade_chat (room chats go, the hall chat stays); gifts (kept, all marked shown — pending windows were about
 //     Season 1 things); container_lots (waiting / live lots cancelled — their escrow was Season 1 money; done lots stay
@@ -44,7 +44,10 @@ const WIPE_ALL = ['car_parts', 'rivals', 'cars', 'parts', 'parts_cool', 'plates'
   'challenges', 'challenge_tries', 'listings', 'auctions', 'item_listings', 'item_sales', 'trades', 'trade_items', 'trade_rooms', 'trade_room_items',
   'pvp', 'battles', 'crash_games', 'mines_games', 'quests', 'weekly_quests', 'race_streak', 'goal_days', 'goal_streak', 'dealer_buys', 'boss_runs',
   'dayrace_tries', 'dayrace_best', 'tourney_entries', 'tourney_brackets', 'tourney_matches', 'badges', 'trophies', 'buyer_offers', 'barn_finds',
-  'hw_tasks', 'container_expert', 'showroom', 'showroom_likes', 'club_points', 'club_day', 'club_wins', 'club_goal', 'club_perks'];
+  'hw_tasks', 'container_expert', 'showroom', 'showroom_likes', 'club_points', 'club_day', 'club_wins', 'club_goal', 'club_perks',
+  // s2-sec: «Мої бізнеси» bought between the release and the wipe were paid with Season 1 money (and their boxes hold
+  // it): they go too. A «Менеджер» bought with Stars is already in the star credit (payments are counted).
+  'user_business'];
 
 export function createSeason2(ctx) {
   const { db, q, now, fail, name, userRow, addMoney, event, alog, itemPrice, applyItem, packAmountFor, settleSeason, weekOf, metaGet, metaSet,

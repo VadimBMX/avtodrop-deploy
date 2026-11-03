@@ -192,6 +192,8 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     // «Перевірити групи» (admin «Канал»): what Telegram says about each group set in «Наші групи» — found or not, its
     // title and type, whether topics are on, and the bot's own status there (it must be an admin to check members).
     if (name === 'tggroups/check') {
+      // s2-sec: owner / admin only, like «Наші групи» itself (helpers only look at players and support).
+      if (!['owner', 'admin'].includes(id.who.startsWith('tg:') ? game.roleOf(Number(id.who.slice(3))) : 'owner')) return send(res, 403, { error: 'Немає прав на цю дію' });
       if (!bot) return send(res, 400, { error: 'Бот не підключено' });
       const g = game.tgGroups.cfg(), out = {};
       const me = await bot.call('getMe').catch(() => null);
@@ -296,7 +298,8 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     const body = await readBody(req);
     // A «Заїзд дня» result (body.dayrace = its day): the player's own time on that day's car, whatever his collection.
     const dr = body.dayrace ? game.api['dayrace/caption'](uid, { day: String(body.dayrace) }) : null;
-    const m = MODELS[dr ? dr.model : String(body.model || '')];
+    const mk = dr ? dr.model : String(body.model || '');
+    const m = Object.hasOwn(MODELS, mk) ? MODELS[mk] : null; // s2-sec: own keys only ('__proto__' / 'constructor' were a 500)
     // A «тиражна» never enters the collection: it is shared while the player owns it (its serial goes in the caption).
     const ed = !dr && m?.edition ? db.q('SELECT serial FROM cars WHERE owner_id = ? AND model = ? ORDER BY id = ? DESC, id LIMIT 1').get(uid, m.id, Number(body.carId) || 0) : null;
     if (!m || (!dr && !ed && !db.q('SELECT 1 FROM collection WHERE user_id = ? AND model = ?').get(uid, m.id))) throw new GameError('Цієї машини немає у твоїй колекції');
@@ -631,9 +634,18 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
   };
 }
 
+// DEV mode (sign-in by the x-dev-user header, admin from this computer, /api/dev/*): DEV=1 or no BOT_TOKEN on the
+// owner's computer — never in a production build (the Dockerfile sets NODE_ENV=production), so a server that lost its
+// BOT_TOKEN variable or kept DEV=1 can't let anybody sign in as any player.
+export function devModeFrom(env = {}) {
+  if (env.NODE_ENV === 'production') return false;
+  return env.DEV === '1' || !env.BOT_TOKEN;
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const token = process.env.BOT_TOKEN || '';
-  const dev = process.env.DEV === '1' || !token;
+  const dev = devModeFrom(process.env);
+  if (!dev && process.env.NODE_ENV === 'production' && (process.env.DEV === '1' || !token)) console.warn(`Увага: NODE_ENV=production — DEV-режим вимкнено${token ? '' : ' (BOT_TOKEN не задано: вхід у гру неможливий)'}.`);
   const dbFile = path.join(process.env.DATA_DIR || path.join(ROOT, 'data'), 'avtodrop.db');
   // Moving to a new host: a snapshot shipped as src/seed/avtodrop.db becomes the database on the very first start
   // (only when there is no database yet, so it can never overwrite live data).
