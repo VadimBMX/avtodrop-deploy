@@ -33,7 +33,7 @@ function fit(c, text, maxW, size, weight = 800) {
 // A strip of chequered flag squares across the card at y.
 function checker(c, y, W, sq = 36, rows = 2) {
   for (let r = 0; r < rows; r++) for (let x = 0, i = 0; x < W; x += sq, i++) {
-    c.fillStyle = (i + r) % 2 ? '#f2f4f8' : '#0b0f16';
+    c.fillStyle = (i + r) % 2 ? '#f4f5f8' : '#0f1013';
     c.fillRect(x, y + r * sq, sq, sq);
   }
 }
@@ -53,9 +53,9 @@ export async function dayRaceCard({ model, time, place = null, total = 0, day, w
   } catch {}
   // night strip: asphalt, a floodlight in the class colour, the strip's lane lines running to the horizon
   let g = c.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#070912');
-  g.addColorStop(0.5, '#0c111d');
-  g.addColorStop(1, '#05070c');
+  g.addColorStop(0, '#090a0d');
+  g.addColorStop(0.5, '#111215');
+  g.addColorStop(1, '#07080b');
   c.fillStyle = g;
   c.fillRect(0, 0, W, H);
   g = c.createRadialGradient(W / 2, 860, 30, W / 2, 860, 760);
@@ -87,10 +87,10 @@ export async function dayRaceCard({ model, time, place = null, total = 0, day, w
   c.shadowBlur = 34;
   c.fillText('АВТОДРОП', W / 2, 250);
   c.restore();
-  c.fillStyle = '#c3cad6';
+  c.fillStyle = '#c9cacd';
   c.font = `700 46px ${FONT}`;
   c.fillText(`ЗАЇЗД ДНЯ · ${D.dayLabel(day)}`, W / 2, 328);
-  c.fillStyle = '#8b919c';
+  c.fillStyle = '#909194';
   c.font = '600 34px Manrope, sans-serif';
   c.fillText('однакова машина для всіх', W / 2, 382);
   // the car on the strip + its reflection
@@ -118,8 +118,8 @@ export async function dayRaceCard({ model, time, place = null, total = 0, day, w
     c.drawImage(img, x, y, cw, ch);
     c.restore();
     g = c.createLinearGradient(0, floorY + 20, 0, floorY + 20 + ch * 0.7);
-    g.addColorStop(0, '#0c111d00');
-    g.addColorStop(1, '#070a12');
+    g.addColorStop(0, '#11121500');
+    g.addColorStop(1, '#0a0b0e');
     c.fillStyle = g;
     c.fillRect(0, floorY + 20, W, ch * 0.7 + 2);
   }
@@ -134,12 +134,12 @@ export async function dayRaceCard({ model, time, place = null, total = 0, day, w
   // the time on a timing board
   const tb = { x: 150, y: 1200, w: W - 300, h: 210 };
   roundRect(c, tb.x, tb.y, tb.w, tb.h, 26);
-  c.fillStyle = '#05070b';
+  c.fillStyle = '#07080b';
   c.fill();
   c.lineWidth = 4;
   c.strokeStyle = '#ffc40099';
   c.stroke();
-  c.fillStyle = '#8b919c';
+  c.fillStyle = '#909194';
   c.font = `700 34px ${FONT}`;
   c.fillText('МІЙ ЧАС НА 402 М', W / 2, tb.y + 52);
   c.fillStyle = '#ffc400';
@@ -174,7 +174,7 @@ export async function dayRaceCard({ model, time, place = null, total = 0, day, w
   c.font = `700 ${fit(c, sub, W - 300, 36, 700)}px ${FONT}`;
   c.fillText(sub, W / 2, 1727);
   if (who) {
-    c.fillStyle = '#8b919c';
+    c.fillStyle = '#909194';
     c.font = '600 34px Manrope, sans-serif';
     c.fillText(who.slice(0, 40), W / 2, 1812);
   }

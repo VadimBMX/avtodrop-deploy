@@ -460,7 +460,7 @@ const TITLES = { garage: 'Гараж', cases: 'Кейси', race: 'Гонки', 
 const PAGE_TITLES = { casino: 'Казино', upgrade: 'Апгрейд', collection: 'Колекція', plates: 'Номери', market: 'Ринок', trades: 'Обміни', tradeNew: 'Новий обмін', room: 'Кімната обміну', battles: 'Кейс-батли', battle: 'Батл', quests: 'Цілі дня й тижня', leaderboard: 'Рейтинг', store: 'Магазин', season: 'Сезон', tradein: 'Трейд-ін', friends: 'Друзі', contest: 'Битва амбасадорів', promo: 'Промокоди', fair: 'Чесна гра', events: 'Сповіщення', achievements: 'Досягнення', support: 'Підтримка' };
 function ring(level, xp, need, size = 40) {
   const r = size / 2 - 2, c = 2 * Math.PI * r, f = Math.min(1, xp / need);
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#252c39" stroke-width="3"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="${c * f} ${c}" transform="rotate(-90 ${size / 2} ${size / 2})"/></svg>`;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#2b2c2f" stroke-width="3"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="${c * f} ${c}" transform="rotate(-90 ${size / 2} ${size / 2})"/></svg>`;
 }
 let shownBalance = null;
 function renderHeader() {
@@ -808,14 +808,14 @@ const collPct = (have) => Math.round((have / S.ALL_MODELS.filter((m) => !m.secre
 function licenceCard(p) {
   const top = (p.top || []).filter((c) => M(c.model)).slice(0, 3);
   const best = top[0] && M(top[0].model);
-  const rank = best ? S.rankOf(best.cls) : 0, color = best ? S.CLASSES[best.cls].color : '#9aa4b2';
+  const rank = best ? S.rankOf(best.cls) : 0, color = best ? S.CLASSES[best.cls].color : '#a3a4a7';
   // Collection-set badges: the two hardest as stamps, the rest as one "+N сетів" stamp (badges come tier-first).
   const setB = (p.badges || []).filter((b) => b.key?.startsWith('set:'));
   const stamps = [
     p.vip ? `<span class="lstamp vip">${ic('crown')}VIP</span>` : '',
     ...(p.badges || []).filter((b) => !b.key?.startsWith('set:')).map((b) => `<span class="lstamp" style="--bc:${b.key === 'fire' ? '#ff8a3d' : BADGE_COLORS[b.tier] || '#8e8e93'}">${ic(b.key === 'fire' ? 'flame' : b.key === 'tester' ? 'bug' : 'trophy')}${esc(b.title)}</span>`),
     ...setB.slice(0, 2).map((b) => `<span class="lstamp" style="--bc:${SET_TIER_COLORS[b.tier] || '#8e8e93'}">${ic('books')}${esc(b.title)}</span>`),
-    setB.length > 2 ? `<span class="lstamp" style="--bc:#c3cad6">${ic('books')}+${setB.length - 2} ${plural(setB.length - 2, ['сет', 'сети', 'сетів'])}</span>` : '',
+    setB.length > 2 ? `<span class="lstamp" style="--bc:#c9cacd">${ic('books')}+${setB.length - 2} ${plural(setB.length - 2, ['сет', 'сети', 'сетів'])}</span>` : '',
     p.legacy ? `<span class="lstamp legacy">${ic('heart')}Гравець з перших днів</span>` : '',
   ].join('');
   const bay = (c, i) => {
@@ -1179,7 +1179,7 @@ function carTuneSheet(c, best) {
   const etW = (et) => Math.max(6, Math.min(100, (stock.et * 1.08 - et) / (stock.et * 1.08 - Math.min(et, st.et) * 0.82) * 100));
   const open = isOpen('parts');
   const tiles = S.partKeysOf(c.model).map((k) => {
-    const t = c.parts[k], ti = t ? S.TIER_BY_ID[t].index : -1, col = t ? S.CLASSES[tierCls(t)].color : '#5b6475';
+    const t = c.parts[k], ti = t ? S.TIER_BY_ID[t].index : -1, col = t ? S.CLASSES[tierCls(t)].color : '#636467';
     const tdt = open ? tileDt(c, k) : '';
     const img = S2PT[k] ? `<img src="s2/pt/${S2PT[k]}.webp" alt="" loading="lazy">` : partArt(k, t, 'sm');
     return `<button class="s2t-p ${t ? 'on' : ''}${tdt.includes('spin') ? ' spin' : ''}" data-act="carSlot" data-id="${c.id}" data-type="${k}" style="--c:${col}"><span class="s2t-img">${img}</span>
@@ -2326,11 +2326,11 @@ function drCity() {
   let s = '', x = 0;
   while (x < 480) {
     const w = 16 + Math.floor(rnd() * 34), h = 24 + Math.floor(rnd() * 78), y = 110 - h;
-    s += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${rnd() < 0.5 ? '#141c2f' : '#0f1628'}"/>`;
+    s += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${rnd() < 0.5 ? '#1c1d20' : '#16171a'}"/>`;
     for (let wy = y + 6; wy < 104; wy += 7) for (let wx = x + 3; wx < x + w - 4; wx += 5) {
       if (rnd() < 0.15) s += `<rect x="${wx}" y="${wy}" width="2" height="3" fill="${rnd() < 0.72 ? '#ffd27a' : '#8fdcff'}" opacity="${(0.3 + rnd() * 0.55).toFixed(2)}"/>`;
     }
-    if (h > 84 && rnd() < 0.7) s += `<rect x="${x + (w >> 1)}" y="${y - 9}" width="1" height="9" fill="#1b2438"/><circle cx="${x + (w >> 1) + 0.5}" cy="${y - 9}" r="1.5" fill="#ff4d5a"/>`;
+    if (h > 84 && rnd() < 0.7) s += `<rect x="${x + (w >> 1)}" y="${y - 9}" width="1" height="9" fill="#242528"/><circle cx="${x + (w >> 1) + 0.5}" cy="${y - 9}" r="1.5" fill="#ff4d5a"/>`;
     x += w + Math.floor(rnd() * 5);
   }
   return (drSkyline = `<svg viewBox="0 0 480 110" width="480" height="110" aria-hidden="true">${s}</svg>`);
@@ -3070,7 +3070,7 @@ function driftScene(canvas, color, track, tips = false) {
     for (const [wx, wy] of [[-Wd / 2 - 2, -L / 2 + 6], [Wd / 2 - 2, -L / 2 + 6], [-Wd / 2 - 2, L / 2 - 14], [Wd / 2 - 2, L / 2 - 14]]) ctx.fillRect(wx, wy, 4, 9);
     ctx.fillStyle = color;
     ctx.beginPath(); ctx.roundRect(-Wd / 2, -L / 2, Wd, L, 6); ctx.fill();
-    ctx.fillStyle = '#0b1220cc';
+    ctx.fillStyle = '#111215cc';
     ctx.beginPath(); ctx.roundRect(-Wd / 2 + 3, -L / 2 + 9, Wd - 6, 8, 3); ctx.fill(); // windscreen
     ctx.beginPath(); ctx.roundRect(-Wd / 2 + 3, L / 2 - 12, Wd - 6, 6, 3); ctx.fill(); // rear window
     ctx.fillStyle = '#fff7c2';
@@ -3115,10 +3115,10 @@ function driftScene(canvas, color, track, tips = false) {
       ctx.fillRect(cx - 700, cy - 700, 1400, 1400);
       const from = Math.max(0, i - 80), to = Math.min(last, i + 170);
       env.under(ctx, from, to, road); // gravel traps and armco
-      road(from, to, HALF * 2 + 20, night ? HW_DRIFT.kerbB : '#e5e7eb', null, true); // kerbs on corners: white…
+      road(from, to, HALF * 2 + 20, night ? HW_DRIFT.kerbB : '#e7e8eb', null, true); // kerbs on corners: white…
       road(from, to, HALF * 2 + 20, night ? HW_DRIFT.kerbA : '#dc2626', [10, 10], true); // …and red
       road(from, to, HALF * 2 + 6, night ? HW_DRIFT.edge : '#f4f4f5');
-      road(from, to, HALF * 2, night ? HW_DRIFT.asphalt : '#34373e');
+      road(from, to, HALF * 2, night ? HW_DRIFT.asphalt : '#37383b');
       road(from, to, 2, night ? HW_DRIFT.dash : '#ffffff66', [14, 14]);
       ctx.setLineDash([]);
       env.over(ctx, from, to, camH); // tyre stacks, boards, grandstands, trees, lamps
@@ -3142,7 +3142,7 @@ function driftScene(canvas, color, track, tips = false) {
           ctx.rotate(camH);
           ctx.font = '800 14px system-ui, sans-serif';
           const w = ctx.measureText(txt).width + 16;
-          ctx.fillStyle = '#0b0f16d9';
+          ctx.fillStyle = '#0f1013d9';
           ctx.beginPath(); ctx.roundRect(-w / 2, -12, w, 24, 8); ctx.fill();
           ctx.fillStyle = { fast: '#38bdf8', mid: '#facc15', hair: '#f87171' }[g.kind] || '#fff';
           ctx.textAlign = 'center';
@@ -4462,7 +4462,7 @@ function hubNextText() {
   return `До ${me.level + 1}-го рівня — ще ${S.fmt(left).replace(' ₴', '')} досвіду`;
 }
 TABS.menu = () => {
-  const Y = '#ffc400', BL = '#3b82f6', PU = '#a855f7', RD = '#ef4444', GR = '#2fd27a', AM = '#ff8a3d', ST = '#8a94a7', CY = '#22c3e6';
+  const Y = '#ffc400', BL = '#3b82f6', PU = '#a855f7', RD = '#ef4444', GR = '#2fd27a', AM = '#ff8a3d', ST = '#939497', CY = '#22c3e6';
   const C = state.hub || {};
   const have = me.collection.filter((id) => !M(id)?.secret).length, total = S.ALL_MODELS.filter((m) => !m.secret).length;
   const name = me.firstName || (me.username ? '@' + me.username : 'Гравець');
@@ -4560,7 +4560,7 @@ AFTER.menu = async () => {
   renderHeader();
 };
 function settingsSheet() {
-  const GR = '#2fd27a', Y = '#ffc400', ST = '#8a94a7', BL = '#3b82f6';
+  const GR = '#2fd27a', Y = '#ffc400', ST = '#939497', BL = '#3b82f6';
   sheet('Налаштування', `<div class="list menu-list settings">
       <div class="li"><span class="mi" style="--c:${GR}">${ic('volume')}</span><div class="grow"><b>Звук</b><div class="tiny muted">На цьому пристрої</div></div><button class="toggle ${SFX.isOn() ? 'on' : ''}" data-act="toggleSound" aria-label="Звук" aria-pressed="${SFX.isOn()}"></button></div>
       <div class="li"><span class="mi" style="--c:${Y}">${ic('target-arrow')}</span><div class="grow"><b>Підказки перших кроків</b><div class="tiny muted">Смужка «Перші кроки» для новачка</div></div><button class="toggle ${me.claims.includes('guide-off') ? '' : 'on'}" data-act="toggleGuide" aria-label="Підказки перших кроків"></button></div>
@@ -4685,7 +4685,7 @@ const collectionCars = () => {
     return `<div class="ctile r${r} ${own ? '' : 'off'}" style="--c:${col}"><div class="art">${carArt(m.id, { silhouette: !own, thumb: true })}</div>
       <b class="ellipsis">${own ? esc(m.name) : m.secret ? 'Секретна' : '???'}</b><span class="ellipsis">${m.season ? `Сезон ${m.season}` : m.secret && !own ? `збери: ${S.COUNTRIES[m.country].name}` : originText(m)}</span></div>`;
   };
-  return `<div class="card coll-sum"><div class="coll-ring"><svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="${R}" fill="none" stroke="#0b0f16" stroke-width="7"/><circle cx="40" cy="40" r="${R}" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-dasharray="${(C * n) / totalReg} ${C}" transform="rotate(-90 40 40)"/></svg><b>${pctAll}<small>%</small></b></div>
+  return `<div class="card coll-sum"><div class="coll-ring"><svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="${R}" fill="none" stroke="#0f1013" stroke-width="7"/><circle cx="40" cy="40" r="${R}" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-dasharray="${(C * n) / totalReg} ${C}" transform="rotate(-90 40 40)"/></svg><b>${pctAll}<small>%</small></b></div>
       <div class="grow"><div class="row between"><b class="disp">Зібрано</b><span class="muted small"><b style="color:var(--text)">${n}</b> з ${totalReg}</span></div><div class="cbars">${clsBars}</div></div></div>
     <div class="h2"><span>Нагороди за колекцію</span></div>
     <div class="list">${visible.map((r) => {
@@ -4724,7 +4724,7 @@ H.collFilter = (d) => (state.collFilter = d.k, render());
 
 // ---------- collection sets (S.SETS) ----------
 // Progress comes from me.collection (models ever found) and me.claims ("set:<id>"), so no extra request is needed.
-const SET_TIER_COLORS = ['#cd7f32', '#c0c7d1', '#ffcc33', '#7ee8fa'];
+const SET_TIER_COLORS = ['#cd7f32', '#c6c7ca', '#ffcc33', '#7ee8fa'];
 function setsReady() {
   if (!me) return 0;
   const owned = new Set(me.collection);
@@ -6052,7 +6052,7 @@ const liveryLocked = () => S.STYLE_ITEMS.filter((it) => it.kind === 'livery' && 
 
 // ---------- season & pass ----------
 const vipChip = () => `<span class="chip vipchip">${ic('crown')} VIP</span>`;
-const BADGE_COLORS = ['#8e8e93', '#5ac8fa', '#c4c9d2', '#f5b301'];
+const BADGE_COLORS = ['#8e8e93', '#5ac8fa', '#c8c9cc', '#f5b301'];
 const badgeChip = (b) => `<span class="chip" style="color:${BADGE_COLORS[b.tier] || '#8e8e93'};border-color:currentColor">${ic('trophy')} ${esc(b.title)}</span>`;
 const passCell = (rw, state) => {
   const cos = S.cosmeticOf(rw.cosmetic);
@@ -6080,22 +6080,22 @@ const SHOWROOM_SVG = (() => {
   for (const y of [106, 109, 113, 118, 124, 132, 142, 155, 171, 192]) grid.push(`M0 ${y}H360`);
   const beam = (w0, w1, o) => `<path d="M${-w0} 11L${w0} 11L${w1} 190L${-w1} 190Z" fill="url(#srBeam)" opacity="${o}"/>`;
   return `<svg class="sr-scene" viewBox="0 0 360 200" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><defs>
-<radialGradient id="srHaze" cx="180" cy="112" r="200" gradientTransform="translate(0 33.6) scale(1 .7)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#7a4cff" stop-opacity=".5"/><stop offset=".3" stop-color="#4b2fc4" stop-opacity=".28"/><stop offset=".65" stop-color="#1a1a5a" stop-opacity=".12"/><stop offset="1" stop-color="#05070c" stop-opacity="0"/></radialGradient>
+<radialGradient id="srHaze" cx="180" cy="112" r="200" gradientTransform="translate(0 33.6) scale(1 .7)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#7a4cff" stop-opacity=".5"/><stop offset=".3" stop-color="#4b2fc4" stop-opacity=".28"/><stop offset=".65" stop-color="#1a1a5a" stop-opacity=".12"/><stop offset="1" stop-color="#07080b" stop-opacity="0"/></radialGradient>
 <radialGradient id="srContact" cx="180" cy="149.5" r="122" gradientTransform="translate(0 144) scale(1 .0369)" gradientUnits="userSpaceOnUse"><stop offset=".6" stop-color="#000" stop-opacity=".75"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
 <radialGradient id="srPool" cx="180" cy="148" r="100" gradientTransform="translate(0 124.3) scale(1 .16)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff6dc" stop-opacity=".42"/><stop offset="1" stop-color="#fff6dc" stop-opacity="0"/></radialGradient>
-<linearGradient id="srRail" x1="0" y1="0" x2="0" y2="6" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3a4452"/><stop offset=".5" stop-color="#1a2029"/><stop offset="1" stop-color="#0b0e13"/></linearGradient>
+<linearGradient id="srRail" x1="0" y1="0" x2="0" y2="6" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#434447"/><stop offset=".5" stop-color="#1f2023"/><stop offset="1" stop-color="#0e0f12"/></linearGradient>
 <radialGradient id="srGridFade" cx="180" cy="168" r="175" gradientTransform="translate(0 -168) scale(1 2)" gradientUnits="userSpaceOnUse"><stop offset=".35" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity=".15"/></radialGradient>
 <linearGradient id="srHorizon" x1="0" y1="104" x2="0" y2="200" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".35" stop-color="#fff"/><stop offset=".8" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
 <mask id="srGridMask" maskUnits="userSpaceOnUse" x="0" y="0" width="360" height="200"><rect y="104" width="360" height="96" fill="url(#srGridFade)"/></mask>
 <mask id="srHorizonMask" maskUnits="userSpaceOnUse" x="0" y="0" width="360" height="200"><rect width="360" height="200" fill="url(#srHorizon)"/></mask>
 <radialGradient id="srFloorGlow" cx="180" cy="186" r="180" gradientTransform="translate(0 155.6) scale(1 .1634)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ffc400" stop-opacity=".3"/><stop offset="1" stop-color="#ffc400" stop-opacity="0"/></radialGradient>
-<linearGradient id="srBeam" x1="0" y1="11" x2="0" y2="190" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff8e1" stop-opacity=".6"/><stop offset=".45" stop-color="#f1f4ff" stop-opacity=".26"/><stop offset=".85" stop-color="#f1f4ff" stop-opacity=".1"/><stop offset="1" stop-color="#f1f4ff" stop-opacity="0"/></linearGradient>
-<linearGradient id="srBody" x1="-8" y1="0" x2="8" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#11161d"/><stop offset=".45" stop-color="#4a5664"/><stop offset="1" stop-color="#151b23"/></linearGradient>
-<linearGradient id="srBand" x1="30" y1="0" x2="330" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#07090d"/><stop offset=".5" stop-color="#232d3a"/><stop offset="1" stop-color="#07090d"/></linearGradient>
-<radialGradient id="srTop" cx="180" cy="146" r="150" gradientTransform="translate(0 116.8) scale(1 .2)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4a5b70"/><stop offset=".6" stop-color="#1f2935"/><stop offset="1" stop-color="#121820"/></radialGradient>
+<linearGradient id="srBeam" x1="0" y1="11" x2="0" y2="190" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff8e1" stop-opacity=".6"/><stop offset=".45" stop-color="#f4f5f8" stop-opacity=".26"/><stop offset=".85" stop-color="#f4f5f8" stop-opacity=".1"/><stop offset="1" stop-color="#f4f5f8" stop-opacity="0"/></linearGradient>
+<linearGradient id="srBody" x1="-8" y1="0" x2="8" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#151619"/><stop offset=".45" stop-color="#545558"/><stop offset="1" stop-color="#1a1b1e"/></linearGradient>
+<linearGradient id="srBand" x1="30" y1="0" x2="330" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#090a0d"/><stop offset=".5" stop-color="#2b2c2f"/><stop offset="1" stop-color="#090a0d"/></linearGradient>
+<radialGradient id="srTop" cx="180" cy="146" r="150" gradientTransform="translate(0 116.8) scale(1 .2)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#58595c"/><stop offset=".6" stop-color="#27282b"/><stop offset="1" stop-color="#17181b"/></radialGradient>
 <linearGradient id="srRim" x1="0" y1="126" x2="0" y2="174" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ffc400" stop-opacity=".25"/><stop offset=".55" stop-color="#ffc400" stop-opacity=".8"/><stop offset="1" stop-color="#ffe27a"/></linearGradient>
-<g id="srLamp"><path d="M30 5V10" stroke="#2c3542" stroke-width="2.6"/><rect x="25" y="3" width="10" height="4" rx="1" fill="#2c3542"/><g transform="translate(30 15) rotate(-58)">${beam(13, 64, 0.18)}${beam(8, 42, 0.3)}${beam(4, 22, 0.4)}
-<path d="M-10 2V-6A10 6 0 0 1 10 -6V2" fill="none" stroke="#2c3542" stroke-width="2"/><circle cx="-10" cy="1" r="1.6" fill="#55606e"/><circle cx="10" cy="1" r="1.6" fill="#55606e"/><rect x="-7.5" y="-9" width="15" height="17" rx="3.5" fill="url(#srBody)"/><rect x="-9" y="6" width="18" height="4.5" rx="1.6" fill="#232b35"/>
+<g id="srLamp"><path d="M30 5V10" stroke="#343538" stroke-width="2.6"/><rect x="25" y="3" width="10" height="4" rx="1" fill="#343538"/><g transform="translate(30 15) rotate(-58)">${beam(13, 64, 0.18)}${beam(8, 42, 0.3)}${beam(4, 22, 0.4)}
+<path d="M-10 2V-6A10 6 0 0 1 10 -6V2" fill="none" stroke="#343538" stroke-width="2"/><circle cx="-10" cy="1" r="1.6" fill="#5e5f62"/><circle cx="10" cy="1" r="1.6" fill="#5e5f62"/><rect x="-7.5" y="-9" width="15" height="17" rx="3.5" fill="url(#srBody)"/><rect x="-9" y="6" width="18" height="4.5" rx="1.6" fill="#2a2b2e"/>
 <circle cy="11" r="11" fill="#fff3c4" opacity=".1"/><circle cy="11" r="6" fill="#fff3c4" opacity=".22"/><ellipse cy="10.6" rx="7.4" ry="2.2" fill="#fffbea"/></g></g></defs>
 <rect width="360" height="200" fill="url(#srHaze)"/>
 <rect x="8" y="0" width="344" height="5" rx="2" fill="url(#srRail)"/><path d="M8 5.5H352" stroke="#7b8cff" stroke-opacity=".35" stroke-width=".6"/>
@@ -6946,7 +6946,7 @@ function storeMain(sh) {
   <button class="card row st-style-promo" data-act="storeView" data-k="style"><span class="ic tint" style="--c:#b48cff">${ic('sparkles')}</span><div class="grow"><b>Стиль</b><div class="tiny muted">рамки номерів, фони вітрини, лівреї, колір імені — лише вигляд, без характеристик</div></div><span class="chev">${ic('chevron-right')}</span></button>
   <div class="card row"><span class="ic tint" style="--c:#ffc400">${ic('ticket')}</span><div class="grow"><b>Преміум-пропуск · Сезон ${me.season.id}</b><div class="tiny muted">Друга доріжка нагород і машина сезону</div></div>${sh.premium ? '<span class="chip">куплено</span>' : storeBuyBtns(it.pass, sh)}</div>
   <div class="h2"><span>Зручності</span></div>
-  ${[['refuel', 'gas-station', `Пальне ${fmax()}/${fmax()} одразу`], ['cool', 'wind', 'Зняті деталі одразу готові'], ['slot', 'building-warehouse', `Зараз ${me.slots} місць · кожне наступне ×2`]].map(([id, icon, sub]) => `<div class="card row"><span class="ic tint" style="--c:#8a94a7">${ic(icon)}</span><div class="grow"><b>${esc(it[id].name)}</b><div class="tiny muted">${sub}</div></div>${storeBuyBtns(it[id], sh, 'ghost')}</div>`).join('')}`;
+  ${[['refuel', 'gas-station', `Пальне ${fmax()}/${fmax()} одразу`], ['cool', 'wind', 'Зняті деталі одразу готові'], ['slot', 'building-warehouse', `Зараз ${me.slots} місць · кожне наступне ×2`]].map(([id, icon, sub]) => `<div class="card row"><span class="ic tint" style="--c:#939497">${ic(icon)}</span><div class="grow"><b>${esc(it[id].name)}</b><div class="tiny muted">${sub}</div></div>${storeBuyBtns(it[id], sh, 'ghost')}</div>`).join('')}`;
 }
 // ---- «Стиль»: classes of what a player wears (S.styleWorn ids → CSS), used on every screen that shows a player ----
 const styleCls = (prefix, id) => { const l = id && S.styleLook(id); return l ? ` ${prefix}-${l}` : ''; };
@@ -7698,9 +7698,9 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide', 'toggleChannel']) {
     tg.ready();
     tg.expand();
     try {
-      tg.setHeaderColor('#0b0f16');
-      tg.setBackgroundColor('#0b0f16');
-      tg.setBottomBarColor?.('#0e131b');
+      tg.setHeaderColor('#07080b');
+      tg.setBackgroundColor('#07080b');
+      tg.setBottomBarColor?.('#07080b');
       tg.disableVerticalSwipes?.();
     } catch {}
     tg.BackButton?.onClick(back);
@@ -8834,7 +8834,7 @@ function hintChips(h0, compact = false, ex = null) {
 }
 // The container itself (front view): corrugated doors in the tier colour, the flag, the body stencil and the seal.
 // D-reveal: tiers get their own container paint (--tier: steel / teal / copper) so a red crate never reads as an S car.
-const TIER_PAINT = { odesa: '#5b6b80', customs: '#1f8a8a', japan: '#b5653a' };
+const TIER_PAINT = { odesa: '#696a6d', customs: '#1f8a8a', japan: '#b5653a' };
 function crate(l, big = false, closed = false) {
   const done = !closed && (l.status === 'done' || l.status === 'cancelled');
   return `<div class="ctr${big ? ' lg' : ''}${done ? ' done' : ''}${closed ? ' sealed' : ''}${tierOf(l.tier).skin ? ` skin-${tierOf(l.tier).skin}` : ''}" style="--c:${tierOf(l.tier).color};--tier:${TIER_PAINT[l.tier] || tierOf(l.tier).color}"><div class="ctr-body"><div class="ctr-inner"></div>

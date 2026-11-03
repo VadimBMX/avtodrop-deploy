@@ -190,9 +190,9 @@ export async function shareCard({ model, value, sale = null, mult = 0, who = '',
   } catch {}
   // night showroom: asphalt-blue, violet haze in the class colour, two spotlight beams, a neon arc, a grid floor
   let g = c.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#070912');
-  g.addColorStop(0.55, '#0b0f1c');
-  g.addColorStop(1, '#05070c');
+  g.addColorStop(0, '#090a0d');
+  g.addColorStop(0.55, '#0f1013');
+  g.addColorStop(1, '#07080b');
   c.fillStyle = g;
   c.fillRect(0, 0, W, H);
   g = c.createRadialGradient(W / 2, 900, 40, W / 2, 900, 820);
@@ -208,8 +208,8 @@ export async function shareCard({ model, value, sale = null, mult = 0, who = '',
     c.rotate(side * 0.62);
     const b = c.createLinearGradient(0, 0, 0, 760);
     b.addColorStop(0, '#fff8e140');
-    b.addColorStop(0.6, '#f1f4ff12');
-    b.addColorStop(1, '#f1f4ff00');
+    b.addColorStop(0.6, '#f4f5f812');
+    b.addColorStop(1, '#f4f5f800');
     c.fillStyle = b;
     c.beginPath();
     c.moveTo(-14, 0);
@@ -289,8 +289,8 @@ export async function shareCard({ model, value, sale = null, mult = 0, who = '',
     c.drawImage(img, x, y, cw, ch);
     c.restore();
     g = c.createLinearGradient(0, floorY + 30, 0, floorY + 30 + ch * 0.7);
-    g.addColorStop(0, '#0b0f1c00');
-    g.addColorStop(1, '#070a12');
+    g.addColorStop(0, '#0f101300');
+    g.addColorStop(1, '#0a0b0e');
     c.fillStyle = g;
     c.fillRect(0, floorY + 30, W, ch * 0.7 + 2);
   }
@@ -304,7 +304,7 @@ export async function shareCard({ model, value, sale = null, mult = 0, who = '',
   c.shadowBlur = 36;
   c.fillText('АВТОДРОП', W / 2, 300);
   c.restore();
-  c.fillStyle = '#c3cad6';
+  c.fillStyle = '#c9cacd';
   c.font = '700 44px "Fira Sans Condensed", "Arial Narrow", sans-serif';
   c.fillText(m.secret ? 'Я ВІДКРИВ СЕКРЕТНУ МАШИНУ' : m.edition ? 'Я ВИГРАВ НА «ПРИЧАЛІ»' : 'Я ВИБИВ З КЕЙСА', W / 2, 380);
   // A «тиражна»: the blue «ТИРАЖ № 007» stamp under the header (as on the reveal).
@@ -348,18 +348,18 @@ export async function shareCard({ model, value, sale = null, mult = 0, who = '',
   // grey; a two-line name leaves room for one compact line only (the call-to-action box starts at 1670).
   const coll = `Колекційна ціна ${S.fmt(value || m.price)}`;
   if (sale == null) {
-    c.fillStyle = '#c3cad6';
+    c.fillStyle = '#c9cacd';
     c.font = '600 46px Manrope, sans-serif';
     c.fillText(coll, W / 2, y + 24);
   } else if (y + 84 > 1640) {
-    c.fillStyle = '#c3cad6';
+    c.fillStyle = '#c9cacd';
     c.font = '600 40px Manrope, sans-serif';
     c.fillText(`Продаж ${S.short(sale)}  ·  колекційна ${S.short(value || m.price)}`, W / 2, y + 24);
   } else {
     c.fillStyle = '#ffffff';
     c.font = '700 50px Manrope, sans-serif';
     c.fillText(`Продаж ${S.fmt(sale)}${mult >= 1 ? `  ·  ${S.multText(mult)} від кейсу` : ''}`, W / 2, y + 24);
-    c.fillStyle = '#8b919c';
+    c.fillStyle = '#909194';
     c.font = '600 38px Manrope, sans-serif';
     c.fillText(coll, W / 2, y + 84);
   }
@@ -373,7 +373,7 @@ export async function shareCard({ model, value, sale = null, mult = 0, who = '',
   c.font = '700 38px Manrope, sans-serif';
   c.fillText(bot ? `@${bot} у Telegram` : 'АВТОДРОП у Telegram', W / 2, 1795);
   if (who) {
-    c.fillStyle = '#8b919c';
+    c.fillStyle = '#909194';
     c.font = '600 34px Manrope, sans-serif';
     c.fillText(who.slice(0, 40), W / 2, 1880);
   }

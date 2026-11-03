@@ -12,7 +12,7 @@ export const UI2 = { openAnim: null, header: null, tabBtn: { race: 'city', shop:
 const me = () => X.me();
 const st = () => X.state();
 const M = (id) => S.MODELS[id];
-const clsCol = (c) => S.CLASSES[c]?.color || '#9aa4b2';
+const clsCol = (c) => S.CLASSES[c]?.color || '#a3a4a7';
 const shortN = (n) => S.short(n).replace(' ₴', '');
 const n0 = (n) => Math.round(n || 0).toLocaleString('uk-UA');
 
@@ -223,7 +223,7 @@ const SPOTS = [
   { k: 'shop', x: 415, y: 386, t: 'Магазин', c: '#39ff88', i: 'star' },
   { k: 'club', x: 1032, y: 470, t: 'Автоклуб', c: '#c084fc', i: 'users' },
   { k: 'salon', x: 1322, y: 360, t: 'Автосалон', c: '#5ee7f0', i: 'building-arch', biz: 'salon' },
-  { k: 'dealer', x: 876, y: 580, t: 'Трейд-ін', c: '#9aa3b5', i: 'refresh' },
+  { k: 'dealer', x: 876, y: 580, t: 'Трейд-ін', c: '#a2a3a6', i: 'refresh' },
   { k: 'free1', x: 168, y: 372, t: 'Вільна ділянка', c: '#39ff88', i: 'plus', free: true },
   { k: 'free2', x: 1580, y: 352, t: 'Вільна ділянка', c: '#39ff88', i: 'plus', free: true },
 ];

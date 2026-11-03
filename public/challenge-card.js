@@ -69,9 +69,9 @@ export async function challengeCard({ model, time, hp = 0, who = '', bot = '' })
   } catch {}
   // night sky → violet haze → the strip
   let g = c.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#05070d');
-  g.addColorStop(0.5, '#0b1020');
-  g.addColorStop(1, '#04060a');
+  g.addColorStop(0, '#07080b');
+  g.addColorStop(0.5, '#101114');
+  g.addColorStop(1, '#06070a');
   c.fillStyle = g;
   c.fillRect(0, 0, W, H);
   g = c.createRadialGradient(W / 2, 640, 30, W / 2, 640, 700);
@@ -85,7 +85,7 @@ export async function challengeCard({ model, time, hp = 0, who = '', bot = '' })
   const skyY = 760;
   for (let x = 0; x < W;) {
     const w = 40 + Math.floor(rnd() * 90), h = 60 + Math.floor(rnd() * 210);
-    c.fillStyle = rnd() < 0.5 ? '#0f1628' : '#121a2e';
+    c.fillStyle = rnd() < 0.5 ? '#16171a' : '#1a1b1e';
     c.fillRect(x, skyY - h, w, h);
     c.fillStyle = '#ffd27a';
     for (let wy = skyY - h + 14; wy < skyY - 10; wy += 18) for (let wx = x + 8; wx < x + w - 10; wx += 13) {
@@ -97,8 +97,8 @@ export async function challengeCard({ model, time, hp = 0, who = '', bot = '' })
   // the strip: a perspective grid and the start line
   const roadY = skyY;
   g = c.createLinearGradient(0, roadY, 0, H);
-  g.addColorStop(0, '#0d1222');
-  g.addColorStop(1, '#05070c');
+  g.addColorStop(0, '#121316');
+  g.addColorStop(1, '#07080b');
   c.fillStyle = g;
   c.fillRect(0, roadY, W, H - roadY);
   c.save();
@@ -138,7 +138,7 @@ export async function challengeCard({ model, time, hp = 0, who = '', bot = '' })
   c.lineWidth = 3;
   c.strokeStyle = CY;
   c.stroke();
-  c.fillStyle = '#d8f8ff';
+  c.fillStyle = '#eff0f3';
   c.fillText(kick, W / 2, 212);
   // the time to beat
   c.save();
@@ -147,7 +147,7 @@ export async function challengeCard({ model, time, hp = 0, who = '', bot = '' })
   c.shadowBlur = 40;
   fit(c, `${chTime(time)} с`, W / 2, 400, 980, 190);
   c.restore();
-  c.fillStyle = '#c3cad6';
+  c.fillStyle = '#c9cacd';
   fit(c, `на ${m.name}`, W / 2, 470, 960, 56, 700);
   // the car with its ghost trail
   const img = await carImage(model);
@@ -190,7 +190,7 @@ export async function challengeCard({ model, time, hp = 0, who = '', bot = '' })
   c.fillText("ПОБ’ЄШ?", W / 2, 1168);
   c.font = '700 34px Manrope, sans-serif';
   c.fillText('Їдь проти мого привида', W / 2, 1210);
-  c.fillStyle = '#8b919c';
+  c.fillStyle = '#909194';
   c.font = '600 32px Manrope, sans-serif';
   const foot = [who && who.slice(0, 32), bot ? `@${bot}` : 'АВТОДРОП у Telegram'].filter(Boolean).join('  ·  ');
   fit(c, foot, W / 2, 1300, 960, 32, 600, 'Manrope, sans-serif');

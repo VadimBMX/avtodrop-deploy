@@ -75,7 +75,7 @@ export async function showroomCard({ cars, who = '', likes = 0, bot = '' }) {
   // the hall: dark walls, a warm ceiling glow, a polished floor with light strips
   let g = c.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, '#07080c');
-  g.addColorStop(0.55, '#10131c');
+  g.addColorStop(0.55, '#131417');
   g.addColorStop(1, '#05060a');
   c.fillStyle = g;
   c.fillRect(0, 0, W, H);
@@ -86,7 +86,7 @@ export async function showroomCard({ cars, who = '', likes = 0, bot = '' }) {
   c.fillRect(0, 0, W, H);
   const floorTop = 560;
   g = c.createLinearGradient(0, floorTop, 0, H);
-  g.addColorStop(0, '#1a1e2a');
+  g.addColorStop(0, '#1e1f22');
   g.addColorStop(1, '#07080c');
   c.fillStyle = g;
   c.fillRect(0, floorTop, W, H - floorTop);
@@ -138,7 +138,7 @@ export async function showroomCard({ cars, who = '', likes = 0, bot = '' }) {
   c.fillText(kick, W / 2, 202);
   c.fillStyle = '#ffffff';
   fit(c, who || 'Гравець', W / 2, 318, 960, 84);
-  c.fillStyle = '#c3cad6';
+  c.fillStyle = '#c9cacd';
   const value = list.reduce((s, x) => s + (S.MODELS[x.model]?.price || 0), 0);
   fit(c, `${list.length} ${list.length === 1 ? 'машина' : 'машини'} · ${S.short(value)}`, W / 2, 380, 960, 44, 700);
   // the cars: the first big in the middle, the others smaller in front
@@ -156,7 +156,7 @@ export async function showroomCard({ cars, who = '', likes = 0, bot = '' }) {
   const label = (m, x, y, maxW, stars) => {
     c.fillStyle = S.CLASSES[m.cls].color;
     c.fillText(`${m.cls}${stars ? ` ${'★'.repeat(stars)}` : ''}`, x, y);
-    c.fillStyle = '#e8ebf0';
+    c.fillStyle = '#ebecef';
     fit(c, m.name, x, y + 36, maxW, 32, 700);
   };
   if (list.length === 1) label(names[0], W / 2, 900, 900, list[0].stars);
@@ -174,7 +174,7 @@ export async function showroomCard({ cars, who = '', likes = 0, bot = '' }) {
   c.fillText('ПОСТАВ ♥', W / 2, 1200);
   c.font = '700 30px Manrope, sans-serif';
   c.fillText(likes ? `уже ♥ ${likes}` : 'перший лайк — твій', W / 2, 1236);
-  c.fillStyle = '#8b919c';
+  c.fillStyle = '#909194';
   const foot = bot ? `@${bot}` : 'АВТОДРОП у Telegram';
   fit(c, foot, W / 2, 1306, 960, 32, 600, 'Manrope, sans-serif');
   for (const q of [0.88, 0.8, 0.7, 0.6]) {
