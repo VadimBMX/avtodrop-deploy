@@ -5866,7 +5866,7 @@ body.s2 .fastrow { background: none; }
    at 37–70 % of the box, the wheels of the car stand on 61 % with a soft contact shadow. */
 body.s2 #view:has(.s2-res), body.s2 #view:has(.a-multi) { background: none; }
 body.s2 .s2-res.a-res, body.s2 .a-multi { display: block; text-align: left; padding: 0; margin: 0; background: none; box-shadow: none; }
-body.s2 .a-stage { position: relative; margin: -6px -16px 0; aspect-ratio: 1 / .62; overflow: hidden;
+body.s2 .a-stage { position: relative; margin: 0 -16px 0; aspect-ratio: 1 / .62; overflow: hidden;
   background: url('s2/bg/stage-reveal.webp') center 52.6% / 100% auto no-repeat, #07080b; }
 body.s2 .a-stage::before { content: ''; position: absolute; left: 50%; top: 50%; width: 64%; aspect-ratio: 2.3 / 1; transform: translate(-50%, -50%); border-radius: 50%;
   background: radial-gradient(closest-side, color-mix(in srgb, var(--c) 30%, transparent), transparent); opacity: .55; pointer-events: none; }
@@ -5926,7 +5926,10 @@ body.s2 #view .drop-dock .btns { display: grid; grid-auto-flow: column; grid-aut
 body.s2 #view .drop-dock .btns .btn { min-width: 0; width: auto; min-height: 52px; white-space: nowrap; }
 body.s2 #view .drop-dock .btns .btn[data-act="toGarage"] { background: var(--yel); color: #111; box-shadow: var(--yel-sh); outline: 0; }
 body.s2 #view .drop-dock .btns .btn.btn2 { background: var(--slab) !important; color: var(--text) !important; box-shadow: var(--slab-sh-sm) !important; border: 0 !important; }
-body.s2 #view .drop-dock .btns .btn.btn2 small { color: var(--accent); font-family: var(--s2-mono); }
+body.s2 #view .drop-dock .btns .btn.btn2 { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 4px 8px; line-height: 1.05; overflow: hidden; }
+body.s2 #view .drop-dock .btns .btn.btn2 > span { display: inline-flex; align-items: center; gap: 5px; font-size: 15px; }
+body.s2 #view .drop-dock .btns .btn.btn2 small { display: block; margin: 0; color: var(--accent); font: 700 12.5px var(--s2-mono); letter-spacing: -.3px; text-transform: none; }
+body.s2 #view .drop-dock .btns .btn.btn2 small::before { content: none; }
 body.s2 #view .drop-dock .btn.opencase, body.s2 #view .drop-dock .btn.opencase.second, body.s2 #view .drop-dock .btn.opencase.yellow {
   min-height: 46px; margin-top: 10px; padding: 8px 14px; background: var(--slab) !important; color: var(--text) !important; box-shadow: var(--slab-sh-sm) !important; border: 0 !important; border-radius: 14px; }
 body.s2 #view .drop-dock.dd-sold .btn.opencase { background: var(--yel) !important; color: #111 !important; box-shadow: var(--yel-sh) !important; }
