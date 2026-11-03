@@ -58,7 +58,7 @@ export const WELCOME_TEXT = `🏁 Ласкаво просимо в АВТОДР�
 📣 У цій темі — оновлення, події й промокоди (пишуть лише адміни)
 💬 У темі «Чат» — хвалися дропами, шукай обміни, питай поради
 
-🎁 Бонус за вступ: у грі Меню → «Наші групи в Telegram» → «Забрати» — ключ від кейсу «Міський».
+🎁 Бонус за вступ: у грі Профіль → «Наші групи в Telegram» → «Забрати» — ключ від кейсу «Міський».
 
 👉 Грати: @avtodrop2026_bot`;
 export const COMMANDS = [
@@ -96,10 +96,10 @@ export function garageText(s) {
 }
 // The /settings reply: which reminders this player gets.
 export function settingsText({ off = false, mute = [], groups = [] } = {}) {
-  if (off) return '🔕 Нагадування вимкнено (/stop).\n\nУвімкнути: /start або «Меню → Налаштування» в грі.\nПро обміни, PvP і аукціони бот пише завжди.';
+  if (off) return '🔕 Нагадування вимкнено (/stop).\n\nУвімкнути: /start або «Профіль → Налаштування» в грі.\nПро обміни, PvP і аукціони бот пише завжди.';
   const lines = ['🔔 Нагадування: до 2 на день, не вночі (22:00–09:00 за Києвом), лише коли тебе немає в грі.', ''];
   for (const g of groups) lines.push(`${mute.includes(g.id) ? '▫️' : '✅'} ${g.title} — ${g.hint}`);
-  lines.push('', 'Перемкнути кожен тип: «Меню → Налаштування» в грі. Вимкнути все: /stop');
+  lines.push('', 'Перемкнути кожен тип: «Профіль → Налаштування» в грі. Вимкнути все: /stop');
   return lines.join('\n');
 }
 
@@ -233,7 +233,7 @@ export function createBot({ token, webappUrl, admins = [], game, inline = null, 
     if (m.chat.type === 'private') game.push?.unblock(m.from.id);
     if (cmd === '/stop') {
       game.push?.set(m.from.id, false);
-      await send(m.chat.id, '🔕 Нагадування вимкнено. Повідомлення про обміни, PvP і аукціони приходитимуть і далі.\n\nУвімкнути знову: /start або «Меню → Налаштування» в грі.');
+      await send(m.chat.id, '🔕 Нагадування вимкнено. Повідомлення про обміни, PvP і аукціони приходитимуть і далі.\n\nУвімкнути знову: /start або «Профіль → Налаштування» в грі.');
     } else if (cmd === '/start') {
       const u = game.ensureUser(m.from, args[0]) || {};
       try { game.deliverOutbox?.(outbox()); } catch {}

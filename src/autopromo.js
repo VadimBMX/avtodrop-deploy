@@ -76,7 +76,7 @@ export function createAutoPromo({ db, now = () => Date.now(), api = null, random
     const uses = c.usesMin + Math.floor(random() * (c.usesMax - c.usesMin + 1));
     const code = makeCode();
     q('INSERT OR REPLACE INTO promos (code, amount, uses_left, expires_at) VALUES (?, ?, ?, ?)').run(code, amount, uses, now() + c.ttlMin * 60e3);
-    const text = LINES[Math.floor(random() * LINES.length)](code, S.fmt(amount), uses) + '\nВводити: Меню → Промокод';
+    const text = LINES[Math.floor(random() * LINES.length)](code, S.fmt(amount), uses) + '\nВводити: Профіль → Промокод';
     try {
       await api('sendMessage', { chat_id: tg.chat, ...(tg.thread > 0 ? { message_thread_id: tg.thread } : {}), text, parse_mode: 'HTML' });
       q('INSERT INTO autopromo_log (at, code, amount, uses, ok, by) VALUES (?, ?, ?, ?, 1, ?)').run(now(), code, amount, uses, by);

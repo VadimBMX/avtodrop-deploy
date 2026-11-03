@@ -121,7 +121,7 @@ const kyivHm = (t) => new Date(t).toLocaleString('uk-UA', { timeZone: 'Europe/Ky
 export function plateAuctionText(kind, a) {
   const plate = `<b>${escHtml(a.text)}</b>`;
   if (kind === 'start') {
-    return `🔨 <b>Аукціон номера ${escHtml(a.text)}</b>\n\nАдміністрація виставила номер ${plate} — ${escHtml(S.plateInfo(a.text).label.toLowerCase())}, клас ${escHtml(a.cls)}.\n💰 Старт ${S.short(a.start_price)} · крок ${S.short(a.step)}\n⏱ До ${kyivHm(a.ends_at)} (Київ)\n\nХто дасть більше — забирає номер собі. Ставки в грі: Меню → «Аукціон номера» 👇\n\n#аукціон`;
+    return `🔨 <b>Аукціон номера ${escHtml(a.text)}</b>\n\nАдміністрація виставила номер ${plate} — ${escHtml(S.plateInfo(a.text).label.toLowerCase())}, клас ${escHtml(a.cls)}.\n💰 Старт ${S.short(a.start_price)} · крок ${S.short(a.step)}\n⏱ До ${kyivHm(a.ends_at)} (Київ)\n\nХто дасть більше — забирає номер собі. Ставки в грі: Ринок → «Аукціон номерів» 👇\n\n#аукціон`;
   }
   return `🔨 <b>Номер ${escHtml(a.text)} продано!</b>\n\n${who(a)} забирає ${plate} за ${S.short(a.top_bid)} — ${a.bids} ${a.bids % 10 === 1 && a.bids % 100 !== 11 ? 'ставка' : [2, 3, 4].includes(a.bids % 10) && ![12, 13, 14].includes(a.bids % 100) ? 'ставки' : 'ставок'} за весь аукціон.\n\nСлідкуй за групою — наступний номер може бути твоїм 🏁\n\n#аукціон`;
 }

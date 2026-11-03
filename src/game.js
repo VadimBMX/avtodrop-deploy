@@ -2842,7 +2842,7 @@ export function createGame(db, opts = {}) {
     const r = q('SELECT * FROM trade_rooms WHERE id = ?').get(id);
     if (r.host_id !== uid || r.status !== 'open') fail('У кімнаті вже є партнер');
     q('UPDATE trade_rooms SET invited_id = ? WHERE id = ?').run(toId, id);
-    event(toId, `🔄 ${name(uid)} запрошує тебе обмінятися! Відкрий «Меню → Обміни».`);
+    event(toId, `🔄 ${name(uid)} запрошує тебе обмінятися! Відкрий «Ринок → Обміни».`);
     return { id };
   }
   function roomDecline(uid, { id }) {
@@ -3935,7 +3935,7 @@ export function createGame(db, opts = {}) {
     if (it.daily) {
       if (S.dayDealOf(now()).id !== it.id) fail('Ця угода дня вже минула — глянь сьогоднішню');
       if (u.day_deal_day === S.kyivDateOf(now())) fail('Сьогоднішню угоду ти вже взяв — нова завтра');
-      if ((u.level || 1) < S.DAY_DEAL_MIN_LEVEL) fail(`Угода дня — з ${S.DAY_DEAL_MIN_LEVEL} рівня`);
+      if ((u.level || 1) < S.DAY_DEAL_MIN_LEVEL) fail(`Угода дня — з ${S.DAY_DEAL_MIN_LEVEL}-го рівня`);
     }
     return S.shopPrice(it, u.star_slots);
   }
