@@ -698,10 +698,11 @@ function garageView(base) {
   };
   const build = m.slots < S.MAX_SLOTS ? `<div class="s2-fl a-fl build"><span class="a-pn">P${m.slots + 1}</span><div class="s2-tape"><span>БУДУЄТЬСЯ · ПОВЕРХ P${m.slots + 1}</span></div><span class="s2-fl-hint">+1 місце для машини</span><button class="s2-btn sm" data-act="buySlot">${X.ic('plus')}${S.short(S.slotCost(m.slots))}</button></div>` : '';
   const free = Math.max(0, m.slots - m.cars.filter((c) => c.status !== 'showcase').length);
-  const empties = Array.from({ length: Math.min(free, 2) }, (_, i) => `<button class="s2-fl a-fl empty" data-act="toCases"><span class="a-pn">P${cars.length + free - i}</span><span class="s2-fl-hint">${X.ic('plus')} Вільне місце — відкрий кейс</span></button>`).join('');
+  // 03.11 (owner): top-down — P1 (the dearest car) on top, then the next free places, the floor being built last.
+  const empties = Array.from({ length: Math.min(free, 2) }, (_, i) => `<button class="s2-fl a-fl empty" data-act="toCases"><span class="a-pn">P${cars.length + 1 + i}</span><span class="s2-fl-hint">${X.ic('plus')} Вільне місце — відкрий кейс</span></button>`).join('');
   return parkHead() + `${X.vipSaleBanner()}${X.paBanner()}<div class="seg s2-gseg">${[['park', 'Паркінг'], ['cars', 'Машини'], ['showcase', 'Вітрина']].map(([k, t]) => `<button class="${s.garageView === k ? 'on' : ''}" data-act="gView" data-k="${k}">${t}</button>`).join('')}</div>
     <div class="s2-inc"><div class="grow"><small>${X.ic('coin')} Дохід гаража · ${shortN(m.income.rate)}/год</small><b id="pending">${S.fmt(X.pendingNow())}</b></div><button class="s2-btn sm" data-act="collect" ${X.pendingNow() < 1 ? 'disabled' : ''}>Забрати</button></div>
-    <div class="s2-park"><div class="s2-sign"><span>${esc(name)} · PARKING</span></div>${build}${empties}${cars.length ? cars.map((c, i) => floor(c, cars.length - i)).join('') : ''}</div>
+    <div class="s2-park"><div class="s2-sign"><span>${esc(name)} · PARKING</span></div>${cars.map((c, i) => floor(c, i + 1)).join('')}${empties}${build}</div>
     <div class="s2-note a-note">Тисни на машину — тюнінг, фарба, мийка, продаж</div>`;
 }
 function parkHead() {
