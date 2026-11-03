@@ -240,6 +240,17 @@ const LATE_RAW = [
   ['Maserati Ghibli Trofeo', 'B', 580, 1969, 'sedan', 'IT', 2021],
   ['Lancia Stratos HF Stradale', 'B', 190, 980, 'coupe', 'IT', 1974],
 ];
+// Season-2 batch (brief numbers 183–240 + re-shot key photos): written by `node tools/cars-import/register.mjs` from
+// tools/cars-import/cars.json (names, specs, factory colours) and tools/cars-import/economy.json (class, price,
+// prestige — owned by the economy). Like LATE_RAW: a car waits for its photo and takes no place in the ladder; its price
+// is IMPORT_PRICE[id] when the economy fixed one, else between its class neighbours by score. Do not edit by hand.
+// <cars-import>
+const IMPORT_RAW = [];
+const IMPORT_PRICE = {};
+const IMPORT_PRESTIGE = {};
+const IMPORT_HOME_ONLY = [];
+const IMPORT_FACTORY = {};
+// </cars-import>
 const PHOTO = new Set(CAR_PHOTOS);
 
 // Secret cars: one per main country, given for collecting every car of that country. Value ≈ 1.5–2× what finishing
@@ -429,7 +440,7 @@ const PRESTIGE = {
   'Lancia Stratos HF Stradale': 3, // the rally legend
   'Alfa Romeo Stelvio Quadrifoglio': -1, // an SUV: below the coupés
 };
-export const prestigeOf = (name) => PRESTIGE[name] || 0;
+export const prestigeOf = (name) => PRESTIGE[name] || IMPORT_PRESTIGE[name] || 0;
 
 // Price grows log-linearly with the car's place in its class. The place comes from a score: power-to-weight
 // (log, scaled 0…1 inside the class) plus PRESTIGE_STEP × prestige, so specs order cars of equal standing and
@@ -438,7 +449,7 @@ export const prestigeOf = (name) => PRESTIGE[name] || 0;
 // goes to PENDING_MODELS instead of MODELS, so nothing in the game can see it.
 export const MODELS = {};
 export const PENDING_MODELS = {};
-const NEW_IDS = new Set([...NEW_RAW, ...LATE_RAW].map((r) => slug(r[0])));
+const NEW_IDS = new Set([...NEW_RAW, ...LATE_RAW, ...IMPORT_RAW].map((r) => slug(r[0])));
 export const isPhotoReady = (id) => !NEW_IDS.has(id) || PHOTO.has(id);
 for (const cls of ['D', 'C', 'B', 'A', 'S']) {
   const pw = (r) => Math.log(r[2] / r[3]);
@@ -459,7 +470,8 @@ for (const cls of ['D', 'C', 'B', 'A', 'S']) {
     return { s: score(r), price };
   });
   // LATE_RAW: between the neighbours by score, the ladder itself untouched.
-  for (const r of LATE_RAW.filter((x) => x[1] === cls)) {
+  for (const r of [...LATE_RAW, ...IMPORT_RAW].filter((x) => x[1] === cls)) {
+    if (IMPORT_PRICE[slug(r[0])]) { put(r, IMPORT_PRICE[slug(r[0])]); continue; } // fixed by the economy (economy.json)
     const sc = score(r);
     const k = ladder.findIndex((x) => x.s > sc);
     let price;
@@ -509,6 +521,7 @@ for (const c of [...SEASON_CARS, ...OLD_SEASON_CARS]) {
 // value in the garage (income, collection, garage value) but the dealer buys them back for HOME_SELL_RATE only and they
 // can't go into an upgrade or a trade-in — that is what pays for the gold guarantee of the case (see COUNTRY_CASES.UA).
 for (const n of ['ГАЗ-24-95 «Волга» 4x4', 'ВАЗ-2108 Group B', 'ГАЗ-13 «Чайка»', 'ЗІЛ-41047']) MODELS[slug(n)].homeOnly = true;
+for (const id of IMPORT_HOME_ONLY) for (const M of [MODELS, PENDING_MODELS]) if (M[id]) M[id].homeOnly = true;
 export const ALL_MODELS = Object.values(MODELS);
 export const SECRET_BY_COUNTRY = Object.fromEntries(ALL_MODELS.filter((m) => m.secret && !m.season).map((m) => [m.country, m.id]));
 export const countryModels = (c) => ALL_MODELS.filter((m) => m.country === c && !m.secret);
@@ -3131,8 +3144,10 @@ export const FACTORY_PAINT = {
   'alfa-romeo-stelvio-quadrifoglio': { hex: '#1f4fa0', finish: 'metallic', name: 'Misano Blue metallic', key: true },
   'maserati-ghibli-trofeo': { hex: '#4a4d52', finish: 'metallic', name: 'Grigio Lava metallic', key: true },
   'lancia-stratos-hf-stradale': { hex: '#f2c200', finish: 'gloss', name: 'Giallo Fly', key: true },
+  ...IMPORT_FACTORY, // season-2 batch (tools/cars-import)
 };
 export const isKeyCar = (id) => !!FACTORY_PAINT[id]?.key;
+export const IMPORTED_KEY_CARS = Object.keys(IMPORT_FACTORY); // tools/cars-import (season-2 batch)
 export const LIVERIES = [
   { id: 'stripes', name: 'Смуги', hint: 'дві смуги вздовж кузова' },
   { id: 'race', name: 'Гоночна', hint: 'смуга й номер у колі' },
