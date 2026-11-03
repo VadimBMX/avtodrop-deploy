@@ -28,14 +28,14 @@ function caseArt(cs, open = false, cls = '') {
   if (cs.starter) return `<img class="s2-cimg ${cls}" src="s2/x-gift.webp" alt="" draggable="false">`;
   return `<span class="s2-cflag ${cls}">${X.caseIcon(cs)}</span>`;
 }
-// Frame holes (centre x, centre y, radius as a share of the width; the picture's own size) for placing the helmet.
-const HOLES = { f0: [0.5046, 0.5527, 0.2623, 326, 332], f1: [0.4984, 0.4969, 0.3047, 320, 327], f2: [0.4969, 0.4864, 0.2875, 320, 331], f3: [0.5015, 0.541, 0.2654, 324, 329],
-  f4: [0.5153, 0.5107, 0.3012, 327, 326], f5: [0.4954, 0.515, 0.2918, 329, 333], f6: [0.5015, 0.5255, 0.2886, 324, 333], f7: [0.4954, 0.5045, 0.2936, 327, 330],
-  f8: [0.5015, 0.5046, 0.2893, 337, 328], f9: [0.4984, 0.4984, 0.3062, 307, 311], f10: [0.5278, 0.4968, 0.3105, 306, 310], f11: [0.4984, 0.4968, 0.3056, 306, 310],
-  f12: [0.4984, 0.5413, 0.2964, 307, 327], f13: [0.4984, 0.5015, 0.3071, 311, 326],
-  // s2-fix: f14–f17 measured from the pictures (the transparent hole's centroid and area); f10 re-centred (was 0.5278)
-  f14: [0.4994, 0.5016, 0.279, 219, 220], f15: [0.4996, 0.4974, 0.3196, 218, 220], f16: [0.5008, 0.5011, 0.295, 215, 220], f17: [0.4997, 0.4979, 0.3177, 219, 220] };
-HOLES.f10 = [0.4998, 0.4973, 0.3092, 217, 220]; // s2-fix
+// Frame holes (centre x, centre y, radius as a share of the width; the picture's own size), measured from the pictures
+// (the transparent hole's centroid and area) on 2026-11-03 — re-measure if a frame picture changes.
+const HOLES = {
+  f0: [0.5037, 0.5416, 0.2789, 216, 220], f1: [0.4971, 0.4613, 0.2654, 215, 220], f2: [0.4947, 0.4846, 0.2702, 213, 220], f3: [0.5000, 0.5332, 0.2756, 217, 220],
+  f4: [0.5149, 0.5082, 0.3058, 220, 219], f5: [0.4888, 0.5065, 0.2803, 217, 220], f6: [0.5003, 0.5235, 0.2890, 214, 220], f7: [0.4939, 0.5025, 0.2942, 218, 220],
+  f8: [0.4939, 0.5081, 0.2502, 220, 214], f9: [0.4985, 0.4972, 0.3065, 217, 220], f10: [0.4976, 0.4951, 0.3085, 217, 220], f11: [0.4984, 0.4944, 0.3081, 217, 220],
+  f12: [0.4979, 0.5414, 0.3029, 207, 220], f13: [0.4992, 0.4996, 0.3078, 210, 220], f14: [0.4972, 0.5003, 0.2771, 219, 220], f15: [0.4974, 0.4955, 0.3186, 218, 220],
+  f16: [0.4989, 0.4989, 0.2927, 215, 220], f17: [0.4973, 0.4962, 0.3167, 219, 220] };
 const holeOf = (f) => HOLES['f' + f] || [0.5, 0.5, 0.3, 1, 1];
 // Achievement → badge picture (public/s2/bd/b<N>.webp, all drawn gold; lower tiers are tinted in CSS).
 const ACH_BADGE = { cases: 1, wins: 2, pvp: 9, battles: 10, collection: 3, rarest: 11, secrets: 12, garage: 0, level: 13, play: 14, streak: 6, merges: 15, tuned: 16, plates: 17, friends: 5, dream: 18 };
