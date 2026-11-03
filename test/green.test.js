@@ -82,7 +82,7 @@ test('green: green.py builds a matching mask and bakes the factory colour, idemp
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'green-'));
   try {
     for (const d of ['public/cars', 'public/paint']) fs.mkdirSync(path.join(tmp, d), { recursive: true });
-    for (const f of ['shared.js', 'car-photos.js', 'business.js' /* s2-biz: imported by shared.js */]) fs.copyFileSync(path.join(PUB, f), path.join(tmp, 'public', f));
+    for (const f of ['shared.js', 'car-photos.js', 'business.js' /* s2-biz: imported by shared.js */, 'econ.js' /* the economy config, imported by shared.js and business.js */]) fs.copyFileSync(path.join(PUB, f), path.join(tmp, 'public', f));
     // as `npm run cars` / the cloud cutter leave it: the green photo in public/cars
     fs.copyFileSync(FIXTURE, path.join(tmp, 'public/cars/' + ID + '.webp'));
     const run = () => {
