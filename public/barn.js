@@ -107,7 +107,7 @@ export function partsPlan(model, i, inv) {
 }
 // What a part list costs at tier price (for the sim and the «на що підуть» line).
 export const partsValue = (list) => list.reduce((s, p) => s + S.TIER_BY_ID[p.tier].price * p.n, 0);
-export const partName = (type, tier) => (type === 'any' ? `будь-які деталі ${S.TIER_BY_ID[tier].name}+` : S.partLabel(type, tier));
+export const partName = (type, tier) => (type === 'any' ? `будь-які деталі від «${S.TIER_BY_ID[tier].name}»` : S.partLabel(type, tier));
 
 // The look of a find on its way: rust and dirt fade stage by stage (the app's carArt dirt + a CSS rust filter).
 export const rustOf = (done) => [1, 0.65, 0.45, 0.25, 0][done] ?? 0;

@@ -6717,6 +6717,16 @@ body.s2 #view .drop-dock:not(.dd-sold) .dd-cnt + .btn.opencase { margin-top: 0; 
 }
 /* ===== /licence */
 
+/* s2-polish: a sub-sheet's «назад» is the Season 2 square chevron slab (like .s2-rb / .s2back and the ✕ beside it), not yellow «‹ Назад» text */
+body.s2 .sheet-head .bk { width: 38px; height: 38px; padding: 0; border-radius: 12px; background: var(--slab-dk); border: 0; box-shadow: var(--slab-sh-sm); color: var(--text); font-size: 20px; }
+body.s2 .sheet-head .bk .i { width: 20px; height: 20px; }
+
+/* s2-polish: «Бак порожній» on top of «Заправка» when a race was tapped with an empty tank */
+.s2-gas-why { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; padding: 12px 14px; border-radius: 16px; background: #ff3d5a1a; border: 1px solid #ff3d5a55; }
+.s2-gas-why > .i { font-size: 22px; color: #ff6b7f; margin-top: 1px; }
+.s2-gas-why b { display: block; font: 800 15px var(--f-body); color: #ff8a9a; }
+.s2-gas-why small { display: block; margin-top: 2px; font: 500 13px/1.35 var(--f-body); color: var(--muted); }
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */

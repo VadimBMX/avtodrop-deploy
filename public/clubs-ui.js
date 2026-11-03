@@ -125,9 +125,9 @@ function goalHtml(c) {
   const key = esc(S.CASE_BY_ID[g.caseId]?.name || g.caseId);
   const mine = g.myWins >= g.minWins ? `твої: ${n0(g.myWins)} ${C.plural(g.myWins, ['перемога', 'перемоги', 'перемог'])}` : 'потрібна хоч одна твоя перемога';
   return `<div class="card clb-goal ${g.done ? 'done' : ''}"><div class="row between"><b>${ic('target-arrow')} Ціль тижня</b><span class="tiny muted">${n0(g.wins)} / ${n0(g.target)}</span></div>
-    <div class="small">Разом ${n0(g.target)} ${C.plural(g.target, ['перемога', 'перемоги', 'перемог'])} за тиждень → кожному ключ «${key}»</div>
+    <div class="small">Клуб разом виграє ${n0(g.target)} ${C.plural(g.target, ['гонку', 'гонки', 'гонок'])} за тиждень → ключ «${key}» кожному, хто сам виграв хоч раз</div>
     <div class="clb-goal-bar"><i style="width:${pct}%"></i></div>
-    <div class="tiny muted">${g.done ? `${ic('check')} Виконано! Ключі прийдуть у понеділок о 00:00 · ` : ''}${mine} · ціль: ${R.goal.perMember} на учасника</div></div>`;
+    <div class="tiny muted">${g.done ? `${ic('check')} Виконано! Ключі прийдуть у понеділок о 00:00 · ` : ''}${mine}</div></div>`;
 }
 
 function membersHtml(c) {

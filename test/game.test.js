@@ -94,7 +94,7 @@ test('parts: open, install respects class, merge 3→1, cooldown after removal',
   const supra = g.giveCar(1, 'toyota-supra-a80').id; // class B → needs Sport+
   const vaz = g.giveCar(1, 'vaz-2107').id;
   g.addPart(1, 'eng', 'stock', 3);
-  assert.throws(() => call(1, 'parts/install', { carId: supra, type: 'eng', tier: 'stock' }), /потрібні деталі від Sport/);
+  assert.throws(() => call(1, 'parts/install', { carId: supra, type: 'eng', tier: 'stock' }), /потрібні деталі від «Спорт»/);
   const before = car(call, 1, vaz);
   call(1, 'parts/install', { carId: vaz, type: 'eng', tier: 'stock' });
   const after = car(call, 1, vaz);

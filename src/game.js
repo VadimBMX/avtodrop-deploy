@@ -1137,7 +1137,7 @@ export function createGame(db, opts = {}) {
     const c = ownCar(uid, carId, ['garage', 'showcase']);
     if (!S.partFits(c.model, type)) fail(S.MODELS[c.model].ev ? 'На електромобіль ставлять електромотор, батарею й редуктор замість двигуна, турбіни, вихлопу й КПП' : 'Ця деталь — для електромобілів');
     const minTier = S.minTierFor(S.MODELS[c.model].cls);
-    if (S.TIER_BY_ID[tier].index < minTier) fail(`Для цієї машини потрібні деталі від ${S.TIERS[minTier].name}`);
+    if (S.TIER_BY_ID[tier].index < minTier) fail(`Для цієї машини потрібні деталі від «${S.TIERS[minTier].name}»`);
     takePart(uid, type, tier);
     bank(uid);
     const old = q('SELECT tier FROM car_parts WHERE car_id = ? AND type = ?').get(c.id, type);

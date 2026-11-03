@@ -230,7 +230,7 @@ function toast(msg, err = false) {
 // One request per action at a time: a double tap on «Забрати» used to send the claim twice — the first one paid, the
 // second came back «Завдання ще не виконано» while the screen still showed the old card.
 const acting = new Set();
-async function act(name, body, ok, { rerender = true } = {}) {
+async function act(name, body, ok, { rerender = true, gain = gainOf } = {}) {
   const lock = name + ':' + JSON.stringify(body || {});
   if (acting.has(lock)) return null;
   acting.add(lock);
@@ -243,7 +243,7 @@ async function act(name, body, ok, { rerender = true } = {}) {
     }
     if (ok) toast(typeof ok === 'function' ? ok(r) : ok);
     haptic('success');
-    moneyFx(gainOf(r));
+    moneyFx(gain(r));
     if (CELEBRATE.has(name)) {
       const [x, y] = tapPoint();
       FX.burst(x, y, ['#ffd500', '#ffffff', '#34c759'], { count: 36, power: 6, shape: 'mix' });
@@ -290,7 +290,7 @@ function sheet(title, html, back = null, cls = '') {
   sheetBack = back;
   $('#sheet').className = 'sheet' + (cls ? ' ' + cls : '');
   $('#modal').classList.toggle('s2-pm', cls.includes('s2-full'));
-  $('#sheet').innerHTML = `<div class="sheet-head">${back ? '<button class="bk" data-act="sheetBack">‹ Назад</button>' : '<span class="spacer"></span>'}<h3>${title}</h3><button class="x" data-act="closeModal">✕</button></div>${html}`;
+  $('#sheet').innerHTML = `<div class="sheet-head">${back ? `<button class="bk" data-act="sheetBack" aria-label="Назад">${ic('chevron-left')}</button>` : '<span class="spacer"></span>'}<h3>${title}</h3><button class="x" data-act="closeModal">✕</button></div>${html}`;
   $('#modal').hidden = false;
   hideClaimBanners();
 }
@@ -448,7 +448,7 @@ function rewardText(rw) {
   if (!rw) return '';
   const parts = [];
   if (rw.money) parts.push(S.fmt(rw.money));
-  if (rw.parts) parts.push(`Деталі ${S.TIER_BY_ID[rw.tier].name} ×${rw.parts}`);
+  if (rw.parts) parts.push(`Деталі «${S.TIER_BY_ID[rw.tier].name}» ×${rw.parts}`);
   if (rw.car) parts.push(`Машина класу ${rw.car}`);
   if (rw.caseId) parts.push(`Кейс «${S.CASE_BY_ID[rw.caseId].name}»${rw.count > 1 ? ` ×${rw.count}` : ''}`);
   if (rw.seasonCar) parts.push(M(rw.seasonCar).name);
@@ -742,13 +742,13 @@ function showLevelUp() {
   const nextU = S.UNLOCKS.find((u) => u.level > me.level && isOpen(u.key) === false && !(u.key === 'casino' && casinoOff()));
   // wIntro: the ring turns in while the number counts up, the gift card lands, each unlocked feature slides in and
   // drops its lock (CSS «wIntro», .lvup; still under reduced motion).
-  // s2-ui2 (mockup 30): the gold ring with the number, «Новий рівень!», the gift and what opened as tiles, yellow «Забрати».
+  // s2-ui2 (mockup 30): the gold ring with the number, «Новий рівень!», the gift and what opened as tiles, yellow «Далі» (s2-polish: the gift is already credited, nothing to «Забрати»).
   sheet('', `<div class="center lvup s2-lv"><div class="ring s2-lv-ring"><span class="face" data-from="${from}" data-to="${me.level}">${me.level}</span><small>рівень</small></div>
-    <div class="big s2-lv-t">Новий рівень!</div><div class="muted">Тобі відкрилось:</div>
-    <div class="s2-lv-rw"><div><img src="s2/x-chest.webp" alt=""><b>${esc(rewardText(rw))}</b><small>подарунок уже в тебе</small></div></div>
+    <div class="big s2-lv-t">Новий рівень!</div><div class="muted">Подарунок за рівень:</div>
+    <div class="s2-lv-rw"><div><img src="s2/x-chest.webp" alt=""><b>${esc(rewardText(rw))}</b><small>${rw?.money ? 'уже додано — гроші на рахунку' : 'уже додано — забирати не треба'}</small></div></div>
     ${opened.length ? `<div class="h2 unlocked-h"><span>${ic('sparkles')} Відкрито</span></div><div class="list unlocked">${opened.map((u, k) => `<div class="li" style="--i:${Math.min(k, 3)}"><span class="ic tint" style="--c:#ffc400">${ic(u.icon)}<b class="lu-lock" aria-hidden="true">${ic('lock')}</b></span><div class="grow left"><b>${u.name}</b><div class="tiny muted">${esc(u.text)}</div></div></div>`).join('')}</div>` : ''}
     ${nextU ? `<div class="tiny muted mt">Далі: ${nextU.name} — на рівні ${nextU.level}</div>` : ''}
-    <button class="s2-btn wide mt" data-act="levelOk">${ic('gift')}Забрати</button></div>`);
+    <button class="s2-btn wide mt" data-act="levelOk">Далі${ic('chevron-right')}</button></div>`);
   haptic('success');
   celebrateSheet($('#sheet .ring'), ['#f5b301', '#ffd500', '#ffffff', '#34c759']);
   IFX.countUpIn($('#sheet .ring'), 560, 60);
@@ -1221,7 +1221,7 @@ function carTuneSheet(c, best) {
       <div class="s2t-row"><small>402 м</small><span>${dec(stock.et, 2)} → <b>${dec(st.et, 2)}</b> с</span></div><div class="s2t-bar et"><i style="width:${etW(stock.et)}%" class="base"></i><i style="width:${etW(st.et)}%"></i></div>
     </div>
     ${slipNote(c)}${res}
-    <div class="s2-h"><b>Деталі · ${partCount(c)}/${partSlots(c)}</b><span>${m.ev ? `${ic('bolt')} електро · ` : ''}від ${S.TIERS[S.minTierFor(m.cls)].name}</span></div>
+    <div class="s2-h"><b>Деталі · ${partCount(c)}/${partSlots(c)}</b><span>${m.ev ? `${ic('bolt')} електро · ` : ''}від «${S.TIERS[S.minTierFor(m.cls)].name}»</span></div>
     <div class="s2t-grid">${tiles}</div>
     <div class="tiny muted s2t-hint">Натисни деталь — склад, встановити, зняти. Злиття трьох однакових — у «Майстерня → Склад».</div>
     <div class="s2c-dock">${main}</div>
@@ -1350,7 +1350,7 @@ function bestDone(c, r) {
   const rows = r.changes.map((x) => `<div class="bd-row">${partArt(x.type, x.to || x.from, 'xs')}<span>${S.PARTS[x.type].name}</span><b class="${x.to ? '' : 'spin'}">${x.to ? (x.from ? `${tn(x.from)} → ${tn(x.to)}` : tn(x.to)) : `${tn(x.from)} знято — колеса буксували`}</b></div>`).join('');
   const back = r.changes.some((x) => x.from);
   return `<div class="best-done"><div class="bd-head">${ic('check')}<b>${bestSummary(r)}</b><span>${dec(c.et, 2)} с на 402 м</span></div>${rows}
-    ${c.set ? `<div class="tiny bd-set">${ic('sparkles')} Повний комплект ${tn(c.parts[S.partKeysOf(c.model)[0]])}: +${Math.round(S.SET_BONUS.hp * 100)}% к.с.</div>` : ''}
+    ${c.set ? `<div class="tiny bd-set">${ic('sparkles')} Повний комплект «${tn(c.parts[S.partKeysOf(c.model)[0]])}»: +${Math.round(S.SET_BONUS.hp * 100)}% к.с.</div>` : ''}
     ${back ? `<div class="tiny muted">Зняті деталі — на складі, ${S.PART_COOLDOWN_MIN} хв остигають.</div>` : ''}</div>`;
 }
 H.installBest = async (d) => {
@@ -2087,10 +2087,12 @@ function s2RaceHead() {
     <i class="s2r-art" aria-hidden="true"></i></div>`;
 }
 // s2-ui2 (mockup 21): «Заправка» — the tank as a picture, how it refills, the ways to fill it (the existing buttons).
-H.s2Fuel = () => {
+// s2-polish: a tap on a rival with an empty tank opens this sheet at once (fuelNudge → d.empty) with «Бак порожній» on top.
+H.s2Fuel = (d) => {
   const f = fuelNow(), max = fmax(), next = S.nextTank(me.tankLvl);
   const it = S.SHOP_BY_ID.refuel;
-  sheet('Заправка', `<div class="s2-gas"><div class="s2-gas-tank"><i style="height:${Math.round((f / max) * 100)}%"></i>${'<b></b>'.repeat(4)}</div>
+  const why = d?.empty && f < 1 ? `<div class="s2-gas-why">${ic('gas-station')}<div><b>Бак порожній</b><small>Кожен заїзд бере 1 ⛽. Заправся, зачекай на пальне або потренуйся в дрифті — тренування безкоштовне.</small></div></div>` : '';
+  sheet('Заправка', `${why}<div class="s2-gas"><div class="s2-gas-tank"><i style="height:${Math.round((f / max) * 100)}%"></i>${'<b></b>'.repeat(4)}</div>
       <div class="grow"><small>У БАКУ</small><div class="s2-gas-n">${f}<span>/${max}</span></div>
         <div class="small muted">${me.fuelNext && f < max ? `${ic('clock')} +1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : 'бак повний'}${spareTxt()}</div>
         ${me.vip ? '<span class="chip s2-gas-vip">VIP: швидше відновлення</span>' : ''}</div></div>
@@ -2099,9 +2101,10 @@ H.s2Fuel = () => {
     <div class="s2-h"><b>Дозаправитись</b></div>
     ${refuelBtn() ? `<div class="s2-gas-row">${refuelBtn()}</div>` : `<div class="tiny muted">${it && config.stars && f < max ? '' : f >= max ? 'Бак повний — їдь!' : 'Повний бак за зірки — коли платежі підключені.'}</div>`}
     ${next ? `<div class="list mt"><div class="li"><span class="ic">${ic('gas-station')}</span><div class="grow"><b>Більший бак · ${next.max}</b><div class="small muted">${me.level >= next.level ? `назавжди +${next.max - max} пального` : `з ${next.level}-го рівня`}</div></div>${me.level >= next.level ? `<button class="btn sm ${me.balance >= next.cost ? '' : 'ghost'}" data-act="tankUp" ${me.balance >= next.cost ? '' : 'disabled'}>${S.short(next.cost)}</button>` : `<span class="lockchip">${ic('lock')} рів. ${next.level}</span>`}</div></div>` : ''}
-    <button class="s2-btn wide mt" data-act="s2FuelGo">${ic('flag-3')}До гонок · ${f} ${plural(f, ['спроба', 'спроби', 'спроб'])}</button>`);
+    ${f < 1 ? `<button class="s2-btn wide mt" data-act="s2FuelTrain">${ic('target-arrow')}Тренування дрифту · безкоштовно</button>` : `<button class="s2-btn wide mt" data-act="s2FuelGo">${ic('flag-3')}До гонок · ${f} ${plural(f, ['спроба', 'спроби', 'спроб'])}</button>`}`);
   tickUntil();
 };
+H.s2FuelTrain = () => (closeModal(), H.fuelTrain());
 H.s2FuelGo = () => {
   closeModal();
   if (state.tab !== 'race' || state.page) (state.tab = 'race', state.page = null, state.raceView = 'race', render());
@@ -2228,12 +2231,11 @@ function fuelSync(f0, s0) {
   if (!state.page && !state.race && !state.drift && (state.tab === 'garage' || state.tab === 'race')) render();
 }
 // A tap on a greyed rival: point at the card instead of an error.
+// s2-polish: an empty tank opens «Заправка» (the full-tank offer, the refill clock, free drift training) instead of only
+// scrolling to the fuel card.
 function fuelNudge() {
-  const card = $('#fuelOut');
   haptic('warning');
-  if (!card) return toast(`Пальне 0/${fmax()}`);
-  card.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-  FX.shake(card, 360);
+  H.s2Fuel({ empty: 1 });
 }
 H.fuelGifts = () => openRewards();
 // Empty tank → the free drift training right away (no fuel; open from level 1 on the server too).
@@ -3452,7 +3454,7 @@ H.bossPickCar = async (d) => {
   await render();
   if (d.boss && $('#modal').hidden) H.bossCard({ id: d.boss });
 };
-const bossKit = (b) => (b.kit ? `${S.TIER_BY_ID[b.kit].name}-кіт` : 'без тюнінгу');
+const bossKit = (b) => (b.kit ? `кіт «${S.TIER_BY_ID[b.kit].name}»` : 'без тюнінгу');
 const bossOf = (c) => S.BOSSES.filter((b) => b.country === c);
 async function careerView(car, garage) {
   import('./boss-intro.js').catch(() => {}); // the bosses are on screen: have the poster ready before «Кинути виклик»
@@ -3591,7 +3593,7 @@ H.bossCard = (d) => {
       ${s.chance != null && car ? row('target-arrow', 'Твій шанс', `${esc(M(car.model).name)} · ${car.hp} к.с. · ${dec(car.et, 2)} с`, `<b>${s.chance < 1 ? '<1' : s.chance}%</b>`) : ''}
       ${row('trophy', s.beaten ? 'Нагороду отримано' : 'Нагорода за першу перемогу', esc(S.bossRewardText(b.reward)), s.beaten ? `<b class="win">${ic('check')}</b>` : '')}
       ${s.beaten ? row('refresh', 'Реванш', s.prize != null ? `як звичайна гонка: приз +${S.short(s.prize)}, внесок ${S.short(s.entry)}` : 'як звичайна гонка') : row('gas-station', 'Без внеску', 'програш коштує тільки пальне')}
-      ${s.beaten ? row('flame', 'Реванш · складний', `${h.kit ? `${S.TIER_BY_ID[h.kit].name}-кіт` : 'без тюнінгу'} · ${h.hp} к.с. · водій ${S.BOSS_AI[h.ai].name} · ~${dec(h.et, 2)} с<br>${hs.done ? 'Сьогодні вже виграно — завтра знову' : `приз ×${S.BOSS_HARD.prizeMult}${hs.prize != null ? `: +${S.short(hs.prize)}, внесок ${S.short(hs.entry)}` : ''} · перемога раз на день`}`, hs.chance != null && !hs.done ? `<b>${hs.chance < 1 ? '<1' : hs.chance}%</b>` : '') : ''}
+      ${s.beaten ? row('flame', 'Реванш · складний', `${h.kit ? `кіт «${S.TIER_BY_ID[h.kit].name}»` : 'без тюнінгу'} · ${h.hp} к.с. · водій ${S.BOSS_AI[h.ai].name} · ~${dec(h.et, 2)} с<br>${hs.done ? 'Сьогодні вже виграно — завтра знову' : `приз ×${S.BOSS_HARD.prizeMult}${hs.prize != null ? `: +${S.short(hs.prize)}, внесок ${S.short(hs.entry)}` : ''} · перемога раз на день`}`, hs.chance != null && !hs.done ? `<b>${hs.chance < 1 ? '<1' : hs.chance}%</b>` : '') : ''}
     </div>
     ${bossWall(s) ? bossWallHelp(b, s, car) + bossRiskyBtn(b, s) : `<button class="btn yellow mt" data-act="startBoss" data-id="${b.id}" ${!s.open || !s.fits || me.fuel < 1 ? 'disabled' : ''}>${btn}</button>`}
     ${s.beaten ? `<button class="btn ghost mt bc-hard" data-act="startBoss" data-id="${b.id}" data-hard="1" ${hs.done || !s.fits || me.fuel < 1 ? 'disabled' : ''}>${ic('flame')} Реванш · складний ×${S.BOSS_HARD.prizeMult}</button>` : ''}</div>`);
@@ -4066,7 +4068,7 @@ const dirtPip = (c) => (shining(c) ? `<span class="dirt-pip shine" title="Бли
 function washLi(c) {
   if (!washable(c)) return '';
   const sub = shining(c) ? `блищить ще <span data-until="${c.shineUntil - clockOffset}"></span> · +${Math.round(S.WASH.shine * 100)}% доходу`
-    : `бруд ${c.dirt || 0}%${(c.dirt || 0) >= 30 ? ` · помий — +${Math.round(S.WASH.shine * 100)}% доходу на ${S.WASH.shineHours} год` : ''}`;
+    : `бруд ${c.dirt || 0}%${(c.dirt || 0) >= 30 ? ` · бонус мийки: +${Math.round(S.WASH.shine * 100)}% доходу на ${S.WASH.shineHours} год` : ''}`;
   return `<button class="li" data-act="washCar" data-id="${c.id}"><span class="ic">${ic('droplet')}</span><div class="grow"><b>Мийка</b><div class="small muted">${sub}</div></div>${isOpen('wash') ? `<span class="wash-meter sm"><i style="width:${c.dirt || 0}%"></i></span>` : lockChip('wash')}</button>`;
 }
 function washHint(all) {
@@ -4075,7 +4077,7 @@ function washHint(all) {
   if (dirty.length < 2) return '';
   // Dirt costs nothing (S.WASH.maxCut 0): the hint only offers the shine bonus.
   // Owner 28.10 (garage too long): a small chip next to «Машини N/M» instead of a card.
-  return ` <button class="wash-chip" data-act="toWash" title="Помий — +${Math.round(S.WASH.shine * 100)}% доходу на ${S.WASH.shineHours} год">${ic('droplet')} Помити ${dirty.length}</button>`;
+  return ` <button class="wash-chip" data-act="toWash" title="Бонус мийки: +${Math.round(S.WASH.shine * 100)}% доходу машини на ${S.WASH.shineHours} год">${ic('droplet')} Помити ${dirty.length}</button>`;
 }
 H.toWash = (d) => {
   if (!isOpen('wash')) return lockedSheet('wash');
@@ -4106,7 +4108,7 @@ function washView() {
     <span class="art">${carArt(x.model, { look: x.look, dirt: x.dirt, thumb: true })}</span><span class="pcar-nm ellipsis">${esc(M(x.model).name)}</span>
     <span class="wash-meter"><i style="width:${x.dirt || 0}%"></i></span><span class="pcar-d ${isDirty(x) ? 'dirty' : ''}">${shining(x) ? `${ic('sparkles')}блищить` : `${x.dirt || 0}%`}</span></button>`).join('')}</div>`;
   const state1 = sh ? `<span class="wash-state shine">${ic('sparkles')} Блищить ще <span data-until="${c.shineUntil - clockOffset}"></span> · +${Math.round(S.WASH.shine * 100)}% доходу</span>`
-    : `<span class="wash-state ${isDirty(c) ? 'dirty' : ''}">${ic('droplet')} Бруд ${d}% · ${d >= 30 ? `після мийки +${Math.round(S.WASH.shine * 100)}% доходу` : 'майже чиста'}</span>`;
+    : `<span class="wash-state ${isDirty(c) ? 'dirty' : ''}">${ic('droplet')} Бруд ${d}% · ${d >= 30 ? `мийка дасть бонус +${Math.round(S.WASH.shine * 100)}% на ${S.WASH.shineHours} год` : 'майже чиста'}</span>`;
   const handBtn = left > 0
     ? `<button class="btn" data-act="washHand" data-id="${c.id}">${ic('droplet')} Помити руками · безкоштовно</button>`
     : `<button class="btn ghost" disabled>Ручна мийка — завтра знову ${S.WASH.hand}</button>`;
@@ -4123,7 +4125,7 @@ function washView() {
       ${autoBtn}
       ${dirtyAll.length > 1 ? `<button class="btn outline btn2" data-act="washAll" ${!vip && allSum > me.balance ? 'disabled' : ''}><span>${ic('spray')} Помити всі · ${dirtyAll.length}</span><small>${vip ? 'VIP — безкоштовно' : S.fmt(allSum)}</small></button>` : ''}
     </div>
-    <div class="tiny muted center mt">Машина бруднеться лише в гонках: кожен заїзд — на ${S.WASH.race[0]}–${S.WASH.drift[1]}%. У гаражі не бруднеться. Бруд — лише вигляд: на дохід і швидкість не впливає. Після мийки машина блищить ${S.WASH.shineHours} год: +${Math.round(S.WASH.shine * 100)}% доходу.</div>`;
+    <div class="tiny muted center mt">Машина бруднеться лише в гонках: кожен заїзд — на ${S.WASH.race[0]}–${S.WASH.drift[1]}%. У гаражі не бруднеться. Бруд — лише вигляд: дохід і швидкість не знижує. Мийка — це бонус: після неї машина ${S.WASH.shineHours} год блищить і заробляє на ${Math.round(S.WASH.shine * 100)}% більше.</div>`;
 }
 function washAfter() {
   const on = $('.wash-cars .pcar.on'), strip = $('#washCars');
@@ -5820,10 +5822,16 @@ function rewardsAllCard() {
     <div class="tiny muted center mt">Гроші, деталі й пальне — одразу; машини й ключі покажемо по черзі</div></div>`;
 }
 const claimAllText = (r) => [`Забрано ${r.n} ${plural(r.n, ['нагороду', 'нагороди', 'нагород'])}`, r.money > 0 ? '+' + S.short(r.money) : '', r.parts > 0 ? `деталі ×${r.parts}` : '', r.slots > 0 ? `+${r.slots} ${plural(r.slots, ['місце', 'місця', 'місць'])} в гаражі` : '', r.fuel ? 'повний бак' : '', r.canister > 0 ? `+${r.canister} пального` : '', ...(r.cosmetics || [])].filter(Boolean).join(' · ');
+// s2-polish: what the reward case gave is left out of the toast and the coins — its own reel shows it right after
+// (money, the part, the full tank), so the toast doesn't spoil the spin.
+const claimAllShown = (r) => {
+  const rc = r.reveal?.find((x) => x.kind === 'rcase')?.reward;
+  return rc ? { ...r, money: r.money - (rc.money || 0), parts: r.parts - (rc.items?.length || 0), fuel: r.fuel && !rc.fuel } : r;
+};
 H.claimAll = async () => {
   const fromSheet = !$('#modal').hidden;
   const f0 = me.fuel, s0 = me.fuelSpare;
-  const r = await act('rewards/all', {}, claimAllText, { rerender: false });
+  const r = await act('rewards/all', {}, (x) => claimAllText(claimAllShown(x)), { rerender: false, gain: (x) => Math.max(0, claimAllShown(x).money || 0) });
   if (!r) return;
   pulseSoon();
   fuelSync(f0, s0);

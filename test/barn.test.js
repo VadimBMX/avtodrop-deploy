@@ -125,7 +125,7 @@ test('stages: parts and money go at each start, the clock finishes them, one res
   mk(5);
   const id = plant(5, 'vaz-2101-kopiika');
   const other = plant(5, 'vaz-2106');
-  assert.throws(() => call(5, 'barn/start', { id }), /Не вистачає деталей: Обвіс Stock ×2/);
+  assert.throws(() => call(5, 'barn/start', { id }), /Не вистачає деталей: Обвіс «Сток» ×2/);
   give(5, 'stock', 5);
   const p0 = partsLeft(5), b0 = bal(5);
   let v = call(5, 'barn/start', { id });

@@ -857,11 +857,11 @@ export const casePrice = (cs, day) => (cs.id === caseOfDay(day) ? Math.round((cs
 
 // ---------- parts ----------
 export const TIERS = [
-  { id: 'stock', name: 'Stock', cls: 'D', price: ECON.partTiers.stock },
-  { id: 'street', name: 'Street', cls: 'C', price: ECON.partTiers.street },
-  { id: 'sport', name: 'Sport', cls: 'B', price: ECON.partTiers.sport },
-  { id: 'pro', name: 'Pro', cls: 'A', price: ECON.partTiers.pro },
-  { id: 'race', name: 'Race', cls: 'S', price: ECON.partTiers.race },
+  { id: 'stock', name: 'Сток', cls: 'D', price: ECON.partTiers.stock },
+  { id: 'street', name: 'Вулиця', cls: 'C', price: ECON.partTiers.street },
+  { id: 'sport', name: 'Спорт', cls: 'B', price: ECON.partTiers.sport },
+  { id: 'pro', name: 'Профі', cls: 'A', price: ECON.partTiers.pro },
+  { id: 'race', name: 'Гонка', cls: 'S', price: ECON.partTiers.race },
 ];
 export const TIER_BY_ID = Object.fromEntries(TIERS.map((t, i) => [t.id, { ...t, index: i }]));
 // Tier index of a part must be ≥ the car's class rank (X cars need Race parts).
@@ -898,7 +898,7 @@ export function partPoolFor(models) {
   return fit.size ? PART_KEYS.filter((k) => fit.has(k)) : PART_KEYS;
 }
 export function partLabel(type, tier) {
-  return `${PARTS[type].name} ${TIER_BY_ID[tier].name}`;
+  return `${PARTS[type].name} «${TIER_BY_ID[tier].name}»`;
 }
 export function partEffect(type, tier) {
   const v = PARTS[type].fx[TIER_BY_ID[tier].index];
@@ -1151,7 +1151,7 @@ export function raceWhy(me, rival, { time, rivalTime, reaction, shifts } = {}) {
   if (a.slip >= 0.05) {
     const top = TIERS[TIERS.length - 1].id, grip = { ...(me.parts || {}), suspension: top, wheels: top };
     const back = a.base - carStats({ ...me, parts: grip }).base;
-    out.push({ s: a.slip, t: `Колеса буксували — втрачено ${secs(a.slip)} с. ${back >= 0.05 ? `Шини й підвіска ${TIER_BY_ID[top].name} повернуть ${back >= a.slip - 0.005 ? 'їх' : secs(back) + ' с'}` : 'Шини вже найкращі — сила впирається в зчеплення'}` });
+    out.push({ s: a.slip, t: `Колеса буксували — втрачено ${secs(a.slip)} с. ${back >= 0.05 ? `Шини й підвіска «${TIER_BY_ID[top].name}» повернуть ${back >= a.slip - 0.005 ? 'їх' : secs(back) + ' с'}` : 'Шини вже найкращі — сила впирається в зчеплення'}` });
   }
   // The rival's tuning: its kit and what it gives over the same car from the factory.
   const rs = carStats({ model: rival.model }), tiers = Object.values(rival.parts || {}).filter((t) => TIER_BY_ID[t]);
@@ -1159,7 +1159,7 @@ export function raceWhy(me, rival, { time, rivalTime, reaction, shifts } = {}) {
   if (tuned >= 0.05 && tiers.length) {
     const top = tiers.reduce((x, y) => (TIER_BY_ID[y].index > TIER_BY_ID[x].index ? y : x));
     const more = [b.hp > rs.hp ? `${b.hp} к.с. замість ${rs.hp}` : '', b.traction > a.traction ? `зчеплення ${grip100(b.traction)} проти твого ${grip100(a.traction)}` : ''].filter(Boolean).join(', ');
-    out.push({ s: tuned, t: `Суперник на тюнінгу ${TIER_BY_ID[top].name}${more ? ` (${more})` : ''}: це ${secs(tuned)} с швидше, ніж із заводу` });
+    out.push({ s: tuned, t: `Суперник на тюнінгу «${TIER_BY_ID[top].name}»${more ? ` (${more})` : ''}: це ${secs(tuned)} с швидше, ніж із заводу` });
   }
   // More horsepower, but not per kilo.
   if (a.hp > b.hp && a.hp / a.kg <= b.hp / b.kg) {
@@ -1969,7 +1969,7 @@ export const caseXp = (cs) => Math.max(XP.case, Math.round(XP.case * (1 + 1.5 * 
 // casino (off) opens by level 3, within the first ~20 minutes (L2 ≈ 4 min, L3 ≈ 18, L4 ≈ 47).
 export const UNLOCKS = [
   { key: 'parts', level: 2, name: 'Деталі й склад', icon: 'tool', text: 'Кейси з деталями, установка й злиття — машина їде швидше' },
-  { key: 'wash', level: 2, name: 'Мийка', icon: 'droplet', text: 'Помита машина блищить: +5% доходу на 6 год' },
+  { key: 'wash', level: 2, name: 'Мийка', icon: 'droplet', text: `Бруд не знижує дохід; помита машина ${WASH.shineHours} год блищить: +${Math.round(WASH.shine * 100)}% до її доходу` },
   // A new feature, not a gate on anything players had: open by level only (no feats backfill needed — L2 ≈ 4 min).
   { key: 'dayrace', level: 2, name: 'Заїзд дня', icon: 'flag-3', text: 'Щодня одна машина для всіх: 3 спроби, таблиця й нагороди опівночі' },
   { key: 'drift', level: 2, name: 'Дрифт', icon: 'tornado', text: 'Другий режим гонок: траса дня й три суперники' },
@@ -2058,7 +2058,7 @@ export function caseClassSpan(caseId) {
 export function dailyText(d) {
   if (d.caseId) return `Кейс «${CASE_BY_ID[d.caseId].name}» (машина ${caseClassSpan(d.caseId)})`;
   if (d.car) return `Машина класу ${d.car}`;
-  if (d.parts) return `Деталі ${TIER_BY_ID[d.tier].name} ×${d.parts}`;
+  if (d.parts) return `Деталі «${TIER_BY_ID[d.tier].name}» ×${d.parts}`;
   return fmt(d.money);
 }
 export const REWARD_CASE_HOURS = 4;
@@ -2215,7 +2215,7 @@ export const ACHIEVEMENTS = [
   { key: 'merges', title: 'Механік', icon: 'tools', text: 'Злий деталі {n} раз', goals: [5, 50, 200, 1000],
     rewards: [5000, { parts: 1, tier: 'sport' }, { parts: 1, tier: 'pro' }, { parts: 1, tier: 'race' }] },
   { key: 'tuned', title: 'Тюнер', icon: 'engine', goals: [1, 2, 3, 4], rewards: [5000, 60000, 300000, 1500000],
-    labels: ['Постав на машину всі 8 деталей', 'Машина з 8 деталями Sport або краще', 'Машина з 8 деталями Pro або краще', 'Машина з 8 деталями Race'] },
+    labels: ['Постав на машину всі 8 деталей', 'Машина з 8 деталями «Спорт» або краще', 'Машина з 8 деталями «Профі» або краще', 'Машина з 8 деталями «Гонка»'] },
   { key: 'plates', title: 'Номерний знак', icon: 'license', goals: [1, 2, 3, 4], rewards: [3000, 10000, 50000, 500000],
     labels: ['Згенеруй рідкісний (C) номер', 'Згенеруй епічний (B) номер', 'Згенеруй легендарний (A) номер', 'Згенеруй міфічний (S) номер'] },
   { key: 'friends', title: 'Душа компанії', icon: 'users', text: 'Приведи {n} друзів до 3-го рівня', goals: [1, 3, 10, 30], rewards: [10000, 40000, 150000, 500000] },
@@ -2242,7 +2242,7 @@ export function achRewardText(rw) {
   if (r.money) out.push(short(r.money));
   if (r.caseId) out.push(`${(r.count || 1) > 1 ? r.count + ' × ' : ''}ключ «${CASE_BY_ID[r.caseId].name}»`);
   if (r.lateKey) out.push(`${r.lateKey.count > 1 ? r.lateKey.count + ' × ' : ''}ключ «${CASE_BY_ID[r.lateKey.caseId].name}»`);
-  if (r.parts) out.push(`${r.parts > 1 ? r.parts + ' × ' : ''}деталь ${TIER_BY_ID[r.tier].name}`);
+  if (r.parts) out.push(`${r.parts > 1 ? r.parts + ' × ' : ''}деталь «${TIER_BY_ID[r.tier].name}»`);
   if (r.fuel) out.push('повний бак');
   return out.join(' + ');
 }
@@ -2348,7 +2348,7 @@ export function setRewardText(set) {
   const r = setReward(set), out = [];
   if (r.count) out.push(`${r.count > 1 ? r.count + ' × ' : ''}ключ «${CASE_BY_ID[r.caseId].name}»`);
   if (r.frag) out.push(`${r.frag} фрагменти ключа «${CASE_BY_ID[r.caseId].name}»`);
-  if (r.parts) out.push(`${r.parts > 1 ? r.parts + ' × ' : ''}деталь ${TIER_BY_ID[r.tier].name}`);
+  if (r.parts) out.push(`${r.parts > 1 ? r.parts + ' × ' : ''}деталь «${TIER_BY_ID[r.tier].name}»`);
   out.push(`+${Math.round(setIncome(set) * 100)}% доходу машинам сету`);
   return out.join(' · ');
 }

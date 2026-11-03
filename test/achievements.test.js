@@ -126,7 +126,7 @@ test('non-money rewards: keys, parts and fuel are granted on claim', () => {
   const r = call('ach/claim', { key: 'merges' });
   assert.equal(r.tiers, 2);
   assert.equal(r.got, 5000);
-  assert.ok(r.text.includes('Sport'), r.text);
+  assert.ok(r.text.includes('Спорт'), r.text);
   const parts = call('me').parts || [];
   assert.ok(JSON.stringify(parts).includes('sport'), 'a Sport part is in the warehouse');
   db.prepare('UPDATE users SET cases_opened = 1000 WHERE id = 1').run();

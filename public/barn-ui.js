@@ -80,7 +80,7 @@ async function page() {
   const doneList = v.done.length ? `<div class="h2"><span>Відреставровано</span><span>${v.restored}</span></div><div class="list">${v.done.map((f) => `<div class="li br-row"><div class="br-mini">${rArt(f)}</div>
     <div class="grow"><b class="ellipsis">${X.esc(S.MODELS[f.r].name)}</b><div class="tiny muted">вкладено ${sh(f.spent)} · колекційна ${sh(f.rValue)}</div></div></div>`).join('')}</div>` : '';
   const empty = !work && !wait.length ? `<div class="card br-empty">${rusty('haz-24-volha', 0)}<div class="small muted">Сарай порожній. Знахідки дає «Знахідка тижня» і зрідка виграні контейнери на «Причалі» (особливо після повені).</div></div>` : '';
-  const rules = `<div class="tiny muted br-rules">Етапи: кузов → двигун → салон → фарба. Деталі — того ж типу, рівня класу машини або нижчого на один (Stock для D/C), краща теж підійде: спершу йдуть найдешевші. Прискорення — лише за гривні. R-версію можна продати на ринку й обміняти; дилер платить за неї як за звичайну, у колекції не рахується, апгрейд і трейд-ін — ні.</div>`;
+  const rules = `<div class="tiny muted br-rules">Етапи: кузов → двигун → салон → фарба. Деталі — того ж типу, рівня класу машини або нижчого на один («Сток» для D/C), краща теж підійде: спершу йдуть найдешевші. Прискорення — лише за гривні. R-версію можна продати на ринку й обміняти; дилер платить за неї як за звичайну, у колекції не рахується, апгрейд і трейд-ін — ні.</div>`;
   return `<div class="br">${intro}${work ? workCard(work, workPrimary) : ''}${weekly}${empty}${shed}${doneList}${rules}</div>`;
 }
 

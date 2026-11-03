@@ -930,7 +930,9 @@ const handlers = {
       X.render();
     };
     switch (d.k) {
-      case 'auction': return paOpen().length ? X.go('plateAuction') : X.isOpen('auction') ? X.H.pierGo() : (s.tab = 'bazaar', X.go('market'));
+      // s2-polish: «Аукціон» opens the car auctions (Ринок → Аукціони), or the live plate auction while one runs. «Причал»
+      // (containers) keeps its own ways in: the «Причал» tile on «Ринок» and the «Причал» tab next to «Аукціони».
+      case 'auction': return paOpen().length ? X.go('plateAuction') : X.isOpen('auction') ? (s.marketKind = 'car', s.marketTab = 'auction', X.go('market')) : X.H.locked({ k: 'auction' });
       case 'sto': case 'wash': case 'gas': case 'salon': return bizList()?.some((b) => b.type === d.k) ? X.H.bizOpen({ id: d.k }) : X.go('biz');
       case 'track': return toTab('race', () => (s.raceView = 'race'));
       case 'drift': return toTab('race', () => (s.raceView = 'drift'));

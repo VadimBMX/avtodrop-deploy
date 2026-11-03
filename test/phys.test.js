@@ -51,8 +51,8 @@ test('physics: the two owner cases — a tuned 2608 hp Tuatara outruns «Шер�
   const evija = { model: byName('Lotus Evija'), parts: {} };
   const why = S.raceWhy(evija, { model: king.model, parts: S.bossParts(king) }, { time: 8.1, rivalTime: 7.8 });
   assert.equal(why.length, 2);
-  assert.ok(why.some((x) => /тюнінгу Race \(1433 к\.с\. замість 916/.test(x)), why.join(' / '));
-  assert.ok(why.some((x) => /Колеса буксували — втрачено \d,\d\d с\. Шини й підвіска Race/.test(x)), why.join(' / '));
+  assert.ok(why.some((x) => /тюнінгу «Гонка» \(1433 к\.с\. замість 916/.test(x)), why.join(' / '));
+  assert.ok(why.some((x) => /Колеса буксували — втрачено \d,\d\d с\. Шини й підвіска «Гонка»/.test(x)), why.join(' / '));
   // With Race tyres and suspension the same Evija is faster than the boss car.
   assert.ok(S.carStats({ ...evija, parts: { suspension: 'race', wheels: 'race' } }).base < king.base);
   // Nothing to explain after a win or with less power.
