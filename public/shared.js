@@ -495,12 +495,12 @@ for (const [name, hp, kg, body, country, year, price, ev] of SECRETS) {
 // another option to the top BEFORE the season starts (the model id follows the name, so a car already given stays valid
 // only if its old option is kept in OLD_SEASON_CARS).
 export const SEASON2_CAR_OPTIONS = [
+  { season: 2, name: 'Porsche 911 Turbo S «Aurora»', hp: 650, kg: 1640, body: 'super', country: 'DE', year: 2021, price: ECON.seasonCar,
+    img: 'porsche-911-turbo-s-aurora' }, // 03.11: its own «Aurora» livery photo (Gemini); the pass car since 03.11 (owner)
   { season: 2, name: 'Nissan GT-R R35 «Midnight Purple»', hp: 600, kg: 1720, body: 'coupe', country: 'JP', year: 2017, price: ECON.seasonCar,
     img: 'nissan-gt-r-r35-mp' }, // 03.11: its own Midnight Purple III photo (the hue-rotate filter looked plastic)
   { season: 2, name: 'Toyota Supra A80 «Neon Tokyo»', hp: 520, kg: 1510, body: 'coupe', country: 'JP', year: 1997, price: ECON.seasonCar,
     img: 'toyota-supra-a80', filter: 'sepia(1) saturate(5) hue-rotate(255deg) brightness(.62)' },
-  { season: 2, name: 'Porsche 911 Turbo S «Aurora»', hp: 650, kg: 1640, body: 'super', country: 'DE', year: 2021, price: ECON.seasonCar,
-    img: 'porsche-911-turbo-s-aurora' }, // 03.11: its own «Aurora» livery photo (Gemini)
 ];
 export const SEASON_CARS = [
   { season: 1, name: 'BMW X5 M E70 «Monte Carlo Blue»', hp: 555, kg: 2380, body: 'suv', country: 'DE', year: 2010, price: ECON.seasonCar },
@@ -508,6 +508,7 @@ export const SEASON_CARS = [
 ];
 // Former season prizes: no longer given, kept as models so a car already in a garage stays valid.
 const OLD_SEASON_CARS = [
+  SEASON2_CAR_OPTIONS[1], // GT-R «Midnight Purple»: the first S2 default (test server, 2–3.11) — kept valid
   { season: 1, name: 'Nissan Skyline GT-R R34 «Сезон 1»', hp: 600, kg: 1540, body: 'coupe', country: 'JP', year: 2002, price: ECON.seasonCar,
     img: 'nissan-skyline-gt-r-r34', filter: 'hue-rotate(42deg) saturate(1.3) brightness(.9)' },
 ];
