@@ -6036,6 +6036,11 @@ body.s2 .story-car.season-car { background: none; }
 body.s2 .story-car .showroom::after { background: linear-gradient(90deg, #07080b, transparent 9%, transparent 91%, #07080b), linear-gradient(#07080b, #07080b00 14%, #07080b00 80%, #07080b); }
 body.s2 .story { background: #07080b; }
 
+body.s2 .s2-dock .s2-open.s2-full-g { min-width: 0; padding: 0 10px; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.s2 .slot.buy, body.s2 .slot.free { background: var(--slab-dk); border: 2px dashed #ffffff1c; box-shadow: none; color: var(--text); border-radius: 14px; }
+body.s2 .slot.buy b { color: var(--accent); font-family: var(--s2-mono); }
+body.s2 .slot .slot-plus { background: #1b1c20; color: var(--accent); box-shadow: var(--slab-sh-in); border: 0; }
+
 /* ---------- profile ---------- */
 body.s2 .s2-prof { background: none; }
 body.s2 .s2-prof h2 { font-size: 26px; }
