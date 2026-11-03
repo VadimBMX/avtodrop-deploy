@@ -4968,7 +4968,7 @@ PAGES.market = async () => {
 const s2Pct = (price, ref) => {
   if (!ref) return '';
   const p = Math.round((price / ref - 1) * 100);
-  return `<span class="s2-mpct ${p < -1 ? 'up' : p > 1 ? 'dn' : ''}">${p > 1 ? '+' + p + '%' : p < -1 ? '−' + Math.abs(p) + '%' : '≈'} від ціни</span>`;
+  return `<span class="s2-mpct ${p < -1 ? 'up' : p > 1 ? 'dn' : ''}">${p > 1 ? '+' + p + '%' : p < -1 ? '−' + Math.abs(p) + '%' : '≈'} ${p > 1 || p < -1 ? 'від колекц. ціни' : 'колекц. ціна'}</span>`;
 };
 AFTER.market = () => {
   tickUntil();

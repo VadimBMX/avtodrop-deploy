@@ -272,7 +272,7 @@ function collectSheet() {
   const cols = ['#ffd400', ...biz.filter((b) => b.pending > 0).map((b) => SPOTS.find((sp) => sp.biz === b.type)?.c || '#22e3ff')].slice(0, 4);
   const full = m.income?.rate && X.pendingNow() >= m.income.rate * m.income.capH - 1;
   return `<div class="s2-sheet s2-collect"><span class="s2-dots">${cols.map((c) => `<i style="background:${c}"></i>`).join('')}</span>
-    <span class="s2-st"><small>${n > 1 ? `${n} ${X.plural(n, ['бізнес', 'бізнеси', 'бізнесів'])} накопичили` : full ? 'Каса гаража повна' : `Гараж накопичив · ${shortN(m.income?.rate || 0)}/год`}</small><b id="s2Pend">+${n0(pend)} ₴</b></span>
+    <span class="s2-st"><small>${n > 1 ? `Каса · ${n} ${X.plural(n, ['бізнес', 'бізнеси', 'бізнесів'])}` : full ? 'Каса гаража повна' : `Гараж накопичив · ${shortN(m.income?.rate || 0)}/год`}</small><b id="s2Pend">+${n0(pend)} ₴</b></span>
     <button class="s2-btn" data-act="s2CollectAll" ${pend < 1 ? 'disabled' : ''}>${X.ic('cash')}Зібрати</button></div>`;
 }
 // «Війна районів»: districts of the world map (public/s2/world.webp 1584×672). Static until clubs fight for them.
