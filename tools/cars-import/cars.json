@@ -1,0 +1,1069 @@
+{
+ "_": "Catalogue of the season-2 car batch (brief: scratchpad/david/avtodrop-mashyny-dlya-davyda.txt). n = number in the brief and the picture file name (183.png); id = model id (slug of the name, as shared.js makes it), alias = the id the brief used. redo = already in the game, only the photo is replaced by a green key photo. Specs are real-world approximations; class and price are NOT here (economy.json).",
+ "cars": [
+  {
+   "n": 154,
+   "id": "lada-priora",
+   "alias": [],
+   "name": "Lada Priora",
+   "briefCls": "D",
+   "redo": true,
+   "factory": {
+    "name": "gloss black",
+    "hex": "#121315",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 89,
+   "id": "mercedes-amg-c63-s",
+   "alias": [],
+   "name": "Mercedes-AMG C63 S",
+   "briefCls": "B",
+   "redo": true,
+   "factory": {
+    "name": "graphite grey metallic",
+    "hex": "#4b4e53",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 30,
+   "id": "haval-jolion",
+   "alias": [],
+   "name": "Haval Jolion",
+   "briefCls": "D",
+   "redo": true,
+   "factory": {
+    "name": "light blue metallic",
+    "hex": "#8fb3d1",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 183,
+   "id": "bmw-m5-e60",
+   "alias": [],
+   "name": "BMW M5 E60",
+   "briefCls": "B",
+   "country": "DE",
+   "hp": 507,
+   "kg": 1830,
+   "body": "sedan",
+   "year": 2008,
+   "factory": {
+    "name": "silver grey metallic",
+    "hex": "#8f949a",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 184,
+   "id": "bmw-m5-f10",
+   "alias": [],
+   "name": "BMW M5 F10",
+   "briefCls": "A",
+   "country": "DE",
+   "hp": 560,
+   "kg": 1870,
+   "body": "sedan",
+   "year": 2014,
+   "factory": {
+    "name": "Monte Carlo blue metallic",
+    "hex": "#1d4f8c",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 185,
+   "id": "bmw-x5-4-8is-e53",
+   "alias": [
+    "bmw-x5-e53"
+   ],
+   "name": "BMW X5 4.8is E53",
+   "briefCls": "C",
+   "country": "DE",
+   "hp": 360,
+   "kg": 2250,
+   "body": "suv",
+   "year": 2006,
+   "factory": {
+    "name": "black sapphire metallic",
+    "hex": "#15171c",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 186,
+   "id": "bmw-m4-f82",
+   "alias": [],
+   "name": "BMW M4 F82",
+   "briefCls": "A",
+   "country": "DE",
+   "hp": 431,
+   "kg": 1572,
+   "body": "coupe",
+   "year": 2016,
+   "factory": {
+    "name": "Austin yellow metallic",
+    "hex": "#d9a21a",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 187,
+   "id": "bmw-m3-e36",
+   "alias": [],
+   "name": "BMW M3 E36",
+   "briefCls": "B",
+   "country": "DE",
+   "hp": 321,
+   "kg": 1460,
+   "body": "coupe",
+   "year": 1997,
+   "factory": {
+    "name": "Estoril blue metallic",
+    "hex": "#233f8e",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 188,
+   "id": "bmw-m3-e92",
+   "alias": [],
+   "name": "BMW M3 E92",
+   "briefCls": "B",
+   "country": "DE",
+   "hp": 420,
+   "kg": 1655,
+   "body": "coupe",
+   "year": 2010,
+   "factory": {
+    "name": "Jerez black metallic",
+    "hex": "#17181b",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 189,
+   "id": "bmw-m8-competition",
+   "alias": [],
+   "name": "BMW M8 Competition",
+   "briefCls": "A",
+   "country": "DE",
+   "hp": 625,
+   "kg": 1885,
+   "body": "coupe",
+   "year": 2021,
+   "factory": {
+    "name": "Marina Bay blue metallic",
+    "hex": "#1f5aa8",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 190,
+   "id": "toyota-land-cruiser-100",
+   "alias": [],
+   "name": "Toyota Land Cruiser 100",
+   "briefCls": "C",
+   "country": "JP",
+   "hp": 235,
+   "kg": 2600,
+   "body": "suv",
+   "year": 2005,
+   "factory": {
+    "name": "pearl white",
+    "hex": "#eceee9",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 191,
+   "id": "toyota-land-cruiser-prado-150",
+   "alias": [],
+   "name": "Toyota Land Cruiser Prado 150",
+   "briefCls": "C",
+   "country": "JP",
+   "hp": 282,
+   "kg": 2300,
+   "body": "suv",
+   "year": 2019,
+   "factory": {
+    "name": "black",
+    "hex": "#121315",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 192,
+   "id": "mazda-3-mps",
+   "alias": [],
+   "name": "Mazda 3 MPS",
+   "briefCls": "C",
+   "country": "JP",
+   "hp": 260,
+   "kg": 1460,
+   "body": "hatch",
+   "year": 2008,
+   "factory": {
+    "name": "Velocity red metallic",
+    "hex": "#a8141f",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 193,
+   "id": "mazda-6-mps",
+   "alias": [],
+   "name": "Mazda 6 MPS",
+   "briefCls": "C",
+   "country": "JP",
+   "hp": 260,
+   "kg": 1610,
+   "body": "sedan",
+   "year": 2006,
+   "factory": {
+    "name": "Winning blue metallic",
+    "hex": "#1d3f86",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 194,
+   "id": "toyota-gr-supra-a90",
+   "alias": [
+    "toyota-supra-a90"
+   ],
+   "name": "Toyota GR Supra A90",
+   "briefCls": "A",
+   "country": "JP",
+   "hp": 382,
+   "kg": 1520,
+   "body": "coupe",
+   "year": 2021,
+   "factory": {
+    "name": "Renaissance red",
+    "hex": "#b51a1f",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 195,
+   "id": "nissan-350z",
+   "alias": [],
+   "name": "Nissan 350Z",
+   "briefCls": "C",
+   "country": "JP",
+   "hp": 300,
+   "kg": 1480,
+   "body": "coupe",
+   "year": 2006,
+   "factory": {
+    "name": "Le Mans sunset orange metallic",
+    "hex": "#d8641c",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 196,
+   "id": "honda-s2000",
+   "alias": [],
+   "name": "Honda S2000",
+   "briefCls": "B",
+   "country": "JP",
+   "hp": 240,
+   "kg": 1270,
+   "body": "coupe",
+   "year": 2004,
+   "factory": {
+    "name": "Berlina black",
+    "hex": "#111214",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 197,
+   "id": "toyota-chaser-tourer-v-jzx100",
+   "alias": [
+    "toyota-chaser-jzx100"
+   ],
+   "name": "Toyota Chaser Tourer V JZX100",
+   "briefCls": "C",
+   "country": "JP",
+   "hp": 280,
+   "kg": 1490,
+   "body": "sedan",
+   "year": 1999,
+   "factory": {
+    "name": "super white",
+    "hex": "#efefec",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 198,
+   "id": "mitsubishi-lancer-x",
+   "alias": [
+    "mitsubishi-lancer-x-ralliart"
+   ],
+   "name": "Mitsubishi Lancer X",
+   "briefCls": "D",
+   "country": "JP",
+   "hp": 150,
+   "kg": 1300,
+   "body": "sedan",
+   "year": 2010,
+   "factory": {
+    "name": "white pearl",
+    "hex": "#eceee9",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 199,
+   "id": "toyota-camry-xv70",
+   "alias": [
+    "toyota-camry-70"
+   ],
+   "name": "Toyota Camry XV70",
+   "briefCls": "D",
+   "country": "JP",
+   "hp": 249,
+   "kg": 1590,
+   "body": "sedan",
+   "year": 2020,
+   "factory": {
+    "name": "attitude black",
+    "hex": "#16171a",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 200,
+   "id": "chery-tiggo-8-pro",
+   "alias": [],
+   "name": "Chery Tiggo 8 Pro",
+   "briefCls": "D",
+   "country": "CN",
+   "hp": 197,
+   "kg": 1700,
+   "body": "suv",
+   "year": 2023,
+   "factory": {
+    "name": "silver metallic",
+    "hex": "#b6babe",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 201,
+   "id": "geely-atlas-2024",
+   "alias": [
+    "geely-atlas"
+   ],
+   "name": "Geely Atlas (2024)",
+   "briefCls": "D",
+   "country": "CN",
+   "hp": 200,
+   "kg": 1700,
+   "body": "suv",
+   "year": 2024,
+   "factory": {
+    "name": "dark grey metallic",
+    "hex": "#4a4d52",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 202,
+   "id": "haval-h6",
+   "alias": [],
+   "name": "Haval H6",
+   "briefCls": "D",
+   "country": "CN",
+   "hp": 184,
+   "kg": 1650,
+   "body": "suv",
+   "year": 2023,
+   "factory": {
+    "name": "white",
+    "hex": "#eeefec",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 203,
+   "id": "haval-dargo",
+   "alias": [],
+   "name": "Haval Dargo",
+   "briefCls": "D",
+   "country": "CN",
+   "hp": 192,
+   "kg": 1700,
+   "body": "suv",
+   "year": 2023,
+   "factory": {
+    "name": "khaki green",
+    "hex": "#6e6d4f",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 204,
+   "id": "tank-300",
+   "alias": [],
+   "name": "Tank 300",
+   "briefCls": "C",
+   "country": "CN",
+   "hp": 220,
+   "kg": 2165,
+   "body": "suv",
+   "year": 2023,
+   "factory": {
+    "name": "black",
+    "hex": "#121315",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 205,
+   "id": "tank-500",
+   "alias": [],
+   "name": "Tank 500",
+   "briefCls": "C",
+   "country": "CN",
+   "hp": 354,
+   "kg": 2700,
+   "body": "suv",
+   "year": 2024,
+   "factory": {
+    "name": "dark blue metallic",
+    "hex": "#1c2a4a",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 206,
+   "id": "byd-song-plus",
+   "alias": [],
+   "name": "BYD Song Plus",
+   "briefCls": "D",
+   "country": "CN",
+   "hp": 218,
+   "kg": 1800,
+   "body": "suv",
+   "year": 2023,
+   "factory": {
+    "name": "grey metallic",
+    "hex": "#6e7277",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 207,
+   "id": "byd-tang-ev",
+   "alias": [
+    "byd-tang"
+   ],
+   "name": "BYD Tang EV",
+   "briefCls": "C",
+   "country": "CN",
+   "hp": 517,
+   "kg": 2560,
+   "body": "suv",
+   "year": 2023,
+   "ev": true,
+   "factory": {
+    "name": "black",
+    "hex": "#121315",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 208,
+   "id": "lynk-co-01",
+   "alias": [],
+   "name": "Lynk & Co 01",
+   "briefCls": "D",
+   "country": "CN",
+   "hp": 254,
+   "kg": 1700,
+   "body": "suv",
+   "year": 2022,
+   "factory": {
+    "name": "blue",
+    "hex": "#1f5fae",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 209,
+   "id": "exeed-rx",
+   "alias": [],
+   "name": "Exeed RX",
+   "briefCls": "C",
+   "country": "CN",
+   "hp": 261,
+   "kg": 1800,
+   "body": "suv",
+   "year": 2024,
+   "factory": {
+    "name": "pearl white",
+    "hex": "#eceee9",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 210,
+   "id": "changan-uni-v",
+   "alias": [],
+   "name": "Changan UNI-V",
+   "briefCls": "D",
+   "country": "CN",
+   "hp": 188,
+   "kg": 1500,
+   "body": "sedan",
+   "year": 2023,
+   "factory": {
+    "name": "red",
+    "hex": "#b8151c",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 211,
+   "id": "hongqi-h9",
+   "alias": [],
+   "name": "Hongqi H9",
+   "briefCls": "B",
+   "country": "CN",
+   "hp": 286,
+   "kg": 2100,
+   "body": "sedan",
+   "year": 2023,
+   "factory": {
+    "name": "black",
+    "hex": "#121315",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 212,
+   "id": "zeekr-7x",
+   "alias": [],
+   "name": "Zeekr 7X",
+   "briefCls": "B",
+   "country": "CN",
+   "hp": 646,
+   "kg": 2390,
+   "body": "suv",
+   "year": 2025,
+   "ev": true,
+   "factory": {
+    "name": "grey metallic",
+    "hex": "#6e7277",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 213,
+   "id": "xpeng-g9",
+   "alias": [],
+   "name": "Xpeng G9",
+   "briefCls": "B",
+   "country": "CN",
+   "hp": 551,
+   "kg": 2450,
+   "body": "suv",
+   "year": 2024,
+   "ev": true,
+   "factory": {
+    "name": "white",
+    "hex": "#eeefec",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 214,
+   "id": "aito-m9",
+   "alias": [],
+   "name": "Aito M9",
+   "briefCls": "A",
+   "country": "CN",
+   "hp": 526,
+   "kg": 2700,
+   "body": "suv",
+   "year": 2024,
+   "ev": true,
+   "factory": {
+    "name": "dark green metallic",
+    "hex": "#1f3b2c",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 215,
+   "id": "denza-z9-gt",
+   "alias": [],
+   "name": "Denza Z9 GT",
+   "briefCls": "A",
+   "country": "CN",
+   "hp": 965,
+   "kg": 2580,
+   "body": "wagon",
+   "year": 2025,
+   "ev": true,
+   "factory": {
+    "name": "silver metallic",
+    "hex": "#b6babe",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 216,
+   "id": "mg-cyberster",
+   "alias": [],
+   "name": "MG Cyberster",
+   "briefCls": "A",
+   "country": "CN",
+   "hp": 544,
+   "kg": 1985,
+   "body": "coupe",
+   "year": 2024,
+   "ev": true,
+   "factory": {
+    "name": "dynamic red",
+    "hex": "#b3121c",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 217,
+   "id": "xiaomi-yu7",
+   "alias": [],
+   "name": "Xiaomi YU7",
+   "briefCls": "A",
+   "country": "CN",
+   "hp": 690,
+   "kg": 2405,
+   "body": "suv",
+   "year": 2025,
+   "ev": true,
+   "factory": {
+    "name": "lava orange",
+    "hex": "#e0561b",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 218,
+   "id": "vaz-2110",
+   "alias": [],
+   "name": "ВАЗ-2110",
+   "briefCls": "D",
+   "country": "UA",
+   "hp": 81,
+   "kg": 1040,
+   "body": "sedan",
+   "year": 2005,
+   "factory": {
+    "name": "dark blue metallic",
+    "hex": "#1c2a4a",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 219,
+   "id": "vaz-2115",
+   "alias": [],
+   "name": "ВАЗ-2115",
+   "briefCls": "D",
+   "country": "UA",
+   "hp": 81,
+   "kg": 1000,
+   "body": "sedan",
+   "year": 2008,
+   "factory": {
+    "name": "dark cherry metallic",
+    "hex": "#4a0f1c",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 220,
+   "id": "skoda-octavia-rs-a5",
+   "alias": [
+    "skoda-octavia-a5-rs"
+   ],
+   "name": "Škoda Octavia RS A5",
+   "briefCls": "C",
+   "country": "CZ",
+   "hp": 200,
+   "kg": 1395,
+   "body": "hatch",
+   "year": 2010,
+   "factory": {
+    "name": "race blue metallic",
+    "hex": "#1d4ea0",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 221,
+   "id": "volkswagen-passat-b6",
+   "alias": [],
+   "name": "Volkswagen Passat B6",
+   "briefCls": "D",
+   "country": "DE",
+   "hp": 160,
+   "kg": 1450,
+   "body": "sedan",
+   "year": 2008,
+   "factory": {
+    "name": "reflex silver metallic",
+    "hex": "#b5b9bd",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 222,
+   "id": "audi-a6-c5",
+   "alias": [],
+   "name": "Audi A6 C5",
+   "briefCls": "D",
+   "country": "DE",
+   "hp": 170,
+   "kg": 1500,
+   "body": "sedan",
+   "year": 2002,
+   "factory": {
+    "name": "black",
+    "hex": "#121315",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 223,
+   "id": "mercedes-benz-e500-w211",
+   "alias": [
+    "mercedes-benz-e-w211"
+   ],
+   "name": "Mercedes-Benz E500 W211",
+   "briefCls": "C",
+   "country": "DE",
+   "hp": 388,
+   "kg": 1760,
+   "body": "sedan",
+   "year": 2007,
+   "factory": {
+    "name": "obsidian black metallic",
+    "hex": "#141519",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 224,
+   "id": "opel-astra-g",
+   "alias": [],
+   "name": "Opel Astra G",
+   "briefCls": "D",
+   "country": "DE",
+   "hp": 101,
+   "kg": 1150,
+   "body": "hatch",
+   "year": 2003,
+   "factory": {
+    "name": "silver",
+    "hex": "#b6babe",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 225,
+   "id": "daewoo-nexia",
+   "alias": [],
+   "name": "Daewoo Nexia",
+   "briefCls": "D",
+   "country": "KR",
+   "hp": 85,
+   "kg": 985,
+   "body": "sedan",
+   "year": 2006,
+   "factory": {
+    "name": "white",
+    "hex": "#eeefec",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 226,
+   "id": "renault-duster",
+   "alias": [],
+   "name": "Renault Duster",
+   "briefCls": "D",
+   "country": "FR",
+   "hp": 114,
+   "kg": 1300,
+   "body": "suv",
+   "year": 2016,
+   "factory": {
+    "name": "orange",
+    "hex": "#e06a1a",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 227,
+   "id": "kia-sportage",
+   "alias": [
+    "kia-sportage-4"
+   ],
+   "name": "Kia Sportage",
+   "briefCls": "D",
+   "country": "KR",
+   "hp": 150,
+   "kg": 1550,
+   "body": "suv",
+   "year": 2019,
+   "factory": {
+    "name": "white",
+    "hex": "#eeefec",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 228,
+   "id": "audi-rs6-avant-c8",
+   "alias": [
+    "audi-rs6-c8"
+   ],
+   "name": "Audi RS6 Avant C8",
+   "briefCls": "A",
+   "country": "DE",
+   "hp": 600,
+   "kg": 2075,
+   "body": "wagon",
+   "year": 2021,
+   "factory": {
+    "name": "Nardo grey",
+    "hex": "#8a8d8f",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 229,
+   "id": "audi-rs6-c5",
+   "alias": [],
+   "name": "Audi RS6 C5",
+   "briefCls": "B",
+   "country": "DE",
+   "hp": 450,
+   "kg": 1865,
+   "body": "wagon",
+   "year": 2003,
+   "factory": {
+    "name": "Misano red",
+    "hex": "#b5121b",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 230,
+   "id": "mercedes-amg-e63-w212",
+   "alias": [],
+   "name": "Mercedes-AMG E63 W212",
+   "briefCls": "B",
+   "country": "DE",
+   "hp": 585,
+   "kg": 1845,
+   "body": "sedan",
+   "year": 2015,
+   "factory": {
+    "name": "designo magno grey",
+    "hex": "#5a5d61",
+    "finish": "matte"
+   }
+  },
+  {
+   "n": 231,
+   "id": "mercedes-amg-cls-63-c218",
+   "alias": [
+    "mercedes-amg-cls63"
+   ],
+   "name": "Mercedes-AMG CLS 63 C218",
+   "briefCls": "B",
+   "country": "DE",
+   "hp": 557,
+   "kg": 1870,
+   "body": "sedan",
+   "year": 2014,
+   "factory": {
+    "name": "white",
+    "hex": "#eeefec",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 232,
+   "id": "porsche-cayenne-turbo",
+   "alias": [],
+   "name": "Porsche Cayenne Turbo",
+   "briefCls": "A",
+   "country": "DE",
+   "hp": 550,
+   "kg": 2175,
+   "body": "suv",
+   "year": 2020,
+   "factory": {
+    "name": "Carrara white",
+    "hex": "#eeefeb",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 233,
+   "id": "porsche-911-gt3-rs-992",
+   "alias": [
+    "porsche-911-gt3-rs"
+   ],
+   "name": "Porsche 911 GT3 RS (992)",
+   "briefCls": "S",
+   "country": "DE",
+   "hp": 525,
+   "kg": 1450,
+   "body": "super",
+   "year": 2023,
+   "factory": {
+    "name": "Python green",
+    "hex": "#4caf3d",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 234,
+   "id": "volkswagen-touareg-r50",
+   "alias": [],
+   "name": "Volkswagen Touareg R50",
+   "briefCls": "C",
+   "country": "DE",
+   "hp": 350,
+   "kg": 2550,
+   "body": "suv",
+   "year": 2008,
+   "factory": {
+    "name": "deep black",
+    "hex": "#121315",
+    "finish": "metallic"
+   }
+  },
+  {
+   "n": 235,
+   "id": "lamborghini-revuelto",
+   "alias": [],
+   "name": "Lamborghini Revuelto",
+   "briefCls": "X",
+   "country": "IT",
+   "hp": 1015,
+   "kg": 1772,
+   "body": "super",
+   "year": 2024,
+   "factory": {
+    "name": "matte black",
+    "hex": "#1d1e21",
+    "finish": "matte"
+   }
+  },
+  {
+   "n": 236,
+   "id": "lamborghini-murcielago-lp640",
+   "alias": [],
+   "name": "Lamborghini Murciélago LP640",
+   "briefCls": "S",
+   "country": "IT",
+   "hp": 640,
+   "kg": 1665,
+   "body": "super",
+   "year": 2008,
+   "factory": {
+    "name": "Arancio Atlas orange",
+    "hex": "#e66a12",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 237,
+   "id": "ferrari-812-superfast",
+   "alias": [],
+   "name": "Ferrari 812 Superfast",
+   "briefCls": "S",
+   "country": "IT",
+   "hp": 800,
+   "kg": 1630,
+   "body": "super",
+   "year": 2019,
+   "factory": {
+    "name": "Rosso Corsa red",
+    "hex": "#cc1118",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 238,
+   "id": "mclaren-765lt",
+   "alias": [],
+   "name": "McLaren 765LT",
+   "briefCls": "S",
+   "country": "GB",
+   "hp": 765,
+   "kg": 1339,
+   "body": "super",
+   "year": 2021,
+   "factory": {
+    "name": "papaya orange",
+    "hex": "#f07a10",
+    "finish": "gloss"
+   }
+  },
+  {
+   "n": 239,
+   "id": "bugatti-tourbillon",
+   "alias": [],
+   "name": "Bugatti Tourbillon",
+   "briefCls": "X",
+   "country": "FR",
+   "hp": 1800,
+   "kg": 1995,
+   "body": "super",
+   "year": 2026,
+   "factory": {
+    "name": "French racing blue, two-tone body as in factory photos",
+    "hex": "#1e3f8f",
+    "finish": "metallic",
+    "two": {
+     "hex": "#0f1a33",
+     "finish": "metallic",
+     "side": "above",
+     "at": 0.38
+    }
+   }
+  },
+  {
+   "n": 240,
+   "id": "koenigsegg-gemera",
+   "alias": [],
+   "name": "Koenigsegg Gemera",
+   "briefCls": "S",
+   "country": "SE",
+   "hp": 2300,
+   "kg": 1850,
+   "body": "super",
+   "year": 2024,
+   "factory": {
+    "name": "silver",
+    "hex": "#b9bdc3",
+    "finish": "metallic"
+   }
+  }
+ ]
+}

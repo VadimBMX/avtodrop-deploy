@@ -98,7 +98,9 @@ test('when a photo arrives the car joins the game at the price it already had, a
       if (S.MAIN_COUNTRIES.includes(m.country) && S.CASE_BY_ID['c-' + m.country.toLowerCase()].weights[m.cls]) assert.ok(r.pools[m.id].includes('c-' + m.country.toLowerCase()), `${m.id} drops from its country case`);
     }
     for (const m of S.ALL_MODELS) assert.equal(r.prices[m.id], m.price, `${m.id} keeps its price`);
-    assert.ok(r.sets.includes('wild90s') && !S.SETS.some((s) => s.id === 'wild90s'), 'the 90s set opens with its cars');
+    // a set still hidden (some of its cars waiting) opens with them (the 90s set of the October batch is open by now)
+    if (!S.SETS.some((s) => s.id === 'wild90s')) assert.ok(r.sets.includes('wild90s'), 'the 90s set opens with its cars');
+    for (const id of S.SETS.map((s) => s.id)) assert.ok(r.sets.includes(id), `${id} stays open`);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

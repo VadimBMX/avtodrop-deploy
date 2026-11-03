@@ -1,0 +1,297 @@
+{
+ "_": "Class / price of the batch — owned by the economy rebalance. cls: D C B A S (X = secret collection reward, not supported here: one per country, add by hand). price: null = placed between its class neighbours by score (like LATE_RAW: no other car changes price); a number = fixed price (must be inside the class range). prestige: -3..3 (orders cars inside the class). homeOnly: drops only from its country case. Placeholder = class from the brief (X -> S). Redo cars keep their shared.js class/price (not listed).",
+ "cars": {
+  "bmw-m5-e60": {
+   "cls": "B",
+   "price": null,
+   "prestige": 0
+  },
+  "bmw-m5-f10": {
+   "cls": "A",
+   "price": null,
+   "prestige": 0
+  },
+  "bmw-x5-4-8is-e53": {
+   "cls": "C",
+   "price": null,
+   "prestige": 0
+  },
+  "bmw-m4-f82": {
+   "cls": "A",
+   "price": null,
+   "prestige": 0
+  },
+  "bmw-m3-e36": {
+   "cls": "B",
+   "price": null,
+   "prestige": 0
+  },
+  "bmw-m3-e92": {
+   "cls": "B",
+   "price": null,
+   "prestige": 0
+  },
+  "bmw-m8-competition": {
+   "cls": "A",
+   "price": null,
+   "prestige": 0
+  },
+  "toyota-land-cruiser-100": {
+   "cls": "C",
+   "price": null,
+   "prestige": 0
+  },
+  "toyota-land-cruiser-prado-150": {
+   "cls": "C",
+   "price": null,
+   "prestige": 0
+  },
+  "mazda-3-mps": {
+   "cls": "C",
+   "price": null,
+   "prestige": 0
+  },
+  "mazda-6-mps": {
+   "cls": "C",
+   "price": null,
+   "prestige": 0
+  },
+  "toyota-gr-supra-a90": {
+   "cls": "A",
+   "price": null,
+   "prestige": 0
+  },
+  "nissan-350z": {
+   "cls": "C",
+   "price": null,
+   "prestige": 0
+  },
+  "honda-s2000": {
+   "cls": "B",
+   "price": null,
+   "prestige": 0
+  },
+  "toyota-chaser-tourer-v-jzx100": {
+   "cls": "C",
+   "price": null,
+   "prestige": 0
+  },
+  "mitsubishi-lancer-x": {
+   "cls": "D",
+   "price": null,
+   "prestige": 0
+  },
+  "toyota-camry-xv70": {
+   "cls": "D",
+   "price": null,
+   "prestige": 0
+  },
+  "chery-tiggo-8-pro": {
+   "cls": "D",
+   "price": null,
+   "prestige": 0
+  },
+  "geely-atlas-2024": {
+   "cls": "D",
+   "price": null,
+   "prestige": 0
+  },
+  "haval-h6": {
+   "cls": "D",
+   "price": null,
+   "prestige": 0
+  },
+  "haval-dargo": {
+   "cls": "D",
+   "price": null,
+   "prestige": 0
+  },
+  "tank-300": {
+   "cls": "C",
+   "price": null,
+   "prestige": 0
+  },
+  "tank-500": {
+   "cls": "C",
+   "price": null,
+   "prestige": 0
+  },
+  "byd-song-plus": {
+   "cls": "D",
+   "price": null,
+   "prestige": 0
+  },
+  "byd-tang-ev": {
+   "cls": "C",
+   "price": null,
+   "prestige": 0
+  },
+  "lynk-co-01": {
+   "cls": "D",
+   "price": null,
+   "prestige": 0
+  },
+  "exeed-rx": {
+   "cls": "C",
+   "price": null,
+   "prestige": 0
+  },
+  "changan-uni-v": {
+   "cls": "D",
+   "price": null,
+   "prestige": 0
+  },
+  "hongqi-h9": {
+   "cls": "B",
+   "price": null,
+   "prestige": 0
+  },
+  "zeekr-7x": {
+   "cls": "B",
+   "price": null,
+   "prestige": 0
+  },
+  "xpeng-g9": {
+   "cls": "B",
+   "price": null,
+   "prestige": 0
+  },
+  "aito-m9": {
+   "cls": "A",
+   "price": null,
+   "prestige": 0
+  },
+  "denza-z9-gt": {
+   "cls": "A",
+   "price": null,
+   "prestige": 0
+  },
+  "mg-cyberster": {
+   "cls": "A",
+   "price": null,
+   "prestige": 0
+  },
+  "xiaomi-yu7": {
+   "cls": "A",
+   "price": null,
+   "prestige": 0
+  },
+  "vaz-2110": {
+   "cls": "D",
+   "price": null,
+   "prestige": 0
+  },
+  "vaz-2115": {
+   "cls": "D",
+   "price": null,
+   "prestige": 0
+  },
+  "skoda-octavia-rs-a5": {
+   "cls": "C",
+   "price": null,
+   "prestige": 0
+  },
+  "volkswagen-passat-b6": {
+   "cls": "D",
+   "price": null,
+   "prestige": 0
+  },
+  "audi-a6-c5": {
+   "cls": "D",
+   "price": null,
+   "prestige": 0
+  },
+  "mercedes-benz-e500-w211": {
+   "cls": "C",
+   "price": null,
+   "prestige": 0
+  },
+  "opel-astra-g": {
+   "cls": "D",
+   "price": null,
+   "prestige": 0
+  },
+  "daewoo-nexia": {
+   "cls": "D",
+   "price": null,
+   "prestige": 0
+  },
+  "renault-duster": {
+   "cls": "D",
+   "price": null,
+   "prestige": 0
+  },
+  "kia-sportage": {
+   "cls": "D",
+   "price": null,
+   "prestige": 0
+  },
+  "audi-rs6-avant-c8": {
+   "cls": "A",
+   "price": null,
+   "prestige": 0
+  },
+  "audi-rs6-c5": {
+   "cls": "B",
+   "price": null,
+   "prestige": 0
+  },
+  "mercedes-amg-e63-w212": {
+   "cls": "B",
+   "price": null,
+   "prestige": 0
+  },
+  "mercedes-amg-cls-63-c218": {
+   "cls": "B",
+   "price": null,
+   "prestige": 0
+  },
+  "porsche-cayenne-turbo": {
+   "cls": "A",
+   "price": null,
+   "prestige": 0
+  },
+  "porsche-911-gt3-rs-992": {
+   "cls": "S",
+   "price": null,
+   "prestige": 0
+  },
+  "volkswagen-touareg-r50": {
+   "cls": "C",
+   "price": null,
+   "prestige": 0
+  },
+  "lamborghini-revuelto": {
+   "cls": "S",
+   "price": null,
+   "prestige": 0,
+   "note": "brief: X (секретна) — placeholder S until the economy decides"
+  },
+  "lamborghini-murcielago-lp640": {
+   "cls": "S",
+   "price": null,
+   "prestige": 0
+  },
+  "ferrari-812-superfast": {
+   "cls": "S",
+   "price": null,
+   "prestige": 0
+  },
+  "mclaren-765lt": {
+   "cls": "S",
+   "price": null,
+   "prestige": 0
+  },
+  "bugatti-tourbillon": {
+   "cls": "S",
+   "price": null,
+   "prestige": 0,
+   "note": "brief: X (секретна) — placeholder S until the economy decides"
+  },
+  "koenigsegg-gemera": {
+   "cls": "S",
+   "price": null,
+   "prestige": 0
+  }
+ }
+}
