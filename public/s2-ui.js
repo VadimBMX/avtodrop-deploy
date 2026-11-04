@@ -562,8 +562,18 @@ function marketView(base) {
     <div class="s2-ttl"><small style="--c:#ff3df0">DROP · MARKET</small><h2>Дроп-маркет</h2></div>${feat}
     <div class="s2-h"><b>Усі кейси</b><span>за рідкістю · країни</span></div><div class="s2-cgrid">${rar.map(tile).join('')}</div>
     <div class="s2-h"><b>Країни</b><span>${cty.length}</span></div><div class="s2-cgrid">${cty.map(tile).join('')}</div>
+    ${partsEntry()}
     ${dock(cs)}
     ${X.brokeCard()}</div>`;
+}
+// 04.11 (David: «нема кейсів з запчастинами і зливати їх»): the part cases and the merge live in «Майстерня», which has
+// no button on the S2 bar — a visible way in from the Drop-market (locked card before the parts level).
+function partsEntry() {
+  const open = X.isOpen('parts'), lvl = S.unlockLevel('parts');
+  return `<div class="s2-h"><b>Деталі</b><span>кейси · склад · злиття</span></div>
+    <button class="s2-parts${open ? '' : ' locked'}" data-act="s2Parts"><span class="s2-parts-ic">${X.ic(open ? 'tool' : 'lock')}</span>
+      <span class="grow"><b>Кейси з деталями</b><small>${open ? 'Деталі для твоїх машин · 3 однакові зливаються в кращу' : `Відкриються з ${lvl}-го рівня`}</small></span>
+      <span class="s2-parts-go">${X.ic('chevron-right')}</span></button>`;
 }
 function caseView(base) {
   const s = st(), m = me();
@@ -942,6 +952,7 @@ const handlers = {
       default: return X.toast('Вільна ділянка: тут можна буде збудувати свій бізнес');
     }
   },
+  s2Parts: () => (X.isOpen('parts') ? X.H.toPartCases({}) : X.H.locked({ k: 'parts' })),
   s2Quick: (d) => (d.k === 'events' ? X.H.eventsOpen() : X.go(d.k)),
   s2Pick: (d) => {
     const s = st();

@@ -6728,6 +6728,15 @@ body.s2[data-s2pg] #view .lockcard ~ .list > .li > .grow { display: block; min-w
 /* 04.11 (David): the garage cash cap shown in the «Паркінг» income strip */
 body.s2 .s2-inc .s2-cap { display: block; margin-top: 2px; font-size: 11.5px; color: var(--muted, #8a8f98); }
 
+/* 04.11: «Деталі» entry in the Drop-market */
+body.s2 .s2-parts { display: flex; align-items: center; gap: 12px; width: 100%; margin: 0 0 12px; padding: 14px; border: 0; border-radius: 14px; text-align: left;
+  background: var(--slab, #1c1e22); box-shadow: var(--slab-sh-sm, 0 3px 0 #0b0c0e); color: var(--text, #eee); font: inherit; }
+body.s2 .s2-parts .grow { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+body.s2 .s2-parts small { color: var(--muted, #8a8f98); font-size: 12.5px; }
+body.s2 .s2-parts-ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: #2a2416; color: #ffd400; flex: none; }
+body.s2 .s2-parts.locked .s2-parts-ic { background: #222; color: #8a8f98; }
+body.s2 .s2-parts-go { color: #8a8f98; }
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */
