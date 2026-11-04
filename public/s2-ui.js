@@ -338,7 +338,7 @@ function warMap() {
         <g mask="url(#s2gm)" filter="url(#s2gb)">${base}</g><g class="s2-led">${leds}</g></svg>${fights}${labels}</div>
       <div class="s2-ef l"></div><div class="s2-ef r"></div><div class="s2-hint">${X.ic('arrows-exchange')}Гортай карту</div></div>
     <div class="s2-sheet s2-war"><div class="s2-war-h"><b>Війна районів</b><span class="s2-soon">Скоро</span></div>
-      <div class="s2-war-t">Автоклуби битимуться за райони міста: гонки за район, бонус до доходу всім учасникам клубу-переможця. Поки це демо: клуби на карті вигадані, твій клуб з’явиться тут, коли стартує війна.</div>
+      <div class="s2-war-t">Поки це демо: клуби на карті вигадані, твій клуб з’явиться тут, коли стартує війна. Автоклуби битимуться за райони міста: гонки за район, бонус до доходу всім учасникам клубу-переможця.</div>
       <button class="s2-btn wide" data-act="go" data-page="club">${X.ic('users')}${me().club ? 'Мій автоклуб' : 'Знайти автоклуб'}</button></div>`;
 }
 let pendTimer = 0;
