@@ -45,7 +45,8 @@ import { installGoals, goalsHead } from './goals-ui.js';
 import { installPlateAuction, paHubCard, paBanner, paAsk } from './plate-auction-ui.js';
 import { installSeason2, s2Ask, s2PayCredit, s2CreditCard } from './season2-ui.js';
 import { tankShown, idleCapHours } from './garage-calm.js';
-import { installBusiness, bizHubRow } from './business-ui.js'; // s2-biz: «Мої бізнеси»
+import { installBusiness, bizHubRow } from './business-ui.js';
+import { BIZ } from './business.js'; // the level-up window lists the businesses a level opens // s2-biz: «Мої бізнеси»
 // «АВТОДРОП: Місто» (Season 02): the bottom bar, the city home, Drop-market, parking, profile hero (public/s2-ui.js).
 import { installS2, UI2 } from './s2-ui.js';
 
@@ -517,7 +518,6 @@ document.querySelectorAll('#tabs button').forEach((b) =>
   b.addEventListener('click', () => {
     if (state.race && state.race.phase !== 'done' && state.race.phase !== 'idle') return toast('Спочатку доїдь заїзд', true);
     if (state.drift && state.drift.phase !== 'done') return toast('Спочатку доїдь дрифт', true);
-    state.drift = null;
     haptic('light');
     // Opening «Гонки» from the bottom bar always starts on the drag races (drift and PvP are the tabs next to it).
     if (b.dataset.tab === 'race' && state.tab !== 'race') state.raceView = 'race';
@@ -525,9 +525,13 @@ document.querySelectorAll('#tabs button').forEach((b) =>
     state.tab = b.dataset.tab;
     state.page = null;
     state.selling = null;
+    const fromRace = state.race || state.drift;
+    state.drift = null;
     state.race = null;
     window.scrollTo(0, 0);
     render();
+    // A level reached in a race waits while its result is on screen (autoLevel skips state.race): show it on leaving.
+    if (fromRace) setTimeout(autoLevel, 300);
   }));
 $('#balance').addEventListener('click', () => (state.tab = 'menu', go('store')));
 $('#gift').addEventListener('click', () => openRewards());
@@ -571,7 +575,7 @@ function autoLevel() {
 // During the first steps a level-up doesn't open a window over the path: a toast says it, the gift is already given.
 async function levelToast() {
   const lvl = me.level;
-  const opened = newUnlocks();
+  const opened = [...newUnlocks(), ...newBiz()];
   me.levelSeen = lvl;
   toast(`Рівень ${lvl}! ${rewardText(S.levelReward(lvl))}${opened.length ? ` · Відкрито: ${opened.map((u) => u.name).join(', ')}` : ''}`);
   try {
@@ -737,9 +741,11 @@ AFTER.tradein = () => {
 // ---------- level up, profile, rewards ----------
 // What the level-ups since the last one seen opened (S.UNLOCKS), the casino left out while the owner keeps it off.
 const newUnlocks = () => S.unlocksBetween(me.levelSeen, me.level).filter((u) => isOpen(u.key));
+// …and the businesses that can be bought from those levels (ECON.biz.list: Автомийка 3, АЗС 5, СТО 7, салон 10).
+const newBiz = () => BIZ.list.filter((b) => b.level > (me.levelSeen || 0) && b.level <= me.level).map((b) => ({ name: b.short, icon: b.icon, text: `Бізнес у місті · ${S.short(b.income)}/год у касу` }));
 function showLevelUp() {
   const rw = S.levelReward(me.level);
-  const opened = newUnlocks();
+  const opened = [...newUnlocks(), ...newBiz()];
   const from = Math.max(1, Math.min(me.levelSeen || me.level - 1, me.level - 1)); // the face counts up from here (wIntro)
   // Seen as soon as it is shown: closing with ✕ or a tap outside must not bring it back on the next refresh.
   me.levelSeen = me.level;
@@ -1451,7 +1457,7 @@ H.carPlate = (d) => {
   sheet('Номер', `${c.plate ? `<div class="center">${plate(c.plate.text, 'lg')}<div class="mt">${clsBadge(c.plate.cls)} <b>${S.fmt(c.plate.value)}</b></div></div><button class="btn ghost mt" data-act="plateDetach" data-pid="${c.plate.id}" data-id="${c.id}">Зняти номер</button>` : ''}
     <div class="h2"><span>Мої номери</span></div>
     ${free.length ? `<div class="list">${free.map((p) => `<div class="li">${plate(p.text)}<div class="grow small">${clsBadge(p.cls)} ${S.short(p.value)}</div><button class="btn sm" data-act="plateAttach" data-pid="${p.id}" data-id="${c.id}">Повісити</button></div>`).join('')}</div>`
-      : emptyBox('license', 'Вільних номерів немає', 'Їх генерують у «Профіль → Номери»', '<button class="btn sm" data-act="go" data-page="plates">До номерів</button>')}
+      : emptyBox('license', 'Вільних номерів немає', 'Їх генерують у «Ринок → Номери»', '<button class="btn sm" data-act="go" data-page="plates">До номерів</button>')}
     <div class="tiny muted">Ціна номера додається до колекційної ціни машини та її доходу. У продаж машини номер не входить — він лишається тобі.</div>`, () => carSheet(c.id));
 };
 H.plateAttach = async (d) => {
@@ -1483,6 +1489,7 @@ H.listMarket = (d) => {
 H.doListMarket = async (d) => {
   if (await act('market/sell', { carId: Number(d.id), price: num($('#price').value) }, 'Виставлено на ринок', { rerender: false })) {
     closeModal();
+    state.marketKind = 'car'; // the car lot, not the parts/plates kind left open last time
     state.marketTab = 'buy';
     go('market');
   }
@@ -1499,6 +1506,7 @@ H.pickHours = (d, el) => el.parentElement.querySelectorAll('button').forEach((b)
 H.doAuction = async (d) => {
   if (await act('auction/create', { carId: Number(d.id), startPrice: num($('#start').value), hours: Number($('#hours .on').dataset.h) }, 'Аукціон запущено', { rerender: false })) {
     closeModal();
+    state.marketKind = 'car'; // the car lot, not the parts/plates kind left open last time
     state.marketTab = 'auction';
     go('market');
   }
@@ -2900,7 +2908,7 @@ function raceResult() {
     <div class="s2-card s2r-times">
       <div class="s2r-tr ${r.win ? 'won' : ''}"><span class="s2r-av me">Ти</span><div class="grow"><div class="row between"><b>Ти</b><em>${dec(r.time, 3)} с</em></div><i class="s2r-bar"><b style="width:${bar(r.time)}%"></b></i></div></div>
       <div class="s2r-tr ${r.win ? '' : 'won'}"><span class="s2r-av rv">${esc(initialOf(R.rival.name))}</span><div class="grow"><div class="row between"><b class="ellipsis">${esc(R.rival.name)}</b><em>${dec(r.rivalTime, 3)} с · ${r.win ? '+' : '−'}${dec(r.diff, 2)}</em></div><i class="s2r-bar rv"><b style="width:${bar(r.rivalTime)}%"></b></i></div></div></div>
-    <div class="s2r-stats"><div><small>Реакція</small><b>${r.jump ? 'фальстарт' : dec(r.reaction, 3) + ' с'}</b></div><div><small>Перемикань</small><b>${good} / ${r.shifts.length}</b></div><div><small>Машина</small><b>${car.hp} к.с.</b></div></div>
+    <div class="s2r-stats"><div><small>Реакція</small><b>${r.jump ? 'фальстарт' : dec(r.reaction, 3) + ' с'}</b></div><div><small>Вдалі передачі</small><b>${good} / ${r.shifts.length}</b></div><div><small>Машина</small><b>${car.hp} к.с.</b></div></div>
     <div class="s2-h"><b>Нагороди</b></div>
     <div class="s2r-rw"><div class="${r.win ? 'on' : ''}"><img src="s2/coin.webp" alt=""><b>${r.win ? '+' + S.short(r.prize) : r.entry ? '−' + S.short(r.entry) : '0 ₴'}</b><small>${r.win ? 'приз' : r.entry ? 'внесок' : 'тренування'}</small></div>
       <div class="on"><span class="s2r-xp">XP</span><b>+${xpGot}</b><small>досвід</small></div>
@@ -3427,10 +3435,12 @@ H.driftAgain = H.driftExit = () => {
   state.drift = null;
   state.raceView = 'drift';
   render();
+  setTimeout(autoLevel, 300);
 };
 H.raceAgain = H.raceExit = () => {
   state.race = null;
   render();
+  setTimeout(autoLevel, 300); // a level reached in this race waited for the result to close
 };
 
 // ---------- career: country bosses (S.BOSSES) ----------
@@ -6489,6 +6499,9 @@ H.guideGo = () => {
   state.tab = st.tab;
   state.page = null;
   if (st.tab === 'race') state.raceView = 'race';
+  // The opened card («Гараж →») must not stay open over the page it led to: announce the step there once, then fold.
+  coachOpen = false;
+  coachSig = null;
   window.scrollTo(0, 0);
   render();
 };

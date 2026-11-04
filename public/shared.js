@@ -1208,7 +1208,7 @@ export function raceWhy(me, rival, { time, rivalTime, reaction, shifts } = {}) {
   if (a.hp <= b.hp && a.hp / a.kg <= b.hp / b.kg) return [];
   // The car was quicker: the start and the shifts decided it (nothing else to explain).
   const clean = typeof reaction === 'number' && reaction >= 0 && reaction < 0.3 && Array.isArray(shifts) && shifts.length > 0 && shifts.every((q) => q === 'perfect' || q === 'good');
-  if (a.base < b.base) return [clean ? RACE_WHY_PRO : `Твоя машина швидша на ${secs(b.base - a.base)} с — програно на старті й передачах`];
+  if (a.base < b.base) return [clean ? RACE_WHY_PRO : b.base - a.base >= 0.005 ? `Твоя машина швидша на ${secs(b.base - a.base)} с — програно на старті й передачах` : 'Машини рівні за швидкістю — програно на старті й передачах'];
   const out = [], grip100 = (x) => Math.round(x * 100); // grip in the units the parts show («+20 до зчеплення»)
   // Your tyres can't hold your power: what it costs, and what the best grip parts give back.
   if (a.slip >= 0.05) {

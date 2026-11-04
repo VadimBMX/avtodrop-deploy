@@ -5852,6 +5852,10 @@ body.s2 .s2-dock, body.s2 #view .drop-dock, body.s2 .pdock, body.s2 .s2c-dock, b
 }
 body.s2 .s2-dock { margin: 14px -16px 0; padding: 10px 16px 10px; bottom: calc(var(--tabs-h) - 4px + var(--safe-b)); }
 body.s2 .s2-dock::after, body.s2 .pdock::after { background: #07080b; height: 40px; }
+body.s2 .s2-dock::after { left: 0; right: 0; } /* the S2 dock is already full-bleed (margin −16px): ±14px more scrolled the page sideways */
+body.s2 #view { overflow-x: clip; } /* full-bleed glows (#stage::before/after on the case hero: −16px…+16px) must not make the page scroll sideways; clip keeps sticky docks working */
+body.s2 .s2-lv > .s2-btn.wide { position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -14px 18px 4px #1c1d21, var(--yel-sh, 0 4px 0 #b38f00); } /* level-up: «Далі» stays on screen when the unlock list is taller than a 640px phone */
+body.s2 .tb-card.tb-compact .tb-who.ellipsis { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; } /* «Покупець шукає <long car> +24%»: two lines, so the bonus is never cut off */
 body.s2 .s2-open { height: 52px; border-radius: 14px; font-size: 16px; }
 body.s2 .s2-open .p { border-left-color: #0000002e; font-family: var(--s2-mono); font-weight: 700; letter-spacing: -.3px; text-transform: none; }
 body.s2 .s2-hero { background: radial-gradient(45% 65% at 25% 50%, color-mix(in srgb, var(--cc) 14%, transparent), transparent 70%); }

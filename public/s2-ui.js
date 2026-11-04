@@ -338,7 +338,7 @@ function warMap() {
         <g mask="url(#s2gm)" filter="url(#s2gb)">${base}</g><g class="s2-led">${leds}</g></svg>${fights}${labels}</div>
       <div class="s2-ef l"></div><div class="s2-ef r"></div><div class="s2-hint">${X.ic('arrows-exchange')}Гортай карту</div></div>
     <div class="s2-sheet s2-war"><div class="s2-war-h"><b>Війна районів</b><span class="s2-soon">Скоро</span></div>
-      <div class="s2-war-t">Автоклуби битимуться за райони міста: гонки за район, бонус до доходу всім учасникам клубу-переможця. Поки це демо: клуби на карті вигадані, твій клуб з’явиться тут, коли стартує війна.</div>
+      <div class="s2-war-t">Поки це демо: клуби на карті вигадані, твій клуб з’явиться тут, коли стартує війна. Автоклуби битимуться за райони міста: гонки за район, бонус до доходу всім учасникам клубу-переможця.</div>
       <button class="s2-btn wide" data-act="go" data-page="club">${X.ic('users')}${me().club ? 'Мій автоклуб' : 'Знайти автоклуб'}</button></div>`;
 }
 let pendTimer = 0;
@@ -588,15 +588,16 @@ function caseView(base) {
   cars.sort((a, b) => S.rankOf(b.k) - S.rankOf(a.k) || b.md.price - a.md.price);
   // Collapsed: the dearest few of every class (9 cards), so the common cars show up too.
   const per = Math.max(1, Math.ceil(9 / order.length));
-  const shown = s.s2all ? cars : order.flatMap((k) => cars.filter((c) => c.k === k).slice(0, per)).slice(0, 9);
+  const folded = order.flatMap((k) => cars.filter((c) => c.k === k).slice(0, per)).slice(0, 9);
+  const shown = s.s2all ? cars : folded; // «Всі» whenever the folded view hides a car (GB: 9 cars, 7 shown)
   const grid = shown.map(({ md, k, p }) => `<div class="s2-cc" style="--c:${clsCol(k)}"><span class="s2-cl">${k}</span><em>${X.pct(p)}</em>${owned.has(md.id) ? '<span class="s2-own">✓</span>' : ''}<div class="art">${X.carArt(md.id, { thumb: true })}</div><b>${shortN(S.dropSaleOf(md.id, cs))}</b><small class="ellipsis">${esc(md.name)}</small></div>`).join('');
   const fr = m.fragments?.[cs.id] || 0, need = S.FRAGMENTS_PER_KEY;
   return `<div class="feed" id="dropFeed" hidden></div><div class="s2-page s2-case" style="--cc:${caseCol(cs)}">
     <div class="s2-ch"><button class="s2-rb" data-act="s2Case" data-id="">${X.ic('chevron-left')}</button><div><small>КЕЙС · ${cs.starter ? 'ПОДАРУНОК' : shortN(deal.price).toUpperCase() + ' ₴'}</small><h2>${esc(cs.name)}</h2></div></div>
-    <div class="s2-hero"><div class="s2-hero-art" id="stage">${caseArt(cs)}</div><div class="s2-hero-tx"><b>Шанс на ${top}-клас</b><span>${X.pct((W[top] / tw) * 100)}${pity ? ` · гарантія ${pity.cls} через ${pLeft}` : ''}</span>
+    <div class="s2-hero"><div class="s2-hero-art" id="stage">${caseArt(cs)}</div><div class="s2-hero-tx"><b>Шанс на ${top}-клас</b><span>${X.pct((W[top] / tw) * 100)}${pity ? ` · <span class="nw">гарантія ${pity.cls} через ${pLeft}</span>` : ''}</span>
       <button class="s2-link" data-act="odds">${X.ic('info-circle')} Усі шанси</button></div></div>
     <div class="s2-card s2-bars">${bars}</div>
-    <div class="s2-h"><b>Що всередині · ${cars.length} ${X.plural(cars.length, ['машина', 'машини', 'машин'])}</b>${cars.length > 9 ? `<button class="s2-link" data-act="s2All">${s.s2all ? 'Згорнути' : 'Всі'} ${X.ic('chevron-right')}</button>` : ''}</div>
+    <div class="s2-h"><b>Що всередині · ${cars.length} ${X.plural(cars.length, ['машина', 'машини', 'машин'])}</b>${folded.length < cars.length ? `<button class="s2-link" data-act="s2All">${s.s2all ? 'Згорнути' : 'Всі'} ${X.ic('chevron-right')}</button>` : ''}</div>
     <div class="s2-cgrid cars">${grid}</div>
     ${cs.starter ? '' : `<div class="s2-card s2-frag"><div class="row between"><span>${X.ic('key')} Фрагменти ключа</span><b>${fr}/${need}</b></div><div class="pips">${Array.from({ length: need }, (_, i) => `<i class="${i < fr ? 'on' : ''}"></i>`).join('')}</div><div class="tiny muted">${need} фрагментів = безкоштовне відкриття. Фрагмент дає машина, дешевша за кейс.</div></div>`}
     ${dock(cs)}</div>`;
