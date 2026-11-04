@@ -6725,6 +6725,9 @@ body.s2 .sheet-head .bk .i { width: 20px; height: 20px; }
 body.s2[data-s2pg] #view .lockcard ~ .list > .li { display: flex; align-items: center; gap: 12px; }
 body.s2[data-s2pg] #view .lockcard ~ .list > .li > .grow { display: block; min-width: 0; }
 
+/* 04.11 (David): the garage cash cap shown in the «Паркінг» income strip */
+body.s2 .s2-inc .s2-cap { display: block; margin-top: 2px; font-size: 11.5px; color: var(--muted, #8a8f98); }
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */

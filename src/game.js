@@ -4748,6 +4748,8 @@ export function createGame(db, opts = {}) {
     q("UPDATE vip_subs SET expires_at = ?, canceled = 1 WHERE user_id = ? AND expires_at > ?").run(t, uid, t);
     q('DELETE FROM plates WHERE owner_id = ?').run(uid);
     q('DELETE FROM races WHERE user_id = ? AND status = ?').run(uid, 'running');
+    // 04.11 (David): a reset player kept his businesses (user_business, Season 2) — they go with the rest
+    q('DELETE FROM user_business WHERE uid = ?').run(uid);
     q(`UPDATE users SET balance = ?, slots = ?, showcase_slots = ?, cap_level = 0, income_at = ?, banked = 0, fuel = ?, fuel_at = ?,
        level = 1, level_seen = 1, xp = 0, xp_day = NULL, xp_day_capped = 0, xp_case_day = NULL, xp_case_used = 0, newbie_step = 0, newbie_flags = '[]', feats = '[]',
        streak = 0, streak_day = NULL, reward_case_at = 0, total_value = 0, week_id = ?, week_start_value = 0, last_week_id = NULL, last_week_growth = NULL,

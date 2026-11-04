@@ -1122,12 +1122,12 @@ H.sellSel = async () => {
   }
 };
 setInterval(() => {
-  if (!me || state.page || state.tab !== 'garage' || state.garageView !== 'cars') return;
+  if (!me || state.page || state.tab !== 'garage' || (state.garageView !== 'cars' && state.garageView !== 'park')) return; // 04.11 (David): the S2 «Паркінг» counter ticks too
   const el = $('#pending');
   if (!el) return;
   const p = pendingNow();
   el.textContent = S.fmt(p);
-  if (me.income.rate) $('#capBar').style.width = Math.min(100, (p / (me.income.rate * me.income.capH)) * 100) + '%';
+  if (me.income.rate && $('#capBar')) $('#capBar').style.width = Math.min(100, (p / (me.income.rate * me.income.capH)) * 100) + '%';
   const cs = capState(p), line = $('#capLine');
   if (line && line.innerHTML !== cs.text) line.innerHTML = cs.text;
   $('#incomeCard')?.classList.toggle('full', cs.full);
