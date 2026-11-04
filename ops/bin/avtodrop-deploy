@@ -17,12 +17,18 @@ flock -n 9 || exit 0   # уже йде деплой/відкат
 
 [ -n "$DEPLOY_REPO" ] || { write_status not_configured "DEPLOY_REPO не задано"; exit 0; }
 
+# 04.11: GitHub/мережа інколи на хвилину не відповідає — пишемо власнику лише після NO_ACCESS_ALERT_AFTER невдач
+# поспіль (за замовчуванням 15 перевірок ≈ 30 хв), а «доступ є» — тільки якщо перед тим справді писали про проблему.
+FAILS_F="$STATE/.no_access_fails"
 if ! BRANCH_SHA=$(remote_sha "$BRANCH"); then
+  fails=$(( $(cat "$FAILS_F" 2>/dev/null || echo 0) + 1 )); printf '%s' "$fails" > "$FAILS_F"
   grep -q '"result":"no_access"' "$STATE/status.json" 2>/dev/null ||
     write_status no_access "немає доступу до $DEPLOY_REPO (додай deploy key у GitHub)"
-  notify_once no_access "Не можу прочитати репозиторій деплою. Додай ключ VM у GitHub (див. README-ops). Повідомлю, коли запрацює."
+  [ "$fails" -ge "${NO_ACCESS_ALERT_AFTER:-15}" ] &&
+    notify_once no_access "Вже ~30 хв не можу прочитати репозиторій деплою. Перевір ключ VM у GitHub (див. README-ops). Повідомлю, коли запрацює."
   exit 1
 fi
+rm -f "$FAILS_F"
 if [ "$(cat "$STATE_ROOT/.notified-$INSTANCE" 2>/dev/null)" = no_access ]; then
   notify_clear; notify "Доступ до репозиторію деплою є. Гілка $BRANCH: ${BRANCH_SHA:-(ще порожня)}"
 fi

@@ -116,7 +116,9 @@ echo "== 1b. немає доступу до репозиторію"
 sed -i "s#^DEPLOY_REPO=.*#DEPLOY_REPO=file://$T/nope.git#" "$T/etc/ops.conf"
 "$B/avtodrop-deploy" prod 2>/dev/null; "$B/avtodrop-deploy" prod 2>/dev/null
 check "status=no_access" [ "$(st prod)" = no_access ]
-check "бот: одне повідомлення на 2 спроби" [ "$(grep -c 'Не можу прочитати' "$T/notify.log")" = 1 ]
+check "бот: коротка недоступність — тиша" [ "$(cat "$T/notify.log" 2>/dev/null | grep -c 'не можу прочитати')" = 0 ]
+for i in $(seq 13); do "$B/avtodrop-deploy" prod 2>/dev/null; done
+check "бот: одне повідомлення після 15 невдач" [ "$(grep -c 'не можу прочитати' "$T/notify.log")" = 1 ]
 sed -i "s#^DEPLOY_REPO=.*#DEPLOY_REPO=file://$T/remote.git#" "$T/etc/ops.conf"
 "$B/avtodrop-deploy" prod
 check "бот: доступ відновлено" grep -q "Доступ до репозиторію деплою є" <(notes)
