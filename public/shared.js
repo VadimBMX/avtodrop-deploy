@@ -245,11 +245,67 @@ const LATE_RAW = [
 // prestige — owned by the economy). Like LATE_RAW: a car waits for its photo and takes no place in the ladder; its price
 // is IMPORT_PRICE[id] when the economy fixed one, else between its class neighbours by score. Do not edit by hand.
 // <cars-import>
-const IMPORT_RAW = [];
+const IMPORT_RAW = [
+  ['Chery Tiggo 8 Pro', 'D', 197, 1700, 'suv', 'CN', 2023],
+  ['Haval H6', 'D', 184, 1650, 'suv', 'CN', 2023],
+  ['Haval Dargo', 'D', 192, 1700, 'suv', 'CN', 2023],
+  ['Tank 500', 'C', 354, 2700, 'suv', 'CN', 2024],
+  ['BYD Song Plus', 'D', 218, 1800, 'suv', 'CN', 2023],
+  ['BYD Tang EV', 'C', 517, 2560, 'suv', 'CN', 2023, 'ev'],
+  ['Lynk & Co 01', 'D', 254, 1700, 'suv', 'CN', 2022],
+  ['Hongqi H9', 'B', 286, 2100, 'sedan', 'CN', 2023],
+  ['Xpeng G9', 'B', 551, 2450, 'suv', 'CN', 2024, 'ev'],
+  ['ВАЗ-2110', 'D', 81, 1040, 'sedan', 'UA', 2005],
+  ['ВАЗ-2115', 'D', 81, 1000, 'sedan', 'UA', 2008],
+  ['Škoda Octavia RS A5', 'C', 200, 1395, 'hatch', 'CZ', 2010],
+  ['Audi A6 C5', 'D', 170, 1500, 'sedan', 'DE', 2002],
+  ['Mercedes-Benz E500 W211', 'C', 388, 1760, 'sedan', 'DE', 2007],
+  ['Opel Astra G', 'D', 101, 1150, 'hatch', 'DE', 2003],
+  ['Renault Duster', 'D', 114, 1300, 'suv', 'FR', 2016],
+  ['Kia Sportage', 'D', 150, 1550, 'suv', 'KR', 2019],
+  ['Audi RS6 C5', 'B', 450, 1865, 'wagon', 'DE', 2003],
+  ['Mercedes-AMG E63 W212', 'B', 585, 1845, 'sedan', 'DE', 2015],
+  ['Mercedes-AMG CLS 63 C218', 'B', 557, 1870, 'sedan', 'DE', 2014],
+  ['Porsche 911 GT3 RS (992)', 'S', 525, 1450, 'super', 'DE', 2023],
+  ['Volkswagen Touareg R50', 'C', 350, 2550, 'suv', 'DE', 2008],
+  ['Lamborghini Revuelto', 'S', 1015, 1772, 'super', 'IT', 2024],
+  ['Lamborghini Murciélago LP640', 'S', 640, 1665, 'super', 'IT', 2008],
+  ['Ferrari 812 Superfast', 'S', 800, 1630, 'super', 'IT', 2019],
+  ['McLaren 765LT', 'S', 765, 1339, 'super', 'GB', 2021],
+  ['Koenigsegg Gemera', 'S', 2300, 1850, 'super', 'SE', 2024],
+];
 const IMPORT_PRICE = {};
 const IMPORT_PRESTIGE = {};
 const IMPORT_HOME_ONLY = [];
-const IMPORT_FACTORY = {};
+const IMPORT_FACTORY = {
+  'chery-tiggo-8-pro': { hex: '#b6babe', finish: 'metallic', name: 'silver metallic', key: true },
+  'haval-h6': { hex: '#eeefec', finish: 'gloss', name: 'white', key: true },
+  'haval-dargo': { hex: '#6e6d4f', finish: 'gloss', name: 'khaki green', key: true },
+  'tank-500': { hex: '#1c2a4a', finish: 'metallic', name: 'dark blue metallic', key: true },
+  'byd-song-plus': { hex: '#6e7277', finish: 'metallic', name: 'grey metallic', key: true },
+  'byd-tang-ev': { hex: '#121315', finish: 'gloss', name: 'black', key: true },
+  'lynk-co-01': { hex: '#1f5fae', finish: 'gloss', name: 'blue', key: true },
+  'hongqi-h9': { hex: '#121315', finish: 'gloss', name: 'black', key: true },
+  'xpeng-g9': { hex: '#eeefec', finish: 'gloss', name: 'white', key: true },
+  'vaz-2110': { hex: '#1c2a4a', finish: 'metallic', name: 'dark blue metallic', key: true },
+  'vaz-2115': { hex: '#4a0f1c', finish: 'metallic', name: 'dark cherry metallic', key: true },
+  'skoda-octavia-rs-a5': { hex: '#1d4ea0', finish: 'metallic', name: 'race blue metallic', key: true },
+  'audi-a6-c5': { hex: '#121315', finish: 'gloss', name: 'black', key: true },
+  'mercedes-benz-e500-w211': { hex: '#141519', finish: 'metallic', name: 'obsidian black metallic', key: true },
+  'opel-astra-g': { hex: '#b6babe', finish: 'metallic', name: 'silver', key: true },
+  'renault-duster': { hex: '#e06a1a', finish: 'gloss', name: 'orange', key: true },
+  'kia-sportage': { hex: '#eeefec', finish: 'gloss', name: 'white', key: true },
+  'audi-rs6-c5': { hex: '#b5121b', finish: 'gloss', name: 'Misano red', key: true },
+  'mercedes-amg-e63-w212': { hex: '#5a5d61', finish: 'matte', name: 'designo magno grey', key: true },
+  'mercedes-amg-cls-63-c218': { hex: '#eeefec', finish: 'gloss', name: 'white', key: true },
+  'porsche-911-gt3-rs-992': { hex: '#4caf3d', finish: 'gloss', name: 'Python green', key: true },
+  'volkswagen-touareg-r50': { hex: '#121315', finish: 'metallic', name: 'deep black', key: true },
+  'lamborghini-revuelto': { hex: '#1d1e21', finish: 'matte', name: 'matte black', key: true },
+  'lamborghini-murcielago-lp640': { hex: '#e66a12', finish: 'gloss', name: 'Arancio Atlas orange', key: true },
+  'ferrari-812-superfast': { hex: '#cc1118', finish: 'gloss', name: 'Rosso Corsa red', key: true },
+  'mclaren-765lt': { hex: '#f07a10', finish: 'gloss', name: 'papaya orange', key: true },
+  'koenigsegg-gemera': { hex: '#b9bdc3', finish: 'metallic', name: 'silver', key: true },
+};
 // </cars-import>
 const PHOTO = new Set(CAR_PHOTOS);
 

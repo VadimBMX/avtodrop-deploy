@@ -120,7 +120,8 @@ test('roster: the rival race uses the shown driver — its runs are those of riv
   assert.equal(a, b);
   // The race record keeps the driver, so the server's rival time comes from it.
   const res = drag(car, 'mid', 0.2, ['good', 'good', 'good', 'good']);
-  assert.ok(res.rivalTime > r.base && res.rivalTime < r.base + 3);
+  // A perfect start (base × perfectBonus) and perfect shifts (negative loss) can beat the base time, so not «> base».
+  assert.ok(res.rivalTime > r.base - 1 && res.rivalTime < r.base + 3);
 });
 
 test('career windows: a boss takes only its class window, a final only a car of its country; one strong S car fits only the top bosses', () => {
