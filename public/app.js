@@ -215,7 +215,7 @@ const gainOf = (r) => [r?.got, r?.reward?.money, r?.money].find((v) => typeof v 
 // Endpoints whose success is a moment worth celebrating (beyond the coins).
 const CELEBRATE = new Set(['ach/claim', 'collection/claim', 'quests/claim', 'weekly/claim', 'newbie/claim', 'pass/claim']);
 let toastTimer;
-function toast(msg, err = false) {
+function toast(msg, err = false, ms = 2600) {
   const t = $('#toast');
   // Text is escaped; only our own line icons (ic(...)) inside the message are turned back into icons.
   // (src/static.js serves icons.svg as icons.svg?v=<hash>, so the href may carry a version before the «#».)
@@ -226,7 +226,7 @@ function toast(msg, err = false) {
   void t.offsetWidth;
   t.classList.add('in');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (t.hidden = true), 2600);
+  toastTimer = setTimeout(() => (t.hidden = true), ms);
 }
 // One request per action at a time: a double tap on «Забрати» used to send the claim twice — the first one paid, the
 // second came back «Завдання ще не виконано» while the screen still showed the old card.
@@ -458,6 +458,29 @@ function rewardText(rw) {
   if (rw.fuel) parts.push('Повний бак');
   return parts.join(' · ');
 }
+// The gifts of several level-ups at once (S.levelRewardsBetween: the daily level cap lets banked XP through the next day).
+function rewardsText(r) {
+  const parts = [];
+  if (r.money) parts.push(S.fmt(r.money));
+  for (const [id, n] of Object.entries(r.cases)) parts.push(`Кейс «${S.CASE_BY_ID[id].name}»${n > 1 ? ` ×${n}` : ''}`);
+  if (r.slots) parts.push(`+${r.slots} ${plural(r.slots, ['місце', 'місця', 'місць'])} в гаражі`);
+  return parts.join(' · ');
+}
+// ---------- the daily level cap (S.LEVEL_CAP; me.levelCap from the server, null when it's off) ----------
+const capOn = () => !!me?.levelCap?.capped;
+const capLine = () => `Ліміт рівнів на сьогодні: ${me.levelCap.max} · завтра — до ${me.levelCap.next}`;
+const capOver = () => (me.levelCap?.over ? `+${S.fmt(me.levelCap.over).replace(' ₴', '')} досвіду в запасі` : 'досвід іде в запас');
+// Once a Kyiv day, the first time the cap is reached: a friendly toast (XP is not lost).
+function capAsk() {
+  const c = me?.levelCap;
+  if (!c?.capped) return;
+  let seen = null;
+  try { seen = localStorage.getItem('lvlcap-day'); } catch {}
+  if (seen === c.date) return;
+  try { localStorage.setItem('lvlcap-day', c.date); } catch {}
+  // after the entry's own toasts (events started, …), so it isn't replaced at once
+  setTimeout(() => toast(`${ic('lock')} Ліміт рівнів на сьогодні — ${c.max}-й. Досвід не згорає: завтра одразу до ${c.next}-го рівня!`, false, 5200), 3500);
+}
 
 // ---------- header & navigation ----------
 const TITLES = { garage: 'Гараж', cases: 'Кейси', race: 'Гонки', shop: 'Майстерня', menu: 'Меню' };
@@ -557,6 +580,7 @@ async function refresh(rerender = true) {
   s2Ask(); // «Сезон 02»: the compensation window once after the wipe (public/season2-ui.js)
   packOfferAsk(); // «Мега-пропозиція» on hryvnia packs (one window per offer)
   bugAskOnce(); // «Бета-тест: знайшов баг — пиши в підтримку» (once per player, from level 2)
+  capAsk(); // the daily level cap reached: a toast once a Kyiv day
   homeCheck(); // «Додай на головний екран» from the 3rd day (once a session; nothing on old clients)
   // Let a drop's celebration play out before the level-up popup covers it.
   const wait = state.fx ? 2600 : 0;
@@ -574,10 +598,10 @@ function autoLevel() {
 }
 // During the first steps a level-up doesn't open a window over the path: a toast says it, the gift is already given.
 async function levelToast() {
-  const lvl = me.level;
+  const lvl = me.level, from = levelFrom();
   const opened = [...newUnlocks(), ...newBiz()];
   me.levelSeen = lvl;
-  toast(`Рівень ${lvl}! ${rewardText(S.levelReward(lvl))}${opened.length ? ` · Відкрито: ${opened.map((u) => u.name).join(', ')}` : ''}`);
+  toast(`${lvl - from > 1 ? `+${lvl - from} ${plural(lvl - from, ['рівень', 'рівні', 'рівнів'])}! Рівень ${lvl}` : `Рівень ${lvl}!`} ${rewardsText(S.levelRewardsBetween(from, lvl))}${opened.length ? ` · Відкрито: ${opened.map((u) => u.name).join(', ')}` : ''}`);
   try {
     await api('level/seen');
   } catch {}
@@ -642,9 +666,9 @@ function lockBody(key) {
   if (key === 'casino' && casinoOff()) return `<div class="center lockcard"><span class="lockic">${ic('lock')}</span><b class="big">${u.name}</b><div class="muted mt">Казино зараз вимкнено.</div></div>`;
   const next = S.UNLOCKS.filter((x) => x.level > me.level && x.key !== key).slice(0, 3);
   return `<div class="center lockcard"><span class="lockic">${ic(u.icon)}<i>${ic('lock')}</i></span><b class="big">${u.name}</b><div class="muted">${esc(u.text)}</div>
-    <div class="chip mt">${ic('lock')} Відкриється на рівні ${u.level}</div>
+    <div class="chip mt">${ic('lock')} Відкриється на рівні ${u.level}${S.levelCapWhen(me.levelCap, u.level) ? ` · ${S.levelCapWhen(me.levelCap, u.level)}` : ''}</div>
     <div class="progress mt"><i style="width:${Math.min(100, ((me.level - 1 + me.xp / me.xpNeed) / (u.level - 1)) * 100)}%"></i></div>
-    <div class="tiny muted mt">Ти на рівні ${me.level}. Досвід дають гонки, завдання, нові машини й кейси.</div></div>
+    <div class="tiny muted mt">Ти на рівні ${me.level}. Досвід дають гонки, завдання, нові машини й кейси.${me.levelCap ? ` Ліміт: до ${me.levelCap.max}-го рівня сьогодні, +${S.LEVEL_CAP.perDay} щодня — досвід понад ліміт не згорає.` : ''}</div></div>
     ${next.length ? `<div class="h2"><span>Далі відкриються</span></div><div class="list">${next.map((x) => `<div class="li"><span class="ic">${ic(x.icon)}</span><div class="grow"><b>${x.name}</b><div class="tiny muted">${esc(x.text)}</div></div>${lockChip(x.key)}</div>`).join('')}</div>` : ''}`;
 }
 function lockedSheet(key) {
@@ -664,6 +688,7 @@ function nextUnlock() {
 }
 // «Ще 3 перемоги → Ринок» when it's a few races away, else «Рів. 4 через ~350 досвіду → Фарбування».
 function nextUnlockText(nu) {
+  if (capOn() && nu.level > me.levelCap.max) return `Ліміт рівнів на сьогодні · ${S.levelCapWhen(me.levelCap, nu.level)} → ${nu.names[0]}`;
   if (nu.wins <= 12) return `Ще ${nu.wins} ${plural(nu.wins, ['перемога', 'перемоги', 'перемог'])} → ${nu.names[0]}`;
   return `Рів. ${nu.level} через ~${S.fmt(Math.ceil(nu.left / 10) * 10).replace(' ₴', '')} досвіду → ${nu.names[0]}`;
 }
@@ -743,10 +768,12 @@ AFTER.tradein = () => {
 const newUnlocks = () => S.unlocksBetween(me.levelSeen, me.level).filter((u) => isOpen(u.key));
 // …and the businesses that can be bought from those levels (ECON.biz.list: Автомийка 3, АЗС 5, СТО 7, салон 10).
 const newBiz = () => BIZ.list.filter((b) => b.level > (me.levelSeen || 0) && b.level <= me.level).map((b) => ({ name: b.short, icon: b.icon, text: `Бізнес у місті · ${S.short(b.income)}/год у касу` }));
+// The last level seen (the face counts up from it; several levels at once after the daily level cap moved).
+const levelFrom = () => Math.max(1, Math.min(me.levelSeen || me.level - 1, me.level - 1));
 function showLevelUp() {
-  const rw = S.levelReward(me.level);
+  const from = levelFrom(), n = me.level - from; // n > 1: banked XP let several levels through at once — one window
+  const rw = S.levelRewardsBetween(from, me.level);
   const opened = [...newUnlocks(), ...newBiz()];
-  const from = Math.max(1, Math.min(me.levelSeen || me.level - 1, me.level - 1)); // the face counts up from here (wIntro)
   // Seen as soon as it is shown: closing with ✕ or a tap outside must not bring it back on the next refresh.
   me.levelSeen = me.level;
   api('level/seen').catch(() => {});
@@ -755,8 +782,9 @@ function showLevelUp() {
   // drops its lock (CSS «wIntro», .lvup; still under reduced motion).
   // s2-ui2 (mockup 30): the gold ring with the number, «Новий рівень!», the gift and what opened as tiles, yellow «Далі» (s2-polish: the gift is already credited, nothing to «Забрати»).
   sheet('', `<div class="center lvup s2-lv"><div class="ring s2-lv-ring"><span class="face" data-from="${from}" data-to="${me.level}">${me.level}</span><small>рівень</small></div>
-    <div class="big s2-lv-t">Новий рівень!</div><div class="muted">Подарунок за рівень:</div>
-    <div class="s2-lv-rw"><div><img src="s2/x-chest.webp" alt=""><b>${esc(rewardText(rw))}</b><small>${rw?.money ? 'уже додано — гроші на рахунку' : 'уже додано — забирати не треба'}</small></div></div>
+    <div class="big s2-lv-t">${n > 1 ? `+${n} ${plural(n, ['рівень', 'рівні', 'рівнів'])} одразу!` : 'Новий рівень!'}</div><div class="muted">${n > 1 ? `Подарунки за рівні ${from + 1}–${me.level}:` : 'Подарунок за рівень:'}</div>
+    <div class="s2-lv-rw"><div><img src="s2/x-chest.webp" alt=""><b>${esc(rewardsText(rw))}</b><small>${rw.money ? 'уже додано — гроші на рахунку' : 'уже додано — забирати не треба'}</small></div></div>
+    ${capOn() ? `<div class="tiny muted mt lvcap-note">${ic('lock')} ${capLine()}-го · ${capOver()}</div>` : ''}
     ${opened.length ? `<div class="h2 unlocked-h"><span>${ic('sparkles')} Відкрито</span></div><div class="list unlocked">${opened.map((u, k) => `<div class="li" style="--i:${Math.min(k, 3)}"><span class="ic tint" style="--c:#ffc400">${ic(u.icon)}<b class="lu-lock" aria-hidden="true">${ic('lock')}</b></span><div class="grow left"><b>${u.name}</b><div class="tiny muted">${esc(u.text)}</div></div></div>`).join('')}</div>` : ''}
     ${nextU ? `<div class="tiny muted mt">Далі: ${nextU.name} — на рівні ${nextU.level}</div>` : ''}
     <button class="s2-btn wide mt" data-act="levelOk">Далі${ic('chevron-right')}</button></div>`);
@@ -879,13 +907,15 @@ function openProfile() {
   const boss = (me.badges || []).find((b) => b.key === 'boss');
   sheet('Профіль', `${card}${boss ? emojiOffer(boss.title) : ''}
     <div class="btns mt"><button class="btn ghost btn2" data-act="shareCard"><span>${ic('share')} Поділитися</span><small>картка гравця</small></button><button class="btn ghost btn2" data-act="go" data-page="season"><span>${ic('ticket')} Пропуск</span><small>рівень ${me.season.level}/${S.SEASON.levels}</small></button></div>
-    <div class="card xpcard mt"><div class="row between"><span class="hook-t">${ic('sparkles')} До ${me.level + 1}-го рівня</span><b>${S.fmt(me.xp).replace(' ₴', '')}<small> / ${S.fmt(me.xpNeed).replace(' ₴', '')}</small></b></div>
-      <div class="progress mt"><i style="width:${(me.xp / me.xpNeed) * 100}%"></i></div>
+    <div class="card xpcard mt${capOn() ? ' capped' : ''}"><div class="row between"><span class="hook-t">${ic(capOn() ? 'lock' : 'sparkles')} ${capOn() ? `Ліміт рівнів на сьогодні: ${me.levelCap.max}` : `До ${me.level + 1}-го рівня`}</span><b>${S.fmt(Math.min(me.xp, me.xpNeed)).replace(' ₴', '')}<small> / ${S.fmt(me.xpNeed).replace(' ₴', '')}</small></b></div>
+      <div class="progress mt"><i style="width:${Math.min(100, (me.xp / me.xpNeed) * 100)}%"></i></div>
+      ${capOn() ? `<div class="lvcap mt"><span>${ic('clock')} завтра — до ${me.levelCap.next}-го рівня</span><b>${capOver()}</b></div>` : ''}
       <div class="row between tiny muted mt"><span>Подарунок за рівень: <b class="win">+${S.short(S.levelReward(me.level + 1).money)}</b></span><span>сьогодні кейси ${me.xpCaseToday || 0}/${S.CASE_XP_CAP} · деталі й номери ${me.xpToday}/${S.DAILY_XP_CAP}</span></div>
       ${(() => {
         const nx = S.UNLOCKS.filter((u) => !isOpen(u.key) && !(u.key === 'casino' && casinoOff()));
         const lvl = nx[0]?.level;
-        return lvl ? `<div class="tiny muted mt">${ic('lock')} На рівні ${lvl} відкриється: <b>${nx.filter((u) => u.level === lvl).map((u) => u.name).join(', ')}</b></div>` : '';
+        const when = S.levelCapWhen(me.levelCap, lvl);
+        return lvl ? `<div class="tiny muted mt">${ic('lock')} На рівні ${lvl}${when ? ` (${when})` : ''} відкриється: <b>${nx.filter((u) => u.level === lvl).map((u) => u.name).join(', ')}</b></div>` : '';
       })()}</div>
     ${firstStepsCard('newbieClaim')}
     <div class="h2"><span>Статистика</span></div>
@@ -4496,6 +4526,7 @@ function hubTile({ page, k, icon, c, title, info = '', badge = 0, act = 'go', si
 }
 // What the next level brings, right under the XP bar: «Ще 3 перемоги → Ринок, Трейд-ін» / «Рів. 4 через ~350 досвіду → …».
 function hubNextText() {
+  if (capOn()) return `${capLine()}-го`;
   const nu = nextUnlock();
   if (nu) return `${nextUnlockText(nu)}${nu.names.length > 1 ? ', ' + nu.names.slice(1).join(', ') : ''}`;
   const left = Math.max(0, (me.xpNeed || 0) - (me.xp || 0));

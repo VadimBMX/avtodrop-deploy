@@ -366,9 +366,32 @@ export function createGame(db, opts = {}) {
     // «Подвійний досвід» (scheduler): only the pass XP is multiplied; the level XP and its daily caps stay as they are.
     const sAmount = Math.round(amount * evFx().xpMult);
     if (toSeason) q('UPDATE users SET season_xp = CASE WHEN season_id = ? THEN season_xp + ? ELSE ? END, season_id = ? WHERE id = ?').run(season, sAmount, sAmount, season, uid);
+    q('UPDATE users SET xp = xp + ? WHERE id = ?').run(amount, uid);
+    levelUp(uid);
+  }
+  // ---------- the daily level cap (S.LEVEL_CAP, David 04.11) ----------
+  // Anchor: the later of sign-up, the player's last admin reset (users.reset_at) and the Season 2 wipe (meta
+  // 'season_reset_s2', written by season2.js) — so veterans after the wipe and a reset player start again from day 1.
+  // Before the wipe has run there's no season anchor (S1 veterans keep their levels and are not held back).
+  const WIPE_META = `season_reset_s${S.S2_RESET.season}`;
+  const capAnchor = (u) => Math.max(u.created_at || 0, u.reset_at || 0, Number(metaGet(WIPE_META)) || 0);
+  const levelCapFor = (u) => S.levelCapOf(capAnchor(u), now());
+  // For /me: null with the cap off; else today's top level, tomorrow's, and whether XP is already piling up over it.
+  function levelCapOut(u) {
+    const max = levelCapFor(u);
+    if (!Number.isFinite(max)) return null;
+    const need = S.xpForLevel(u.level), capped = u.level >= max && u.xp >= need;
+    return { max, next: max + S.LEVEL_CAP.perDay, day: S.levelCapDay(capAnchor(u), now()), date: dayOf(now()), capped, over: capped ? u.xp - need : 0 };
+  }
+  // Levels up through all the XP the player holds, up to today's cap: each level's reward is paid exactly once (the
+  // level is written with its rewards; XP over the cap stays in users.xp until the cap moves — the next xp() or /me).
+  function levelUp(uid) {
+    const u = userRow(uid);
+    const cap = levelCapFor(u);
     let { level, xp: cur } = u;
-    cur += amount;
-    while (cur >= S.xpForLevel(level)) {
+    if (level >= cap || cur < S.xpForLevel(level)) return;
+    let refPaid = !!u.ref_paid;
+    while (level < cap && cur >= S.xpForLevel(level)) {
       cur -= S.xpForLevel(level);
       level++;
       const rw = S.levelReward(level);
@@ -378,7 +401,8 @@ export function createGame(db, opts = {}) {
         bank(uid);
         q('UPDATE users SET slots = MIN(?, slots + ?) WHERE id = ?').run(S.MAX_SLOTS, rw.slots, uid);
       }
-      if (level >= 3 && u.referrer_id && !u.ref_paid) {
+      if (level >= 3 && u.referrer_id && !refPaid) {
+        refPaid = true;
         q('UPDATE users SET ref_paid = 1 WHERE id = ?').run(uid);
         addMoney(u.referrer_id, S.REF_REWARD);
         addMoney(uid, S.REF_FRIEND_L3);
@@ -751,6 +775,7 @@ export function createGame(db, opts = {}) {
   }
 
   function me(uid) {
+    levelUp(uid); // a new day lifts the level cap: the banked XP turns into levels (and their rewards) now
     const u = userRow(uid);
     const inc = incomeState(u);
     const fuel = fuelState(u);
@@ -777,7 +802,7 @@ export function createGame(db, opts = {}) {
       income: { rate: Math.round(inc.rate), pending: inc.pending, capH: inc.capH, since: u.income_at, banked: u.banked, comebackUntil: u.comeback_cap_until > now() ? u.comeback_cap_until : 0 },
       fuel: Math.min(fuel.fuel, fuel.max), fuelSpare: Math.max(0, fuel.fuel - fuel.max), fuelNext: fuel.next, fuelMax: fuel.max, tankLvl: u.tank_lvl || 0, cars, keys, collection, pity, plates, parts: inventory(uid),
       partsAutosell: autoSellOf(u), partsNextAt: partNextAt(u) > now() ? partNextAt(u) : 0, // part cases: «Автопродаж», the pause
-      level: u.level, levelSeen: u.level_seen, xp: u.xp, xpNeed: S.xpForLevel(u.level),
+      level: u.level, levelSeen: u.level_seen, xp: u.xp, xpNeed: S.xpForLevel(u.level), levelCap: levelCapOut(u),
       xpToday: u.xp_day === day ? u.xp_day_capped : 0, xpCaseToday: u.xp_case_day === day ? u.xp_case_used : 0, newbie: newbieState(u),
       dailyReady: u.streak_day !== day, streak: u.streak, rewardCaseAt: u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3,
       claims,

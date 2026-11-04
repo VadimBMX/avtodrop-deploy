@@ -81,7 +81,7 @@ function listView() {
     }
     if (!b.unlocked) {
       return `<div class="bz-card locked"><img class="bz-img" src="${img(b.id, 1)}" alt="" loading="lazy">
-        <span class="bz-mid"><b class="bz-nm">${X.esc(b.name)}</b><small>відкривається з рів. ${b.level}</small></span>
+        <span class="bz-mid"><b class="bz-nm">${X.esc(b.name)}</b><small>відкривається з рів. ${b.level}${S.levelCapWhen(m.levelCap, b.level) ? ` · ${S.levelCapWhen(m.levelCap, b.level)}` : ''}</small></span>
         <span class="bz-right bz-lock">${ic('lock')}</span></div>`;
     }
     const short = Math.max(0, b.price - m.balance);

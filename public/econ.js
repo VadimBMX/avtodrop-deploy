@@ -90,6 +90,10 @@ export const ECON = {
   partCaseMarkup: 0.6, // a part case costs this × the average value of what it drops
 
   // ---------- progression ----------
+  // Daily level cap (David 04.11, «попробуємо»): on the Nth Kyiv day since sign-up — or since the Season 2 wipe / an admin
+  // reset, whichever is later — a player can be at most level perDay × N (day 1 → 3, day 2 → 6, …). XP is never lost:
+  // it keeps piling up over the cap and the levels (each with its reward, once) come the next day. perDay 0 = no cap.
+  levelCap: { perDay: 3 },
   levelMoney: 25000, // 04.11 (David: «2,5 млн за 5 хв — забагато»; was 40 000) level-up reward = levelMoney × level²
   questPay: 3.6,
   // «Перші кроки» (S.NEWBIE_TASKS): money per step, in the order of the track.

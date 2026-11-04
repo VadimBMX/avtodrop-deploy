@@ -2007,6 +2007,32 @@ export function levelReward(lvl) {
   if (lvl % 10 === 0) r.slots = 1;
   return r;
 }
+// Daily level cap (ECON.levelCap): day n (1 = the anchor's own Kyiv day) allows levels up to perDay × n. game.js
+// anchors it at max(sign-up, last admin reset, the Season 2 wipe) and keeps XP over the cap (users.xp > xpForLevel).
+export const LEVEL_CAP = ECON.levelCap;
+export const levelCapDay = (anchor, t) => Math.max(1, Math.round((Date.parse(kyivDateOf(t)) - Date.parse(kyivDateOf(anchor))) / 86400e3) + 1);
+export const levelCapOf = (anchor, t) => (LEVEL_CAP.perDay > 0 ? LEVEL_CAP.perDay * levelCapDay(anchor, t) : Infinity);
+// The day (1-based, from the anchor) a level becomes allowed: ceil(level / perDay); 1 with no cap.
+export const levelCapDayFor = (lvl) => (LEVEL_CAP.perDay > 0 ? Math.max(1, Math.ceil(lvl / LEVEL_CAP.perDay)) : 1);
+// When a level is allowed, in words, for a player with /me levelCap `c` ({ max, day }): '' (already allowed or no cap),
+// 'завтра', 'через N дн.'.
+export function levelCapWhen(c, lvl) {
+  if (!c || lvl <= c.max) return '';
+  const d = levelCapDayFor(lvl) - c.day;
+  return d <= 1 ? 'завтра' : `через ${d} дн.`;
+}
+// Every reward of the level-ups from `from` (exclusive) to `to` (inclusive) added up — the one window after a jump of
+// several levels (the cap's next day). { money, slots, cases: { caseId: n } }.
+export function levelRewardsBetween(from, to) {
+  const r = { money: 0, slots: 0, cases: {} };
+  for (let l = from + 1; l <= to; l++) {
+    const x = levelReward(l);
+    r.money += x.money;
+    r.slots += x.slots || 0;
+    if (x.caseId) r.cases[x.caseId] = (r.cases[x.caseId] || 0) + 1;
+  }
+  return r;
+}
 export const XP = { win: 25, race: 10, newCar: 20, daily: 30, task: 30, quest: 60, case: 5, partcase: 5, plate: 5, merge: 10, install: 5, pvp: 30, trade: 30, market: 20, upgrade: 10, casino: 2, backfill: 1 };
 // Gambling-like actions (cases, parts, plates; the upgrade and casino too) share the daily cap so levels can't be farmed
 // by spamming them. Races, bosses, the daily bonus, tasks and quests are never capped.
@@ -2032,6 +2058,8 @@ export const caseXp = (cs) => Math.max(XP.case, Math.round(XP.case * (1 + 1.5 * 
 // Автомийка 3, АЗС 5, СТО 7, салон 10) no level-up opens more than four things. Raising a level only closes a feature
 // for players below it who never used it before the first ladder (users.feats); reads, cancels and cash-outs stay open
 // (game.js GATES), so nothing already listed or started gets stuck.
+// Daily level cap (LEVEL_CAP, 3 a day, David 04.11): levels 4–6 come on day 2 at the earliest, 7–9 on day 3, 10 on
+// day 4 — so the businesses open on day 1 (Автомийка, L3), day 2 (АЗС, L5), day 3 (СТО, L7) and day 4 (салон, L10).
 export const UNLOCKS = [
   // L2 ≈ 4 min: the core loop gets richer.
   { key: 'wash', level: 2, name: 'Мийка', icon: 'droplet', text: `Бруд не знижує дохід; помита машина ${WASH.shineHours} год блищить: +${Math.round(WASH.shine * 100)}% до її доходу` },

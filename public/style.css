@@ -6737,6 +6737,16 @@ body.s2 .s2-parts-ic { display: grid; place-items: center; width: 40px; height: 
 body.s2 .s2-parts.locked .s2-parts-ic { background: #222; color: #8a8f98; }
 body.s2 .s2-parts-go { color: #8a8f98; }
 
+/* ===== lvlcap 2026-11-04: the daily level cap (S.LEVEL_CAP) — profile XP card «Ліміт рівнів на сьогодні», banked XP. */
+.xpcard.capped { box-shadow: inset 0 0 0 1px #ffc40033, var(--edge), var(--drop); }
+.xpcard.capped .hook-t { color: var(--accent); }
+.xpcard.capped .progress i { background: repeating-linear-gradient(135deg, var(--accent) 0 8px, #e0ac00 8px 16px); }
+.lvcap { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; border-radius: 10px;
+  background: #ffc4000f; font: 600 12px/1.3 var(--f-body); color: var(--muted); }
+.lvcap span { display: inline-flex; align-items: center; gap: 4px; }
+.lvcap b { color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; }
+.lvcap-note { display: flex; align-items: center; justify-content: center; gap: 4px; }
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */
