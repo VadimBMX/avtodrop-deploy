@@ -76,7 +76,9 @@ export const ECON = {
   showcase: { start: 4, max: 12, base: 300000 },
   // Garage income per hour, share of the car's value, by class (X: secret/season cars and parts/plates on a car).
   classIncome: { D: 0.08, C: 0.05, B: 0.016, A: 0.004, S: 0.002, X: 0.0006 },
-  capLevels: [{ hours: 4, cost: 0 }, { hours: 6, cost: 400000 }, { hours: 8, cost: 4000000 }, { hours: 12, cost: 40000000 }],
+  // The garage cash holds this many hours of income, with VIP vipHours — the same rule as the businesses (biz below).
+  // David 04.11: no paid cap upgrades any more (were 6 / 8 / 12 h for 400 тис / 4 млн / 40 млн; refunded once).
+  garageCap: { hours: 4, vipHours: 8 },
 
   // ---------- races ----------
   // Money per race for a good driver racing a car of value v: base × (v / ref)^pow (v capped at the top of class S).
@@ -109,7 +111,7 @@ export const ECON = {
   packScale: { level: 1.2, garageBase: 20e6, garagePow: 0.8, max: 10 },
   packOffer: { minLevel: 3, everyDays: 3, hours: 6, mult: 1.5 },
   firstBuyMult: 2,
-  vip: { days: 14, stars: 300, fuelMult: 2, extraHours: 4, daily: 150000 },
+  vip: { days: 14, stars: 300, fuelMult: 2, extraHours: 4, daily: 150000 }, // extraHours = garageCap.vipHours − garageCap.hours
 
   // ---------- «Мої бізнеси» (public/business.js) ----------
   biz: {

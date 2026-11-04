@@ -1915,17 +1915,14 @@ export const slotCost = (slots) => {
   const soft = Math.max(0, slots - SLOT_SOFT_FROM);
   return niceRound(ECON.slot.base * Math.pow(ECON.slot.steep, steep) * Math.pow(ECON.slot.soft, soft));
 };
-// Income storage: the first step is within reach of a D/C garage (race2: 1M/10M/100M before).
-export const CAP_LEVELS = ECON.capLevels;
-// The next cash upgrade as the player would really have it: the bought level's hours plus the extra hours on top now
-// (VIP or the comeback gift, the larger — capH is what the server reports), so a VIP at 4 + 4 = 8 h is offered
-// 6 + 4 = 10 h, never «до 6 год». null at the top level.
-export function nextCapOffer(capLevel, capH) {
-  const next = CAP_LEVELS[capLevel + 1];
-  if (!next) return null;
-  const extra = Math.max(0, (capH ?? CAP_LEVELS[capLevel].hours) - CAP_LEVELS[capLevel].hours);
-  return { hours: next.hours + extra, base: next.hours, extra, cost: next.cost };
-}
+// Income storage (David 04.11): the garage cash holds GARAGE_CAP.hours of income, with VIP GARAGE_CAP.vipHours — the
+// same rule as the businesses (BIZ.capHours / vipCapHours). There are no paid cap upgrades any more; what players paid
+// for them in Season 2 came back once (src/game.js refundCapLevels, OLD_CAP_COSTS). The comeback gift (COMEBACK) lends
+// the VIP hours for a day; the two never add up, so the cash never holds more than vipHours.
+export const GARAGE_CAP = ECON.garageCap;
+// What the cap upgrades cost before 04.11 (cap_level 1…3, each step on top of the one before): only for the refund.
+export const OLD_CAP_COSTS = [0, 400000, 4000000, 40000000];
+export const garageCapHours = (vip) => (vip ? GARAGE_CAP.vipHours : GARAGE_CAP.hours);
 // The very first garage income (owner: «+25 ₴ ображає»): opening the starter case puts this into the cash at once,
 // so the first «Забрати» is a real sum. Once per player (the starter case opens once); CLASS_INCOME is untouched.
 export const FIRST_CASH = ECON.firstCash;
@@ -2166,8 +2163,9 @@ export const levelPartTier = (lvl) => (lvl < 10 ? 'stock' : lvl < 20 ? 'street' 
 // Away minDays+ (level minLevel+, account older than minAgeDays, at most once per cooldownDays): full shared tank and
 // every car's tank + one small key. Away bigDays+: also the level key and, for capFor hours, an income cap longer by
 // capHours (like VIP; the two don't add up — the larger one counts). No money: the longer cap only lets income keep
-// coming while the player is away less often.
-export const COMEBACK = { minDays: 3, bigDays: 7, minLevel: 5, minAgeDays: 7, cooldownDays: 14, capHours: 4, capFor: 24 };
+// coming while the player is away less often. David 04.11: capHours is exactly the VIP extra, so the comeback cash is
+// the VIP cash (8 h) for capFor hours — never more than GARAGE_CAP.vipHours.
+export const COMEBACK = { minDays: 3, bigDays: 7, minLevel: 5, minAgeDays: 7, cooldownDays: 14, capHours: ECON.garageCap.vipHours - ECON.garageCap.hours, capFor: 24 };
 export const comebackKey = (lvl) => (lvl < 10 ? 'rust' : 'city');
 
 export const COLLECTION_MILESTONES = [
@@ -2439,10 +2437,8 @@ export const REF_FRIEND_BONUS = 200000;
 // «Битва амбасадорів» (owner 28.10, src/contest.js): who brings the most new players while it runs. A friend counts
 // once he signed up by the player's link during the contest and reached CONTEST.minLevel. Prizes (Stars) are paid
 // by the owner by hand after the end; places 4..extraUpTo get the extra prize.
-// «Що додати в гру?» (owner 29.10: «шоб всім висвітилось … не можна закрити 5 секунд»): a window for every player from
-// level 2, the ✕ unlocks after lockSec; skipped → asked again after gapH, at most maxShows times; the first answer of at
-// least minLen characters pays `reward` once.
-export const IDEA_ASK = { minLevel: 2, lockSec: 5, maxShows: 2, gapH: 20, minLen: 15, maxLen: 1000, perDay: 5, reward: 100000 };
+// «Ідеї гравців» topics: the old «Що додати в гру?» window's chips (the window itself is gone, 04.11); the admin list
+// still names them.
 export const IDEA_TAGS = { cars: '🚘 Нові машини', mech: '⚙️ Механіки', econ: '💰 Ціни й баланс', events: '🎉 Івенти', ui: '📱 Зручність', other: '💬 Інше' };
 export const CONTEST = { days: 14, minLevel: 3, prizes: [1000, 500, 250], extraUpTo: 10, extra: 'ключ «Еліта»', showAfterH: 72 };
 export const REF_FRIEND_KEY = 'city';
@@ -2761,7 +2757,7 @@ export const WHATS_NEW = {
   slides: [
     { icon: 'flag-3', c: '#ffd400', tag: 'старт для всіх', title: `Сезон ${S2_RESET.season} · «Місто»`, text: `Прогрес обнулено — усі стартують рівно, з першого кейса. Акаунт, друзі й автоклуб лишилися з тобою, а всі зірки, витрачені в Сезоні ${S2_RESET.prevSeason}, повернулися кредитом у магазин.` },
     { icon: 'building-skyscraper', c: '#22e3ff', tag: 'вкладка «Місто»', title: 'Мапа міста', text: 'Нова головна: гортай місто й тисни на будівлі — траса, дрифт, гараж, автоклуб, магазин. Кнопка «Зібрати» забирає дохід гаража й усіх бізнесів разом.' },
-    { icon: 'cash', c: '#39e58c', tag: `з ${bizFrom()}-го рівня`, title: 'Бізнеси', text: `${bizNames()}: купуєш за гривні — і вони заробляють щогодини, навіть коли тебе немає. Каса вміщує ${BIZ.capHours} год доходу (з VIP — ${BIZ.vipCapHours}), тож заходь і збирай.` },
+    { icon: 'cash', c: '#39e58c', tag: `з ${bizFrom()}-го рівня`, title: 'Бізнеси', text: `${bizNames()}: купуєш за гривні — і вони заробляють щогодини, навіть коли тебе немає. Каса — як у гаража: ${BIZ.capHours} год, з VIP — ${BIZ.vipCapHours} год, тож заходь і збирай.` },
     { icon: 'tools', c: '#ff8a1f', tag: 'гілки й будівлі', title: 'Покращення бізнесу', text: `«${BIZ.branches.eq.name}» і «${BIZ.branches.ads.name}» додають дохід, «${BIZ.branches.staff.name}» — години каси, нова будівля множить усе. І бонуси: довший блиск, більший бак, дешевші деталі, дорожчий продаж.` },
     { icon: 'star', c: '#38bdf8', tag: `для гравців Сезону ${S2_RESET.prevSeason}`, title: 'Компенсація', text: `${S2_RESET.creditPct}% зірок — кредитом і рамка «${FRAME_BY_ID.patron.name}». Значок «${VETERAN_S1.title}» — з ${VETERAN_S1.tiers[0].minLevel}-го рівня, рамка «${FRAME_BY_ID.legend_s1.name}» — топ-${S2_RESET.legendTop}, ключ «${CASE_BY_ID[S2_RESET.friendKey].name}» за кожного друга з 3-го рівня.` },
     { icon: 'sparkles', c: SEASON_THEMES[2].color, tag: 'пропуск сезону', title: `Пропуск · ${SEASON_THEMES[2].name}`, text: `${SEASON.levels} рівнів: неонові лівреї, рамка «Ханко», фон «Шуто-експрес», а за останній рівень преміуму — ${s2Car()}.` },
@@ -2780,7 +2776,7 @@ export const INTRO_STORY = {
   slides: [
     { icon: 'car-turbine', title: 'Вітаємо в АВТОДРОПі', text: `Збирай гараж мрії: ${carCountText()} — від «Запорожця» до Bugatti. Відкривай кейси, ганяй і збирай колекції.` },
     { icon: 'gift', classes: true, title: 'Перший кейс — безкоштовно', text: 'Усередині — радянська й українська класика. Класи машин: D → C → B → A → S — що рідший клас, то дорожча машина. Скільки лишилось до гарантії — видно під кейсом.' },
-    { icon: 'coin', title: 'Гараж заробляє', text: `Машини приносять дохід щогодини, навіть коли гра закрита, — заходь і тисни «Забрати». Щоденний бонус на ${DAILY_BONUS.length} днів: на 7-й — авто зі «Спорткара».` },
+    { icon: 'coin', title: 'Гараж заробляє', text: `Машини приносять дохід щогодини, навіть коли гра закрита: каса — ${GARAGE_CAP.hours} год, з VIP — ${GARAGE_CAP.vipHours} год. Тисни «Забрати». Щоденний бонус на ${DAILY_BONUS.length} днів: на 7-й — авто зі «Спорткара».` },
     { icon: 'flag-3', title: 'Гонки й колекції', text: `Драг на 402 м: «Газ» — на зелений, передачі — у зеленій зоні. Збери всі машини країни — і отримаєш секретну, якої немає в жодному кейсі.` },
   ],
 };
@@ -2802,7 +2798,7 @@ export const INTRO_REEL = {
     { key: 'night', ms: 3400, kicker: `Сезон ${String(S2_RESET.season).padStart(2, '0')} · Місто`, title: 'Ніч. Асфальт. Твій старт.', text: `${carCountText()} чекають на власника.` },
     { key: 'case', ms: 3300, kicker: '01 · Кейс', title: 'Відкривай кейси', text: 'У кожному — справжня машина. Яка саме — дізнаєшся, коли відкриєш.' },
     { key: 'car', ms: 3600, kicker: '02 · Машина', title: 'Що рідший клас — то дорожча', text: 'Від «Запорожця» до Bugatti. Тримай у гаражі або продавай.' },
-    { key: 'garage', ms: 3600, kicker: '03 · Гараж', title: 'Гараж заробляє сам', text: 'Гроші капають щогодини — навіть коли гра закрита. Заходь і забирай.' },
+    { key: 'garage', ms: 3600, kicker: '03 · Гараж', title: 'Гараж заробляє сам', text: `Гроші капають щогодини — навіть коли гра закрита. Каса — ${GARAGE_CAP.hours} год, з VIP — ${GARAGE_CAP.vipHours} год.` },
     { key: 'race', ms: 3300, kicker: '04 · Траса', title: 'Ганяй на драгу', text: '402 метри. Газ — на зелений, передачі — у зеленій зоні.' },
     { key: 'city', ms: 3500, kicker: '05 · Місто', title: 'Будуй своє місто', text: `${reelBizList()} заробляють і вночі. А ще автоклуби й турніри.` },
     { key: 'go', ms: 0, kicker: 'Твій хід', title: 'Перший кейс — безкоштовно', text: `А ще ${short(START_BALANCE)} на старт і до ${short(NEWBIE_TASKS.reduce((a, t) => a + t.money, 0))} за перші кроки.` },
@@ -2840,7 +2836,7 @@ export const GUIDE_STEPS = [
   { key: 'keep', tab: 'cases', target: '[data-act="toGarage"]', title: 'Постав машину в гараж', text: 'Тисни «У гараж» — машина почне заробляти й зможе їздити в гонках.' },
   // Only when the garage is empty (the starter car was sold): a car is needed for income and races.
   { key: 'case', tab: 'cases', target: '[data-act="openCase"]', title: 'Відкрий кейс з машиною', text: '«Іржавий гараж» — найдешевший. Машина в гаражі заробляє гроші й їздить у гонках.', extra: true },
-  { key: 'collect', tab: 'garage', target: '[data-act="collect"]', title: 'Забери дохід гаража', text: 'У касі вже лежить перший дохід. Тисни «Забрати» — і так щоразу, як заходиш.' },
+  { key: 'collect', tab: 'garage', target: '[data-act="collect"]', title: 'Забери дохід гаража', text: `У касі вже лежить перший дохід. Тисни «Забрати» — і так щоразу, як заходиш: каса — ${GARAGE_CAP.hours} год, з VIP — ${GARAGE_CAP.vipHours} год.` },
   { key: 'race', tab: 'race', target: '.rival', title: 'Проїдь перший заїзд', text: 'Обери суперника. На світлофорі жми «ГАЗ» на зелений, передачі — у зеленій зоні.' },
   { key: 'daily', tab: null, target: '#gift', title: 'Забери щоденний бонус', text: 'Подарунок угорі екрана. Заходь щодня — на 7-й день машина зі «Спорткара».' },
   { key: 'win', tab: 'race', target: '.rival', title: 'Виграй заїзд', text: '«Тренування» — без внеску. Газ рівно на зелений, передачі — коли стрілка в зеленій зоні.' },

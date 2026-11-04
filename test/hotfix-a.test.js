@@ -18,24 +18,12 @@ function setup() {
   return { db, g, call, advance: (ms) => (t += ms), now: () => t };
 }
 
-test('cash upgrade: a VIP with 8 h is offered 10 h (6 + 4), never «до 6 год»; the top level offers nothing', () => {
-  assert.deepEqual(S.nextCapOffer(0, 4), { hours: 6, base: 6, extra: 0, cost: S.CAP_LEVELS[1].cost });
-  assert.deepEqual(S.nextCapOffer(0, 8), { hours: 10, base: 6, extra: 4, cost: S.CAP_LEVELS[1].cost });
-  assert.equal(S.nextCapOffer(S.CAP_LEVELS.length - 1, 16), null);
-  for (let lvl = 0; lvl < S.CAP_LEVELS.length - 1; lvl++) for (const extra of [0, S.VIP.extraHours, S.COMEBACK.capHours]) {
-    const capH = S.CAP_LEVELS[lvl].hours + extra;
-    assert.ok(S.nextCapOffer(lvl, capH).hours > capH, `level ${lvl} +${extra} h`);
-  }
-  // Through the server: a VIP's cap and what the upgrade really gives.
+test('garage cash (David 04.11): 4 h, a VIP 8 h — no upgrade to buy (test/david4.test.js has the rest)', () => {
   const { db, call, now } = setup();
-  call(1, 'me');
+  assert.equal(call(1, 'me').income.capH, S.GARAGE_CAP.hours);
   db.prepare('UPDATE users SET vip_until = ? WHERE id = 1').run(now() + 9 * 864e5);
-  const me = call(1, 'me');
-  assert.equal(me.income.capH, S.CAP_LEVELS[0].hours + S.VIP.extraHours);
-  const offer = S.nextCapOffer(me.capLevel, me.income.capH);
-  db.prepare('UPDATE users SET balance = 1e9 WHERE id = 1').run();
-  call(1, 'upgrade-cap');
-  assert.equal(call(1, 'me').income.capH, offer.hours, 'the offer is what the player gets');
+  assert.equal(call(1, 'me').income.capH, S.GARAGE_CAP.vipHours);
+  assert.throws(() => call(1, 'upgrade-cap'));
 });
 
 test('first garage income: the starter case puts S.FIRST_CASH into the cash once — the first «Забрати» is ≥ 2 000 ₴', () => {

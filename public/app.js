@@ -552,7 +552,6 @@ async function refresh(rerender = true) {
   paAsk(); // «Аукціон номера»: one window per auction per player while it runs
   s2Ask(); // «Сезон 02»: the compensation window once after the wipe (public/season2-ui.js)
   packOfferAsk(); // «Мега-пропозиція» on hryvnia packs (one window per offer)
-  ideaAskOnce(); // «Що додати в гру?»: every player from level 2, ✕ after 5 s, asked again once next day if skipped
   bugAskOnce(); // «Бета-тест: знайшов баг — пиши в підтримку» (once per player, from level 2)
   homeCheck(); // «Додай на головний екран» from the 3rd day (once a session; nothing on old clients)
   // Let a drop's celebration play out before the level-up popup covers it.
@@ -1028,13 +1027,14 @@ TABS.garage = () => {
   const i = me.income;
   const pending = pendingNow();
   const fill = i.rate ? Math.min(100, (pending / (i.rate * i.capH)) * 100) : 0;
-  const nextCap = S.nextCapOffer(me.capLevel, i.capH); // with VIP / comeback hours: the real next cap, never smaller
-  const capPlus = nextCap?.extra ? ` (${nextCap.base} + ${nextCap.extra} ${me.vip ? 'VIP' : 'бонус'})` : '';
+  // David 04.11 (S.GARAGE_CAP): the cash holds 4 h, with VIP 8 h — no paid upgrades; a non-VIP is shown the VIP hours.
+  const G = S.GARAGE_CAP, longer = me.vip || i.capH >= G.vipHours ? null : { hours: G.vipHours };
   const cs = capState(pending);
   // fix5 (crit4 №9): how long the cash stood full before this visit — kept for the session, so the line stays after «Забрати»
-  const idleH = idleCapHours({ level: me.level, income: i, now: serverNow(), next: nextCap });
-  if (idleH && (!state.idleCap || state.idleCap.h < idleH)) state.idleCap = { h: idleH, capLevel: me.capLevel };
-  const idle = state.idleCap && state.idleCap.capLevel === me.capLevel && nextCap && me.level < 5 ? state.idleCap.h : 0;
+  const idleH = idleCapHours({ level: me.level, income: i, now: serverNow(), next: longer });
+  if (idleH && (!state.idleCap || state.idleCap.h < idleH)) state.idleCap = { h: idleH };
+  const idle = state.idleCap && longer && me.level < 5 ? state.idleCap.h : 0;
+  const capRule = `Каса вміщує ${G.hours} год, з VIP — ${G.vipHours} год`;
   const all = me.cars.filter((c) => c.status !== 'showcase');
   const rk = (c) => S.rankOf(M(c.model).cls);
   const shown = (c) => S.saleOf(c) ?? c.value; // the number on the tile (the sale), so «За ціною» reads in order
@@ -1055,10 +1055,10 @@ TABS.garage = () => {
       <button class="btn sm${fill > 10 ? '' : ' ghost'} inc-btn" data-act="collect" ${pending < 1 ? 'disabled' : ''}>Забрати</button></div>
     <div class="progress cap"><i id="capBar" style="width:${fill}%"></i></div>
     <div class="cap-line" id="capLine">${cs.text}</div>
-    ${i.comebackUntil ? `<div class="tiny center mt" style="color:#30d158">${ic('gift')} Подарунок повернення: +${S.COMEBACK.capHours} год сховища ще <span data-until="${i.comebackUntil - clockOffset}"></span></div>` : ''}
-    ${idle ? `<div class="tiny center mt cap-idle">${ic('clock')} Каса стояла повна ${idle} год — <a data-act="upgradeCap" class="txtlink">збільш її до ${nextCap.hours} год за ${S.short(nextCap.cost)}</a></div>` : ''}
-    ${nextCap ? `<div class="cap-up"><span class="tiny muted">Повна каса не росте — поки не забереш, дохід стоїть.</span><button class="btn outline sm" data-act="upgradeCap">${ic('clock')} Каса на ${nextCap.hours} год${capPlus} · ${S.short(nextCap.cost)}</button></div>` : ''}
-    ${nextCap ? `<div class="tiny muted center mt cap-more">Каса вміщує ${i.capH} год · <a data-act="upgradeCap" class="txtlink">збільшити до ${nextCap.hours} год${capPlus} — ${S.short(nextCap.cost)}</a></div>` : ''}
+    ${i.comebackUntil ? `<div class="tiny center mt" style="color:#30d158">${ic('gift')} Подарунок повернення: каса на ${i.capH} год ще <span data-until="${i.comebackUntil - clockOffset}"></span></div>` : ''}
+    ${idle ? `<div class="tiny center mt cap-idle">${ic('clock')} Каса стояла повна ${idle} год — <a data-act="vipSaleGo" class="txtlink">з VIP вона тримає ${G.vipHours} год</a></div>` : ''}
+    <div class="cap-up"><span class="tiny muted">Повна каса не росте — поки не забереш, дохід стоїть. ${capRule}.</span></div>
+    <div class="tiny muted center mt cap-more">${longer ? `${capRule} · <a data-act="vipSaleGo" class="txtlink">VIP</a>` : `${ic('crown')} Каса на ${i.capH} год${me.vip ? ' з VIP' : ''}`}</div>
   </div>
   <div class="card today" id="todayCard"></div>
   ${tankCard()}
@@ -1082,10 +1082,6 @@ H.toCases = () => (state.tab = 'cases', state.page = null, window.scrollTo(0, 0)
 H.collect = () => act('collect', {}, (r) => `+${S.fmt(r.got)}${r.clubBonus ? ` · клуб +${S.short(r.clubBonus)}` : ''}`);
 // Purchases confirm with a second tap on the same button (no pop-up), so several slots can be bought in a row.
 H.buySlot = (d, el) => armed(el, `<b>Точно купити?</b><span>${S.short(S.slotCost(me.slots))}</span>`) && act('buy-slot', {}, `Місце додано · тепер ${me.slots + 1}`);
-H.upgradeCap = (d, el) => {
-  const n = S.nextCapOffer(me.capLevel, me.income.capH);
-  if (n && armed(el, `Точно? до ${n.hours} год за ${S.short(n.cost)}`)) act('upgrade-cap', {}, 'Сховище покращено');
-};
 H.buyShowcase = (d, el) => armed(el, `<b>Точно купити?</b><span>${S.short(S.showcaseCost(me.showcaseSlots))}</span>`) && act('buy-showcase', {}, 'Місце додано');
 H.showcasePick = () => pickCar('Яку машину на вітрину?', (id) => act('showcase', { carId: id, put: true }, 'Машина на вітрині'));
 H.sellMode = () => (state.selling = state.selling ? null : new Set(), render());
@@ -7054,7 +7050,7 @@ function storeMain(sh) {
     <div class="tiny muted">Поштовх на старті: гривні, кейси й VIP в одному наборі</div>
     <div class="offer-list"><span>${ic('coin')} ${S.short(st.money)}</span><span>${ic('gift')} 2 × кейс «${esc(S.CASE_BY_ID.city.name)}»</span><span>${ic('crown')} VIP на ${st.vipDays} дні</span></div>
     <div class="row between mt"><span class="tiny muted">Більше не з’явиться</span>${storeBuyBtns(st, sh)}</div></div>`;
-  const perks = [['gas-station', 'Пальне відновлюється вдвічі швидше'], ['clock', `Каса гаража вміщує на ${S.VIP.extraHours} год більше`], ['gift', `+${S.short(S.VIP.daily)} до щоденного бонусу`],
+  const perks = [['gas-station', 'Пальне відновлюється вдвічі швидше'], ['clock', `Каса гаража — ${S.GARAGE_CAP.vipHours} год замість ${S.GARAGE_CAP.hours}`], ['gift', `+${S.short(S.VIP.daily)} до щоденного бонусу`],
     ['droplet', 'Автомийка — безкоштовно'], ['building-store', `${S.ITEM_MARKET.vipLots} лотів деталей і номерів на ринку замість ${S.ITEM_MARKET.lots}`], ['crown', 'Корона в рейтингу й профілі']];
   const vs = sh.vipSale?.until > serverNow() ? sh.vipSale : null; // «VIP −40%» (owner 29.10)
   const subBox = sub ? (sub.canceled
@@ -7205,7 +7201,7 @@ function vipSaleAsk() {
       <div class="vs-pct">−${pct}%</div><b class="disp">VIP-ПІДПИСКА · ТІЛЬКИ ЗАРАЗ</b>
       <div class="vs-price"><s>${ic('star')} ${sub.stars}</s><b>${ic('star')} ${S.vipSalePrice(sub.stars)}</b><small>/ ${S.VIP_SUB.days} днів</small></div>
       <div class="small muted">Ціна зі знижкою лишається й на продовження, поки підписка діє. Або разово на ${S.VIP.days} днів — ${ic('star')} ${S.vipSalePrice(one.stars)} замість ${one.stars}.</div>
-      <div class="vs-list">${[['gas-station', 'Пальне вдвічі швидше'], ['clock', `Каса +${S.VIP.extraHours} год`], ['gift', `+${S.short(S.VIP.daily)} щодня`], ['crown', 'Корона в рейтингу']].map(([i, t]) => `<span>${ic(i)} ${t}</span>`).join('')}</div>
+      <div class="vs-list">${[['gas-station', 'Пальне вдвічі швидше'], ['clock', `Каса ${S.GARAGE_CAP.vipHours} год`], ['gift', `+${S.short(S.VIP.daily)} щодня`], ['crown', 'Корона в рейтингу']].map(([i, t]) => `<span>${ic(i)} ${t}</span>`).join('')}</div>
       <div class="small mt">Знижка згорить через <b class="win"><span data-until="${until - clockOffset}">${left(until - serverNow())}</span></b></div>
       <div class="btns mt"><button class="btn yellow nowrap" data-act="vipSaleBuy">Оформити · ${ic('star')} ${S.vipSalePrice(sub.stars)}</button><button class="btn ghost" data-act="closeModal">Пізніше</button></div></div>`);
     tickUntil?.();
@@ -7361,7 +7357,7 @@ PAGES.contest = async () => {
     <div class="ct-prizes mt">${prizes}</div></div>
     ${mine}${link}
     <div class="h2"><span>Топ-10</span><span>${c.players} ${plural(c.players, ['учасник', 'учасники', 'учасників'])}</span></div>${top}
-    <div class="card tiny muted mt">Як рахуємо: друг має прийти за твоїм посиланням під час конкурсу й дійти до <b>${c.minLevel} рівня</b>. Боти, фейки й накрутки не рахуються — за обман бан. Призи видаємо після завершення.</div>`;
+    <div class="card tiny muted mt">Як рахуємо: друг має прийти за твоїм посиланням під час конкурсу й дійти до <b>${c.minLevel} рівня</b> — зараз або ще в Сезоні 1. Боти, фейки й накрутки не рахуються — за обман бан. Призи видаємо після завершення.</div>`;
 };
 PAGES.friends = async () => {
   const r = await api('ref');
@@ -7610,7 +7606,7 @@ function showGift() {
     title = 'З поверненням!';
     color = '#30d158';
     const lines = [`${ic('gas-station')} Повний бак пального`, ...d.keys.map((k) => `${ic('key')} Ключ «${esc(S.CASE_BY_ID[k.caseId].name)}»${k.count > 1 ? ` ×${k.count}` : ''}`)];
-    if (d.capHours) lines.push(`${ic('clock')} Дохід накопичується на ${d.capHours} год довше — ${d.capFor} год`);
+    if (d.capHours) lines.push(`${ic('clock')} Каса гаража на ${S.GARAGE_CAP.vipHours} год, як з VIP, — ${d.capFor} год`);
     art = `<div class="gift-ic" style="--c:${color}">${ic('car')}</div><div class="gift-sum" style="color:${color};font-size:26px">Гараж сумував за тобою</div>
       <div class="small muted">тебе не було ${d.days} ${d.days % 10 >= 2 && d.days % 10 <= 4 && (d.days % 100 < 12 || d.days % 100 > 14) ? 'дні' : 'днів'}</div>
       <div class="cb-list mt">${lines.map((l) => `<div>${l}</div>`).join('')}</div>`;
@@ -9373,58 +9369,6 @@ function bugAskOnce(tries = 0) {
     } else if (r === 'denied') bugAskOn = false;
   }, tries ? 4000 : 6000);
 }
-// ---------- «Що додати в гру?» (S.IDEA_ASK; owner 29.10: nobody wrote ideas under the post) ----------
-function ideaAskOnce() {
-  // Not over a fresh level-up (its window with the unlocks comes first; the idea ask waits for a later entry) and not
-  // over a drop that is still being looked at (it opened on top of «У гараж / Продати» right after the case).
-  if (!me?.ideaAsk || me.level > me.levelSeen) return;
-  POP.offer('ideaask', () => {
-    if (!me?.ideaAsk || state.page || state.drop?.some(dropAlive)) return false;
-    me.ideaAsk = false;
-    api('idea/seen').catch(() => {});
-    const A = S.IDEA_ASK;
-    sheet('Твоя ідея', `<div class="idea-pop"><div class="idea-ic">💡</div>
-      <b class="disp idea-h">Що додати чи змінити в грі?</b>
-      <div class="muted small mt">Готуємо велике оновлення — напиши, чого тобі бракує. Читаємо кожну відповідь.</div>
-      <div class="idea-tags mt">${Object.entries(S.IDEA_TAGS).map(([k, t]) => `<button class="idea-tag" data-act="ideaTag" data-k="${k}">${t}</button>`).join('')}</div>
-      <textarea id="ideaText" maxlength="${A.maxLen}" placeholder="Наприклад: більше японських машин, турніри клубів, дешевше пальне…"></textarea>
-      <button class="btn yellow mt" data-act="ideaSend">${ic('arrow-right')} Надіслати${A.reward ? ` · +${S.short(A.reward)}` : ''}</button>
-      <div class="tiny muted center mt">${A.reward ? `Бонус — за першу відповідь від ${A.minLen} символів` : ''}</div></div>`);
-    // ✕ unlocks after lockSec: a countdown in its place, taps outside do nothing until then
-    modalLockUntil = Date.now() + A.lockSec * 1000;
-    const x = $('#sheet .x');
-    if (x) {
-      x.disabled = true;
-      const tick = () => {
-        const left = Math.ceil((modalLockUntil - Date.now()) / 1000);
-        if (!x.isConnected) return;
-        if (left > 0) {
-          x.textContent = String(left);
-          setTimeout(tick, 250);
-        } else {
-          x.textContent = '✕';
-          x.disabled = false;
-        }
-      };
-      tick();
-    }
-  });
-}
-H.ideaTag = (d, el) => (el || document.querySelector(`.idea-tag[data-k="${d.k}"]`))?.classList.toggle('on');
-H.ideaSend = async () => {
-  const text = ($('#ideaText')?.value || '').trim();
-  const tags = [...document.querySelectorAll('.idea-tag.on')].map((b) => b.dataset.k);
-  if (text.length < 3) return toast(tags.length ? 'Допиши кілька слів — що саме?' : 'Напиши, що додати чи змінити', true);
-  try {
-    const r = await api('idea/send', { text, tags });
-    modalLockUntil = 0;
-    closeModal();
-    toast(r.reward ? `Дякуємо! +${S.fmt(r.reward)} 💛` : 'Дякуємо! Ми прочитаємо 💛');
-    if (r.reward) refresh(false).then(() => renderHeader());
-  } catch (e) {
-    toast(e.message, true);
-  }
-};
 H.bugAskGo = () => {
   closeModal();
   go('support');

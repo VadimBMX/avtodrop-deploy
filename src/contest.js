@@ -3,7 +3,9 @@
 // (users.referrer_id, set at sign-up only) between start and end, and has reached S.CONTEST.minLevel. Banned players
 // and players hidden from the ratings (lb_hidden) are out, on either side. «Повернувся» (came back on another Kyiv
 // day than the sign-up day) is shown to the admins as a check against fake accounts; it does not change the count.
-// Prizes are paid by the owner by hand after the end. State: meta 'contest' = { start, end, by }.
+// Prizes are paid by the owner by hand after the end. State: meta 'contest' = { start, end, by } (meta is never wiped by
+// the Season 2 reset). David 04.11: the wipe put every friend back to level 1, so the level that counts is the higher
+// of his level now and his Season 1 level (s1_archive.level) — a friend who reached minLevel in Season 1 still counts.
 import * as S from '../public/shared.js';
 
 export function createContest({ db, q, now, fail, metaGet, metaSet, name, brief }) {
@@ -19,20 +21,22 @@ export function createContest({ db, q, now, fail, metaGet, metaSet, name, brief 
   // Every inviter with his friends of this contest, best first (counted, then came back, then invited).
   function standings(c = cfg()) {
     if (!c) return [];
-    const rows = q(`SELECT f.id, f.referrer_id rid, f.level, f.created_at, f.last_seen, f.banned, f.lb_hidden FROM users f
-      JOIN users r ON r.id = f.referrer_id
+    const s1 = !!q("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 's1_archive'").get();
+    const rows = q(`SELECT f.id, f.referrer_id rid, f.level, ${s1 ? 'a.level' : 'NULL'} s1_level, f.created_at, f.last_seen, f.banned, f.lb_hidden FROM users f
+      JOIN users r ON r.id = f.referrer_id ${s1 ? 'LEFT JOIN s1_archive a ON a.user_id = f.id' : ''}
       WHERE f.referrer_id IS NOT NULL AND f.created_at >= ? AND f.created_at < ? AND r.banned = 0 AND r.lb_hidden = 0`).all(c.start, c.end);
     const by = new Map();
     for (const f of rows) {
       let e = by.get(f.rid);
       if (!e) by.set(f.rid, (e = { id: f.rid, invited: 0, counted: 0, returned: 0, old: 0, friends: [] }));
-      const ok = f.level >= C.minLevel && !f.banned && !f.lb_hidden;
+      const lvl = Math.max(f.level, f.s1_level || 0); // Season 1 counts too (David 04.11)
+      const ok = lvl >= C.minLevel && !f.banned && !f.lb_hidden;
       const back = S.kyivDateOf(f.last_seen) !== S.kyivDateOf(f.created_at);
       e.invited++;
       if (ok) e.counted++;
       if (ok && back) e.returned++;
       if (ok && now() - f.created_at > 86400e3) e.old++; // could have come back already: the base of the fake-account check
-      e.friends.push({ id: f.id, level: f.level, createdAt: f.created_at, lastSeen: f.last_seen, counted: ok, returned: back, banned: !!f.banned });
+      e.friends.push({ id: f.id, level: f.level, s1Level: f.s1_level || null, createdAt: f.created_at, lastSeen: f.last_seen, counted: ok, returned: back, banned: !!f.banned });
     }
     return [...by.values()].sort((a, b) => b.counted - a.counted || b.returned - a.returned || b.invited - a.invited || a.id - b.id)
       .map((e, i) => ({ ...e, place: e.counted ? i + 1 : null }));

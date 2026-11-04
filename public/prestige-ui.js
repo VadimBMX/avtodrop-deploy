@@ -47,12 +47,10 @@ function lockCard() {
 }
 // «Slot first»: the better buy as a card with the sheet's one yellow button; null when there is none.
 function offerCard() {
-  const m = X.me(), o = P.firstOffer({ balance: m.balance, slots: m.slots, capLevel: m.capLevel, capH: m.income?.capH });
+  const m = X.me(), o = P.firstOffer({ balance: m.balance, slots: m.slots });
   if (!o) return { html: '', on: false };
-  const text = o.kind === 'slot'
-    ? `<b>Спершу вигідніше: місце в гаражі</b><div class="small muted">Місце № ${m.slots + 1} коштує ${S.short(o.cost)} — це менше ${Math.round(P.PRESTIGE.slotShare * 100)}% твого балансу, а ще одна машина приноситиме дохід щогодини. Рестайлінг нікуди не дінеться.</div>`
-    : `<b>Спершу вигідніше: каса на ${o.hours} год</b><div class="small muted">${S.short(o.cost)} — менше ${Math.round(P.PRESTIGE.capShare * 100)}% балансу: дохід не стоїть, поки тебе немає.</div>`;
-  return { on: true, html: `<div class="card pr-offer">${text}<button class="btn mt" data-act="${o.kind === 'slot' ? 'prSlot' : 'prCap'}">${X.ic(o.kind === 'slot' ? 'building-warehouse' : 'clock')} ${o.kind === 'slot' ? 'Купити місце' : 'Збільшити касу'} · ${S.short(o.cost)}</button></div>` };
+  const text = `<b>Спершу вигідніше: місце в гаражі</b><div class="small muted">Місце № ${m.slots + 1} коштує ${S.short(o.cost)} — це менше ${Math.round(P.PRESTIGE.slotShare * 100)}% твого балансу, а ще одна машина приноситиме дохід щогодини. Рестайлінг нікуди не дінеться.</div>`;
+  return { on: true, html: `<div class="card pr-offer">${text}<button class="btn mt" data-act="prSlot">${X.ic('building-warehouse')} Купити місце · ${S.short(o.cost)}</button></div>` };
 }
 
 // ---------- the restyle sheet of one car ----------
@@ -180,12 +178,6 @@ export function installPrestige(ctx) {
   H.prSlot = async () => {
     if (!(await spendConfirm({ title: 'Місце в гаражі', amount: S.slotCost(X.me().slots), balance: X.me().balance }))) return;
     await X.act('buy-slot', {}, 'Місце в гаражі додано');
-    reopen();
-  };
-  H.prCap = async () => {
-    const m = X.me(), o = S.nextCapOffer(m.capLevel, m.income?.capH);
-    if (o && !(await spendConfirm({ title: `Каса до ${o.hours} год`, amount: o.cost, balance: m.balance }))) return;
-    await X.act('upgrade-cap', {}, 'Касу збільшено');
     reopen();
   };
   H.prBoard = () => {

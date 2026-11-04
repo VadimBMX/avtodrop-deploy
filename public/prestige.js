@@ -16,8 +16,8 @@ export const PRESTIGE = {
   level: 10, garage: 500e6,
   mult: [0.2, 0.4, 0.8, 1.6, 3.2], // ★1 … ★5, × the model's price
   max: 5, cooldownH: 24,
-  // «Slot first» (econ.md §7): a slot cheaper than 15% of the balance, or the cash upgrade under 10%, is offered first.
-  slotShare: 0.15, capShare: 0.1,
+  // «Slot first» (econ.md §7): a slot cheaper than 15% of the balance is offered first (the cash upgrade is gone, 04.11).
+  slotShare: 0.15,
 };
 export const STAR = '★';
 
@@ -49,14 +49,10 @@ export function starGain(model, stars, cleanIncome) {
 // Open: level and garage value now, or `ever` (it opened once and stays open).
 export const prestigeOpen = ({ level = 0, value = 0, ever = false } = {}) => ever || (level >= PRESTIGE.level && value >= PRESTIGE.garage);
 
-// The better buy to offer before a ★, or null: a garage slot (another car earns) or the cash upgrade.
-// capH (fix5): the hours the cash holds now (VIP / comeback hours included) — a VIP whose cash already holds the next
-// level's hours is not told «каса на 6 год».
-export function firstOffer({ balance, slots, capLevel, capH }) {
+// The better buy to offer before a ★, or null: a garage slot (another car earns). David 04.11: the garage cash has no
+// paid upgrades any more (S.GARAGE_CAP), so the slot is the only offer.
+export function firstOffer({ balance, slots }) {
   if (slots < S.MAX_SLOTS && S.slotCost(slots) < balance * PRESTIGE.slotShare) return { kind: 'slot', cost: S.slotCost(slots) };
-  const cap = S.CAP_LEVELS[capLevel + 1];
-  if (cap && capH != null && capH >= cap.hours) return null;
-  if (cap && cap.cost < balance * PRESTIGE.capShare) return { kind: 'cap', cost: cap.cost, hours: cap.hours };
   return null;
 }
 

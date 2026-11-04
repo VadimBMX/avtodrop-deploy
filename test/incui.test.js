@@ -27,7 +27,7 @@ test('shared garageIncome = server rate = what collect credits (country, set, sh
   const { db, g, call, advance, now } = setup();
   const u = 1;
   g.ensureUser({ id: u, first_name: 'U' });
-  db.prepare('UPDATE users SET slots = 6, level = 5, level_seen = 5, cap_level = 3 WHERE id = ?').run(u);
+  db.prepare('UPDATE users SET slots = 6, level = 5, level_seen = 5 WHERE id = ?').run(u);
   // 6 JDM cars (one country, set claimed), 2 cheap UA cars, 1 car on the market: 9 cars, 6 slots, 1 listed → the
   // 5 best earn, the rest show «не заробляє».
   const jdm = JDM.models.map((m) => g.giveCar(u, m).id);

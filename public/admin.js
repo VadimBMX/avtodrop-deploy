@@ -160,7 +160,7 @@ const ACTIONS = {
   'db-browse': 'База: перегляд', 'db-export': 'База: експорт CSV',
   'event-start': 'Подія: запуск', 'event-stop': 'Подія: зупинка', 'plan-add': 'Розклад: додано', 'plan-edit': 'Розклад: змінено', 'plan-delete': 'Розклад: видалено', 'plan-seed': 'Розклад: типовий календар',
 };
-const FIELD_NAMES = { level: 'Рівень', slots: 'Місць у гаражі', showcase_slots: 'Місць на вітрині', cap_level: 'Рівень сховища', xp: 'XP' };
+const FIELD_NAMES = { level: 'Рівень', slots: 'Місць у гаражі', showcase_slots: 'Місць на вітрині', xp: 'XP' };
 const AUDIENCE = { all: 'усім гравцям', active30: 'активним за 30 днів', active7: 'активним за 7 днів', active1: 'активним за добу' };
 const DANGER = new Set(['remove-car', 'remove-plate', 'ban', 'reset', 'broadcast', 'role', 'promo-delete', 'market-remove']);
 // Details of a log entry, then the reason typed in the confirm dialog.
@@ -695,7 +695,6 @@ VIEWS.user = async () => {
       <div><span>Рівень</span><b>${u.level} <span class="muted small">${u.xp}/${u.xpNeed} XP</span></b></div>
       <div><span>Місць у гаражі</span><b>${cars.filter((c) => c.status !== 'showcase').length}/${u.slots}</b></div>
       <div><span>Вітрина</span><b>${cars.filter((c) => c.status === 'showcase').length}/${u.showcaseSlots}</b></div>
-      <div><span>Сховище доходу</span><b>${S.CAP_LEVELS[u.capLevel]?.hours} год</b></div>
       <div><span>Колекція</span><b>${u.collection}/${S.ALL_MODELS.length}</b></div>
       <div><span>Кейсів / гонок / перемог</span><b>${u.stats.cases} / ${u.stats.races} / ${u.stats.wins}</b></div>
       <div><span>Серія входів</span><b>${u.streak}</b></div>
@@ -853,7 +852,7 @@ function controls(u) {
       <input id="plNote" maxlength="300" placeholder="Повідомлення гравцю (необов’язково)">
       <button class="btn sm" data-act="givePlate" id="plBtn" disabled>${ic('gift')} Видати номер</button></div>
     <div class="act" id="act-set"><h3>${ic('gauge')} Параметри</h3>
-      ${[['level', 'Рівень', u.level], ['slots', 'Місць у гаражі', u.slots], ['showcase_slots', 'Місць на вітрині', u.showcaseSlots], ['cap_level', `Рівень сховища (0–${S.CAP_LEVELS.length - 1})`, u.capLevel]]
+      ${[['level', 'Рівень', u.level], ['slots', 'Місць у гаражі', u.slots], ['showcase_slots', 'Місць на вітрині', u.showcaseSlots]]
         .map(([f, t, v]) => `<div class="row"><span class="grow small">${t}</span><input id="set-${f}" value="${v}" inputmode="numeric" style="width:80px"><button class="btn ghost sm" data-act="set" data-f="${f}">OK</button></div>`).join('')}</div>
     <div class="act" id="act-msg"><h3>${ic('bell')} Повідомлення</h3>
       <textarea id="msgText" placeholder="Текст прийде в сповіщення гри та в бот"></textarea>
@@ -944,7 +943,7 @@ H.keys = (d) => {
 };
 H.set = (d) => {
   const value = num('#set-' + d.f);
-  const was = { level: cur.user.level, slots: cur.user.slots, showcase_slots: cur.user.showcaseSlots, cap_level: cur.user.capLevel }[d.f];
+  const was = { level: cur.user.level, slots: cur.user.slots, showcase_slots: cur.user.showcaseSlots }[d.f];
   mutate('set', { id: uid(), field: d.f, value }, { title: 'Змінити параметр', summary: `${who()}: ${esc(FIELD_NAMES[d.f])} <b>${esc(was)} → ${esc(value)}</b>`, button: 'Зберегти' }, 'Збережено');
 };
 H.message = () => {
@@ -1032,7 +1031,7 @@ function contestPanel(c) {
   const prize = (p) => (!p ? '' : p.stars ? `⭐ ${p.stars}` : esc(p.extra));
   const yes = (v) => (v ? '<span class="badge green">так</span>' : '<span class="muted small">ні</span>');
   const friends = (list) => `<div class="tbl-wrap"><table class="stack"><tr><th>Друг</th><th class="num">Рівень</th><th>Прийшов</th><th>Був у грі</th><th>Зараховано</th><th>Повернувся наступного дня</th></tr>
-    ${list.map((f) => `<tr class="${f.banned ? 'warn' : ''}"><td>${userLink(f)}${f.banned ? ' <span class="badge red">бан</span>' : ''}</td><td class="num">${f.level}</td><td class="small nowrap">${date(f.createdAt)}</td><td class="small">${ago(f.lastSeen)}</td><td>${yes(f.counted)}</td><td>${yes(f.returned)}</td></tr>`).join('')}</table></div>`;
+    ${list.map((f) => `<tr class="${f.banned ? 'warn' : ''}"><td>${userLink(f)}${f.banned ? ' <span class="badge red">бан</span>' : ''}</td><td class="num">${f.level}${f.s1Level ? ` <span class="muted small">S1: ${f.s1Level}</span>` : ''}</td><td class="small nowrap">${date(f.createdAt)}</td><td class="small">${ago(f.lastSeen)}</td><td>${yes(f.counted)}</td><td>${yes(f.returned)}</td></tr>`).join('')}</table></div>`;
   const rows = c.rows.length ? `<div class="tbl-wrap"><table class="stack"><tr><th class="num hide-s">Місце</th><th>Гравець</th><th class="num">Зараховано</th><th class="num">З них повернулись</th><th class="num">Прийшло всього</th><th>Приз</th><th></th></tr>
     ${c.rows.map((t, i) => `<tr class="click" data-act="ctOpen" data-i="${i}"><td class="num hide-s"><b>${t.place || '—'}</b></td><td class="ttl"><b class="show-s">${t.place ? `#${t.place} · ` : ''}</b><b>${esc(t.name)}</b> <span class="muted small">${t.id}</span></td>
       <td class="num"><b>${t.counted}</b></td><td class="num">${t.old ? `${t.returned} з ${t.old}` : '<span class="muted small">рано</span>'}${t.suspect ? ' <span class="badge red" title="Мало хто з друзів, зареєстрованих понад добу тому, повернувся — перевір на накрутку">?</span>' : ''}</td><td class="num">${t.invited}</td><td>${prize(t.prize)}</td><td><a data-user="${t.id}">картка ›</a></td></tr>

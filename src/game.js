@@ -328,10 +328,11 @@ export function createGame(db, opts = {}) {
   }
   function incomeState(u) {
     const { rate, earned } = incomeRate(u.id, u.income_at);
-    // VIP and the comeback gift both lengthen the cap; they don't add up. The comeback cap covers every stretch of
-    // income that began before it ran out (it was banked when given, so the hours before it never count).
+    // GARAGE_CAP (David 04.11): 4 h, with VIP 8 h — no paid upgrades (users.cap_level is no longer read). VIP and the
+    // comeback gift both lengthen the cap; they don't add up. The comeback cap covers every stretch of income that
+    // began before it ran out (it was banked when given, so the hours before it never count).
     const extra = Math.max((u.vip_until || 0) > now() ? S.VIP.extraHours : 0, u.income_at < (u.comeback_cap_until || 0) ? S.COMEBACK.capHours : 0);
-    const capH = S.CAP_LEVELS[u.cap_level].hours + extra;
+    const capH = Math.min(S.GARAGE_CAP.hours + extra, S.GARAGE_CAP.vipHours);
     const cap = rate * capH;
     // Income already banked is never lost, even if the cap shrinks after selling a car.
     const pending = Math.max(Math.min(u.banked + earned, cap), u.banked);
@@ -339,7 +340,7 @@ export function createGame(db, opts = {}) {
   }
   // Freeze income earned so far before the set or value of cars changes.
   function bank(uid) {
-    const u = q('SELECT id, banked, income_at, cap_level, vip_until, comeback_cap_until FROM users WHERE id = ?').get(uid);
+    const u = q('SELECT id, banked, income_at, vip_until, comeback_cap_until FROM users WHERE id = ?').get(uid);
     q('UPDATE users SET banked = ?, income_at = ? WHERE id = ?').run(incomeState(u).pending, now(), uid);
   }
 
@@ -772,7 +773,7 @@ export function createGame(db, opts = {}) {
     });
     return {
       id: u.id, username: u.username, firstName: u.first_name, balance: u.balance, intro, guide,
-      slots: u.slots, used: cars.filter((c) => c.status !== 'showcase').length, showcaseSlots: u.showcase_slots, capLevel: u.cap_level, fragments,
+      slots: u.slots, used: cars.filter((c) => c.status !== 'showcase').length, showcaseSlots: u.showcase_slots, fragments,
       income: { rate: Math.round(inc.rate), pending: inc.pending, capH: inc.capH, since: u.income_at, banked: u.banked, comebackUntil: u.comeback_cap_until > now() ? u.comeback_cap_until : 0 },
       fuel: Math.min(fuel.fuel, fuel.max), fuelSpare: Math.max(0, fuel.fuel - fuel.max), fuelNext: fuel.next, fuelMax: fuel.max, tankLvl: u.tank_lvl || 0, cars, keys, collection, pity, plates, parts: inventory(uid),
       partsAutosell: autoSellOf(u), partsNextAt: partNextAt(u) > now() ? partNextAt(u) : 0, // part cases: «Автопродаж», the pause
@@ -790,7 +791,6 @@ export function createGame(db, opts = {}) {
       luck: luckOf(u.id), rescueAt: rescueNext(u),
       stars: u.stars, vipUntil: u.vip_until, vip: u.vip_until > now(), starterBought: !!u.starter_bought,
       style: styleOf(uid, claims.filter((k) => k.startsWith('cos:'))), // «Стиль»: what is worn (owned ones are in claims)
-      ideaAsk: ideaAsk(u), // «Що додати в гру?» window due
       homeOffer: !claims.includes('home-screen') && daysPlayed(uid) >= S.HOME_SCREEN.day, // offer the home-screen shortcut
       season: (({ claimed, ...s }) => s)(seasonInfo(u)), badges: badgesOf(uid),
       legacy: isLegacy(uid), // played the first version: «Гравець з перших днів» badge in the profile
@@ -817,15 +817,6 @@ export function createGame(db, opts = {}) {
     if (u.slots >= S.MAX_SLOTS) fail('Максимум місць');
     pay(uid, S.slotCost(u.slots));
     q('UPDATE users SET slots = slots + 1 WHERE id = ?').run(uid);
-    return {};
-  }
-  function upgradeCap(uid) {
-    const u = userRow(uid);
-    const next = S.CAP_LEVELS[u.cap_level + 1];
-    if (!next) fail('Максимальний рівень сховища');
-    bank(uid);
-    pay(uid, next.cost);
-    q('UPDATE users SET cap_level = cap_level + 1 WHERE id = ?').run(uid);
     return {};
   }
   // Selling returns installed parts to the warehouse and the plate to the player.
@@ -4308,7 +4299,7 @@ export function createGame(db, opts = {}) {
     const auction = Object.fromEntries(q("SELECT car_id, id, start_price, top_bid, ends_at FROM auctions WHERE seller_id = ? AND status = 'open'").all(uid).map((a) => [a.car_id, a]));
     return {
       user: {
-        ...userBrief({ ...u, cars: null }), slots: u.slots, showcaseSlots: u.showcase_slots, capLevel: u.cap_level, xp: u.xp, xpNeed: S.xpForLevel(u.level),
+        ...userBrief({ ...u, cars: null }), slots: u.slots, showcaseSlots: u.showcase_slots, xp: u.xp, xpNeed: S.xpForLevel(u.level),
         streak: u.streak, stats: { cases: u.cases_opened, races: u.races, wins: u.wins, merges: u.merges },
         banReason: u.ban_reason, lbHidden: !!u.lb_hidden, referrer: u.referrer_id ? { id: u.referrer_id, name: name(u.referrer_id) } : null,
         referrals: q('SELECT COUNT(*) n FROM users WHERE referrer_id = ?').get(uid).n,
@@ -4463,28 +4454,8 @@ export function createGame(db, opts = {}) {
     }
     return { id };
   }
-  // ---------- «Що додати в гру?»: players' ideas (S.IDEA_ASK); the admin reads them in «Ідеї гравців» ----------
-  const ideaAsk = (u) => !u.idea_done && u.level >= S.IDEA_ASK.minLevel && u.idea_shows < S.IDEA_ASK.maxShows && now() - u.idea_at >= S.IDEA_ASK.gapH * 3600e3;
-  function ideaSeen(uid) {
-    q('UPDATE users SET idea_shows = idea_shows + 1, idea_at = ? WHERE id = ?').run(now(), uid);
-    return {};
-  }
-  function ideaSend(uid, { text, tags }) {
-    const u = userRow(uid);
-    const t = String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, S.IDEA_ASK.maxLen);
-    const tg = [...new Set((Array.isArray(tags) ? tags : []).map(String).filter((k) => S.IDEA_TAGS[k]))].join(',');
-    if (t.length < 3 && !tg) fail('Напиши, що додати чи змінити');
-    if (t.length < 3) fail('Допиши кілька слів — що саме?');
-    if (q('SELECT COUNT(*) n FROM ideas WHERE user_id = ? AND created_at > ?').get(uid, now() - 86400e3).n >= S.IDEA_ASK.perDay) fail('На сьогодні досить ідей — дякуємо! Пиши завтра');
-    q('INSERT INTO ideas (user_id, text, tags, created_at) VALUES (?, ?, ?, ?)').run(uid, t, tg, now());
-    let reward = 0;
-    if (!u.idea_done && t.length >= S.IDEA_ASK.minLen) {
-      reward = S.IDEA_ASK.reward;
-      addMoney(uid, reward);
-    }
-    if (!u.idea_done && (reward || t.length >= 3)) q('UPDATE users SET idea_done = 1 WHERE id = ?').run(uid);
-    return { reward };
-  }
+  // ---------- «Ідеї гравців»: the answers to the old «Що додати в гру?» window (removed 04.11, David: the update is
+  // here). The window and its idea/seen, idea/send calls are gone; the admin still reads what players wrote. ----------
   function adminIdeas({ offset } = {}) {
     const off = Math.max(0, Math.floor(Number(offset) || 0));
     const rows = q('SELECT * FROM ideas ORDER BY id DESC LIMIT 100 OFFSET ?').all(off);
@@ -4634,7 +4605,7 @@ export function createGame(db, opts = {}) {
     return {};
   }
   const USER_FIELDS = {
-    level: [1, 999], slots: [1, S.MAX_SLOTS], showcase_slots: [0, S.SHOWCASE_MAX], cap_level: [0, S.CAP_LEVELS.length - 1], xp: [0, 1e9],
+    level: [1, 999], slots: [1, S.MAX_SLOTS], showcase_slots: [0, S.SHOWCASE_MAX], xp: [0, 1e9],
   };
   // A plate text on an open «Аукціон номера» is reserved: the generator skips it and give-plate refuses it.
   const plateOnAuction = (text) => !!q("SELECT 1 FROM plate_auctions WHERE text = ? AND status = 'open'").get(text);
@@ -5181,7 +5152,7 @@ export function createGame(db, opts = {}) {
 
   const handlers = {
     me: (u) => me(u),
-    collect, 'buy-slot': buySlot, 'upgrade-cap': upgradeCap, 'tank/upgrade': tankUpgrade, sell, showcase, 'buy-showcase': buyShowcaseSlot,
+    collect, 'buy-slot': buySlot, 'tank/upgrade': tankUpgrade, sell, showcase, 'buy-showcase': buyShowcaseSlot,
     'car/paint': paintCar, 'car/livery': liveryCar, 'car/paint-reset': paintReset,
     'wash/hand': washHand, 'wash/auto': washAuto,
     'case/open': openCase, 'case/history': dropHistory,
@@ -5198,7 +5169,7 @@ export function createGame(db, opts = {}) {
     'casino/mines/start': minesStart, 'casino/mines/reveal': minesReveal, 'casino/mines/cashout': minesCashout, 'casino/mines/state': minesState,
     'pvp/list': pvpList, 'pvp/create': pvpCreate, 'pvp/accept': pvpAccept, 'pvp/cancel': pvpCancel,
     'pvp/request': pvpRequest, 'pvp/withdraw': pvpWithdraw, 'pvp/answer': pvpAnswer, 'pvp/state': pvpState, 'pvp/progress': pvpProgress, 'pvp/finish': pvpFinish,
-    achievements, 'ach/claim': achievementClaim, 'support/send': supportSend, 'support/mine': supportMine, 'idea/seen': ideaSeen, 'idea/send': ideaSend,
+    achievements, 'ach/claim': achievementClaim, 'support/send': supportSend, 'support/mine': supportMine,
     pulse, 'settings/invites': setNoInvites, 'settings/push': setPushOn,'room/decline': roomDecline, 'gifts/seen': giftsSeen, 'rescue/claim': rescueClaim,
     'market/list': marketList, 'market/sell': marketSell, 'market/buy': marketBuy, 'market/cancel': marketCancel,
     'market/items': marketItems, 'market/item-sell': marketItemSell, 'market/item-buy': marketItemBuy, 'market/item-cancel': marketItemCancel,
@@ -6061,6 +6032,38 @@ export function createGame(db, opts = {}) {
   // Owner 03.11: the Season 1 prize stars lost in the wipe come back once as star credit (src/season2.js
   // restorePrizeStars, meta 's1_prize_restore_done'); its bot messages go out with the other start-up notes.
   for (const n of db.tx(() => S2.restorePrizeStars())?.notes || []) startupNotes.push(n);
+  // David 04.11: Season 1 auction plates taken by a wipe that ran before they were kept come back once (src/season2.js
+  // restoreAuctionPlates, meta 's1_auction_plates_restore').
+  for (const n of db.tx(() => S2.restoreAuctionPlates())?.notes || []) startupNotes.push(n);
+  // David 04.11: the garage cash holds S.GARAGE_CAP hours (4, with VIP 8) — the paid cap upgrades are gone. What a
+  // player paid for them this season comes back once: after the Season 2 wipe (it zeroed users.cap_level, so a level
+  // above 0 was bought in Season 2) every cap_level > 0 is refunded at S.OLD_CAP_COSTS through addMoney (money source
+  // 'cap-refund'), set back to 0, and told by an event, a «money» gift window and a bot message. Once per database
+  // (meta CAP_REFUND, in the same transaction); a refunded player has cap_level 0, so even a lost flag can't pay twice.
+  // Before the wipe nothing happens and no flag is set: the wipe itself zeroes the Season 1 levels (Season 1 money).
+  const CAP_REFUND = 'cap_refund_1';
+  function refundCapLevels() {
+    if (!S2.doneAt() || metaGet(CAP_REFUND)) return null;
+    const notes = [];
+    let total = 0;
+    for (const u of q('SELECT id, cap_level FROM users WHERE cap_level > 0 AND id > 0 ORDER BY id').all()) {
+      const lvl = Math.min(u.cap_level, S.OLD_CAP_COSTS.length - 1);
+      const sum = S.OLD_CAP_COSTS.slice(1, lvl + 1).reduce((a, b) => a + b, 0);
+      q('UPDATE users SET cap_level = 0 WHERE id = ?').run(u.id);
+      if (!sum) continue;
+      addMoney(u.id, sum);
+      const text = `Каса гаража тепер без покращень: ${S.GARAGE_CAP.hours} год, з VIP — ${S.GARAGE_CAP.vipHours} год. Повертаємо ${S.fmt(sum)}, які ти заплатив за покращення каси.`;
+      q('INSERT INTO events (user_id, text, created_at) VALUES (?, ?, ?)').run(u.id, `💰 ${text}`, now());
+      gift(u.id, 'money', { amount: sum, reason: 'cap-refund' }, text);
+      notes.push([u.id, `💰 ${text}`]);
+      alog('system', 'cap-refund', u.id, { level: lvl, amount: sum });
+      total += sum;
+    }
+    metaSet(CAP_REFUND, now());
+    if (notes.length) console.log(`cap refund: ${S.fmt(total)} to ${notes.length} players`);
+    return { users: notes.length, total, notes };
+  }
+  for (const n of db.tx(() => srcWrap('cap-refund', refundCapLevels)())?.notes || []) startupNotes.push(n);
   // Owner 28.10 hotfix (S.ORIGIN_SELL for the dear cases): cars that came out of those cases before it keep the full
   // sale rate — their origin is cleared once (origin only sets the instant-sale share).
   if (!metaGet('origin_sell_fix_1')) {

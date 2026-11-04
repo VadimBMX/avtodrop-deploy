@@ -96,7 +96,7 @@ export function createPrestige(ctx) {
       restyled: cars.map((c) => ({ carId: c.id, model: c.model, stars: c.stars, nextAt: c.stars < P.PRESTIGE.max ? P.nextStarAt(c.at) : 0, spent: c.spent })),
       spent: { restyle: restyleSpent, trophies: trophySpent },
       wealth: u.total_value + restyleSpent + trophySpent,
-      offer: P.firstOffer({ balance: u.balance, slots: u.slots, capLevel: u.cap_level }),
+      offer: P.firstOffer({ balance: u.balance, slots: u.slots }),
       now: now(),
     };
   }

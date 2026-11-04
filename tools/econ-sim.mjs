@@ -105,7 +105,7 @@ function buyStuff(b) {
   for (let guard = 0; guard < 12; guard++) {
     const me = call(b, 'me');
     if (me.slots < S.MAX_SLOTS && S.slotCost(me.slots) < me.balance * 0.15) { booked(b, 'garage slots', () => tryCall(b, 'buy-slot')); spendTime(b, COST.buy); continue; }
-    const capNext = S.CAP_LEVELS[me.capLevel + 1];
+    const capNext = S.CAP_LEVELS?.[me.capLevel + 1]; // gone 04.11 (S.GARAGE_CAP): never offered
     if (capNext && capNext.cost < me.balance * 0.1) { booked(b, 'income storage', () => tryCall(b, 'upgrade-cap')); spendTime(b, COST.buy); continue; }
     if (b.a.biz && g.api.biz) {
       const list = call(b, 'biz').list;

@@ -233,7 +233,7 @@ test('money only: no shop item buys ★ or trophies with Telegram Stars; the slo
   // Cheap slot next to the balance → the app offers it first.
   T.db.prepare('UPDATE users SET slots = 20 WHERE id = ?').run(u.id);
   assert.equal(T.call(u.id, 'prestige').offer?.kind, 'slot');
-  T.db.prepare('UPDATE users SET slots = 40, cap_level = 3 WHERE id = ?').run(u.id);
+  T.db.prepare('UPDATE users SET slots = 40 WHERE id = ?').run(u.id);
   assert.equal(T.call(u.id, 'prestige').offer, null);
-  assert.deepEqual(P.firstOffer({ balance: 1e9, slots: 40, capLevel: 2 }), { kind: 'cap', cost: S.CAP_LEVELS[3].cost, hours: S.CAP_LEVELS[3].hours });
+  assert.equal(P.firstOffer({ balance: 1e9, slots: 40 }), null, 'no cash upgrade to offer (David 04.11)');
 });

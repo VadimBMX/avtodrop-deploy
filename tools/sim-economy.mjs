@@ -95,7 +95,7 @@ function spend(b, share) {
       booked(b, 'garage slots', () => tryCall(b, 'buy-slot'));
       continue;
     }
-    const capNext = S.CAP_LEVELS[me.capLevel + 1];
+    const capNext = S.CAP_LEVELS?.[me.capLevel + 1]; // gone 04.11 (S.GARAGE_CAP): never offered
     if (capNext && capNext.cost < me.balance * 0.1) {
       booked(b, 'income storage', () => tryCall(b, 'upgrade-cap'));
       continue;

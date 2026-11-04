@@ -10,9 +10,10 @@ export function tankShown({ level, fuel, balance, next }) {
   return !!next && level >= next.level && balance >= next.cost * TANK_NEAR;
 }
 
-// fix5 (crit4 №9): a newcomer back after hours away sees why the cash gave little — one line under the cash card,
-// «Каса стояла повна N год — збільш її до 6 год за X» (the ordinary cap upgrade; the economy is unchanged).
-// income: me.income { rate, capH, since, banked }; next: S.nextCapOffer(...). Returns the whole hours it stood full, or 0.
+// fix5 (crit4 №9): a newcomer back after hours away sees why the cash gave little — one line under the cash card.
+// David 04.11: no paid cap upgrades any more, so the line reads «Каса стояла повна N год — з VIP вона тримає 8 год».
+// income: me.income { rate, capH, since, banked }; next: the longer cap he could have ({ hours }: VIP's, null for a
+// VIP). Returns the whole hours it stood full, or 0.
 export const IDLE_CAP = { level: 5, minHours: 1 };
 export function idleCapHours({ level, income, now, next }) {
   if (!next || !income || level >= IDLE_CAP.level || !(income.rate > 0)) return 0;

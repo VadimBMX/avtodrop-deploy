@@ -234,7 +234,7 @@ test('comeback after 7+ days: level key too and a longer income cap for 24 h tha
   set(id, 'level = 12, created_at = ?', T0 - 60 * D);
   g.giveCar(id, S.ALL_MODELS.find((m) => m.cls === 'C').id);
   set(id, 'income_at = ?, banked = 0', T0);
-  const capH = S.CAP_LEVELS[0].hours;
+  const capH = S.GARAGE_CAP.hours;
   clock.t = T0 + 8 * D;
   mk(id);
   assert.equal(keys(id, 'city'), 1);

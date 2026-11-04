@@ -19,7 +19,8 @@
 //     boss_runs, dayrace_tries, dayrace_best, tourney_entries, tourney_brackets, tourney_matches, badges (the veteran
 //     badge is written back), trophies, buyer_offers, barn_finds, hw_tasks, container_expert, showroom, showroom_likes,
 //     club_points, club_day, club_wins, club_goal, club_perks, user_business («Мої бізнеси» bought before the wipe).
-//   PARTLY: claims (kept: 'intro', 'story:*', 'guide-off', 'home-screen', 'emoji:*' — seen-once flags, not progress);
+//   PARTLY: plates (gone, except plates won at a finished «Аукціон номера»: kept with their owner, off the car —
+//     David 04.11); claims (kept: 'intro', 'story:*', 'guide-off', 'home-screen', 'emoji:*' — seen-once flags, not progress);
 //     trade_chat (room chats go, the hall chat stays); gifts (kept, all marked shown — pending windows were about
 //     Season 1 things); container_lots (waiting / live lots cancelled — their escrow was Season 1 money; done lots stay
 //     as history, marked opened); plate_auctions (an open auction stays, its bids are dropped); clubs (kept, treasury
@@ -36,6 +37,7 @@
 //     container_subs, edition_serials, event_plan, plate_auction_bids of finished auctions, tg_group_claims,
 //     tg_group_nudge, channel_*, autopromo_log, user_frames, s1_archive, star_credit_log.
 import * as S from '../public/shared.js';
+import { plateAuctionValue } from './plate-auction.js';
 
 const R = S.S2_RESET;
 const MARKER = `season_reset_s${R.season}`;
@@ -43,6 +45,12 @@ const MARKER = `season_reset_s${R.season}`;
 // archived in s1_archive.prize_stars and then zeroed with the rest — lost. They come back once, as shop credit (the
 // way bought Stars came back), with an in-game gift. Meta flag: never twice; no wipe yet → nothing to do.
 export const PRIZE_RESTORE = 's1_prize_restore_done';
+// David 04.11: plates won at a finished «Аукціон номера» (plate_auctions status 'done' with a winner → its plates row)
+// are not Season 1 progress — they survive the wipe, off their car, in the owner's free plates (KEPT_PLATES below).
+// On a database where the wipe already ran (and took them), they are recreated once for the auction's winner.
+export const PLATE_RESTORE = 's1_auction_plates_restore';
+const KEPT_PLATES = `SELECT * FROM plates WHERE text IN (SELECT text FROM plate_auctions WHERE status = 'done' AND top_bidder IS NOT NULL
+  AND plate_id IS NOT NULL)`;
 const KEEP_CLAIMS = "key = 'intro' OR key LIKE 'story:%' OR key = 'guide-off' OR key = 'home-screen' OR key LIKE 'emoji:%'";
 const WIPE_ALL = ['car_parts', 'rivals', 'cars', 'parts', 'parts_cool', 'plates', 'keys', 'fragments', 'collection', 'pity', 'races', 'drift_runs',
   'challenges', 'challenge_tries', 'listings', 'auctions', 'item_listings', 'item_sales', 'trades', 'trade_items', 'trade_rooms', 'trade_room_items',
@@ -141,7 +149,11 @@ export function createSeason2(ctx) {
       q("DELETE FROM plate_auction_bids WHERE auction_id IN (SELECT id FROM plate_auctions WHERE status = 'open')").run();
       q("UPDATE plate_auctions SET top_bid = NULL, top_bidder = NULL, bids = 0 WHERE status = 'open'").run();
     }
+    const kept = has('plate_auctions') ? q(KEPT_PLATES).all() : []; // the auction plates, with whoever owns them now
     for (const table of WIPE_ALL) if (has(table)) q(`DELETE FROM ${table}`).run();
+    // Same id (plate_auctions.plate_id still points at it), same owner, detached: the cars are gone.
+    const put = q('INSERT INTO plates (id, owner_id, text, cls, value, car_id, created_at) VALUES (?, ?, ?, ?, ?, NULL, ?)');
+    for (const p of kept) put.run(p.id, p.owner_id, p.text, p.cls, p.value, p.created_at);
     // s2-qa: the dealer's lots (listings + his cars) went with the tables above; without its batch marker the market
     // restocks on the next look instead of staying empty until the next DEALER.hours batch.
     q("DELETE FROM meta WHERE key = 'dealer_batch'").run();
@@ -161,6 +173,12 @@ export function createSeason2(ctx) {
        tank_lvl = 0, sold_day = NULL, sold_full = 0, wash_day = NULL, wash_hand = 0, pack_offer_until = 0, pack_offer_next = 0,
        fuel_deal_until = 0, fuel_deal_next = 0, day_deal_day = '', parts_open_at = 0, frame = NULL, star_credit = 0`)
       .run(S.START_BALANCE, S.START_SLOTS, S.SHOWCASE_START, t, S.FUEL_MAX, t, weekOf(t), S.seasonOf(t));
+    // A kept auction plate is in the garage value from the start (and not «growth» for the week's race).
+    if (kept.length) {
+      q(`UPDATE users SET total_value = (SELECT COALESCE(SUM(value), 0) FROM plates WHERE owner_id = users.id AND car_id IS NULL),
+        week_start_value = (SELECT COALESCE(SUM(value), 0) FROM plates WHERE owner_id = users.id AND car_id IS NULL)
+        WHERE id IN (SELECT owner_id FROM plates)`).run();
+    }
     q("INSERT INTO keys (user_id, case_id, count) SELECT id, 'starter', 1 FROM users").run();
     moneyFlow(before.c * S.START_BALANCE - before.n);
   }
@@ -217,6 +235,34 @@ export function createSeason2(ctx) {
     return { users: notes.length, stars, notes };
   }
 
+  // ---------- the auction plates, back after a wipe that took them (David 04.11) ----------
+  // Once per database (meta PLATE_RESTORE, written in the same transaction), only after the wipe: every plate auction
+  // finished before the wipe with a winner whose plate text is nowhere in plates now gets that plate back for the winner
+  // (free, value as the auction gave it), plate_auctions.plate_id pointed at it, an event, a «plate» gift window and a
+  // bot message. A text that exists (kept by the new wipe, or held by anyone) is never made twice — plates.text is unique.
+  function restoreAuctionPlates() {
+    if (!doneAt() || metaGet(PLATE_RESTORE)) return null;
+    const notes = [];
+    if (has('plate_auctions')) {
+      const rows = q(`SELECT a.id, a.text, a.cls, a.value, a.top_bidder FROM plate_auctions a JOIN users u ON u.id = a.top_bidder
+        WHERE a.status = 'done' AND a.top_bidder IS NOT NULL AND a.plate_id IS NOT NULL AND a.settled_at <= ? ORDER BY a.id`).all(doneAt());
+      for (const r of rows) {
+        if (q('SELECT 1 FROM plates WHERE text = ?').get(r.text)) continue;
+        const v = r.value || plateAuctionValue(r.cls), t = now();
+        const pid = Number(q('INSERT INTO plates (owner_id, text, cls, value, created_at) VALUES (?, ?, ?, ?, ?)').run(r.top_bidder, r.text, r.cls, v, t).lastInsertRowid);
+        q('UPDATE plate_auctions SET plate_id = ? WHERE id = ?').run(pid, r.id);
+        q('UPDATE users SET total_value = total_value + ? WHERE id = ?').run(v, r.top_bidder);
+        const text = `Твій номер з аукціону ${r.text} лишився з тобою — він на складі, «Номери».`;
+        q('INSERT INTO events (user_id, text, created_at) VALUES (?, ?, ?)').run(r.top_bidder, `🔨 ${text}`, t);
+        gift?.(r.top_bidder, 'plate', { text: r.text, cls: r.cls, value: v }, text);
+        notes.push([r.top_bidder, `🔨 ${text}`]);
+      }
+    }
+    metaSet(PLATE_RESTORE, now());
+    alog('system', 's1-plate-restore', null, { plates: notes.length, users: new Set(notes.map((n) => n[0])).size });
+    return { plates: notes.length, notes };
+  }
+
   function run(who, { dryRun = false } = {}) {
     if (doneAt()) fail(`Сезон ${R.season} вже запущено ${new Date(doneAt()).toISOString().slice(0, 16).replace('T', ' ')} UTC — повторно не можна`);
     if (!dryRun) settleSeason(); // Season 1's prizes and top-100 badges first: their places go into the archive
@@ -235,6 +281,7 @@ export function createSeason2(ctx) {
     for (const r of rows) compensate(r, t);
     metaSet(MARKER, t);
     restorePrizeStars(); // the prize stars come back with the rest of the compensation (owner 03.11)
+    restoreAuctionPlates(); // kept by the wipe above: only sets its flag (David 04.11)
     alog(who, 'season2-reset', null, { users: out.users, credit: out.credit, patrons: out.patrons, veterans: out.veterans, friendKeys: out.friendKeys,
       vipSubs: out.vipSubs, legends: out.legends.map((l) => l.id), wipe: out.wipe });
     return { ...out, done: true, at: t };
@@ -401,6 +448,6 @@ export function createSeason2(ctx) {
     },
     admin: { season2: () => adminStatus(), 'season2/reset': adminReset },
     mutating: ['season2/reset'],
-    run, snapshot, welcome, archived, restorePrizeStars, frameOf, framesOf, looksOf, lookOf, lookRows, framesOwned, veteranOf, grantFrame, creditAdd, doneAt,
+    run, snapshot, welcome, archived, restorePrizeStars, restoreAuctionPlates, frameOf, framesOf, looksOf, lookOf, lookRows, framesOwned, veteranOf, grantFrame, creditAdd, doneAt,
   };
 }

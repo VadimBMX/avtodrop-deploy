@@ -112,7 +112,7 @@ test('sources and money groups: start parameters and money_src names map to the 
   const cases = { 'case/open': 'cases', 'battle/join': 'cases', sell: 'sales', 'plate/sell': 'sales', 'plate/generate': 'upkeep', 'parts/open': 'cases',
     'parts/merge': 'upkeep', 'race/finish': 'races', collect: 'garage', 'rewards/daily': 'rewards', weekly: 'rewards', 'weekly/chest': 'rewards',
     level: 'levels', signup: 'start', 'market/buy': 'market', auction: 'market', 'casino/close': 'casino', shop: 'shop', 'shop/stars': 'shop',
-    'admin/money': 'admin', 'upgrade-cap': 'upkeep', other: 'other', 'something/new': 'other' };
+    'admin/money': 'admin', 'upgrade-cap': 'upkeep', 'cap-refund': 'upkeep', other: 'other', 'something/new': 'other' };
   for (const [src, g] of Object.entries(cases)) assert.equal(M.groupOf(src), g, src);
 });
 

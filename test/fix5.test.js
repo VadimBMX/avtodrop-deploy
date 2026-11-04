@@ -136,12 +136,11 @@ test('raceWhy: a good start and clean shifts are not blamed — «Суперни
   assert.match(src('app.js'), /reaction: r\.jump \? -1 : r\.reaction, shifts: r\.shifts/);
 });
 
-test('prestige: a VIP whose cash already holds the next level is not offered «каса на 6 год»', () => {
-  const o = { balance: 1e12, slots: S.MAX_SLOTS, capLevel: 0 };
-  assert.equal(P.firstOffer({ ...o, capH: S.CAP_LEVELS[0].hours + S.VIP.extraHours }), null);
-  assert.deepEqual(P.firstOffer({ ...o, capH: S.CAP_LEVELS[0].hours }), { kind: 'cap', cost: S.CAP_LEVELS[1].cost, hours: S.CAP_LEVELS[1].hours });
-  assert.equal(P.firstOffer(o)?.kind, 'cap', 'old callers: as before');
-  assert.match(src('prestige-ui.js'), /capH: m\.income\?\.capH/);
+test('prestige: no cash upgrade is ever offered (David 04.11: the cash has no paid upgrades) — only a slot', () => {
+  const o = { balance: 1e12, slots: S.MAX_SLOTS };
+  assert.equal(P.firstOffer(o), null);
+  assert.equal(P.firstOffer({ balance: 1e12, slots: 10 }).kind, 'slot');
+  assert.doesNotMatch(src('prestige-ui.js'), /prCap|upgrade-cap/);
 });
 
 test('goals: «Купи або продай авто на ринку» never for a player with one car', () => {
@@ -202,15 +201,15 @@ test('canister: on a full tank it waits «в запасі» (max 3) and the next
 
 // ---------- 4. the idle cash line ----------
 test('idle cash: until level 5, «Каса стояла повна N год» after hours away; nothing for a full minute or level 5', () => {
-  const next = S.nextCapOffer(0, 4);
+  const next = { hours: S.GARAGE_CAP.vipHours }; // the VIP cash a non-VIP could have
   const income = { rate: 1000, capH: 4, since: K('2026-10-29T00:00:00'), banked: 0 };
   assert.equal(idleCapHours({ level: 2, income, now: K('2026-10-29T21:00:00'), next }), 17);
   assert.equal(idleCapHours({ level: 2, income, now: K('2026-10-29T04:30:00'), next }), 0, 'full for 30 min');
   assert.equal(idleCapHours({ level: 5, income, now: K('2026-10-29T21:00:00'), next }), 0);
   assert.equal(idleCapHours({ level: 2, income: { ...income, banked: 2000 }, now: K('2026-10-29T05:00:00'), next }), 3, 'banked money fills it sooner');
-  assert.equal(idleCapHours({ level: 2, income, now: K('2026-10-29T21:00:00'), next: null }), 0, 'no upgrade left');
+  assert.equal(idleCapHours({ level: 2, income, now: K('2026-10-29T21:00:00'), next: null }), 0, 'a VIP: nothing longer to offer');
   const app = src('app.js');
-  assert.match(app, /Каса стояла повна \$\{idle\} год — <a data-act="upgradeCap" class="txtlink">збільш її до \$\{nextCap\.hours\} год за \$\{S\.short\(nextCap\.cost\)\}<\/a>/);
+  assert.match(app, /Каса стояла повна \$\{idle\} год — <a data-act="vipSaleGo" class="txtlink">з VIP вона тримає \$\{G\.vipHours\} год<\/a>/);
 });
 
 // ---------- 5. qa4 leftovers ----------

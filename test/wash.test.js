@@ -83,12 +83,11 @@ test('income: dirt costs nothing at any level (owner: visual only) — the serve
   // 100% dirty: still the full rate.
   db.prepare('UPDATE cars SET dirt = 100, dirt_at = ? WHERE id = ?').run(now(), id);
   assert.equal(call(u, 'me').income.rate, clean);
-  // From 40%: 12 h with dirt sliding 40→52% pay exactly 12 h of the clean rate (the largest cap and VIP's extra hours,
-  // so the cap never bites).
+  // From 40%: 8 h with dirt sliding pay exactly 8 h of the clean rate (VIP's cash holds 8 h, so the cap never bites).
   db.prepare('UPDATE cars SET dirt = 40, dirt_at = ? WHERE id = ?').run(now(), id);
-  db.prepare('UPDATE users SET banked = 0, income_at = ?, cap_level = ?, vip_until = ? WHERE id = ?').run(now(), S.CAP_LEVELS.length - 1, now() + 99 * H, u);
-  advance(12 * H);
-  const want = clean * 12;
+  db.prepare('UPDATE users SET banked = 0, income_at = ?, vip_until = ? WHERE id = ?').run(now(), now() + 99 * H, u);
+  advance(S.GARAGE_CAP.vipHours * H);
+  const want = clean * S.GARAGE_CAP.vipHours;
   const got = call(u, 'collect').got;
   assert.ok(Math.abs(got - want) <= 2, `${got} vs ${want}`);
   // A level-1 player (wash still locked) keeps the full income however dirty the car is.
