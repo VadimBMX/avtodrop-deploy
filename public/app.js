@@ -7233,7 +7233,7 @@ function contestAsk() {
       localStorage.setItem(CONTEST_ASK_KEY, day);
     } catch {}
     const sum = S.CONTEST.prizes.reduce((a, b) => a + b, 0).toLocaleString('uk-UA');
-    sheet('Конкурс', `<div class="ct-pop"><img src="promo/contest.jpg" alt="Битва амбасадорів" class="ct-pop-img">
+    sheet('Конкурс', `<div class="ct-pop"><img src="promo/contest.webp" alt="Битва амбасадорів" class="ct-pop-img">
       <b class="disp ct-pop-h">${ic('star')} ${sum} зірок за друзів</b>
       <div class="muted mt">Клич друзів за своїм посиланням — хто приведе найбільше гравців, забирає зірки. До кінця <b class="win">${untilSpan(c.end)}</b></div>
       <div class="btns mt"><button class="btn yellow" data-act="contestGo">${ic('trophy')} Взяти участь</button><button class="btn ghost" data-act="closeModal">Пізніше</button></div></div>`);
