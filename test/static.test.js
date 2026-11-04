@@ -149,3 +149,32 @@ test('static: a changed dependency changes the hash of everything that imports i
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// Load perf (04.11): art named in full in JS gets ?v=<hash> (cached for good, the same URL as the CSS url() of that
+// file — the splash used to download twice); art built from pieces keeps its plain URL and is cached a day, not
+// revalidated on every launch.
+test('static: art named in full in a JS string is versioned; plain s2 art gets the photo cache', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'avst-'));
+  try {
+    fs.mkdirSync(path.join(dir, 's2', 'bg'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 's2', 'bg', 'splash.webp'), 'RIFF');
+    fs.writeFileSync(path.join(dir, 'a.js'), "export const A = ['s2/bg/splash.webp', 's2/bg/none.webp'];\n"
+      + 'export const t = (k) => `<img src="s2/bg/splash.webp"><img src="s2/bg/${k}.webp">`;');
+    fs.writeFileSync(path.join(dir, 'a.css'), ".x { background: url('s2/bg/splash.webp'); }");
+    const st = createStatic({ root: dir, mime: {}, recheckMs: 0 });
+    const js = st.entry('a.js').body.toString();
+    const v = st.entry('s2/bg/splash.webp').hash;
+    assert.ok(js.includes(`'s2/bg/splash.webp?v=${v}'`) && js.includes(`src="s2/bg/splash.webp?v=${v}"`), js);
+    assert.ok(js.includes("'s2/bg/none.webp'"), 'a missing file stays as written');
+    assert.ok(js.includes('src="s2/bg/${k}.webp"'), 'a built path stays as written');
+    assert.ok(st.entry('a.css').body.toString().includes(`s2/bg/splash.webp?v=${v}`), 'CSS and JS share one URL');
+    const hdr = {};
+    const res = { writeHead: (s, h) => Object.assign(hdr, h, { status: s }), end: () => {} };
+    await st.serve({ headers: {}, method: 'GET' }, res, 's2/bg/splash.webp', null);
+    assert.match(hdr['cache-control'], /max-age=86400, stale-while-revalidate/);
+    await st.serve({ headers: {}, method: 'GET' }, res, 's2/bg/splash.webp', v);
+    assert.equal(hdr['cache-control'], 'public, max-age=31536000, immutable');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

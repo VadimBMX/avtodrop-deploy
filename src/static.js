@@ -23,8 +23,9 @@ const COMPRESSIBLE = new Set(['.html', '.js', '.mjs', '.css', '.svg', '.json', '
 const REWRITE = new Set(['.html', '.js', '.mjs', '.css']);
 const IMAGES = new Set(['.webp', '.png', '.jpg', '.jpeg']);
 export const IMMUTABLE = 'public, max-age=31536000, immutable';
-// Car photos, part photos and paint masks under their plain URL: a day fresh, then served from cache while it
-// revalidates in the background for up to a week. The game itself asks for them with ?v=<hash> (see /api/config).
+// Car photos, part photos, paint masks and the game art (s2/, biz/, case-bg/, promo/) under their plain URL: a day
+// fresh, then served from cache while it revalidates in the background for up to a week (no round trip per picture
+// on every launch). The game asks for photos with ?v=<hash> (see /api/config) and for art named in full in JS too.
 export const PHOTO = 'public, max-age=86400, stale-while-revalidate=604800';
 export const REVALIDATE = 'no-cache';
 
@@ -95,7 +96,14 @@ export function createStatic({ root, mime, headers = {}, recheckMs = 1000, strip
           return `${pre}${q}${v}${q}`;
         })
         // <use href="icons.svg#…"> built inside templates: relative to the page, which lives at the root.
-        .replace(/\bicons\.svg(?=#)/g, (all) => versioned(all, '', deps, stack)?.replace(/#.*$/, '') || all);
+        .replace(/\bicons\.svg(?=#)/g, (all) => versioned(all, '', deps, stack)?.replace(/#.*$/, '') || all)
+        // Art named in full inside a string ('s2/bg/splash.webp', src="s2/x-gift.webp" in a template): versioned too,
+        // so it is cached for good and is the same URL as the CSS url() of that file (one download, not two). Paths
+        // built from pieces (`s2/case/c-${k}.webp`) don't match and keep their plain URL (PHOTO cache below).
+        .replace(/(["'`])((?:[a-z0-9_-]+\/)+[a-z0-9_.-]+\.(?:webp|png|jpe?g|svg))(?=\1)/gi, (all, q, spec) => {
+          const v = versioned(spec, '', deps, stack);
+          return v ? q + v : all;
+        });
     }
     // HTML
     let out = text.replace(/(\s(?:src|href)=)(["'])([^"']*)\2/g, (all, pre, q, spec) => {
@@ -199,7 +207,7 @@ export function createStatic({ root, mime, headers = {}, recheckMs = 1000, strip
     const compressible = COMPRESSIBLE.has(e.ext);
     let cacheControl;
     if (v && v === e.hash) cacheControl = IMMUTABLE;
-    else if (IMAGES.has(e.ext) && /^(cars|parts|paint)\//.test(rel)) cacheControl = PHOTO;
+    else if (IMAGES.has(e.ext) && /^(cars|parts|paint|s2|biz|case-bg|promo)\//.test(rel)) cacheControl = PHOTO;
     else cacheControl = REVALIDATE;
     let kind = compressible && e.body.length > 512 ? pickEncoding(req.headers['accept-encoding']) : null;
     let body = e.body;
