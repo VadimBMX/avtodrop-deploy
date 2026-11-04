@@ -89,7 +89,7 @@
   "chery-tiggo-8-pro": {
    "cls": "D",
    "price": null,
-   "prestige": 0
+   "prestige": -1
   },
   "geely-atlas-2024": {
    "cls": "D",
@@ -99,12 +99,12 @@
   "haval-h6": {
    "cls": "D",
    "price": null,
-   "prestige": 0
+   "prestige": -1
   },
   "haval-dargo": {
    "cls": "D",
    "price": null,
-   "prestige": 0
+   "prestige": -1
   },
   "tank-300": {
    "cls": "C",
@@ -119,17 +119,17 @@
   "byd-song-plus": {
    "cls": "D",
    "price": null,
-   "prestige": 0
+   "prestige": -1
   },
   "byd-tang-ev": {
    "cls": "C",
    "price": null,
-   "prestige": 0
+   "prestige": -1
   },
   "lynk-co-01": {
    "cls": "D",
    "price": null,
-   "prestige": 0
+   "prestige": -1
   },
   "exeed-rx": {
    "cls": "C",
@@ -144,7 +144,7 @@
   "hongqi-h9": {
    "cls": "B",
    "price": null,
-   "prestige": 0
+   "prestige": 1
   },
   "zeekr-7x": {
    "cls": "B",
@@ -154,7 +154,7 @@
   "xpeng-g9": {
    "cls": "B",
    "price": null,
-   "prestige": 0
+   "prestige": -1
   },
   "aito-m9": {
    "cls": "A",
@@ -179,7 +179,7 @@
   "vaz-2110": {
    "cls": "D",
    "price": null,
-   "prestige": 0
+   "prestige": 1
   },
   "vaz-2115": {
    "cls": "D",
@@ -224,37 +224,37 @@
   "kia-sportage": {
    "cls": "D",
    "price": null,
-   "prestige": 0
+   "prestige": -1
   },
   "audi-rs6-avant-c8": {
    "cls": "A",
    "price": 24000000,
-   "prestige": 0
+   "prestige": 1
   },
   "audi-rs6-c5": {
    "cls": "B",
    "price": null,
-   "prestige": 0
+   "prestige": 1
   },
   "mercedes-amg-e63-w212": {
    "cls": "B",
    "price": null,
-   "prestige": 0
+   "prestige": -1
   },
   "mercedes-amg-cls-63-c218": {
    "cls": "B",
    "price": null,
-   "prestige": 0
+   "prestige": -1
   },
   "porsche-cayenne-turbo": {
    "cls": "A",
    "price": 18000000,
-   "prestige": 0
+   "prestige": -1
   },
   "porsche-911-gt3-rs-992": {
-   "cls": "S",
+   "cls": "A",
    "price": null,
-   "prestige": 0
+   "prestige": 2
   },
   "volkswagen-touareg-r50": {
    "cls": "C",
@@ -264,23 +264,23 @@
   "lamborghini-revuelto": {
    "cls": "S",
    "price": null,
-   "prestige": 0,
+   "prestige": 1,
    "note": "brief: X (секретна) — placeholder S until the economy decides"
   },
   "lamborghini-murcielago-lp640": {
-   "cls": "S",
+   "cls": "A",
    "price": null,
-   "prestige": 0
+   "prestige": 2
   },
   "ferrari-812-superfast": {
    "cls": "S",
    "price": null,
-   "prestige": 0
+   "prestige": 1
   },
   "mclaren-765lt": {
    "cls": "S",
    "price": null,
-   "prestige": 0
+   "prestige": 1
   },
   "bugatti-tourbillon": {
    "cls": "S",
@@ -291,7 +291,7 @@
   "koenigsegg-gemera": {
    "cls": "S",
    "price": null,
-   "prestige": 0
+   "prestige": 1
   }
  }
 }

@@ -268,10 +268,10 @@ const IMPORT_RAW = [
   ['Mercedes-AMG E63 W212', 'B', 585, 1845, 'sedan', 'DE', 2015],
   ['Mercedes-AMG CLS 63 C218', 'B', 557, 1870, 'sedan', 'DE', 2014],
   ['Porsche Cayenne Turbo', 'A', 550, 2175, 'suv', 'DE', 2020],
-  ['Porsche 911 GT3 RS (992)', 'S', 525, 1450, 'super', 'DE', 2023],
+  ['Porsche 911 GT3 RS (992)', 'A', 525, 1450, 'super', 'DE', 2023],
   ['Volkswagen Touareg R50', 'C', 350, 2550, 'suv', 'DE', 2008],
   ['Lamborghini Revuelto', 'S', 1015, 1772, 'super', 'IT', 2024],
-  ['Lamborghini Murciélago LP640', 'S', 640, 1665, 'super', 'IT', 2008],
+  ['Lamborghini Murciélago LP640', 'A', 640, 1665, 'super', 'IT', 2008],
   ['Ferrari 812 Superfast', 'S', 800, 1630, 'super', 'IT', 2019],
   ['McLaren 765LT', 'S', 765, 1339, 'super', 'GB', 2021],
   ['Koenigsegg Gemera', 'S', 2300, 1850, 'super', 'SE', 2024],
@@ -280,7 +280,29 @@ const IMPORT_PRICE = {
   'audi-rs6-avant-c8': 24000000,
   'porsche-cayenne-turbo': 18000000,
 };
-const IMPORT_PRESTIGE = {};
+const IMPORT_PRESTIGE = {
+  'Chery Tiggo 8 Pro': -1,
+  'Haval H6': -1,
+  'Haval Dargo': -1,
+  'BYD Song Plus': -1,
+  'BYD Tang EV': -1,
+  'Lynk & Co 01': -1,
+  'Hongqi H9': 1,
+  'Xpeng G9': -1,
+  'ВАЗ-2110': 1,
+  'Kia Sportage': -1,
+  'Audi RS6 Avant C8': 1,
+  'Audi RS6 C5': 1,
+  'Mercedes-AMG E63 W212': -1,
+  'Mercedes-AMG CLS 63 C218': -1,
+  'Porsche Cayenne Turbo': -1,
+  'Porsche 911 GT3 RS (992)': 2,
+  'Lamborghini Revuelto': 1,
+  'Lamborghini Murciélago LP640': 2,
+  'Ferrari 812 Superfast': 1,
+  'McLaren 765LT': 1,
+  'Koenigsegg Gemera': 1,
+};
 const IMPORT_HOME_ONLY = [];
 const IMPORT_FACTORY = {
   'chery-tiggo-8-pro': { hex: '#b6babe', finish: 'metallic', name: 'silver metallic', key: true },
