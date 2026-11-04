@@ -228,7 +228,7 @@
   },
   "audi-rs6-avant-c8": {
    "cls": "A",
-   "price": null,
+   "price": 24000000,
    "prestige": 0
   },
   "audi-rs6-c5": {
@@ -248,7 +248,7 @@
   },
   "porsche-cayenne-turbo": {
    "cls": "A",
-   "price": null,
+   "price": 18000000,
    "prestige": 0
   },
   "porsche-911-gt3-rs-992": {

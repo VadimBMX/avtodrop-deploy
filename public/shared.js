@@ -263,9 +263,11 @@ const IMPORT_RAW = [
   ['Opel Astra G', 'D', 101, 1150, 'hatch', 'DE', 2003],
   ['Renault Duster', 'D', 114, 1300, 'suv', 'FR', 2016],
   ['Kia Sportage', 'D', 150, 1550, 'suv', 'KR', 2019],
+  ['Audi RS6 Avant C8', 'A', 600, 2075, 'wagon', 'DE', 2021],
   ['Audi RS6 C5', 'B', 450, 1865, 'wagon', 'DE', 2003],
   ['Mercedes-AMG E63 W212', 'B', 585, 1845, 'sedan', 'DE', 2015],
   ['Mercedes-AMG CLS 63 C218', 'B', 557, 1870, 'sedan', 'DE', 2014],
+  ['Porsche Cayenne Turbo', 'A', 550, 2175, 'suv', 'DE', 2020],
   ['Porsche 911 GT3 RS (992)', 'S', 525, 1450, 'super', 'DE', 2023],
   ['Volkswagen Touareg R50', 'C', 350, 2550, 'suv', 'DE', 2008],
   ['Lamborghini Revuelto', 'S', 1015, 1772, 'super', 'IT', 2024],
@@ -274,7 +276,10 @@ const IMPORT_RAW = [
   ['McLaren 765LT', 'S', 765, 1339, 'super', 'GB', 2021],
   ['Koenigsegg Gemera', 'S', 2300, 1850, 'super', 'SE', 2024],
 ];
-const IMPORT_PRICE = {};
+const IMPORT_PRICE = {
+  'audi-rs6-avant-c8': 24000000,
+  'porsche-cayenne-turbo': 18000000,
+};
 const IMPORT_PRESTIGE = {};
 const IMPORT_HOME_ONLY = [];
 const IMPORT_FACTORY = {
@@ -295,9 +300,11 @@ const IMPORT_FACTORY = {
   'opel-astra-g': { hex: '#b6babe', finish: 'metallic', name: 'silver', key: true },
   'renault-duster': { hex: '#e06a1a', finish: 'gloss', name: 'orange', key: true },
   'kia-sportage': { hex: '#eeefec', finish: 'gloss', name: 'white', key: true },
+  'audi-rs6-avant-c8': { hex: '#8a8d8f', finish: 'gloss', name: 'Nardo grey', key: true },
   'audi-rs6-c5': { hex: '#b5121b', finish: 'gloss', name: 'Misano red', key: true },
   'mercedes-amg-e63-w212': { hex: '#5a5d61', finish: 'matte', name: 'designo magno grey', key: true },
   'mercedes-amg-cls-63-c218': { hex: '#eeefec', finish: 'gloss', name: 'white', key: true },
+  'porsche-cayenne-turbo': { hex: '#eeefeb', finish: 'metallic', name: 'Carrara white', key: true },
   'porsche-911-gt3-rs-992': { hex: '#4caf3d', finish: 'gloss', name: 'Python green', key: true },
   'volkswagen-touareg-r50': { hex: '#121315', finish: 'metallic', name: 'deep black', key: true },
   'lamborghini-revuelto': { hex: '#1d1e21', finish: 'matte', name: 'matte black', key: true },
