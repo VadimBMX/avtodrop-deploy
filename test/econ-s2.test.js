@@ -82,8 +82,8 @@ test('S2 secret cars: priced from the collection, not a fortune for a short UA r
 
 test('S2 progression: a richer first session, businesses inside one season, paying capped', () => {
   assert.equal(S.START_BALANCE, 500000);
-  assert.ok(S.NEWBIE_TASKS.reduce((a, t) => a + t.money, 0) >= 1e6);
-  assert.equal(S.levelReward(5).money, 40000 * 25);
+  assert.equal(S.NEWBIE_TASKS.reduce((a, t) => a + t.money, 0), 400000); // 04.11: cut from ~1 млн (too much in the first minutes)
+  assert.equal(S.levelReward(5).money, 25000 * 25); // 04.11: 25 000 × L² (was 40 000)
   for (const b of B.BIZ.list) assert.ok(b.level <= 10, `${b.id} from level ${b.level}`);
   assert.ok(S.PACK_SCALE.max <= 10 && S.FIRST_BUY_MULT <= 2 && S.PACK_OFFER.mult <= 1.5);
   // Early races pay double, the dearest car about as much as in S1 (raceEv: 20 000 × (v / 40 000)^0,5).

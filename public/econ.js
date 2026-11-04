@@ -90,10 +90,10 @@ export const ECON = {
   partCaseMarkup: 0.6, // a part case costs this × the average value of what it drops
 
   // ---------- progression ----------
-  levelMoney: 40000, // level-up reward = levelMoney × level²
+  levelMoney: 25000, // 04.11 (David: «2,5 млн за 5 хв — забагато»; was 40 000) level-up reward = levelMoney × level²
   questPay: 3.6,
   // «Перші кроки» (S.NEWBIE_TASKS): money per step, in the order of the track.
-  newbieMoney: { open_starter: 30000, collect: 50000, race: 80000, daily: 30000, win: 120000, open_case: 150000, install: 150000, level3: 400000 },
+  newbieMoney: { open_starter: 15000, collect: 20000, race: 30000, daily: 15000, win: 50000, open_case: 60000, install: 60000, level3: 150000 }, // 04.11: 400 тис total (was 1 010 000)
   refReward: 1000000,
 
   // ---------- trading risk ----------
