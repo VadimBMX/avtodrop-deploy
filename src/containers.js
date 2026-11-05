@@ -352,8 +352,19 @@ export function createContainers(ctx) {
     return { closed: L.id };
   }
 
+  // A player who leaves the bidding by force (admin reset, ban) stops leading his open lots: the price ladder stays (the
+  // bots go on from it), nobody human leads, so an outbid refunds nobody and the end gives the car to nobody. A ban
+  // gives the held bid back; a reset doesn't (his balance is reset anyway) — before, the reset account got the old
+  // bid back on the next outbid, or won the car (n5-bugs).
+  function dropLeader(uid, { refund }) {
+    for (const L of q(`SELECT id, top_bid FROM container_lots WHERE top_bidder = ? AND ${OPEN}`).all(uid)) {
+      if (refund) addMoney(uid, L.top_bid);
+      q('UPDATE container_lots SET top_bidder = 0, version = version + 1 WHERE id = ?').run(L.id);
+    }
+  }
+
   return {
-    isOn, ensure, tick: (id, t) => tick(row(id), t), sweep, spawn,
+    isOn, ensure, tick: (id, t) => tick(row(id), t), sweep, spawn, dropLeader,
     api: { containers: list, 'containers/lot': lot, 'containers/bid': bid, 'containers/open': open, 'containers/expert': expert, 'containers/evening': eveningSub },
     admin: { containers: () => adminView(), 'containers/toggle': adminToggle, 'containers/close': adminClose },
     mutating: ['containers/toggle', 'containers/close'],
