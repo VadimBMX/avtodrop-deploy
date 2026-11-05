@@ -6747,6 +6747,10 @@ body.s2 .s2-parts-go { color: #8a8f98; }
 .lvcap b { color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; }
 .lvcap-note { display: flex; align-items: center; justify-content: center; gap: 4px; }
 
+/* Playtest 05.11: the «Перші кроки» card (z 44) floated over open sheets (z 20) — on day 2 it covered the title and
+   the ✕ of «Нагороди». While a sheet is open the card steps aside; the ring in the header stays. */
+body:has(#modal:not([hidden])) .coach { visibility: hidden; pointer-events: none; }
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */
