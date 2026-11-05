@@ -207,3 +207,19 @@ test('N5-6 app.js: the header balance and the tabs go through runBusy(); a run w
   assert.match(tabs, /runBusy\(\)/);
   assert.match(app, /if \(state\.drift !== D \|\| !el\('dSign'\)\) return clearInterval\(count\);/, 'the 3·2·1 stops when the drift screen is gone');
 });
+
+// ---------- N5-7: car/livery and car/paint took a prototype name, charged for it and stored it on the car ----------
+test('N5-7 car/livery, car/paint: «constructor» is refused, nothing paid, nothing stored', () => {
+  const { db, g, mk, call, err, bal } = setup();
+  mk(1);
+  const c = g.giveCar(1, 'vaz-2107').id;
+  const b0 = bal(1);
+  for (const v of ['constructor', 'toString', '__proto__', 'valueOf']) {
+    err(() => call(1, 'car/livery', { carId: c, livery: v }));
+    err(() => call(1, 'car/paint', { carId: c, color: v }));
+  }
+  assert.equal(bal(1), b0);
+  const r = db.prepare('SELECT paint, livery FROM cars WHERE id = ?').get(c);
+  assert.equal(r.paint, null);
+  assert.equal(r.livery, null);
+});

@@ -1244,7 +1244,7 @@ export function createGame(db, opts = {}) {
   function paintCar(uid, { carId, color }) {
     const c = paintTarget(uid, carId);
     const id = color ? String(color) : null;
-    if (id && !S.PAINT_BY_ID[id]) fail('Невідомий колір');
+    if (id && !own(S.PAINT_BY_ID, id)) fail('Невідомий колір');
     const cur = S.PAINT_BY_ID[c.paint] ? c.paint : null;
     if (cur === id) fail(id ? 'Машина вже цього кольору' : 'Машина й так у заводському кольорі');
     const price = id ? S.paintPrice(c.model) : 0;
@@ -1256,7 +1256,7 @@ export function createGame(db, opts = {}) {
   function liveryCar(uid, { carId, livery }) {
     const c = paintTarget(uid, carId);
     const id = livery ? String(livery) : null;
-    if (id && !S.LIVERY_BY_ID[id]) fail('Невідома ліврея');
+    if (id && !own(S.LIVERY_BY_ID, id)) fail('Невідома ліврея'); // 'constructor' was paid for and stored (n5-bugs)
     // A season livery is a pass reward: only for its owner, and free.
     if (id && S.LIVERY_BY_ID[id].cos && !q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(uid, S.LIVERY_BY_ID[id].cos)) fail(S.LIVERY_BY_ID[id].star ? 'Ця ліврея продається в «Стилі» за зірки' : 'Ця ліврея — нагорода сезонного пропуску');
     const cur = S.LIVERY_BY_ID[c.livery] ? c.livery : null;
