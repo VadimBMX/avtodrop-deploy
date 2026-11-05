@@ -2174,7 +2174,7 @@ H.s2FuelGo = () => {
 // «Чесний шанс»: the chance chip of a solo rival — or, for an easy rival you'd lose more often than not right now,
 // a plain «важко» instead of a number (S.RACE_FORM.toughBelow).
 const rivalChanceChip = (r) => (r.tough ? '<span class="chip rv-tough">Для тебе зараз: важко — потренуйся</span>' : `<span class="chip">шанс ${r.chance < 1 ? '<1' : r.chance}%</span>`);
-const RIVAL_HONEST_TEXT = `Шанс — за медіаною ${S.RACE_FORM.runs} твоїх останніх заїздів, де ти сам перемикав передачі (заїзди на автопілоті не рахуються; поки таких заїздів мало — як у доброго водія). На Тренуванні й Легкому шанс не нижчий, ніж у звичайного водія, який перемикає передачі (Тренування — щонайменше ${S.CHANCE_FLOOR.train}%). Суперники — справжні машини з їхньою реальною потужністю, а швидкість їм дає водій: від новачка до легенди. Деталі на твоїй машині піднімають шанс.`;
+const RIVAL_HONEST_TEXT = `Шанс — за медіаною ${S.RACE_FORM.runs} твоїх останніх заїздів, де ти сам перемикав передачі (заїзди на автопілоті не рахуються; поки таких заїздів мало — як у звичайного водія). На Тренуванні й Легкому шанс не нижчий, ніж у звичайного водія, який перемикає передачі (Тренування — щонайменше ${S.CHANCE_FLOOR.train}%). Суперники — справжні машини з їхньою реальною потужністю, а швидкість їм дає водій: від новачка до легенди. Деталі на твоїй машині піднімають шанс.`;
 // Fuel: one tank for every car — 15 slanted pips like the key fragments, a race of any kind takes one.
 function fuelCard(car, extra = '') {
   if (me.fuel < 1) return fuelOut();

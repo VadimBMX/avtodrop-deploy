@@ -1626,7 +1626,7 @@ export function pickRivalCar(cls, ref, p, target, { hp, harder = null, skill = 0
 }
 // The shown chance (race2 «чесний шанс»). A player's form is the median of their last RACE_FORM.runs solo runs in which
 // they shifted themselves at least RACE_FORM.minShifts times (a run left to the limiter — AFK, or a newcomer who hasn't
-// found the button — says nothing about how they drive); with fewer than RACE_FORM.min such runs, a good driver.
+// found the button — says nothing about how they drive); with fewer than RACE_FORM.min such runs, an average driver.
 // Floors (CHANCE_FLOOR, %): Training and Easy never show less than this — backed by the real odds of an AVERAGE
 // driver who shifts (the floor is capped by them, so it never promises more than a plain driver gets). An easy rival
 // below RACE_FORM.toughBelow % for you shows «важко — потренуйся» instead of a number.
