@@ -153,12 +153,15 @@ function header() {
   const home = s.tab === 'city' && !s.page;
   top.classList.toggle('s2-home', home);
   const back = document.getElementById('s2back');
-  if (back) back.hidden = !s.page || !!X.tg?.initData;
+  // design pass 05.11: «Майстерня» (тюнінг-кейси, склад, фарбування, мийка) opens from the car card — it is an inner
+  // screen with ‹ and its title like every other one, not a tab root with the HUD.
+  const inner = !!s.page || s.tab === 'shop';
+  if (back) back.hidden = !inner || !!X.tg?.initData;
   const t = document.getElementById('title');
   const look = myLook();
   // asphalt: every tab root (no page open) gets the HUD — one dark slab with the helmet, the nickname and «рівень N»
   // on the left (taps open the profile like the old round avatar), the balance slab on the right.
-  const hud = !s.page;
+  const hud = !inner;
   top.classList.toggle('s2-hud', hud);
   if (hud && t) {
     const name = m.username || m.firstName || 'Гравець';
@@ -170,7 +173,7 @@ function header() {
   const pg = s.page || (home ? 'city' : s.tab);
   document.body.dataset.s2pg = pg;
   const lb = !hud && pageLabel(pg);
-  document.getElementById('gift')?.classList.toggle('s2-hide', !!s.page); // s2-audit
+  document.getElementById('gift')?.classList.toggle('s2-hide', inner); // s2-audit
   if (t) t.classList.toggle('s2-xl', !hud && t.textContent.length > 12); // s2-audit: «Цілі дня й тижня», «Аукціон номерів»
   if (lb && lb[0] && t) {
     const title = t.textContent;

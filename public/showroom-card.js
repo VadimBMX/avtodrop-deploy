@@ -64,13 +64,13 @@ function drawCar(c, img, m, cx, floorY, w) {
 export async function showroomCard({ cars, who = '', likes = 0, bot = '' }) {
   const list = (cars || []).filter((x) => S.MODELS[x.model]).slice(0, 3);
   if (!list.length) return null;
-  const W = 1080, H = 1350, AM = '#ffc400';
+  const W = 1080, H = 1350, AM = '#ffd400';
   const cv = document.createElement('canvas');
   cv.width = W;
   cv.height = H;
   const c = cv.getContext('2d');
   try {
-    await Promise.all([`800 80px ${DISP}`, `700 40px ${DISP}`, '600 40px Manrope'].map((f) => document.fonts?.load(f)));
+    await Promise.all([`800 80px ${DISP}`, `700 40px ${DISP}`, '600 40px Inter'].map((f) => document.fonts?.load(f)));
   } catch {}
   // the hall: dark walls, a warm ceiling glow, a polished floor with light strips
   let g = c.createLinearGradient(0, 0, 0, H);
@@ -80,7 +80,7 @@ export async function showroomCard({ cars, who = '', likes = 0, bot = '' }) {
   c.fillStyle = g;
   c.fillRect(0, 0, W, H);
   g = c.createRadialGradient(W / 2, 360, 20, W / 2, 360, 760);
-  g.addColorStop(0, '#ffc40024');
+  g.addColorStop(0, '#ffd40024');
   g.addColorStop(1, '#00000000');
   c.fillStyle = g;
   c.fillRect(0, 0, W, H);
@@ -121,7 +121,7 @@ export async function showroomCard({ cars, who = '', likes = 0, bot = '' }) {
   c.fillStyle = AM;
   c.font = `800 64px ${DISP}`;
   c.save();
-  c.shadowColor = '#ffc40088';
+  c.shadowColor = '#0000'; // «Асфальт»: no glow on the wordmark
   c.shadowBlur = 26;
   c.fillText('АВТОДРОП', W / 2, 112);
   c.restore();
@@ -129,7 +129,7 @@ export async function showroomCard({ cars, who = '', likes = 0, bot = '' }) {
   const kick = 'ШОУРУМ';
   const kw = c.measureText(kick).width + 90;
   roundRect(c, (W - kw) / 2, 150, kw, 72, 36);
-  c.fillStyle = '#ffc4001a';
+  c.fillStyle = '#ffd4001a';
   c.fill();
   c.lineWidth = 3;
   c.strokeStyle = AM;
@@ -172,11 +172,11 @@ export async function showroomCard({ cars, who = '', likes = 0, bot = '' }) {
   c.fillStyle = '#1c1500';
   c.font = `800 72px ${DISP}`;
   c.fillText('ПОСТАВ ♥', W / 2, 1200);
-  c.font = '700 30px Manrope, sans-serif';
+  c.font = '700 30px Inter, sans-serif';
   c.fillText(likes ? `уже ♥ ${likes}` : 'перший лайк — твій', W / 2, 1236);
   c.fillStyle = '#909194';
   const foot = bot ? `@${bot}` : 'АВТОДРОП у Telegram';
-  fit(c, foot, W / 2, 1306, 960, 32, 600, 'Manrope, sans-serif');
+  fit(c, foot, W / 2, 1306, 960, 32, 600, 'Inter, sans-serif');
   for (const q of [0.88, 0.8, 0.7, 0.6]) {
     const blob = await new Promise((r) => cv.toBlob(r, 'image/jpeg', q));
     if (blob && blob.size <= 590 * 1024) return blob;

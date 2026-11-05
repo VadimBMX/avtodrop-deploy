@@ -49,7 +49,7 @@ export async function dayRaceCard({ model, time, place = null, total = 0, day, w
   const c = cv.getContext('2d');
   const color = S.CLASSES[m.cls].color;
   try {
-    await Promise.all(['800 80px "Fira Sans Condensed"', '700 40px "Fira Sans Condensed"', '600 40px Manrope'].map((f) => document.fonts?.load(f)));
+    await Promise.all(['800 80px "Fira Sans Condensed"', '700 40px "Fira Sans Condensed"', '600 40px Inter'].map((f) => document.fonts?.load(f)));
   } catch {}
   // night strip: asphalt, a floodlight in the class colour, the strip's lane lines running to the horizon
   let g = c.createLinearGradient(0, 0, 0, H);
@@ -66,7 +66,7 @@ export async function dayRaceCard({ model, time, place = null, total = 0, day, w
   c.fillRect(0, 0, W, H);
   const floorY = 1010;
   c.save();
-  c.strokeStyle = '#8494ff';
+  c.strokeStyle = '#5a5e68';
   c.globalAlpha = 0.22;
   c.lineWidth = 2;
   for (let k = -12; k <= 12; k++) {
@@ -80,10 +80,10 @@ export async function dayRaceCard({ model, time, place = null, total = 0, day, w
   // header
   c.textAlign = 'center';
   c.textBaseline = 'alphabetic';
-  c.fillStyle = '#ffc400';
+  c.fillStyle = '#ffd400';
   c.font = `800 104px ${FONT}`;
   c.save();
-  c.shadowColor = '#ffc40088';
+  c.shadowColor = '#0000'; // «Асфальт»: no glow on the wordmark
   c.shadowBlur = 34;
   c.fillText('АВТОДРОП', W / 2, 250);
   c.restore();
@@ -91,7 +91,7 @@ export async function dayRaceCard({ model, time, place = null, total = 0, day, w
   c.font = `700 46px ${FONT}`;
   c.fillText(`ЗАЇЗД ДНЯ · ${D.dayLabel(day)}`, W / 2, 328);
   c.fillStyle = '#909194';
-  c.font = '600 34px Manrope, sans-serif';
+  c.font = '600 34px Inter, sans-serif';
   c.fillText('однакова машина для всіх', W / 2, 382);
   // the car on the strip + its reflection
   const holder = document.createElement('div');
@@ -137,14 +137,14 @@ export async function dayRaceCard({ model, time, place = null, total = 0, day, w
   c.fillStyle = '#07080b';
   c.fill();
   c.lineWidth = 4;
-  c.strokeStyle = '#ffc40099';
+  c.strokeStyle = '#ffd40099';
   c.stroke();
   c.fillStyle = '#909194';
   c.font = `700 34px ${FONT}`;
   c.fillText('МІЙ ЧАС НА 402 М', W / 2, tb.y + 52);
-  c.fillStyle = '#ffc400';
+  c.fillStyle = '#ffd400';
   c.save();
-  c.shadowColor = '#ffc400aa';
+  c.shadowColor = '#ffd400aa';
   c.shadowBlur = 24;
   c.font = `800 ${fit(c, `${D.fmtTime(time)} с`, tb.w - 60, 128)}px ${FONT}`;
   c.fillText(`${D.fmtTime(time)} с`, W / 2, tb.y + 172);
@@ -155,17 +155,17 @@ export async function dayRaceCard({ model, time, place = null, total = 0, day, w
     c.font = `800 ${fit(c, label, W - 260, 50)}px ${FONT}`;
     const sw = c.measureText(label).width + 84;
     roundRect(c, (W - sw) / 2, 1446, sw, 84, 16);
-    c.fillStyle = place <= 3 ? '#ffc40033' : color + '2e';
+    c.fillStyle = place <= 3 ? '#ffd40033' : color + '2e';
     c.fill();
     c.lineWidth = 3;
-    c.strokeStyle = place <= 3 ? '#ffc400' : color;
+    c.strokeStyle = place <= 3 ? '#ffd400' : color;
     c.stroke();
     c.fillStyle = '#fff';
     c.fillText(label, W / 2, 1506);
   }
   // call to action
   roundRect(c, 110, 1600, W - 220, 150, 28);
-  c.fillStyle = '#ffc400';
+  c.fillStyle = '#ffd400';
   c.fill();
   c.fillStyle = '#1c1500';
   c.font = `800 62px ${FONT}`;
@@ -175,7 +175,7 @@ export async function dayRaceCard({ model, time, place = null, total = 0, day, w
   c.fillText(sub, W / 2, 1727);
   if (who) {
     c.fillStyle = '#909194';
-    c.font = '600 34px Manrope, sans-serif';
+    c.font = '600 34px Inter, sans-serif';
     c.fillText(who.slice(0, 40), W / 2, 1812);
   }
   checker(c, H - 72, W);

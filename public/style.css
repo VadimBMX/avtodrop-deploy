@@ -6796,6 +6796,80 @@ body.s2[data-s2pg="market"] #view .list > .li .clamp2, body.s2[data-s2pg="race"]
   body.s2 .s2-collect .s2-btn { padding: 0 13px; }
 }
 
+/* ===== design pass 2026-11-05 («щоб не було натяку на старий дизайн»): leftovers of the Season 1 look under «Асфальт».
+   Season 1 slanted every display heading (--slant: skewX(-8deg)); «Асфальт» headings stand upright. The night intro's
+   wordmark keeps its slam (it is italic by design). */
+body.s2 { --slant: skewX(0deg); }
+body.s2 .rl-mark-w { --slant: skewX(-8deg); }
+body.s2 .dr-coach-t { font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: var(--text); }
+/* the drag coach: an asphalt slab instead of the flat black veil */
+body.s2 .dr-coach { background: #07080bf0; }
+body.s2 .dr-coach-in { padding: 18px 16px 16px; border-radius: var(--r); background: var(--slab); box-shadow: var(--slab-sh); }
+/* VIP card: the «ще …» chip sat under the crown medallion */
+body.s2 .vip-card > .row.between > .chip { margin-right: 78px; position: relative; z-index: 1; }
+/* «Апгрейд»: the S1 flat boxes → slabs, the dial's centre pressed in */
+body.s2 .up-pair .side { background: var(--slab); border: 0; border-radius: 14px; box-shadow: var(--slab-sh-sm); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+body.s2 .gauge .center { background: var(--slab-in); border: 0; box-shadow: var(--slab-sh-in), 0 0 0 6px #ffffff06; }
+body.s2 .gauge .center b { font-family: var(--s2-mono); }
+/* empty states: the pressed-in asphalt well instead of the S1 hairline box */
+body.s2 .empty-line { background: var(--slab-in); box-shadow: var(--slab-sh-in); border-radius: 12px; color: var(--muted); }
+/* «Майстерня → Мийка»: the S1 bare rows → one slab like the СТО cards; names in the display face */
+body.s2 .wash-now > b { font: 800 20px/1.1 var(--f-fc); text-transform: uppercase; letter-spacing: .4px; }
+body.s2 .wash-opts { margin-top: 16px; padding: 12px 12px 14px; border-radius: var(--r); background: var(--slab); box-shadow: var(--slab-sh); }
+body.s2 .wash-opt b { font: 800 15px var(--f-fc); text-transform: uppercase; letter-spacing: .4px; }
+body.s2 .wash-opt .small b { font: inherit; font-weight: 800; text-transform: none; letter-spacing: 0; }
+body.s2 .wash-opt .ic { background: var(--slab-in); box-shadow: var(--slab-sh-in); color: var(--accent); }
+/* «Подарунок!»: the S1 iOS-orange glowing tile → an asphalt slab, the icon in the gift's colour (yellow by default) */
+body.s2 .gift-ic { background: var(--slab); box-shadow: var(--slab-sh); color: var(--c, var(--accent)); border-radius: 22px; }
+body.s2 .gift-ic > .i { width: 54px; height: 54px; }
+/* yellow text links («Усі шанси», «Всі ›») were the S1 way to say «more»; in «Асфальт» secondary actions are dark slabs */
+body.s2 .s2-link, body.s2 .s2-h .s2-link { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; border-radius: 10px;
+  background: var(--slab-dk); box-shadow: var(--slab-sh-sm); color: var(--text); font: 700 11.5px var(--f-body); letter-spacing: .2px; white-space: nowrap; }
+body.s2 .s2-link .i { color: var(--accent); width: 14px; height: 14px; }
+/* «Профіль» hub: the long rows (виклики, клуб, бізнеси, престиж, шоурум, магазин) were flat S1 cards with a hairline and
+   the challenge row a cyan glow; section labels were sentence-case. Now slabs and the road-sign label like .h2. */
+body.s2 .hub-store, body.s2 .hub-store.chg-hub { background: var(--slab); border: 0; border-radius: 14px; box-shadow: var(--slab-sh-sm); }
+body.s2 .hub-store + .hub-store, body.s2 .hub-grid + .hub-store { margin-top: 12px; }
+body.s2 .hub-store b { font: 800 15.5px var(--f-fc); text-transform: uppercase; letter-spacing: .4px; }
+body.s2 .hub-store .hub-ic { background: var(--slab-in); box-shadow: var(--slab-sh-in); }
+body.s2 .hub-h { margin: 22px 2px 10px; font: 700 12.5px var(--f-fc); letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted); }
+body.s2 .hub-h > span + span { font: 600 11px var(--f-body); letter-spacing: 0; text-transform: none; }
+/* icon tiles that kept the S1 tint (coloured fill + coloured hairline + glow): events, quests, weekly chests, banners,
+   dealer — the same pressed-in asphalt well as the menu icons, the colour only on the glyph */
+body.s2 .ic.tint, body.s2 .q-ic, body.s2 .wk-chest .wk-ic, body.s2 .ev-ic, body.s2 .dealer-head .ic, body.s2 .banner .mi,
+body.s2 .ev-row.on .ev-ic { background: var(--slab-in); box-shadow: var(--slab-sh-in); color: var(--c, var(--accent)); }
+body.s2 .ev-row:not(.on) .ev-ic { filter: none; opacity: .8; }
+/* the share-card preview: a slab frame, not the class-colour glow */
+body.s2 .share-prev { box-shadow: var(--slab-sh); background: #121317; }
+/* «Сезон 2» compensation window: the bare little flag → a slab tile, the season line as a real heading */
+body.s2 .s2-pop .tg-home-ic { display: grid; place-items: center; width: 64px; height: 64px; margin: 2px auto 12px; border-radius: 18px;
+  background: var(--slab); box-shadow: var(--slab-sh-sm); color: var(--accent); font-size: 30px; }
+body.s2 .s2-pop > b.disp { display: block; font-size: 24px; line-height: 1.1; }
+body.s2 .s2-pop .s2-li > .i { color: var(--accent); }
+/* «Гонки»: the streak tile (S1 orange-tinted hairline card with a glowing icon) and the «Виклики друзям» row → slabs;
+   the rivals' S1 difficulty stripe goes (the difficulty word says it), and the word is no longer slanted */
+body.s2 .rs-tile, body.s2 .chg-row { background: var(--slab); box-shadow: var(--slab-sh-sm); border-radius: 14px; }
+body.s2 .rs-tile.ready { box-shadow: var(--slab-sh-sm), inset 0 0 0 2px var(--accent); }
+body.s2 .rs-tile + .chg-row { margin-top: 10px; }
+body.s2 .rs-tx b, body.s2 .chg-row b { font: 800 15px/1.2 var(--f-fc); text-transform: uppercase; letter-spacing: .4px; }
+body.s2 .rs-ic, body.s2 .rs-tile.lit .rs-ic { background: var(--slab-in); box-shadow: var(--slab-sh-in); }
+body.s2 .chg-row > .i:first-child { color: var(--neon); }
+body.s2 .rivals .rival::before { display: none; }
+body.s2 .rival .diff, body.s2 .diff { transform: none; font-style: normal; }
+/* «Сарай» strip on top of «Гараж»: an S1 hairline card with a copper left stripe → a slab with the icon in a well */
+body.s2 .br-row-g { background: var(--slab); border: 0; box-shadow: var(--slab-sh-sm); border-radius: 14px; margin-bottom: 16px; }
+body.s2 .br-row-g .br-ic { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--slab-in); box-shadow: var(--slab-sh-in); flex: none; }
+body.s2 .br-row-g .br-ic .i { width: 17px; height: 17px; }
+/* the S1 «thin coloured left stripe» marker, still on lots, notes, tiles and «me» rows: slabs carry no stripes in
+   «Асфальт»; a picked / own / ready row gets the 2 px inner ring like the active case tile */
+body.s2 .pier-lot, body.s2 .clb-note, body.s2 .clb-invite, body.s2 .tnm-tile.hot, body.s2 .br-work, body.s2 .dr-res .boss-reward {
+  background: var(--slab); border: 0; box-shadow: var(--slab-sh-sm); }
+body.s2 .set-card { border-left: 0; }
+body.s2 .tnm-tile.hot, body.s2 .clb-invite { box-shadow: var(--slab-sh-sm), inset 0 0 0 2px var(--accent); }
+body.s2 .lb.me, body.s2 .clb-mem.me, body.s2 .li.on, body.s2 .cases-list .li.on { box-shadow: inset 0 0 0 2px var(--accent); background: #ffd4000d; }
+body.s2 .rival.boss.open { box-shadow: var(--slab-sh-sm), inset 0 0 0 2px var(--accent); }
+body.s2 .qcard.ready { box-shadow: var(--slab-sh-sm), inset 0 0 0 2px var(--green); }
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */

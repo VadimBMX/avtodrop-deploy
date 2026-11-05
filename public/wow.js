@@ -43,7 +43,7 @@ export function celebrate(result, { casePrice = 0, onShare, kicker = '', priceLa
     const { esc, ic, haptic } = ctx;
     const car = result.car, m = S.MODELS[car.model];
     const rank = Math.max(3, S.rankOf(m.cls)), dream = !!result.dream;
-    const color = dream && rank < 4 ? '#ffc400' : S.CLASSES[m.cls].color;
+    const color = dream && rank < 4 ? '#ffd400' : S.CLASSES[m.cls].color;
     // Honest numbers (reports/audit.md №1): the big figure is the sale — what the dealer pays right now — and «×N від
     // ціни кейсу» is that against the case (green only when it pays back); the collection price follows in grey. A
     // secret car can't be sold: its collection price is the figure.
@@ -161,18 +161,18 @@ export async function shareCard({ model, value, sale = null, mult = 0, who = '',
   const c = cv.getContext('2d');
   const color = S.CLASSES[m.cls].color;
   try {
-    await Promise.all(['800 80px "Fira Sans Condensed"', '700 40px "Fira Sans Condensed"', '600 40px Manrope'].map((f) => document.fonts?.load(f)));
+    await Promise.all(['800 80px "Fira Sans Condensed"', '700 40px "Fira Sans Condensed"', '600 40px Inter', '800 40px Inter'].map((f) => document.fonts?.load(f)));
   } catch {}
-  // night showroom: asphalt-blue, violet haze in the class colour, two spotlight beams, a neon arc, a grid floor
+  // «Асфальт» (design pass 05.11; was the S1 night showroom with a violet haze, a neon arc and a blue grid floor): a
+  // matte asphalt night, two sodium lamps over a concrete turntable, a faint class-colour light behind the car
   let g = c.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#090a0d');
-  g.addColorStop(0.55, '#0f1013');
+  g.addColorStop(0, '#07080b');
+  g.addColorStop(0.55, '#121317');
   g.addColorStop(1, '#07080b');
   c.fillStyle = g;
   c.fillRect(0, 0, W, H);
-  g = c.createRadialGradient(W / 2, 900, 40, W / 2, 900, 820);
-  g.addColorStop(0, color + '66');
-  g.addColorStop(0.35, '#5b3df044');
+  g = c.createRadialGradient(W / 2, 900, 40, W / 2, 900, 700);
+  g.addColorStop(0, color + '30');
   g.addColorStop(1, '#00000000');
   c.fillStyle = g;
   c.fillRect(0, 0, W, H);
@@ -182,9 +182,9 @@ export async function shareCard({ model, value, sale = null, mult = 0, who = '',
     c.translate(W / 2 + side * 500, 470);
     c.rotate(side * 0.62);
     const b = c.createLinearGradient(0, 0, 0, 760);
-    b.addColorStop(0, '#fff8e140');
-    b.addColorStop(0.6, '#f4f5f812');
-    b.addColorStop(1, '#f4f5f800');
+    b.addColorStop(0, '#ffd27a48');
+    b.addColorStop(0.6, '#ffc85a14');
+    b.addColorStop(1, '#ffc85a00');
     c.fillStyle = b;
     c.beginPath();
     c.moveTo(-14, 0);
@@ -200,45 +200,25 @@ export async function shareCard({ model, value, sale = null, mult = 0, who = '',
     c.restore();
   }
   const floorY = 1040;
+  // the concrete turntable: a top-lit disc with a thick dark edge (the slabs' look)
   c.save();
-  c.strokeStyle = '#8494ff';
-  c.globalAlpha = 0.28;
-  c.lineWidth = 2;
-  for (let k = -14; k <= 14; k++) {
-    c.beginPath();
-    c.moveTo(W / 2 + k * 28, floorY);
-    c.lineTo(W / 2 + k * 150, H);
-    c.stroke();
-  }
-  for (let i = 0, y = floorY; y < H; i++, y += 10 + i * i * 3) {
-    c.beginPath();
-    c.moveTo(0, y);
-    c.lineTo(W, y);
-    c.stroke();
-  }
-  c.restore();
-  c.save();
-  c.lineCap = 'round';
-  for (const [w, a] of [[40, 0.08], [18, 0.2], [6, 1]]) {
-    c.strokeStyle = color;
-    c.globalAlpha = a;
-    c.lineWidth = w;
-    c.beginPath();
-    c.ellipse(W / 2, floorY, 450, 430, 0, Math.PI, 0);
-    c.stroke();
-  }
-  c.globalAlpha = 1;
-  c.strokeStyle = '#ffffffcc';
-  c.lineWidth = 2;
+  c.fillStyle = '#0d0e11';
   c.beginPath();
-  c.ellipse(W / 2, floorY, 450, 430, 0, Math.PI, 0);
+  c.ellipse(W / 2, floorY + 44, 480, 112, 0, 0, Math.PI * 2);
+  c.fill();
+  g = c.createLinearGradient(0, floorY - 70, 0, floorY + 90);
+  g.addColorStop(0, '#4a4d55');
+  g.addColorStop(1, '#25272c');
+  c.fillStyle = g;
+  c.beginPath();
+  c.ellipse(W / 2, floorY + 20, 480, 110, 0, 0, Math.PI * 2);
+  c.fill();
+  c.strokeStyle = '#ffffff22';
+  c.lineWidth = 3;
+  c.beginPath();
+  c.ellipse(W / 2, floorY + 20, 478, 108, 0, Math.PI, 0);
   c.stroke();
   c.restore();
-  g = c.createRadialGradient(W / 2, floorY, 10, W / 2, floorY, 520);
-  g.addColorStop(0, color + '55');
-  g.addColorStop(1, color + '00');
-  c.fillStyle = g;
-  c.fillRect(0, floorY - 140, W, 380);
   // the car + its reflection on the glossy floor
   const holder = document.createElement('div');
   holder.innerHTML = carArt(model);
@@ -272,16 +252,20 @@ export async function shareCard({ model, value, sale = null, mult = 0, who = '',
   // header
   c.textAlign = 'center';
   c.textBaseline = 'alphabetic';
-  c.fillStyle = '#ffc400';
+  // the wordmark as on the splash: «АВТО» white + «ДРОП» yellow, no glow; the yellow dashed road marking under it
   c.font = '800 112px "Fira Sans Condensed", "Arial Narrow", sans-serif';
-  c.save();
-  c.shadowColor = '#ffc40088';
-  c.shadowBlur = 36;
-  c.fillText('АВТОДРОП', W / 2, 300);
-  c.restore();
+  const wa = c.measureText('АВТО').width, wd = c.measureText('ДРОП').width, wx = (W - wa - wd) / 2;
+  c.textAlign = 'left';
+  c.fillStyle = '#f2f3f5';
+  c.fillText('АВТО', wx, 300);
+  c.fillStyle = '#ffd400';
+  c.fillText('ДРОП', wx + wa, 300);
+  c.textAlign = 'center';
+  c.fillStyle = '#ffd400';
+  for (let x = 140; x < W - 140; x += 52) c.fillRect(x, 412, 28, 6);
   c.fillStyle = '#c9cacd';
   c.font = '700 44px "Fira Sans Condensed", "Arial Narrow", sans-serif';
-  c.fillText(m.secret ? 'Я ВІДКРИВ СЕКРЕТНУ МАШИНУ' : m.edition ? 'Я ВИГРАВ НА «ПРИЧАЛІ»' : 'Я ВИБИВ З КЕЙСА', W / 2, 380);
+  c.fillText(m.secret ? 'Я ВІДКРИВ СЕКРЕТНУ МАШИНУ' : m.edition ? 'Я ВИГРАВ НА «ПРИЧАЛІ»' : 'Я ВИБИВ З КЕЙСА', W / 2, 376);
   // A «тиражна»: the blue «ТИРАЖ № 007» stamp under the header (as on the reveal).
   if (m.edition) {
     const st = `ТИРАЖНА${serial ? '  ' + S.serialText(serial) : ''}`;
@@ -304,52 +288,58 @@ export async function shareCard({ model, value, sale = null, mult = 0, who = '',
   const label = `${m.cls}  ·  ${S.CLASSES[m.cls].name.toUpperCase()}`;
   c.font = '800 48px "Fira Sans Condensed", "Arial Narrow", sans-serif';
   const sw = c.measureText(label).width + 80;
-  roundRect(c, (W - sw) / 2, 1190, sw, 80, 16);
-  c.fillStyle = color + '33';
+  roundRect(c, (W - sw) / 2, 1196, sw, 80, 18);
+  c.fillStyle = '#131417';
   c.fill();
-  c.lineWidth = 3;
-  c.strokeStyle = color;
-  c.stroke();
+  roundRect(c, (W - sw) / 2, 1190, sw, 80, 18);
+  c.fillStyle = '#2a2c32';
+  c.fill();
+  c.fillStyle = color;
+  roundRect(c, (W - sw) / 2 + 18, 1212, 10, 36, 4);
+  c.fill();
   c.fillStyle = '#fff';
   c.fillText(label, W / 2, 1247);
   // name, value, multiplier
   c.fillStyle = '#ffffff';
   c.save();
-  c.shadowColor = color;
-  c.shadowBlur = 30;
-  const y = fitText(c, m.name, W / 2, 1390, 960, 116);
+  c.shadowColor = '#000';
+  c.shadowBlur = 18;
+  const y = fitText(c, m.name.toUpperCase(), W / 2, 1390, 960, 116);
   c.restore();
   // Honest numbers: the sale first (×N of the case only when the sale pays it back), the collection price under it in
   // grey; a two-line name leaves room for one compact line only (the call-to-action box starts at 1670).
   const coll = `Колекційна ціна ${S.fmt(value || m.price)}`;
   if (sale == null) {
     c.fillStyle = '#c9cacd';
-    c.font = '600 46px Manrope, sans-serif';
+    c.font = '600 46px Inter, sans-serif';
     c.fillText(coll, W / 2, y + 24);
   } else if (y + 84 > 1640) {
     c.fillStyle = '#c9cacd';
-    c.font = '600 40px Manrope, sans-serif';
+    c.font = '600 40px Inter, sans-serif';
     c.fillText(`Продаж ${S.short(sale)}  ·  колекційна ${S.short(value || m.price)}`, W / 2, y + 24);
   } else {
     c.fillStyle = '#ffffff';
-    c.font = '700 50px Manrope, sans-serif';
+    c.font = '700 50px Inter, sans-serif';
     c.fillText(`Продаж ${S.fmt(sale)}${mult >= 1 ? `  ·  ${S.multText(mult)} від кейсу` : ''}`, W / 2, y + 24);
     c.fillStyle = '#909194';
-    c.font = '600 38px Manrope, sans-serif';
+    c.font = '600 38px Inter, sans-serif';
     c.fillText(coll, W / 2, y + 84);
   }
   // call to action
-  roundRect(c, 110, 1670, W - 220, 150, 28);
-  c.fillStyle = '#ffc400';
+  roundRect(c, 110, 1684, W - 220, 150, 32);
+  c.fillStyle = '#a87f00';
   c.fill();
-  c.fillStyle = '#1c1500';
+  roundRect(c, 110, 1670, W - 220, 150, 32);
+  c.fillStyle = '#ffd400';
+  c.fill();
+  c.fillStyle = '#111';
   c.font = '800 58px "Fira Sans Condensed", "Arial Narrow", sans-serif';
   c.fillText('ПЕРШИЙ КЕЙС — БЕЗКОШТОВНО', W / 2, 1745);
-  c.font = '700 38px Manrope, sans-serif';
+  c.font = '700 38px Inter, sans-serif';
   c.fillText(bot ? `@${bot} у Telegram` : 'АВТОДРОП у Telegram', W / 2, 1795);
   if (who) {
     c.fillStyle = '#909194';
-    c.font = '600 34px Manrope, sans-serif';
+    c.font = '600 34px Inter, sans-serif';
     c.fillText(who.slice(0, 40), W / 2, 1880);
   }
   // JPEG (Telegram wants JPEG for a photo message); drop the quality if it comes out too big for the upload limit

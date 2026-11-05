@@ -511,7 +511,7 @@ function renderHeader() {
   $('#title').classList.toggle('long', $('#title').textContent.length > 8);
   for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('on', b.dataset.tab === state.tab && !state.page);
   for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('locked', !!tabFeature(b.dataset.tab));
-  if (tg?.initData && tg.BackButton) state.page ? tg.BackButton.show() : tg.BackButton.hide();
+  if (tg?.initData && tg.BackButton) state.page || state.tab === 'shop' ? tg.BackButton.show() : tg.BackButton.hide();
   UI2.header?.();
 }
 // «Кейси» tab: a calm tab with a dot only when something can be opened for free right now — the starter case, a key
@@ -532,6 +532,7 @@ function go(page) {
 function back() {
   if (!$('#modal').hidden) return sheetBack ? sheetBack() : closeModal();
   if (state.race && state.race.phase !== 'done') return;
+  if (!state.page && state.tab === 'shop') return (state.tab = 'garage', window.scrollTo(0, 0), render()); // «Майстерня» → «Гараж»
   if (state.page === 'lot') state.marketTab = 'pier';
   if (state.page === 'bizOne') return go('biz'); // s2-biz: one business → «Мої бізнеси»
   state.page = state.page === 'tradeNew' || state.page === 'room' ? 'trades' : state.page === 'battle' ? 'battles' : state.page === 'lot' ? 'market' : null;
