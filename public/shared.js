@@ -3326,6 +3326,12 @@ export const FACTORY_PAINT = {
   'chevrolet-aveo': { hex: '#424245', finish: 'metallic', name: 'as the current photo', key: true },
   'dodge-viper-acr': { hex: '#111111', finish: 'gloss', name: 'as the current photo', key: true },
   'haval-jolion': { hex: '#4c6a82', finish: 'metallic', name: 'as the current photo', key: true },
+  'hongqi-s9': { hex: '#1e2f4a', finish: 'metallic', name: 'as the current photo', key: true },
+  'kia-ev6-gt': { hex: '#606161', finish: 'metallic', name: 'as the current photo', key: true },
+  'koenigsegg-jesko': { hex: '#2a3750', finish: 'metallic', name: 'as the current photo', key: true },
+  'lada-priora': { hex: '#141414', finish: 'gloss', name: 'as the current photo', key: true },
+  'lexus-is-f': { hex: '#1d222f', finish: 'metallic', name: 'as the current photo', key: true },
+  'li-auto-l9': { hex: '#6f8092', finish: 'metallic', name: 'as the current photo', key: true },
   ...IMPORT_FACTORY, // season-2 batch (tools/cars-import)
 };
 export const isKeyCar = (id) => !!FACTORY_PAINT[id]?.key;

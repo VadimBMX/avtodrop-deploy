@@ -25,7 +25,7 @@ const sha = (f) => crypto.createHash('sha1').update(fs.readFileSync(f)).digest('
 
 test('green: factory colours for every new car, valid and only for NEW_RAW cars', () => {
   const ids = Object.keys(S.FACTORY_PAINT);
-  assert.equal(ids.length - S.IMPORTED_KEY_CARS.length, 43); // + the season-2 batch of tools/cars-import; 27 cars of prompts 151–177 + the five Italian B cars of 29.10 (178–182), minus 7 re-shot as plain photos (02.11), + ZAZ-966 re-shot green (05.11), + 17 of the 41 no-paint cars re-shot green (d2-art, 05.11)
+  assert.equal(ids.length - S.IMPORTED_KEY_CARS.length, 49); // + the season-2 batch of tools/cars-import; 27 cars of prompts 151–177 + the five Italian B cars of 29.10 (178–182), minus 7 re-shot as plain photos (02.11), + ZAZ-966 re-shot green (05.11), + 23 of the 41 no-paint cars re-shot green (d2-art, 05.11)
   assert.match(S.KEY_GREEN, /^#[0-9a-f]{6}$/);
   for (const id of ids) {
     const f = S.FACTORY_PAINT[id];
