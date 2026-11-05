@@ -2188,6 +2188,13 @@ export function dailyText(d) {
   return fmt(d.money);
 }
 export const REWARD_CASE_HOURS = 4;
+// d2-wall: a newcomer's boosts (ECON.newbie). The reward case: every rcaseMin minutes while the last one was taken in the
+// account's first rcaseHours, else every REWARD_CASE_HOURS. When the next one is ready (ms), for a users row.
+export const NEWBIE_BOOST = ECON.newbie;
+export const rewardCaseNext = (u) => (u.reward_case_at || 0) + (u.created_at && u.reward_case_at >= u.created_at && u.reward_case_at < u.created_at + NEWBIE_BOOST.rcaseHours * 3600e3
+  ? NEWBIE_BOOST.rcaseMin * 60e3 : REWARD_CASE_HOURS * 3600e3);
+// Free «Заправка новачка» left now (0 for a player past fuelHours or with every refill used).
+export const newbieFuelLeft = (u, t) => (u.created_at && t < u.created_at + NEWBIE_BOOST.fuelHours * 3600e3 ? Math.max(0, NEWBIE_BOOST.fuelRefills - (u.newbie_fuel || 0)) : 0);
 // What the reward case gives (src/game.js rewardCase rolls these shares; the app's 2-second strip draws by them too).
 export const REWARD_CASE_ODDS = { money: 0.5, part: 0.3, fuel: 0.12, car: 0.08 };
 

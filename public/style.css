@@ -6994,6 +6994,11 @@ body > .reel.cine { z-index: 140; display: block; padding: 0; background: #05060
 .cine.cta .cn-skip, .cine.cta .cn-hint { opacity: 0; pointer-events: none; transition: opacity .3s; }
 .cine.rm .cn-go { animation: none; }
 
+/* d2-wall: a newcomer's free full tank (app.js refuelBtn / H.newbieFuel) */
+.refuel-btn.nb-fuel small { opacity: .7; font-weight: 600; margin-left: 4px; }
+.nb-fuel-row { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 10px 0 4px; text-align: center; }
+.nb-fuel-row .refuel-btn { min-width: 220px; }
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */

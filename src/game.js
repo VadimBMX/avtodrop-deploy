@@ -833,7 +833,7 @@ export function createGame(db, opts = {}) {
       partsAutosell: autoSellOf(u), partsNextAt: partNextAt(u) > now() ? partNextAt(u) : 0, // part cases: «Автопродаж», the pause
       level: u.level, levelSeen: u.level_seen, xp: u.xp, xpNeed: S.xpForLevel(u.level), levelCap: levelCapOut(u),
       xpToday: u.xp_day === day ? u.xp_day_capped : 0, xpCaseToday: u.xp_case_day === day ? u.xp_case_used : 0, newbie: newbieState(u),
-      dailyReady: u.streak_day !== day, streak: u.streak, rewardCaseAt: u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3,
+      dailyReady: u.streak_day !== day, streak: u.streak, rewardCaseAt: S.rewardCaseNext(u), newbieFuel: S.newbieFuelLeft(u, now()),
       claims,
       caseOfDay: S.caseOfDayNow(day, evFx()), gameEvents: gameEvents(),
       fair: { seedHash: sha256(u.server_seed), clientSeed: u.client_seed, nonce: u.nonce },
@@ -3294,7 +3294,7 @@ export function createGame(db, opts = {}) {
     // A missed day loses nothing: the next claim continues the series (14 days, then from day 1 again).
     const next = u.streak_day === day ? u.streak : u.streak + 1;
     const len = S.DAILY_BONUS.length;
-    return { streak: u.streak, ready: u.streak_day !== day, nextDay: ((next - 1) % len) + 1, todayIndex: ((u.streak_day === day ? u.streak : next) - 1) % len, rewardCaseAt: u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3, days: S.DAILY_BONUS, vip: (u.vip_until || 0) > now(), vipDaily: S.VIP.daily };
+    return { streak: u.streak, ready: u.streak_day !== day, nextDay: ((next - 1) % len) + 1, todayIndex: ((u.streak_day === day ? u.streak : next) - 1) % len, rewardCaseAt: S.rewardCaseNext(u), days: S.DAILY_BONUS, vip: (u.vip_until || 0) > now(), vipDaily: S.VIP.daily };
   }
   const partPool = (uid) => S.partPoolFor(q('SELECT DISTINCT model FROM cars WHERE owner_id = ?').all(uid).map((r) => r.model));
   function randomPartOf(tier, uid) {
@@ -3401,7 +3401,7 @@ export function createGame(db, opts = {}) {
   }
   function rewardCase(uid) {
     const u = userRow(uid);
-    if (now() < u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3) fail('Кейс нагород ще не готовий');
+    if (now() < S.rewardCaseNext(u)) fail('Кейс нагород ще не готовий');
     q('UPDATE users SET reward_case_at = ? WHERE id = ?').run(now(), uid);
     const x = rnd(), o = S.REWARD_CASE_ODDS;
     let rw;
@@ -3558,7 +3558,7 @@ export function createGame(db, opts = {}) {
     }
     const claims = [];
     if (u.streak_day !== day) claims.push({ key: 'daily:' + day, kind: 'daily', title: 'Щоденний бонус', sub: `День ${(u.streak % S.DAILY_BONUS.length) + 1} з ${S.DAILY_BONUS.length} — забери подарунок` });
-    if (u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3 <= t) claims.push({ key: 'rcase:' + u.reward_case_at, kind: 'rcase', title: 'Кейс нагород готовий', sub: 'Гроші, деталі, пальне або машина' });
+    if (S.rewardCaseNext(u) <= t) claims.push({ key: 'rcase:' + u.reward_case_at, kind: 'rcase', title: 'Кейс нагород готовий', sub: 'Гроші, деталі, пальне або машина' });
     const nb = newbieState(u);
     if (nb?.ready) claims.push({ key: 'newbie:' + nb.step, kind: 'newbie', title: `Перші кроки ${nb.step + 1}/${nb.total}: виконано`, sub: nb.text, money: nb.money });
     for (const r of q('SELECT key, target, progress, reward FROM quests WHERE user_id = ? AND day = ? AND claimed = 0 AND progress >= target').all(uid, day)) {
@@ -3932,7 +3932,7 @@ export function createGame(db, opts = {}) {
         key(r.reward.caseId, r.reward.count || 1, title);
       }
     }
-    if (t >= u.reward_case_at + S.REWARD_CASE_HOURS * 3600e3) {
+    if (t >= S.rewardCaseNext(u)) {
       const r = take('rcase', () => rewardCase(uid));
       if (r) reveal.unshift({ kind: 'rcase', reward: r.reward, title: 'Кейс нагород' });
     }
@@ -4244,6 +4244,15 @@ export function createGame(db, opts = {}) {
       u = userRow(uid);
     }
     return packOfferOn(u) ? { until: u.pack_offer_until, mult: O.mult } : null;
+  }
+  // d2-wall «Заправка новачка»: in the account's first ECON.newbie.fuelHours an empty tank can be filled for free, up to
+  // fuelRefills times (S.newbieFuelLeft). Only on an empty tank, so it is never wasted on a half-full one.
+  function newbieFuel(uid) {
+    const u = userRow(uid);
+    if (S.newbieFuelLeft(u, now()) < 1) fail('Безкоштовна заправка лише для новачків — і вже використана');
+    if (fuelState(u).fuel >= 1) fail('Бак ще не порожній — спершу проїдь заїзди');
+    q('UPDATE users SET fuel = ?, fuel_at = ?, newbie_fuel = newbie_fuel + 1 WHERE id = ?').run(fuelMax(u), now(), uid);
+    return { fuel: fuelMax(u), left: S.newbieFuelLeft(userRow(uid), now()) };
   }
   // Owner 28.10: the tank ran dry → a full tank for fewer stars (S.FUEL_DEAL, item refuel_deal) for a while, at most
   // once per everyH. start = the client saw an empty tank (fuel/deal); `me` only reports a running deal.
@@ -5692,6 +5701,7 @@ export function createGame(db, opts = {}) {
     handlers.me = (uid, b) => ({ ...meBase(uid, b), packOffer: packOffer(uid), fuelDeal: fuelDeal(uid), vipSale: vipSaleOut(uid) });
     handlers['vip/sale'] = (uid) => ({ sale: vipSaleOut(uid, true) });
     handlers['fuel/deal'] = (uid) => ({ deal: fuelDeal(uid, true) });
+    handlers['fuel/newbie'] = (uid) => newbieFuel(uid);
   }
   const api = Object.fromEntries(Object.entries(handlers).map(([k, fn]) => [k, (uid, body = {}) => db.tx(() => {
     const light = LIGHT.has(k);

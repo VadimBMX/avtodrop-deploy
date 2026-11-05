@@ -996,7 +996,7 @@ async function openRewards(result, auto = false) {
     <div class="tiny muted mt tk-can">${ic('gas-station')} Щодня ще й каністра: +${S.CANISTER.daily} пального до бонусу, +${S.CANISTER.quest} за кожну ціль дня (на повному баку — до ${S.CANISTER.spare} у запас)</div>
     ${r.vip ? `<div class="tiny mt" style="color:var(--accent)">${ic('crown')} VIP: ще +${S.short(r.vipDaily)} щодня до бонусу</div>` : `<div class="tiny muted mt">${ic('crown')} VIP додає ще +${S.short(r.vipDaily)} щодня</div>`}
     <button class="btn mt ${liveRewardClaims().length ? 'soft' : ''}" data-act="claimDaily" ${r.ready ? '' : 'disabled'}>${r.ready ? `Забрати · день ${r.nextDay}${r.days[r.nextDay - 1].caseId ? ' · відкрити кейс' : ''}` : 'Наступний опівночі · <span data-until="' + (S.kyivMidnightOf(S.kyivDateOf(serverNow()), 1) - clockOffset) + '"></span>'}</button></div>
-    <div class="h2"><span>Кейс нагород</span><span>раз на ${S.REWARD_CASE_HOURS} год</span></div>
+    <div class="h2"><span>Кейс нагород</span><span>${me.createdAt && serverNow() < me.createdAt + S.NEWBIE_BOOST.rcaseHours * 3600e3 ? `новачкам — раз на ${S.NEWBIE_BOOST.rcaseMin} хв` : `раз на ${S.REWARD_CASE_HOURS} год`}</span></div>
     <div class="card row"><span class="ic tint" style="--c:#ffc400">${ic('gift')}</span><div class="grow"><b>Кейс нагород</b><div class="small muted">Гроші, деталь, повний бак або машина</div></div>
       ${caseReady ? '<button class="btn sm" data-act="claimRewardCase">Відкрити</button>' : `<span class="chip" data-until="${r.rewardCaseAt - clockOffset}"></span>`}</div>
     <div class="h2"><span>Колекція</span></div>
@@ -2228,18 +2228,32 @@ function fuelOut(train = true) {
     <div class="btns mt"><button class="btn sm ghost" data-act="toCases">${ic('box')} Кейси</button><button class="btn sm ghost" data-act="fuelGifts">${ic('gift')} Нагороди</button></div>${tankOffer()}</div>`}`;
 }
 // Owner 28.10: a full tank for Stars right where it ran out (the same item as Магазин → Зручності).
+// d2-wall: a newcomer's free refill (me.newbieFuel, S.NEWBIE_BOOST) takes that place first, on an empty tank only.
+const newbieFuelOn = () => me.newbieFuel > 0 && fuelNow() < 1;
 function refuelBtn() {
+  if (newbieFuelOn()) return `<button class="btn sm yellow refuel-btn nb-fuel" data-act="newbieFuel">${ic('gas-station')} Повний бак · безкоштовно <small>${S.NEWBIE_BOOST.fuelRefills - me.newbieFuel + 1}/${S.NEWBIE_BOOST.fuelRefills}</small></button>`;
   const it = S.SHOP_BY_ID.refuel;
   if (!it || !config.stars || fuelNow() >= fmax()) return '';
   const d = me.fuelDeal && me.fuelDeal.until > serverNow() ? me.fuelDeal : null;
   if (d) return `<button class="btn sm yellow refuel-btn" data-act="buyItem" data-id="refuel_deal">${ic('gas-station')} Повний бак · ${ic('star')} ${d.stars} <s>${d.full}</s></button>`;
   return `<button class="btn sm yellow refuel-btn" data-act="buyItem" data-id="refuel">${ic('gas-station')} Повний бак · ${ic('star')} ${it.stars}</button>`;
 }
+H.newbieFuel = async () => {
+  try {
+    await api('fuel/newbie', {});
+  } catch (e) {
+    return toast(e.message, true);
+  }
+  haptic('success');
+  closeModal();
+  await refresh();
+  toast(`Бак повний — подарунок новачку${me.newbieFuel > 0 ? ` (ще ${me.newbieFuel})` : ''}`);
+};
 // Owner 28.10: when the tank hits 0 a window offers the full tank cheaper (S.FUEL_DEAL), once per deal.
 const FUEL_DEAL_KEY = 'avtodrop.fuelDeal';
 let fuelDealBusy = false;
 async function fuelDealAsk() {
-  if (!me || !config.stars || fuelDealBusy || fuelNow() >= 1 || me.level < S.FUEL_DEAL.minLevel) return;
+  if (!me || !config.stars || fuelDealBusy || fuelNow() >= 1 || me.level < S.FUEL_DEAL.minLevel || newbieFuelOn()) return;
   fuelDealBusy = true;
   try {
     const { deal } = await api('fuel/deal', {});
@@ -2290,6 +2304,7 @@ const fuelNow = () => me.fuel + (me.fuel < fmax() && me.fuelNext && serverNow() 
 // session (public/comeback-hint.js): at the end of a drag race and on the empty-tank cards.
 const comebackPick = createHintSession();
 function comebackLine() {
+  if (newbieFuelOn()) return ''; // d2-wall: «come back at …» is wrong while a free full tank is one tap away
   const h = comebackPick({ now: serverNow(), createdAt: me.createdAt, fuel: fuelNow(), fuelFullAt: me.fuelFullAt, income: me.income });
   return h ? `<div class="cb-hint">${ic('clock')}<span>${h.text}</span></div>` : '';
 }
@@ -2983,7 +2998,7 @@ function raceResult() {
     <div class="s2r-rw"><div class="${r.win ? 'on' : ''}"><img src="s2/coin.webp" alt=""><b>${r.win ? '+' + S.short(r.prize) : r.entry ? '−' + S.short(r.entry) : '0 ₴'}</b><small>${r.win ? 'приз' : r.entry ? 'внесок' : 'тренування'}</small></div>
       <div class="on"><span class="s2r-xp">XP</span><b>+${xpGot}</b><small>досвід</small></div>
       <div class="${r.perfectStart ? 'on' : ''}"><span class="s2r-ic">${ic(r.perfectStart ? 'bolt' : 'flag-3')}</span><b>${r.perfectStart ? '+4%' : r.win ? 'Перемога' : 'Заїзд'}</b><small>${r.perfectStart ? 'ідеальний старт' : 'у статистику'}</small></div></div>
-    ${comebackLine()}
+    ${newbieFuelOn() ? `<div class="nb-fuel-row">${refuelBtn()}<span class="tiny muted">Бак порожній — новачкам заправка за наш рахунок</span></div>` : comebackLine()}
     ${sn ? `<div class="s2-card s2r-season"><div class="row between"><b>Сезон · рівень ${sn.level}</b><span>${n0s(sn.levelXp)} / ${n0s(sn.need)} <em>+${xpGot}</em></span></div><i class="s2r-sbar"><b style="width:${Math.min(100, (sn.levelXp / Math.max(1, sn.need)) * 100)}%"></b></i></div>` : ''}
     ${whyHtml(why)}
     <div class="card dr-sum">
