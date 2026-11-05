@@ -494,8 +494,11 @@ const MOVES = {
   },
   pass: (u) => {
     call(u, 'season');
-    call(u, 'season/claim', {});
-    call(u, 'season/claim', {}); // double-submit
+    const r1 = call(u, 'season/claim', {});
+    const pre = snapshotUser(u);
+    const r2 = call(u, 'season/claim', {}); // double-submit
+    const post = snapshotUser(u);
+    if (r1 && r2 && (post.balance > pre.balance || post.keys > pre.keys || post.cars > pre.cars)) bug('paid-twice', `season/claim paid again: ${short(pre)} → ${short(post)}`);
   },
   shop: (u) => {
     const items = Object.keys(S.SHOP_BY_ID);
@@ -521,8 +524,11 @@ const MOVES = {
       if (chance(0.4)) {
         const kk = pick(keys.length ? keys : ['x']);
         const body = { id: kk, key: kk, days: pick([1, 3, 5, 7]), tier: pick([0, 1, 2]) };
-        call(u, k, body);
-        call(u, k, body); // double-submit: paid once
+        const r1 = call(u, k, body);
+        const pre = snapshotUser(u);
+        const r2 = call(u, k, body); // double-submit: paid once
+        const post = snapshotUser(u);
+        if (k !== 'newbie/claim' && r1 && r2 && (post.balance > pre.balance || post.keys > pre.keys || post.cars > pre.cars)) bug('paid-twice', `${k} ${short(body)} paid again on a double-submit: ${short(pre)} → ${short(post)}`);
       }
     }
     call(u, pick(['goals', 'weekly', 'quests', 'events', 'rewards', 'achievements', 'sets', 'collection/claim']));
@@ -575,12 +581,19 @@ const MOVES = {
     for (const a of acts) {
       const id = pick(ids.length ? ids : [1]);
       const body = { id, boss: id, carId: c?.id, cars: own(u).slice(0, 3).map((x) => x.id), amount: amt(), field: pick(['model', 'cls', 'x']), full: true, on: true, frame: id };
+      const pre = snapshotUser(u);
       const r = call(u, a, body);
       if (a === 'dayrace/start' && r) {
         T += 15e3;
         call(u, 'race/finish', { raceId: r.raceId ?? r.id, reaction: 0.3, shifts: goodShifts() });
       }
-      if (r && chance(0.3)) call(u, a, body); // double-submit
+      if (r && /claim|trophy|weekly/.test(a)) {
+        const mid = snapshotUser(u);
+        const r2 = call(u, a, body);
+        const post = snapshotUser(u);
+        if (r2 && (post.balance > mid.balance || post.keys > mid.keys || post.cars > mid.cars)) bug('paid-twice', `${a} paid again on a double-submit: ${short(mid)} → ${short(post)}`);
+      }
+      void pre;
     }
   },
   casino: (u) => {
@@ -726,7 +739,49 @@ function finish() {
   }
   process.exit(list.length ? 1 : 0);
 }
+// --proto: every endpoint × every field name × a prototype key / odd value, the other fields valid (after a warm-up
+// so there are cars, parts and lots to point at). Afterwards no table may hold a prototype key as a game id.
+const PROTO = ['constructor', '__proto__', 'toString', 'valueOf', 'hasOwnProperty'];
+function protoSweep() {
+  const names = Object.keys(g.api).filter((n) => !/^(support\/send|hall\/chat|room\/chat)$/.test(n));
+  for (const name of names) {
+    for (const f of FIELDS) {
+      for (const v of [...PROTO, NaN, -1, 1e300, [], {}]) {
+        const u = pick(PLAYERS);
+        const body = {};
+        for (const f2 of FIELDS) if (chance(0.25)) body[f2] = goodValue(f2, u);
+        body[f] = v;
+        stepNo++;
+        call(u, name, body);
+      }
+    }
+    refresh();
+    check('proto ' + name);
+    protoStored(name);
+  }
+}
+function protoStored(after) {
+  for (const { name: t } of q("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all()) {
+    if (/log|chat|support|ideas|events|admin|funnel|money_src|sessions|serverlog|outbox|gifts|meta|car_ctx/.test(t)) continue;
+    for (const { name: c, type } of q(`SELECT name, type FROM pragma_table_info('${t}')`).all()) {
+      if (!/TEXT|^$/.test(type) || /name|text|note|about|title|caption|reason|nick|tag|msg|username|data|result|snapshot|rival|json|style|flags|feats|seed/i.test(c)) continue;
+      const r = q(`SELECT COUNT(*) n FROM "${t}" WHERE "${c}" IN (${PROTO.map(() => '?').join(',')})`).get(...PROTO);
+      if (r.n) bug('proto-stored', `${t}.${c} holds a prototype key`, { after });
+    }
+  }
+}
 setup();
+if (process.argv.includes('--proto')) {
+  for (let i = 0; i < 300; i++) {
+    stepNo++;
+    try {
+      MOVES[pick(BAG.filter((m) => m !== 'garbage' && m !== 'reset'))](pick(PLAYERS));
+    } catch {}
+    refresh();
+  }
+  protoSweep();
+  finish();
+}
 for (stepNo = 1; stepNo <= STEPS; stepNo++) {
   if (chance(0.25)) timeTravel();
   if (process.env.FUZZ_SELFTEST && stepNo === 10) {
