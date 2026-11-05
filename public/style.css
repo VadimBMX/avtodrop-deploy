@@ -6756,6 +6756,20 @@ body.s2 .s2-parts-go { color: #8a8f98; }
 body.s2 .pdock { margin-bottom: 26px; }
 /* businesses: «+30 000 ₴/год» ran under «Купити» at 320 px — a smaller picture leaves the text room */
 @media (max-width: 374px) { .bz-card { gap: 9px; padding: 10px; } .bz-img { width: 46px; height: 44px; } .bz-chip { padding: 7px 10px; } }
+/* tap targets ≥ 36 px: small buttons grow to 36, tiny controls get an invisible hit area */
+body.s2 .btn.sm { min-height: 36px; }
+.toggle::before { content: ''; position: absolute; inset: -6px -4px; }
+.toggle.sm::before { inset: -8px -2px; }
+body.s2 .s2-q { height: 36px; }
+body.s2 .s2-lb::before, .tnm-pcls button::before, .pr-lb::before, .s2r-fuel::before, .bz-chip::before { content: ''; position: absolute; inset: -4px; }
+.tnm-pcls button, .pr-lb, .s2r-fuel, .bz-chip { position: relative; }
+.tnm-pcls button::before { inset: -4px -5px; }
+.regcode { min-height: 36px; }
+.dr-how summary { min-height: 36px; box-sizing: border-box; }
+.cm { position: relative; }
+.cm::before { content: ''; position: absolute; inset: -2px -6px; }
+a.txtlink { position: relative; }
+a.txtlink::before { content: ''; position: absolute; inset: -11px -4px; }
 /* «Профіль» tiles at 320–374 px: the info line lost «3 д 19 год», «сет готовий», «+1 млн ₴» to the ellipsis — two lines there */
 @media (max-width: 374px) { .hub-t.tall .hub-i { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; } .hub-t.tall .hub-i [data-until] { white-space: nowrap; } }
 /* drift rivals at 320 px: «ціль 4 170 очок» was cut by the card edge — the chip goes under the difficulty */
