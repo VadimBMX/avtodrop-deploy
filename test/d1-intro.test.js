@@ -21,7 +21,7 @@ test('splash: on <body>, not in #view; ~2 s on the day\'s first launch, short af
   assert.ok((app.match(/splashReady\(\)/g) || []).length >= 3, 'ready on success, error, no-Telegram and the 429 wait');
 });
 
-test('cinematic intros: two variants behind ?intro=, ≤ 6 s to the CTA, skippable, reduced motion = last frame', () => {
+test('cinematic intros: A is the newcomer default, B dormant behind ?intro=B, ≤ 6 s to the CTA, skippable, reduced motion = last frame', () => {
   for (const v of ['A', 'B']) {
     assert.ok(CINE[v].cta <= 6000 && CINE[v].end <= 8000 && CINE[v].cta < CINE[v].end, v);
     assert.equal(Object.keys(CINE[v].cars).length, 3, 'three cars in the frame');
@@ -33,7 +33,9 @@ test('cinematic intros: two variants behind ?intro=, ≤ 6 s to the CTA, skippab
   assert.match(src, /el\.className = `reel cine/, 'seen by popIdle as an intro on screen');
   const app = read('app.js');
   assert.match(app, /return v === 'A' \|\| v === 'B' \? v : null;/);
-  assert.match(app, /if \(!v\) return playReel\(opts\);/, 'the reel stays the default');
+  assert.match(app, /^import \{ playCine \} from '\.\/intro-cine\.js';$/m, 'loaded with the app');
+  assert.match(app, /const v = introVariant\(\) \|\| \(first \? 'A' : null\);/, 'A for a fresh player, no flag');
+  assert.match(app, /if \(!v\) return playReel\(opts\);/, '«Як грати» replays the 7-scene reel');
 });
 
 test('cinematic intros: every car has measured lamp points and the race wheel data, lamps placed from them', async () => {

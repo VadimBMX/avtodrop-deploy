@@ -15,10 +15,10 @@ import * as WOW from './wow.js';
 // wIntro: count-ups and swipes for the animated intros (stories, level-up, Halloween sheet, season showroom).
 import * as IFX from './intro-fx.js';
 import { playReel } from './intro-reel.js'; // s2-intro: the first-launch motion intro (S.INTRO_REEL)
-// d1-intro: the start splash stays long enough to see (splash.js); ?intro=A|B previews the new cinematic intros.
-import { liftSplash, splashReady, whenSplashGone, holdSplash } from './splash.js';
-const playCine = (v, o) => import('./intro-cine.js').then((x) => x.playCine(v, o));
-if (/[?&]intro=[ab]\b/i.test(location.search)) import('./intro-cine.js').catch(() => {}); // the preview: load it with the app
+// d1-intro: the start splash stays long enough to see (splash.js); the newcomer intro is the cinematic «Нічний заліт»
+// (intro-cine.js, variant A, the owner's pick 5.11), loaded with the app so it is ready the moment the data is in.
+import { liftSplash, splashReady, whenSplashGone } from './splash.js';
+import { playCine } from './intro-cine.js';
 // Ghost challenges: the ghost's replay and the rules (shared with the server), the share card.
 import * as G from './ghost.js';
 // The share card is drawn only when a challenge is thrown: loaded then (like the «Заїзд дня» card), not at start.
@@ -317,8 +317,7 @@ $('#modal').addEventListener('click', (e) => {
 });
 // popups: every window that opens by itself asks POP first (gifts, level-up, «Що нового», «Нагороди» at start,
 // «Бета-тест», «Ярлик на екрані»). Calm = nothing it must not cover; idle = no window or story open.
-let introPending = false; // d1-intro: the intro waits for the splash to fade; no window may slip in before it
-const popIdle = () => $('#modal').hidden && !$('.story') && !$('body > .reel') && !introPending && !$('.confirm') && !hwIntroOpen();
+const popIdle = () => $('#modal').hidden && !$('.story') && !$('body > .reel') && !$('.confirm') && !hwIntroOpen();
 const POP = createPopups({
   idle: popIdle,
   // s2-fix: the Season 2 compensation window is the first thing after the wipe — every player is back on the guide's
@@ -6546,8 +6545,9 @@ H.coachToggle = () => {
 // sent 'intro/seen'); it ends on the DROP tab with the starter case, and the coach card shows the first step at once.
 // Otherwise a replay from Профіль / Налаштування / Новини: «Поїхали» goes to DROP, «Пропустити» stays where it was.
 const reelSeconds = () => Math.round(S.INTRO_REEL.scenes.reduce((a, x) => a + x.ms, 0) / 1000);
-// d1-intro: ?intro=A or ?intro=B plays one of the two cinematic intros (public/intro-cine.js) instead, until the owner
-// picks one; the current reel stays the default. Both start once the splash has gone.
+// d1-intro: a fresh player's first launch plays the cinematic intro A «Нічний заліт» (public/intro-cine.js); «Як
+// грати» (Профіль / Налаштування / Новини) still replays the 7-scene reel, which explains the game. ?intro=A previews
+// the cinematic on any account; ?intro=B keeps the unpicked «Драг-старт» reachable (dormant).
 const introVariant = () => {
   const v = (new URLSearchParams(location.search).get('intro') || '').toUpperCase();
   return v === 'A' || v === 'B' ? v : null;
@@ -6555,7 +6555,7 @@ const introVariant = () => {
 function introReel(first, seen = null) {
   if ($('body > .reel')) return; // the intro's own layer, not a case reel (.reel-wrap > .reel) on the page
   if (!first) closeModal();
-  const v = introVariant();
+  const v = introVariant() || (first ? 'A' : null);
   const opts = {
     carArt: (id) => carArt(id), haptic, again: !first,
     onDone: async (how) => {
@@ -6577,12 +6577,11 @@ function introReel(first, seen = null) {
   // Mounted at once under the splash (z-index above it), so the game never flashes between the two; the cinematic
   // starts its clock when the splash has faded, the reel just runs.
   if (!v) return playReel(opts);
-  introPending = true;
-  const release = holdSplash(); // the splash stays until the cinematic is mounted under it
-  playCine(v, { ...opts, after: whenSplashGone }).catch(() => playReel(opts)).finally(() => {
-    introPending = false;
-    release();
-  });
+  try {
+    playCine(v, { ...opts, after: whenSplashGone });
+  } catch {
+    playReel(opts);
+  }
 }
 let guideScrolled = null;
 H.guideGo = () => {

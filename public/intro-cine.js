@@ -1,10 +1,11 @@
 // d1-intro (owner 5.11: «a damn amazing intro for beginners… cars flying into the frame, several, so it's WOW»).
-// Two cinematic first-launch intros, picked with ?intro=A / ?intro=B until the owner chooses (the reel in
-// intro-reel.js stays the default). Both run ~5 s to the free-case CTA, on the game's real car photos (side views,
-// transparent ground) moved by one requestAnimationFrame clock: every transform is a pure function of the time t,
-// so a tap jumps straight to the last frame and reduced motion simply draws that frame once.
-//   A «Нічний заліт»: darkness, headlights grow out of it, a flash; an RX-7 rips across the back lane, an R34 the
-//     other way, then the hero Aventador SVJ blasts in, brakes hard with brake lights and tyre smoke, the camera
+// Two cinematic first-launch intros. The owner picked A (5.11): it is the newcomer intro, no flag; B stays dormant
+// behind ?intro=B. «Як грати» still replays the 7-scene reel (intro-reel.js). Both run ~5 s to the free-case CTA, on
+// the game's real car photos (side views, transparent ground) moved by one requestAnimationFrame clock: every
+// transform is a pure function of the time t, so a tap jumps straight to the last frame and reduced motion simply
+// draws that frame once.
+//   A «Нічний заліт»: an RX-7 rolls in out of the dark with only its lamps lit, the street lights up, it rips
+//     across the back lane, an R34 the other way, then the hero Aventador SVJ blasts in, brakes hard with brake lights and tyre smoke, the camera
 //     settles, АВТОДРОП slams down with the hazard tape, a light sweep runs over the car, the CTA.
 //   B «Драг-старт»: a tight shot on the hero's rear wheel at the line, the tree counts down (3 ambers, green), the
 //     camera pulls back to three cars side by side; on green — smoke, shake, the world streams past (dashes, lamp
