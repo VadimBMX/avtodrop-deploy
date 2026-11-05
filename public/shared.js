@@ -1384,10 +1384,17 @@ export const CANISTER = { daily: 3, quest: 1, spare: 3 };
 // Money follows the price of the car model you race, whatever its class: `ev` is what a good driver earns per race
 // against this tier on average (in units of raceEv(price)), and the prize is set so that this holds at the target
 // chance: prize = ev × raceEv / (chance × (1 + entry) − entry). The entry is a share of the prize.
+// The hard drag rival is priced directly instead (`pay` prize, `fee` entry, in units of raceEv): owner 05.11 — on the
+// formula its entry (0,63 raceEv) was below the medium one (0,72) for a prize of 6,3 raceEv, and a perfect driver, who
+// beats it 70–80% of the time, made ~4,5 raceEv a race (+1–2 млн a tank on day 1). Now the entry is ~2× the medium
+// one and the prize 1,5× the medium prize: a perfect driver makes ~2–2,6 raceEv there (about what the medium race
+// pays them), a good driver at 22% is slightly below even (−0,3), so it is a race for the skilled, not a farm.
+// The drift «Складний» keeps the formula (`ev`/`entry`, raceMoney(…, true)): its target is beaten by ~20% of
+// average drivers and is not a farm.
 export const OPPONENTS = [
   { id: 'easy', name: 'Легкий', chance: 0.94, spread: 0.03, ev: 0.8, entry: 0.35 },
   { id: 'mid', name: 'Середній', chance: 0.55, spread: 0.04, ev: 1, entry: 0.3 },
-  { id: 'hard', name: 'Складний', chance: 0.22, spread: 0.04, ev: 0.9, entry: 0.1 },
+  { id: 'hard', name: 'Складний', chance: 0.22, spread: 0.04, ev: 0.9, entry: 0.1, pay: 3.6, fee: 1.4 },
 ];
 // Training: no entry fee, a slow rival and a third of the easy prize — for learning the shifts without risk.
 export const TRAINING = { id: 'train', name: 'Тренування', chance: 0.985, spread: 0.01, share: 1 / 3 };
@@ -1626,7 +1633,7 @@ export function pickRivalCar(cls, ref, p, target, { hp, harder = null, skill = 0
 }
 // The shown chance (race2 «чесний шанс»). A player's form is the median of their last RACE_FORM.runs solo runs in which
 // they shifted themselves at least RACE_FORM.minShifts times (a run left to the limiter — AFK, or a newcomer who hasn't
-// found the button — says nothing about how they drive); with fewer than RACE_FORM.min such runs, a good driver.
+// found the button — says nothing about how they drive); with fewer than RACE_FORM.min such runs, an average driver.
 // Floors (CHANCE_FLOOR, %): Training and Easy never show less than this — backed by the real odds of an AVERAGE
 // driver who shifts (the floor is capped by them, so it never promises more than a plain driver gets). An easy rival
 // below RACE_FORM.toughBelow % for you shows «важко — потренуйся» instead of a number.
@@ -1643,12 +1650,13 @@ export const raceEv = (value) => ECON.race.base * Math.pow(Math.max(value, 1000)
 // млрд): without the cap the US secret car paid 2,9 млн a race — twice a Bolide — for a collection that costs ~50 млн net
 // to finish (reports/econ-fable/economy.md). With it a secret car races like the dearest hypercar.
 export const RACE_VALUE_CAP = CLASSES.S.hi;
-export function raceMoney(op, value) {
+export function raceMoney(op, value, formula = false) {
   const ev = raceEv(Math.min(value, RACE_VALUE_CAP));
   if (op.share != null) {
     const easy = raceMoney(OPPONENTS[0], value).prize;
     return { prize: Math.max(500, Math.round((easy * op.share) / 100) * 100), entry: 0 };
   }
+  if (op.fee != null && !formula) return { prize: Math.max(1000, Math.round((op.pay * ev) / 1000) * 1000), entry: Math.max(1000, Math.round((op.fee * ev) / 1000) * 1000) };
   const prize = Math.max(1000, Math.round((op.ev * ev) / (op.chance * (1 + op.entry) - op.entry) / 1000) * 1000);
   return { prize, entry: Math.round((prize * op.entry) / 1000) * 1000 };
 }

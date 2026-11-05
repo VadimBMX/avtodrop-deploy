@@ -122,12 +122,19 @@ test('race2: prizes grow with the tier and with the car price; the expected mone
     const [tr, e, m, h] = [S.TRAINING, ...S.OPPONENTS].map((op) => S.raceMoney(op, price));
     assert.equal(tr.entry, 0);
     assert.ok(tr.prize < e.prize && e.prize < m.prize && m.prize < h.prize, `${price}: tiers pay more`);
-    assert.ok(h.prize >= 5 * e.prize, `${price}: the hard rival is worth the risk`);
-    for (const [op, x] of [[S.OPPONENTS[0], e], [S.OPPONENTS[1], m], [S.OPPONENTS[2], h]]) {
+    assert.ok(h.prize >= 4 * e.prize, `${price}: the hard rival is worth the risk`);
+    for (const [op, x] of [[S.OPPONENTS[0], e], [S.OPPONENTS[1], m]]) {
       assert.ok(x.entry > 0 && x.entry < x.prize);
       const ev = op.chance * x.prize - (1 - op.chance) * x.entry;
       assert.ok(Math.abs(ev / (op.ev * S.raceEv(price)) - 1) < 0.08, `${price} ${op.id}: EV ${ev}`);
     }
+    // Owner 05.11: the hard entry is clearly above the medium one (~2×) and the hard race is no farm — a good driver
+    // at the tier's 22% is a little below even; the prize is 1,5× the medium prize.
+    const hard = S.OPPONENTS[2];
+    assert.ok(h.entry >= 1.6 * m.entry && h.entry < h.prize, `${price}: hard entry ${h.entry} vs medium ${m.entry}`);
+    assert.ok(h.prize >= 1.4 * m.prize, `${price}: hard prize ${h.prize} vs medium ${m.prize}`);
+    const evHard = (hard.chance * h.prize - (1 - hard.chance) * h.entry) / S.raceEv(price);
+    assert.ok(evHard < 0 && evHard > -0.5, `${price}: a good driver's EV on hard ${evHard.toFixed(2)} raceEv`);
   }
 });
 
@@ -173,4 +180,17 @@ test('race2: a gearbox cuts the loss of a bad shift but keeps the gain of a perf
   const st = { base: 15, shift: 0.5 };
   assert.equal(S.raceTime(st, 0.2, ['perfect', 'perfect', 'perfect', 'perfect']), S.raceTime({ base: 15, shift: 0 }, 0.2, ['perfect', 'perfect', 'perfect', 'perfect']));
   assert.ok(S.raceTime(st, 0.2, ['late', 'late', 'late', 'late']) < S.raceTime({ base: 15, shift: 0 }, 0.2, ['late', 'late', 'late', 'late']));
+});
+
+// Owner 05.11: before a player has RACE_FORM.min runs of their own the shown chance is an average driver's, not a good
+// one's (a newcomer was shown ~60% in the medium race and lost 8 of 8).
+test('race2: a newcomer sees an average driver\'s chance from race 1', () => {
+  const { g, fresh } = setup();
+  for (const id of ['fiat-uno', 'mitsubishi-lancer-ix', 'nissan-200sx-s13']) {
+    const carId = g.giveCar(1, id).id;
+    const r = byId(fresh(carId));
+    assert.ok(r.mid.chance <= 35, `${id}: medium ${r.mid.chance}% for a newcomer`);
+    assert.ok(r.hard.chance <= 15, `${id}: hard ${r.hard.chance}% for a newcomer`);
+    assert.ok(r.train.chance >= S.CHANCE_FLOOR.train, `${id}: training ${r.train.chance}%`);
+  }
 });

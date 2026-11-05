@@ -1431,7 +1431,7 @@ export function createGame(db, opts = {}) {
     return JSON.stringify([4, c.model, carParts(c.id), carPlate(c.id)?.id || 0]);
   }
   // The player's form (S.RACE_FORM): the median of what their last solo runs with at least two own shifts took over
-  // the car's base time. AFK runs and runs left to the limiter don't count; too few runs → null (a good driver).
+  // the car's base time. AFK runs and runs left to the limiter don't count; too few runs → null (an average driver).
   function myForm(uid) {
     const offs = [];
     for (const r of q("SELECT rival, result FROM races WHERE user_id = ? AND status = 'done' ORDER BY id DESC LIMIT 60").all(uid)) {
@@ -1461,10 +1461,12 @@ export function createGame(db, opts = {}) {
   }
   // The player's times for the shown odds: a good driver's spread in this car, moved so its median is the player's
   // own form (S.RACE_FORM). Only the shown chance uses it — how fast the rivals are never depends on the player's skill.
+  // Before the player has RACE_FORM.min own runs the odds are an average driver's (owner 05.11: a newcomer was shown a
+  // good driver's 60% in the medium race and lost 8 of 8) — the honest chance for a typical player from race 1.
   function myTimes(uid, o) {
-    const good = timesOf(o);
     const form = myForm(uid);
-    if (form == null) return good;
+    if (form == null) return timesOf(o, 'average');
+    const good = timesOf(o);
     const move = o.base + form - good[good.length >> 1];
     return good.map((t) => t + move);
   }
@@ -1545,7 +1547,7 @@ export function createGame(db, opts = {}) {
     };
     const list = S.DRIFT_RIVALS.map((r, i) => {
       const x = parseInt(h.slice(i * 6, i * 6 + 6), 16) / 0xffffff;
-      const base = S.raceMoney(S.OPPONENTS.find((op) => op.id === r.id), S.MODELS[c.model].price);
+      const base = S.raceMoney(S.OPPONENTS.find((op) => op.id === r.id), S.MODELS[c.model].price, true); // drift keeps the formula prices (S.OPPONENTS)
       const full = S.driftPrize(base.prize, evFx()); // race weekend or «Ніч дрифту», whichever is higher
       const money = { ...base, prize: repeat ? Math.round(full * S.DRIFT_REPEAT_PRIZE) : full, ...(repeat ? { repeat: true } : {}) };
       return { id: r.id, label: r.name, name: nameAt(parseInt(h.slice(20 + i * 2, 22 + i * 2), 16)),
