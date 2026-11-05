@@ -31,3 +31,16 @@ test('splash: a boot that throws still lets the splash go (it covers the whole a
   assert.match(app, /\}\)\(\)\.catch\(\(e\) => \{\n[^]*?splashReady\(\);[^]*?throw e;\n\}\);/, 'boot().catch → splashReady');
   assert.match(app, /config = \(await \(await fetch\('\/api\/config'\)\)\.json\(\)\) \|\| config;/, 'a null body keeps the defaults');
 });
+
+test('intro A on a short phone: the end text is compacted (and backed by a scrim shown with the CTA) so it clears the hero car', () => {
+  // 320×568: «Твій хід» sat 43 px up on the hero car's wheels (tools/ui-sweep.mjs --today measures it).
+  const css = read('style.css');
+  const cut = css.indexOf('/* ===== wIntro 2026-10-29');
+  const at = css.indexOf('@media (max-height: 720px) {\n  .cn-end {');
+  assert.ok(at > 0 && at < cut, 'the short-screen block exists, before the wIntro block');
+  const block = css.slice(at, css.indexOf('\n}\n', at));
+  assert.match(block, /\.cn-t \{[^}]*font-size: 22px/);
+  assert.match(block, /\.cn-go \{ height: 50px/);
+  assert.match(block, /\.cn-end::before \{[^}]*opacity: 0;/, 'the scrim is hidden during the animation');
+  assert.match(block, /\.cine\.cta \.cn-end::before \{ opacity: 1; \}/, '…and shows with the CTA');
+});
