@@ -86,6 +86,8 @@ async function sweep(browser, uid, name) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, locale: 'uk-UA' });
   const page = await ctx.newPage();
   const out = [];
+  const push0 = out.push.bind(out);
+  out.push = (f) => (process.env.UI_LIVE && console.log(`  [${f.kind}] ${f.where}: ${f.msg.slice(0, 200)}`), push0(f));
   let where = 'boot';
   page.on('console', (m) => {
     if (m.type() === 'error' && !/telegram\.org|favicon|ERR_NAME|ERR_INTERNET|net::ERR_FAILED.*telegram/i.test(m.text())) out.push({ kind: 'console', where, msg: m.text().slice(0, 300) });
@@ -114,7 +116,7 @@ async function sweep(browser, uid, name) {
       try {
         window.__qa.closeModal();
       } catch {}
-      document.querySelectorAll('.overlay, .intro, #intro').forEach((e) => e.remove?.());
+      document.querySelectorAll('.overlay, .intro, #intro, .confirm, #confirm').forEach((e) => e.remove?.());
     });
   };
   await closeAll();
@@ -130,7 +132,9 @@ async function sweep(browser, uid, name) {
   };
   const list = [];
   for (const t of views.tabs) for (const s of SUB[t] || [[null, null]]) list.push({ tab: t, page: null, sub: s });
-  for (const p of views.pages) for (const s of SUB[p] || [[null, null]]) list.push({ tab: 'menu', page: p, sub: s });
+  // pages that only open from a list with an id in state (a battle, a room, a lot, a business, a player) are skipped
+  const CTX = new Set(['battle', 'room', 'lot', 'bizOne', 'user']);
+  for (const p of views.pages) if (!CTX.has(p)) for (const s of SUB[p] || [[null, null]]) list.push({ tab: 'menu', page: p, sub: s });
   for (const v of list) {
     where = `${name}:${v.page ? 'page/' + v.page : 'tab/' + v.tab}${v.sub[0] ? '.' + v.sub[1] : ''}`;
     if (ONLY && !where.includes(ONLY)) continue;

@@ -724,6 +724,8 @@ function setup() {
 }
 function finish() {
   check('end');
+  const dump = arg('dump');
+  if (dump) db.exec(`VACUUM INTO '${dump.replace(/'/g, "''")}'`); // the end state, for a look with sqlite
   const list = [...bugs.values()];
   console.log(`\nseed ${SEED}: ${stepNo} steps, ${okCalls} ok calls, ${failCalls} rejected, clock ${new Date(T).toISOString()}`);
   console.log(`${list.length} distinct problem(s)`);
