@@ -3448,7 +3448,9 @@ export function createGame(db, opts = {}) {
     if (!u.dream_car || !S.MODELS[u.dream_car]) return { model: null, suggest: S.suggestDream(u.balance + u.total_value, u.id) };
     const got = !!q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(u.id, `dreamgot:${u.dream_car}:${u.dream_at}`);
     const own = !!q("SELECT 1 FROM cars WHERE owner_id = ? AND model = ? AND status <> 'auction'").get(u.id, u.dream_car);
-    return { model: u.dream_car, at: u.dream_at, got, own };
+    // counted: this model is in «Мрійник» (class B+ and chosen ≥ 12 h before it dropped) — the card says why if not
+    const counted = got && !!q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(u.id, 'dream:' + u.dream_car);
+    return { model: u.dream_car, at: u.dream_at, got, own, counted };
   }
   function dreamSet(uid, { model }) {
     if (model == null || model === '') {

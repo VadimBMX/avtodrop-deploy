@@ -8499,6 +8499,7 @@ function dreamCard() {
     return `<div class="card dream got" style="--c:${color}">
       <div class="dream-h"><span data-act="dreamFold">${ic('trophy')} Мрію здійснено!</span></div>
       <div class="dream-row"><div class="dream-art">${carArt(m.id, { glow: true, look: own?.look, thumb: true })}</div><div class="grow"><b class="dream-nm">${esc(m.name)}</b><div class="small muted">${clsBadge(m.cls)} у твоєму гаражі</div></div></div>
+      ${d.counted === false ? `<div class="small muted mt">${ic('info-circle')} У «Мрійник» не зараховано: ${S.rankOf(m.cls) < S.DREAM.achMinRank ? 'рахуються мрії класу B і вище' : `мрію треба обрати щонайменше за ${Math.round(S.DREAM.achAgeMs / 3600e3)} год до того, як вона випаде`}.</div>` : ''}
       <div class="btns">${own ? `<button class="btn ghost" data-act="shareCar" data-id="${own.id}">${ic('share')} Поділитися</button>` : ''}<button class="btn soft" data-act="dreamPick">${ic('heart')} Нова мрія</button></div></div>`;
   }
   const ch = S.dreamChances(m.id)[0];
@@ -8550,7 +8551,8 @@ function dreamPicker() {
     return `<button class="car dream-tile ${m.id === cur ? 'on' : ''}" data-act="dreamSet" data-id="${m.id}" style="--c:${S.CLASSES[m.cls].color}">${m.id === cur ? `<span class="tr">${ic('heart')}</span>` : owned.has(m.id) ? '<span class="tr win">✓</span>' : ''}
       <div class="art">${carArt(m.id, { thumb: true })}</div><div class="nm">${esc(m.name)}</div><div class="meta"><b>${S.short(m.price)}</b> · ${ch ? pct(ch.pct) : 'ринок'}</div></button>`;
   };
-  sheet('Машина мрії', `<div class="small muted">Обери ціль з каталогу. Коли вона випаде — буде окреме свято й досягнення «Мрійник».</div>
+  sheet('Машина мрії', `<div class="small muted">Обери ціль з каталогу. Коли вона випаде з кейса — буде окреме свято.</div>
+    <div class="small mt">${ic('trophy')} У досягнення «Мрійник» зараховується мрія <b>класу B або вище</b>, обрана <b>щонайменше за ${Math.round(S.DREAM.achAgeMs / 3600e3)} год</b> до того, як випала. Кожна модель — один раз.</div>
     <div class="chips gfilter mt">${['S', 'A', 'B', 'C', 'D'].map((k) => `<button class="${k === cls ? 'on' : ''}" data-act="dreamCls" data-k="${k}" style="--c:${S.CLASSES[k].color}"><i></i>${k}<small>${S.CLASSES[k].name}</small></button>`).join('')}</div>
     <div class="grid dream-grid mt">${list.map(tile).join('')}</div>
     ${cur ? '<button class="btn ghost mt" data-act="dreamClear">Прибрати мрію</button>' : ''}`);
