@@ -86,6 +86,8 @@ async function seed() {
     const db = new DatabaseSync(process.env.LC_DB);
     db.exec('PRAGMA busy_timeout = 5000');
     db.prepare('UPDATE users SET fuel = 0, fuel_at = ? WHERE id = ?').run(Date.now(), rich.id);
+    // the seeding's 40+ part / key gift windows would queue over every screen: only the money one stays (regift)
+    db.prepare("UPDATE gifts SET shown = 1 WHERE user_id = ? AND kind != 'money'").run(rich.id);
     db.close();
   }
   return { new: fresh, rich };
@@ -245,7 +247,8 @@ function analyze(opts) {
     const hits = pts.map(([fx, fy]) => document.elementFromPoint(c.left + (c.right - c.left) * fx, c.top + (c.bottom - c.top) * fy));
     const foreign = hits.filter((h) => !own(el, h));
     const centreForeign = !own(el, hits[0]);
-    if (foreign.length >= 3 || (isCtrl && centreForeign)) {
+    // (an element with pointer-events: none can't be hit-tested at all — only the text-box pass below sees it)
+    if (cs(el).pointerEvents !== 'none' && (foreign.length >= 3 || (isCtrl && centreForeign))) {
       const h = (centreForeign ? hits[0] : foreign[0]);
       if (h && !(el.tagName === 'IMG' && !isCtrl)) {
         const kind = bar?.contains(h) ? 'under-bar' : head?.contains(h) ? 'under-head' : stickyOf(h) && stickyOf(h) !== stickyOf(el) ? 'under-sticky' : 'overlap';
@@ -280,8 +283,18 @@ function analyze(opts) {
     const tx = el.textContent.trim();
     const bare = /^[+−-]?\s*[\d\s ,.]+\s*(тис|млн|млрд)?\s*(₴|★|%)?$/.test(tx);
     if (tx.length <= 26 && NUM.test(tx) && /\d/.test(tx) && (s.display !== 'inline' || bare)) {
-      const tops = new Set([...rg.getClientRects()].filter((q) => q.width > 1).map((q) => Math.round(q.top / 4)));
-      if (tops.size > 1) add('wrapnum', el, `${tops.size} lines`);
+      // one text node laid out on more than one line (children stacked by flex/grid don't count)
+      const r1 = document.createRange();
+      for (const n of el.childNodes) {
+        if (n.nodeType !== 3 || !/\d/.test(n.textContent)) continue;
+        r1.selectNodeContents(n);
+        const rs = [...r1.getClientRects()].filter((q) => q.width > 1);
+        const lines = rs.filter((q, i) => i === 0 || q.top >= rs[i - 1].bottom - 2).length;
+        if (lines > 1) {
+          add('wrapnum', el, `${lines} lines`);
+          break;
+        }
+      }
     }
     if (tr.width < 1) continue;
     for (let p = el; p && p !== document.body; p = p.parentElement) {
@@ -289,7 +302,7 @@ function analyze(opts) {
       const hx = /(hidden|clip)/.test(ps.overflowX), hy = /(hidden|clip)/.test(ps.overflowY);
       if (/(auto|scroll)/.test(ps.overflowX + ps.overflowY)) break;
       // a pan/map viewport or a moving strip (case reel, ticker): content beyond its edge is by design
-      const pan = p.scrollWidth > p.clientWidth * 1.3 || p.scrollHeight > p.clientHeight * 1.6 || !!el.closest('.reel, [class*=strip], [class*=ticker], [class*=marquee], .s2-pan');
+      const pan = (ps.textOverflow !== 'ellipsis' && p.childElementCount > 1 && (p.scrollWidth > p.clientWidth * 1.3 || p.scrollHeight > p.clientHeight * 1.6)) || !!el.closest('.reel, [class*=strip], [class*=ticker], [class*=marquee], .s2-pan');
       if ((hx || hy) && ps.display !== 'inline' && !pan) {
         const b = p.getBoundingClientRect();
         const pl = parseFloat(ps.borderLeftWidth), pt = parseFloat(ps.borderTopWidth);
@@ -321,7 +334,7 @@ function analyze(opts) {
     if (a.el === b.el || a.el.contains(b.el) || b.el.contains(a.el) || !a.c || !b.c || a.st !== b.st) continue;
     const x = Math.min(a.r.right, b.r.right, a.c.right, b.c.right) - Math.max(a.r.left, b.r.left, a.c.left, b.c.left);
     const y = Math.min(a.r.bottom, b.r.bottom, a.c.bottom, b.c.bottom) - Math.max(a.r.top, b.r.top, a.c.top, b.c.top);
-    if (x < 3 || y < Math.min(a.r.height, b.r.height) * 0.35) continue;
+    if (x < 4 || y < Math.min(a.r.height, b.r.height) * 0.35) continue;
     // stacked layers: only a pair painted on the same screen spot, both actually visible there
     const key = sel(a.el) + '|' + sel(b.el);
     if (seenPair.has(key)) continue;
