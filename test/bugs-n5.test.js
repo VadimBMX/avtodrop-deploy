@@ -165,3 +165,28 @@ test('N5-4 admin reset / ban of a container leader: no pre-reset bid back on an 
   assert.equal(db.prepare("SELECT COUNT(*) n FROM cars WHERE owner_id = 7 AND origin = 'container'").get().n, 0, 'the banned player won no car');
   assert.equal(bal(7), before, '… and no second refund');
 });
+
+// ---------- N5-5: an admin reset kept the shed («Сарайна знахідка») and running drift runs ----------
+test('N5-5 admin reset: an unfinished barn find and a running drift run do not survive it', async () => {
+  const S = await import('../public/shared.js');
+  const B = await import('../public/barn.js');
+  const { db, g, mk, call, err, bal, clock } = setup();
+  mk(1);
+  const model = S.BARN_MODELS[0];
+  const t = clock.now();
+  const done = Number(db.prepare("INSERT INTO barn_finds (user_id, model, source, status, done, created_at) VALUES (1, ?, 'test:a', 'work', ?, ?)").run(model, B.STAGES.length, t).lastInsertRowid);
+  const fresh = Number(db.prepare("INSERT INTO barn_finds (user_id, model, source, created_at) VALUES (1, ?, 'test:b', ?)").run(S.BARN_MODELS[1], t).lastInsertRowid);
+  const car = g.giveCar(1, 'vaz-2107').id;
+  g.giveCar(1, 'vaz-2107');
+  const rv = call(1, 'drift/rivals', { carId: car });
+  const run = call(1, 'drift/start', { carId: car, rival: rv.list[0].id });
+  g.adminCall('local', 'reset', { id: 1, confirm: true });
+  const start = bal(1);
+  db.prepare('UPDATE users SET level = 30, level_seen = 30 WHERE id = 1').run(); // the shed opens again later
+  err(() => call(1, 'barn/claim', { id: done }));
+  err(() => call(1, 'barn/start', { id: fresh }));
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM cars WHERE owner_id = 1 AND origin = 'barn'").get().n, 0, 'no «R» car after the reset');
+  clock.add(60e3);
+  err(() => call(1, 'drift/finish', { runId: run.runId, score: 1e6, log: [] }));
+  assert.equal(bal(1), start, 'no pre-reset drift entry or prize');
+});

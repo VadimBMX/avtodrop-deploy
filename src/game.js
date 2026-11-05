@@ -4795,6 +4795,11 @@ export function createGame(db, opts = {}) {
     q("UPDATE vip_subs SET expires_at = ?, canceled = 1 WHERE user_id = ? AND expires_at > ?").run(t, uid, t);
     q('DELETE FROM plates WHERE owner_id = ?').run(uid);
     q('DELETE FROM races WHERE user_id = ? AND status = ?').run(uid, 'running');
+    q("UPDATE drift_runs SET status = 'expired' WHERE user_id = ? AND status = 'running'").run(uid); // its entry was pre-reset money
+    // «Сарайна знахідка»: a find not yet claimed goes too (its stages were paid with pre-reset money and parts — the
+    // reset account claimed the «R» edition car after the reset, n5-bugs). Kept as 'dropped', so the week's free
+    // find (one per week, UNIQUE source) isn't handed out a second time.
+    q("UPDATE barn_finds SET status = 'dropped', run_until = NULL, done_at = ? WHERE user_id = ? AND status IN ('found', 'work')").run(t, uid);
     // 04.11 (David): a reset player kept his businesses (user_business, Season 2) — they go with the rest
     q('DELETE FROM user_business WHERE uid = ?').run(uid);
     q(`UPDATE users SET balance = ?, slots = ?, showcase_slots = ?, cap_level = 0, income_at = ?, banked = 0, fuel = ?, fuel_at = ?,
