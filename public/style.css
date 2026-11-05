@@ -6790,6 +6790,8 @@ body.s2 .hub-h > span + span { font: 600 11px var(--f-body); letter-spacing: 0; 
 body.s2 .ic.tint, body.s2 .q-ic, body.s2 .wk-chest .wk-ic, body.s2 .ev-ic, body.s2 .dealer-head .ic, body.s2 .banner .mi,
 body.s2 .ev-row.on .ev-ic { background: var(--slab-in); box-shadow: var(--slab-sh-in); color: var(--c, var(--accent)); }
 body.s2 .ev-row:not(.on) .ev-ic { filter: none; opacity: .8; }
+/* the share-card preview: a slab frame, not the class-colour glow */
+body.s2 .share-prev { box-shadow: var(--slab-sh); background: #121317; }
 
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's

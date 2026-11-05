@@ -63,9 +63,9 @@ export async function challengeCard({ model, time, hp = 0, who = '', bot = '' })
   cv.height = H;
   const c = cv.getContext('2d');
   const cls = S.CLASSES[m.cls];
-  const CY = '#3ee0ff', AM = '#ffc400';
+  const CY = '#3ee0ff', AM = '#ffd400';
   try {
-    await Promise.all([`800 80px ${DISP}`, `700 40px ${DISP}`, '600 40px Manrope'].map((f) => document.fonts?.load(f)));
+    await Promise.all([`800 80px ${DISP}`, `700 40px ${DISP}`, '600 40px Inter'].map((f) => document.fonts?.load(f)));
   } catch {}
   // night sky → violet haze → the strip
   let g = c.createLinearGradient(0, 0, 0, H);
@@ -76,7 +76,7 @@ export async function challengeCard({ model, time, hp = 0, who = '', bot = '' })
   c.fillRect(0, 0, W, H);
   g = c.createRadialGradient(W / 2, 640, 30, W / 2, 640, 700);
   g.addColorStop(0, '#3ee0ff2e');
-  g.addColorStop(0.45, '#5b3df022');
+  g.addColorStop(0.45, '#00000000');
   g.addColorStop(1, '#00000000');
   c.fillStyle = g;
   c.fillRect(0, 0, W, H);
@@ -124,7 +124,7 @@ export async function challengeCard({ model, time, hp = 0, who = '', bot = '' })
   c.fillStyle = AM;
   c.font = `800 64px ${DISP}`;
   c.save();
-  c.shadowColor = '#ffc40088';
+  c.shadowColor = '#0000'; // «Асфальт»: no glow on the wordmark
   c.shadowBlur = 26;
   c.fillText('АВТОДРОП', W / 2, 118);
   c.restore();
@@ -188,12 +188,12 @@ export async function challengeCard({ model, time, hp = 0, who = '', bot = '' })
   c.fillStyle = '#1c1500';
   c.font = `800 84px ${DISP}`;
   c.fillText("ПОБ’ЄШ?", W / 2, 1168);
-  c.font = '700 34px Manrope, sans-serif';
+  c.font = '700 34px Inter, sans-serif';
   c.fillText('Їдь проти мого привида', W / 2, 1210);
   c.fillStyle = '#909194';
-  c.font = '600 32px Manrope, sans-serif';
+  c.font = '600 32px Inter, sans-serif';
   const foot = [who && who.slice(0, 32), bot ? `@${bot}` : 'АВТОДРОП у Telegram'].filter(Boolean).join('  ·  ');
-  fit(c, foot, W / 2, 1300, 960, 32, 600, 'Manrope, sans-serif');
+  fit(c, foot, W / 2, 1300, 960, 32, 600, 'Inter, sans-serif');
   for (const q of [0.88, 0.8, 0.7, 0.6]) {
     const blob = await new Promise((r) => cv.toBlob(r, 'image/jpeg', q));
     if (blob && blob.size <= 590 * 1024) return blob;
