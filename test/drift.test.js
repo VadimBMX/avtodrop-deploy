@@ -24,7 +24,7 @@ test('drift: a track of the day and three rivals with rising targets from its pa
   assert.ok(list[0].target < list[1].target && list[1].target < list[2].target && list[2].target < S.DRIFT_MAX);
   assert.equal(par, S.driftPar(S.driftModel(S.carStats({ model: 'vaz-2107' })), S.driftTrack(track)));
   list.forEach((r, i) => assert.ok(Math.abs(r.target / (par * S.DRIFT_RIVALS[i].share) - 1) <= 0.05));
-  assert.equal(list[2].prize, S.raceMoney(S.OPPONENTS[2], S.MODELS['vaz-2107'].price).prize);
+  assert.equal(list[2].prize, S.raceMoney(S.OPPONENTS[2], S.MODELS['vaz-2107'].price, true).prize); // drift keeps the formula price of the hard tier
   assert.ok(model.zone[0] < S.DRIFT.center && model.zone[1] > S.DRIFT.center && model.zone[1] < model.spin);
   const again = call('drift/rivals', { carId: car });
   assert.deepEqual(again.list, list, 'same rivals all day');

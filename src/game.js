@@ -1525,7 +1525,7 @@ export function createGame(db, opts = {}) {
     };
     const list = S.DRIFT_RIVALS.map((r, i) => {
       const x = parseInt(h.slice(i * 6, i * 6 + 6), 16) / 0xffffff;
-      const base = S.raceMoney(S.OPPONENTS.find((op) => op.id === r.id), S.MODELS[c.model].price);
+      const base = S.raceMoney(S.OPPONENTS.find((op) => op.id === r.id), S.MODELS[c.model].price, true); // drift keeps the formula prices (S.OPPONENTS)
       const full = S.driftPrize(base.prize, evFx()); // race weekend or «Ніч дрифту», whichever is higher
       const money = { ...base, prize: repeat ? Math.round(full * S.DRIFT_REPEAT_PRIZE) : full, ...(repeat ? { repeat: true } : {}) };
       return { id: r.id, label: r.name, name: nameAt(parseInt(h.slice(20 + i * 2, 22 + i * 2), 16)),
