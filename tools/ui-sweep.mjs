@@ -3,7 +3,8 @@
 // the game's own 400 «GameError» answers, which are shown as toasts), and text on screen with NaN / undefined /
 // «[object Object]» / Infinity / null, or negative money.
 //   1. DEV=1 PORT=3517 DATA_DIR=<empty dir> node server.js
-//   2. NODE_PATH=<dir with playwright> UI_URL=http://localhost:3517 node tools/ui-sweep.mjs [--shots=<dir>] [--clicks]
+//   2. NODE_PATH=<dir with playwright> UI_URL=http://localhost:3517 node tools/ui-sweep.mjs [--shots=<dir>] [--clicks] [--today] [--who=none]
+// --today adds the 05.11 checks (todayChecks below: intro A, splash, photos, paint, crates, EV parts); --who=none skips the sweep.
 // The page's module is given a test hook (window.__qa: go, state, PAGES, TABS, render) by appending one line to
 // app.js on its way to the browser: nothing in public/ changes. --clicks also taps every [data-act] button once per
 // screen (a chaos pass: it may spend the test player's money) and closes what opens.
@@ -237,9 +238,181 @@ async function leaveRunCheck(browser, uid, name, out) {
   }
 }
 
+// ---------- r3 (05.11 merges): --today ----------
+// intro A for a newcomer at 320×568 / 430×932 (in the screen, skip and tap work), no intro for a veteran, the splash
+// never stays (also when /api/me or /api/config fails), every car photo loads, every key car repaints, every country
+// case shows its crate, the EV parts show on an EV car.
+async function todayPage(browser, uid, name, out, { vp = [390, 844], route = null, where = name } = {}) {
+  const ctx = await browser.newContext({ viewport: { width: vp[0], height: vp[1] }, deviceScaleFactor: 1, locale: 'uk-UA' });
+  const pg = await ctx.newPage();
+  pg.on('pageerror', (e) => out.push({ kind: 'pageerror', where, msg: String(e?.stack || e).slice(0, 400) }));
+  pg.on('console', (m) => m.type() === 'error' && !/telegram\.org|favicon|ERR_NAME|ERR_INTERNET|status of 5\d\d/i.test(m.text()) && !(route && /ERR_FAILED/.test(m.text())) && out.push({ kind: 'console', where, msg: m.text().slice(0, 300) }));
+  await pg.route('**/telegram-web-app.js', (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body: '' }));
+  await pg.route(/\/app\.js(\?.*)?$/, async (r) => {
+    const resp = await r.fetch();
+    const body = (await resp.text()) + '\n;window.__qa = { state, render, closeModal, carSheet, me: () => me, PAINT, S, hasPhoto: (id) => !!config.images?.[id] };\n';
+    r.fulfill({ response: resp, body, headers: { ...resp.headers(), 'content-length': String(Buffer.byteLength(body)) } });
+  });
+  if (route) await route(pg);
+  const t0 = Date.now();
+  await pg.goto(`${URL0}/?as=${uid}&name=${name}${uid}`, { waitUntil: 'load' });
+  return { ctx, pg, t0 };
+}
+const splashGoneIn = async (pg, ms) => pg.waitForFunction(() => !document.querySelector('body > .s2-splash'), null, { timeout: ms }).then(() => true, () => false);
+async function todayChecks(browser, out) {
+  // 1. intro A for a newcomer, two phone sizes; skip on one, tap-to-end + CTA on the other
+  for (const [i, vp] of [[320, 568], [430, 932]].entries()) {
+    const id = NEW + 100 + i, where = `intro-A ${vp.join('×')}`;
+    const { ctx, pg } = await todayPage(browser, id, 'intro', out, { vp, where });
+    if (!(await pg.waitForSelector('body > .reel.cine', { timeout: 15000 }).then(() => true, () => false))) {
+      out.push({ kind: 'intro', where, msg: 'no cinematic intro A for a new player' });
+      await ctx.close();
+      continue;
+    }
+    if (!(await splashGoneIn(pg, 5000))) out.push({ kind: 'splash', where, msg: 'the splash is still up 5 s after the intro mounted' });
+    const geo = () => pg.evaluate(() => {
+      const r = (s) => document.querySelector(s)?.getBoundingClientRect().toJSON() || null;
+      const el = document.querySelector('.reel.cine');
+      return { W: innerWidth, H: innerHeight, sw: document.documentElement.scrollWidth, cine: r('.reel.cine'), go: r('.cn-go'), skip: r('.cn-skip'), t: r('.cn-t'), p: r('.cn-p'),
+        top: (() => { const e = document.elementFromPoint(innerWidth / 2, innerHeight / 2); return e ? (e.closest('.reel.cine') ? 'cine' : e.closest('.s2-splash') ? 'splash' : e.tagName + '.' + e.className) : null; })(),
+        cls: el?.className || '' };
+    });
+    const inside = (b, g) => b && b.width > 0 && b.left >= -1 && b.top >= -1 && b.right <= g.W + 1 && b.bottom <= g.H + 1;
+    let g = await geo();
+    if (g.top !== 'cine') out.push({ kind: 'intro', where, msg: `the centre of the screen is ${g.top}, not the intro` });
+    if (!inside(g.cine, g) || g.cine.width < g.W - 1 || g.cine.height < g.H - 1) out.push({ kind: 'intro', where, msg: `the intro does not cover the screen: ${JSON.stringify(g.cine)}` });
+    if (!inside(g.skip, g) || g.skip.height < 30) out.push({ kind: 'intro', where, msg: `«Пропустити» off screen or too small: ${JSON.stringify(g.skip)}` });
+    if (g.sw > g.W + 1) out.push({ kind: 'intro', where, msg: `sideways scroll ${g.sw} > ${g.W}` });
+    if (i === 0) {
+      await pg.locator('.cn-skip').click({ timeout: 3000 });
+      await pg.waitForTimeout(700);
+      if (await pg.locator('body > .reel.cine').count()) out.push({ kind: 'intro', where, msg: '«Пропустити» did not close the intro' });
+    } else {
+      await pg.mouse.click(vp[0] / 2, vp[1] / 2); // a tap before the CTA: straight to the end frame
+      await pg.waitForTimeout(500);
+      g = await geo();
+      if (!/\bdone\b/.test(g.cls)) out.push({ kind: 'intro', where, msg: `a tap did not jump to the end (${g.cls})` });
+      for (const k of ['go', 't', 'p']) if (!inside(g[k], g)) out.push({ kind: 'intro', where, msg: `end frame: .cn-${k} outside the screen ${JSON.stringify(g[k])}` });
+      if (SHOTS) await pg.screenshot({ path: path.join(SHOTS, `today-intro-${vp.join('x')}.jpg`), type: 'jpeg', quality: 45 });
+      await pg.locator('.cn-go').click({ timeout: 3000 });
+      await pg.waitForTimeout(700);
+      if (await pg.locator('body > .reel.cine').count()) out.push({ kind: 'intro', where, msg: 'the CTA did not close the intro' });
+      const tab = await pg.evaluate(() => window.__qa.state.tab);
+      if (tab !== 'cases') out.push({ kind: 'intro', where, msg: `after the CTA the tab is ${tab}, not the cases` });
+    }
+    await ctx.close();
+  }
+  // 2. a veteran (cases opened) and a player who saw the intro: no intro; the splash goes
+  const SEEN = NEW + 110;
+  await post('/api/me', {}, as(SEEN, 'uiseen' + SEEN));
+  await post('/api/intro/seen', {}, as(SEEN, 'uiseen' + SEEN));
+  for (const [id, n] of [[VET, 'vet'], [SEEN, 'seen']]) {
+    const where = `no-intro ${n}`;
+    const { ctx, pg } = await todayPage(browser, id, 'ui' + n, out, { where });
+    if (!(await splashGoneIn(pg, 6000))) out.push({ kind: 'splash', where, msg: 'the splash is still up 6 s after load' });
+    await pg.waitForTimeout(1500);
+    if (await pg.locator('body > .reel').count()) out.push({ kind: 'intro', where, msg: 'an intro showed for a veteran' });
+    await ctx.close();
+  }
+  // 3. the splash never stays: /api/me failing, /api/config failing, a tap
+  for (const [label, rt] of [['me 500', (pg) => pg.route('**/api/me', (r) => r.fulfill({ status: 500, body: '{}' }))],
+    ['config abort', (pg) => pg.route('**/api/config', (r) => r.abort())], ['paint meta abort', (pg) => pg.route('**/paint/meta.json*', (r) => r.abort())],
+    ['config null', (pg) => pg.route('**/api/config', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: 'null' }))],
+    ['boot throws', (pg) => pg.route(/\/app\.js(\?.*)?$/, async (r) => { // any exception in boot (here thrown on purpose)
+      const resp = await r.fetch();
+      const body = (await resp.text()).replace('PAINT.watchLooks(document.body);', "PAINT.watchLooks(document.body); throw new Error('qa: boot threw');");
+      r.fulfill({ response: resp, body, headers: { ...resp.headers(), 'content-length': String(Buffer.byteLength(body)) } });
+    })]]) {
+    const thrown = label === 'boot throws';
+    const where = `splash ${label}`;
+    const { ctx, pg } = await todayPage(browser, VET, 'uivet', out, { route: rt, where });
+    if (!(await splashGoneIn(pg, 8000))) out.push({ kind: 'splash', where, msg: 'the splash never went away' });
+    if (thrown) out.splice(0, out.length, ...out.filter((f) => !(f.where === where && /qa: boot threw/.test(f.msg))));
+    await ctx.close();
+  }
+  // 4. photos, paint, crates, EV parts — as the veteran (level 40, an EV car given in seed)
+  const where = 'art';
+  const { ctx, pg } = await todayPage(browser, VET, 'uivet', out, { where });
+  await pg.waitForFunction(() => window.__qa?.me?.(), null, { timeout: 20000 });
+  await splashGoneIn(pg, 6000);
+  const art = await pg.evaluate(async () => {
+    const { S, PAINT } = window.__qa;
+    const load = (src) => new Promise((ok) => {
+      const im = new Image();
+      im.onload = () => ok(im.naturalWidth > 0 ? null : 'empty');
+      im.onerror = () => ok('error');
+      im.src = src;
+    });
+    const bad = [];
+    const ids = Object.keys(S.MODELS);
+    for (let i = 0; i < ids.length; i += 24) {
+      await Promise.all(ids.slice(i, i + 24).map(async (id) => {
+        const m = S.MODELS[id], src = PAINT.photoUrl(m.img && !window.__qa.hasPhoto(id) ? m.img : id); // a livery uses its base model's photo
+        if (m.secret && !src) return;
+        const e = await load(src);
+        if (e) bad.push(`photo ${id}: ${e} (${src})`);
+      }));
+    }
+    const keys = Object.entries(S.FACTORY_PAINT).filter(([, v]) => v.key).map(([k]) => k);
+    const paints = Object.keys(S.PAINT_BY_ID);
+    let painted = 0;
+    for (const [i, id] of keys.entries()) {
+      if (!PAINT.canPaint(id)) {
+        bad.push(`key car ${id}: no paint mask (canPaint false)`);
+        continue;
+      }
+      const url = await PAINT.renderLook(id, { paint: paints[i % paints.length] });
+      if (!url) bad.push(`key car ${id}: repaint failed`);
+      else painted++;
+    }
+    return { bad, painted, keys: keys.length, photos: ids.length };
+  });
+  for (const b of art.bad) out.push({ kind: 'art', where, msg: b });
+  console.log(`today: ${art.photos} photos checked, ${art.painted}/${art.keys} key cars repainted`);
+  // country crates on the cases tab
+  await pg.evaluate(() => (window.__qa.closeModal(), Object.assign(window.__qa.state, { tab: 'cases', page: null }), window.__qa.render()));
+  await pg.waitForTimeout(1500);
+  const crates = await pg.evaluate(async () => {
+    const { S } = window.__qa;
+    const want = [...new Set(S.CASES.filter((c) => c.country).map((c) => c.country.toLowerCase()))];
+    const imgs = [...document.querySelectorAll('img.s2-cimg')];
+    const shown = new Set(imgs.map((i) => /\/c-([a-z]+)\.webp/.exec(i.getAttribute('src'))?.[1]).filter(Boolean));
+    await Promise.all(imgs.map((i) => (i.complete ? null : new Promise((r) => (i.onload = i.onerror = r)))));
+    const broken = imgs.filter((i) => !i.naturalWidth).map((i) => i.getAttribute('src'));
+    const opened = await Promise.all(want.map((k) => fetch(`s2/case/o-${k}.webp`).then((r) => (r.ok ? null : `o-${k} ${r.status}`))));
+    const flags = [...document.querySelectorAll('.s2-cflag')].length;
+    return { want, shown: [...shown], broken, opened: opened.filter(Boolean), flags };
+  });
+  for (const k of crates.want) if (!crates.shown.includes(k)) out.push({ kind: 'crate', where, msg: `country case ${k}: no crate on the cases tab (round flag instead?)` });
+  for (const b of [...crates.broken, ...crates.opened]) out.push({ kind: 'crate', where, msg: `crate art did not load: ${b}` });
+  // EV parts on an EV car's СТО
+  const ev = await pg.evaluate(async () => {
+    const Q = window.__qa, c = Q.me().cars.find((x) => Q.S.MODELS[x.model].ev && x.status === 'garage');
+    if (!c) return { none: true };
+    Q.state.carMode = 'tune';
+    Q.carSheet(c.id);
+    await new Promise((r) => setTimeout(r, 1200));
+    const imgs = [...document.querySelectorAll('#sheet .s2t-p img')];
+    await Promise.all(imgs.map((i) => (i.complete ? null : new Promise((r) => (i.onload = i.onerror = r)))));
+    const types = [...document.querySelectorAll('#sheet .s2t-p')].map((b) => b.dataset.type);
+    return { model: c.model, types, srcs: imgs.map((i) => i.getAttribute('src')), broken: imgs.filter((i) => !i.naturalWidth).map((i) => i.getAttribute('src')) };
+  });
+  if (ev.none) out.push({ kind: 'ev', where, msg: 'no EV car in the garage (seed?)' });
+  else {
+    for (const t of ['motor', 'battery', 'reducer']) if (!ev.srcs.includes(`s2/pt/${t}.webp`)) out.push({ kind: 'ev', where, msg: `${ev.model}: no s2/pt/${t}.webp on the СТО (types ${ev.types.join(',')})` });
+    for (const b of ev.broken) out.push({ kind: 'ev', where, msg: `${ev.model}: part art did not load ${b}` });
+    if (SHOTS) await pg.screenshot({ path: path.join(SHOTS, 'today-ev-sto.jpg'), type: 'jpeg', quality: 45 });
+  }
+  await ctx.close();
+}
+
 const browser = await chromium.launch();
 await seed();
 const res = [];
+if (process.argv.includes('--today')) {
+  await adm('give-car', { id: VET, model: 'tesla-model-y' });
+  await todayChecks(browser, res);
+}
 if (WHO.includes('vet')) await leaveRunCheck(browser, VET, 'vet', res);
 for (const [id, n] of [[NEW, 'new'], [VET, 'vet'], [EDGE, 'edge']].filter(([, n]) => WHO.includes(n))) {
   const r = await sweep(browser, id, n);
