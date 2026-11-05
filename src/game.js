@@ -1761,7 +1761,7 @@ export function createGame(db, opts = {}) {
   }
   function bossStart(uid, { carId, boss, hard }) {
     startLimit(uid, 'races');
-    const b = S.BOSS_BY_ID[String(boss)];
+    const b = Object.hasOwn(S.BOSS_BY_ID, String(boss)) ? S.BOSS_BY_ID[String(boss)] : null; // 'valueOf' was a 500 (n5-bugs)
     if (!b) fail('Невідомий бос');
     const rows = bossRows(uid);
     if (!bossOpen(b, rows)) fail('Спершу переможи попереднього боса');

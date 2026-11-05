@@ -98,3 +98,11 @@ test('N5-1d admin reset of a creator with a pending challenge refunds the asker 
   assert.equal(bal(1), start, 'the reset account got no pre-reset bet back');
   void db;
 });
+
+// ---------- N5-2: boss/start with a prototype name as the boss was a server error ----------
+test('N5-2 boss/start: «valueOf» / «constructor» as the boss is a clean refusal, not a 500', () => {
+  const { g, mk, call, err } = setup();
+  mk(1);
+  const c = g.giveCar(1, 'vaz-2107').id;
+  for (const boss of ['valueOf', 'constructor', 'toString', '__proto__', 'hasOwnProperty']) assert.match(err(() => call(1, 'boss/start', { carId: c, boss })), /Невідомий бос/);
+});
