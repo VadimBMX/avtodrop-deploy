@@ -32,7 +32,8 @@ const as = (id, name) => ({ 'x-dev-user': encodeURIComponent(JSON.stringify({ id
 const adm = (name, body) => post('/api/admin/' + name, { confirm: true, reason: 'ui sweep', ...body });
 
 // ---------- players ----------
-const NEW = 7_100_000 + (Date.now() % 1e5), VET = NEW + 1, FRIEND = NEW + 2;
+const NEW = 7_100_000 + (Date.now() % 1e5), VET = NEW + 1, FRIEND = NEW + 2, EDGE = NEW + 3;
+const WHO = (arg('who') || 'new,vet,edge').split(',');
 async function seed() {
   for (const [id, n] of [[NEW, 'uinew'], [VET, 'uivet'], [FRIEND, 'uifriend']]) await post('/api/me', {}, as(id, n + id));
   await adm('money', { id: VET, amount: 5e9 });
@@ -46,6 +47,15 @@ async function seed() {
   await adm('part', { id: VET, type: 'eng', tier: 'street', count: 3 });
   await adm('give-plate', { id: VET, text: 'AA7777AA' });
   await adm('casino-mode', { mode: 'on' });
+  // edge: broke (0 ₴), empty tank, XP piled over today's level cap, a car on the market
+  await post('/api/me', {}, as(EDGE, 'uiedge' + EDGE));
+  const eb = (await post('/api/me', {}, as(EDGE, 'uiedge' + EDGE))).body;
+  await adm('give-car', { id: EDGE, model: 'vaz-2107' });
+  const ec = (await post('/api/me', {}, as(EDGE, 'uiedge' + EDGE))).body?.cars || [];
+  if (ec[1]) await post('/api/market/sell', { carId: ec[1].id, price: 50000 }, as(EDGE, 'uiedge' + EDGE));
+  await adm('money', { id: EDGE, amount: -1e13 });
+  await adm('set', { id: EDGE, field: 'xp', value: 5e6 });
+  void eb;
   const h = as(VET, 'uivet' + VET);
   const me = (await post('/api/me', {}, h)).body;
   const cars = (me?.cars || []).map((c) => c.id);
@@ -182,10 +192,56 @@ async function sweep(browser, uid, name) {
   return { list: list.length, out };
 }
 
+// Leaving a race / drift that is still in its lights or 3·2·1 (n5-bugs): the header balance must refuse, and after any
+// other way off the screen the bottom bar must work again (it said «Спочатку доїдь …» on every tab until a reload).
+async function leaveRunCheck(browser, uid, name, out) {
+  for (const [view, act] of [['race', 'startRace'], ['drift', 'startDrift']]) {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const pg = await ctx.newPage();
+    const where = `${name}:leave-${view}`;
+    pg.on('pageerror', (e) => out.push({ kind: 'pageerror', where, msg: String(e?.stack || e).slice(0, 400) }));
+    await pg.route('**/telegram-web-app.js', (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body: '' }));
+    await pg.route(/\/app\.js(\?.*)?$/, async (route) => {
+      const resp = await route.fetch();
+      route.fulfill({ response: resp, body: (await resp.text()) + '\n;window.__qa = { state, render, closeModal };\n' });
+    });
+    await pg.goto(`${URL0}/?as=${uid}&name=${name}${uid}`);
+    await pg.waitForFunction(() => window.__qa, null, { timeout: 20000 });
+    await pg.waitForTimeout(1500);
+    await pg.getByText('Пропустити').click({ timeout: 1000 }).catch(() => {});
+    const nav = (v) => pg.evaluate((v) => (window.__qa.closeModal(), Object.assign(window.__qa.state, { tab: 'race', page: null, raceView: v }), window.__qa.render()), v);
+    await nav(view);
+    await pg.waitForTimeout(2500);
+    const b = pg.locator(`[data-act="${act}"]:not([data-rival="train"])`).first();
+    if (!(await b.count())) {
+      out.push({ kind: 'leave', where, msg: 'no rival to start (seed?)' });
+      await ctx.close();
+      continue;
+    }
+    const shut = () => pg.evaluate(() => (window.__qa.closeModal(), document.querySelectorAll('#modal').forEach((m) => (m.hidden = true))));
+    await shut();
+    await b.click({ timeout: 5000 });
+    await pg.waitForTimeout(300);
+    await shut();
+    await pg.locator('#balance').click({ timeout: 5000 });
+    await pg.waitForTimeout(300);
+    const st = await pg.evaluate(() => [window.__qa.state.tab, window.__qa.state.page]);
+    if (st[0] !== 'race' || st[1]) out.push({ kind: 'leave', where, msg: `the balance button left a running ${view}: ${st}` });
+    await pg.evaluate(() => (Object.assign(window.__qa.state, { tab: 'menu', page: 'store' }), window.__qa.render())); // a banner / deep link
+    await pg.waitForTimeout(2500);
+    await pg.locator('#tabs button[data-tab="garage"]').click({ timeout: 3000 }).catch(() => {});
+    await pg.waitForTimeout(500);
+    const t = await pg.evaluate(() => window.__qa.state.tab);
+    if (t !== 'garage') out.push({ kind: 'leave', where, msg: `the bottom bar stays locked after leaving a ${view} in its countdown (tab ${t})` });
+    await ctx.close();
+  }
+}
+
 const browser = await chromium.launch();
 await seed();
 const res = [];
-for (const [id, n] of [[NEW, 'new'], [VET, 'vet']]) {
+if (WHO.includes('vet')) await leaveRunCheck(browser, VET, 'vet', res);
+for (const [id, n] of [[NEW, 'new'], [VET, 'vet'], [EDGE, 'edge']].filter(([, n]) => WHO.includes(n))) {
   const r = await sweep(browser, id, n);
   console.log(`${n}: ${r.list} screens, ${r.out.length} findings`);
   res.push(...r.out);

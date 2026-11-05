@@ -159,6 +159,7 @@ function call(uid, name, body = {}) {
     const r = fn(uid, body);
     okCalls++;
     cov[name] = (cov[name] || 0) + 1;
+    if (process.env.FUZZ_TRACE === name) console.log(`[trace] step ${stepNo} user ${uid} ${name} → ${short(r).slice(0, 600)}`);
     scanOut(name, r);
     lastCall.ok = true;
     return r;
