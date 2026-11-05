@@ -1,8 +1,9 @@
 {
   "_": "Wheel seeds [cx, cy, tyre r] in photo px for photos whose paint/meta.json wheels are missing or bogus (found by a tyre/rim ring fit, checked by eye). tools/race_wheels.py refines every wheel from here or from meta.json.",
+  "aston-martin-valkyrie": [[190, 383, 110], [967, 380, 105]],
+  "bmw-i4-m50": [[252, 388, 95], [1015, 388, 95]],
   "nissan-gt-r-r35-mp": [[160, 264, 60], [662, 264, 60]],
   "porsche-911-turbo-s-aurora": [[175, 262, 62], [650, 259, 62]],
-  "bugatti-bolide": [[155, 272.7, 72.7], [695.2, 273.7, 76.7]],
   "audi-100-c3-syhara": [[207.1, 304.9, 67.4], [734.2, 301.9, 65.4]],
   "bmw-750i-e38-bumer": [[198.7, 299.9, 70.6], [770.1, 299.8, 73.3]],
   "bmw-m5-e34": [[209, 303.5, 70.7], [771.2, 301.4, 70.4]],
@@ -19,8 +20,6 @@
   "mitsubishi-pajero-ii": [[232.7, 287.4, 65], [746.8, 287.4, 65]],
   "nissan-skyline-gt-r-r32": [[175.4, 281.3, 65.8], [707.8, 278.4, 71.8]],
   "porsche-959": [[206.4, 280.2, 72.1], [706.4, 277.2, 76.4]],
-  "porsche-carrera-gt": [[154.8, 282.7, 75.5], [718.2, 284.7, 80.3]],
   "toyota-camry-3-5-xv40": [[197.3, 301.2, 75.2], [764.8, 301.2, 77.2]],
-  "toyota-land-cruiser-200": [[192, 258.3, 78.5], [693.5, 267.7, 74.3]],
   "vaz-2114": [[168.2, 296.8, 72.6], [733.6, 296.8, 73.6]]
 }
