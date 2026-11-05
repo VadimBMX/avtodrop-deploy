@@ -1203,7 +1203,7 @@ function pickCar(title, onPick, filter = (c) => c.status === 'garage', back = nu
 // stat tiles, the price with a sparkline, the action row (Тюнінг · Помити · Вітрина · Продати), the fitted parts as
 // chips and the yellow «На гонку». «Тюнінг» turns the same page into the СТО (mockup 08): the car on the lift, power
 // and 402 m bars stock → now, the part grid with tier dots, «Встановити найкраще». Every old action is still here.
-const S2PT = { eng: 'eng', turbo: 'turbo', exhaust: 'exhaust', gearbox: 'gearbox', suspension: 'suspension', wheels: 'wheels', brakes: 'brakes', body: 'body' };
+const S2PT = { eng: 'eng', turbo: 'turbo', exhaust: 'exhaust', gearbox: 'gearbox', suspension: 'suspension', wheels: 'wheels', brakes: 'brakes', body: 'body', motor: 'motor', battery: 'battery', reducer: 'reducer' };
 function carSheet(id, best = null) {
   const c = me.cars.find((x) => x.id === Number(id));
   if (!c) return closeModal();
