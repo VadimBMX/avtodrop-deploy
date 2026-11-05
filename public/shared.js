@@ -3317,6 +3317,15 @@ export const FACTORY_PAINT = {
   'bmw-i4-m50': { hex: '#3d3e41', finish: 'metallic', name: 'as the current photo', key: true },
   'bmw-m2-competition': { hex: '#1a1a1b', finish: 'gloss', name: 'as the current photo', key: true },
   'bmw-x5-e70': { hex: '#4c4339', finish: 'metallic', name: 'as the current photo', key: true },
+  'bugatti-bolide': { hex: '#1a1b1b', finish: 'gloss', name: 'as the current photo', key: true },
+  'bugatti-veyron-16-4': { hex: '#6e91aa', finish: 'metallic', name: 'as the current photo', key: true },
+  'byd-dolphin': { hex: '#61829b', finish: 'metallic', name: 'as the current photo', key: true },
+  'byd-han': { hex: '#193228', finish: 'metallic', name: 'as the current photo', key: true },
+  'byd-seal': { hex: '#711921', finish: 'metallic', name: 'as the current photo', key: true },
+  'chery-tiggo-7-pro': { hex: '#3c3f43', finish: 'metallic', name: 'as the current photo', key: true },
+  'chevrolet-aveo': { hex: '#424245', finish: 'metallic', name: 'as the current photo', key: true },
+  'dodge-viper-acr': { hex: '#111111', finish: 'gloss', name: 'as the current photo', key: true },
+  'haval-jolion': { hex: '#4c6a82', finish: 'metallic', name: 'as the current photo', key: true },
   ...IMPORT_FACTORY, // season-2 batch (tools/cars-import)
 };
 export const isKeyCar = (id) => !!FACTORY_PAINT[id]?.key;
