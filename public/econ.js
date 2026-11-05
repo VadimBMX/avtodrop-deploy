@@ -99,6 +99,14 @@ export const ECON = {
   // «Перші кроки» (S.NEWBIE_TASKS): money per step, in the order of the track.
   newbieMoney: { open_starter: 15000, collect: 20000, race: 30000, daily: 15000, win: 50000, open_case: 60000, install: 60000, level3: 150000 }, // 04.11: 400 тис total (was 1 010 000)
   refReward: 1000000,
+  // d2-wall (sim-report «стіна першої сесії»): a newcomer's first long session ran dry at ~8 min (15 fuel, start money in
+  // cases, nothing left to do). Only for an account younger than these hours (users.created_at) — veterans never see it:
+  //   fuelRefills: free full tanks on an empty tank in the first fuelHours (users.newbie_fuel counts them);
+  //   rcaseMin: the reward case comes every rcaseMin minutes (not REWARD_CASE_HOURS) while the last one was taken in the
+  //   account's first rcaseHours — 4 cases in the first 1.5 h instead of 1.
+  // Tuned on tools/sim-newbies.mjs (3 seeds, 7 for the edge personas): the wall of a long first session moves from minute
+  // 7 to 12; day-7 worth +2…17% (2 refills + every 20 min for 2 h gave +20…37% earned income — too much for veterans-to-be).
+  newbie: { fuelRefills: 1, fuelHours: 24, rcaseMin: 30, rcaseHours: 1.5 },
 
   // ---------- trading risk ----------
   upgrade: { maxCars: 6, minMult: 1.2, maxMult: 50, edge: 0.92, perExtraCar: 0.01, maxChance: 0.75 },

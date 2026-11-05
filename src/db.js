@@ -564,6 +564,7 @@ const MIGRATIONS = [
   'ALTER TABLE users ADD COLUMN star_credit INTEGER NOT NULL DEFAULT 0',
   // s2-fix: the helmet of the avatar (0…S.HELMETS-1; NULL = the default by id, S.helmetDefault).
   'ALTER TABLE users ADD COLUMN helmet INTEGER',
+  'ALTER TABLE users ADD COLUMN newbie_fuel INTEGER NOT NULL DEFAULT 0', // d2-wall: free «Заправка новачка» used (S.newbieFuelLeft)
 ];
 
 export function openDb(file) {

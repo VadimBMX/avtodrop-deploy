@@ -25,7 +25,7 @@ function setup(db = openDb(':memory:'), extra = {}) {
 
 // ---------- XP thresholds ----------
 test('xp: the owner\'s table for levels 1–8, a smooth bridge to 300·L^1.6 from level 11, never more than before', () => {
-  assert.deepEqual([1, 2, 3, 4, 5, 6, 7].map(S.xpForLevel), [300, 700, 1100, 1600, 2300, 3200, 4300]);
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7].map(S.xpForLevel), [200, 450, 1100, 1600, 2300, 3200, 4300]); // d2-wall: L2/L3 were 300/700
   for (let l = 11; l <= 60; l++) assert.equal(S.xpForLevel(l), Math.round(300 * Math.pow(l, 1.6)), `L${l}`);
   for (let l = 1; l < 80; l++) {
     assert.ok(S.xpForLevel(l + 1) > S.xpForLevel(l), `rises at L${l}`);
@@ -37,10 +37,12 @@ test('xp: the owner\'s table for levels 1–8, a smooth bridge to 300·L^1.6 fro
     assert.ok(k > 1.32 && k < 1.36, `L${l}→${l + 1} ×${k.toFixed(3)}`);
   }
   assert.equal(S.xpForLevel(0), 300, 'a broken level 0 never loops forever');
-  // Level 4 (the first social and cosmetic features) at 2 100 xp in total, level 5 at 3 700 (were 3 512 and 7 150).
+  // Level 4 (the first social and cosmetic features) at 1 750 xp in total, level 5 at 3 350 (d2-wall; were 2 100 / 3 700,
+  // before the table 3 512 and 7 150). Level 3 at 650 (was 1 000).
   const total = (to) => Array.from({ length: to - 1 }, (_, i) => S.xpForLevel(i + 1)).reduce((a, b) => a + b, 0);
-  assert.equal(total(4), 2100);
-  assert.equal(total(5), 3700);
+  assert.equal(total(3), 650);
+  assert.equal(total(4), 1750);
+  assert.equal(total(5), 3350);
 });
 
 test('xp: the daily cap is only for cases, parts and plates (and the upgrade/casino); races, the daily bonus and tasks are uncapped', () => {
@@ -63,7 +65,7 @@ test('xp migration: levels stay, the bar keeps its share, nobody jumps levels; o
   const rows = [[21, 1, 150], [22, 3, 2000], [23, 4, 3637], [24, 7, 5000], [25, 13, 30000], [26, 30, 0], [27, 2, 1043]];
   for (const [id, level, xp] of rows) (a.mk(id), a.set(id, 'level = ?, level_seen = ?, xp = ?', level, level, xp));
   a.mk(30);
-  a.set(30, 'level = 1, level_seen = 1, xp = 710'); // seen in an old Railway copy: more than the level needs
+  a.set(30, 'level = 1, level_seen = 1, xp = 350'); // seen in an old Railway copy: more than the level needs (300 on the old curve; under 200 + 450)
   db.prepare('UPDATE users SET prog_v = 0').run(); // rows from before the table (old players, or merged in from an older database)
   const b = setup(db);
   for (const [id, level, xp] of rows) {
@@ -75,17 +77,18 @@ test('xp migration: levels stay, the bar keeps its share, nobody jumps levels; o
     const me = b.call(id, 'me');
     assert.ok(me.xp < me.xpNeed, 'no bar over 100%');
   }
-  assert.equal(b.user(21).xp, 150, 'level 1 needs 300 on both curves: unchanged');
+  assert.equal(b.user(21).xp, 100, 'level 1: 150 of the old 300 → 100 of 200 (d2-wall), the same half bar');
   assert.equal(b.user(26).xp, 0);
   // The next xp is ordinary: one daily bonus never lifts a migrated player more than one level.
   b.call(23, 'rewards/daily');
   assert.ok(b.user(23).level <= 5);
-  // A broken row that already held more than its need keeps it and levels up on its next xp, with the level gift.
-  assert.equal(b.user(30).xp, 710);
+  // A broken row that already held more than its need stays over it (rescaled) and levels up on its next xp, with the level gift.
+  const kept = Math.floor((350 * S.xpForLevel(1)) / S.xpForLevelV1(1)); // 233: rescaled like every row, still over 200
+  assert.equal(b.user(30).xp, kept);
   const bal = b.user(30).balance;
   b.call(30, 'rewards/daily');
   assert.equal(b.user(30).level, 2);
-  assert.equal(b.user(30).xp, 710 + S.XP.daily - S.xpForLevel(1));
+  assert.equal(b.user(30).xp, kept + S.XP.daily - S.xpForLevel(1));
   assert.ok(b.user(30).balance >= bal + S.levelReward(2).money);
   // Once: a second start leaves the numbers alone.
   const snap = rows.map(([id]) => b.user(id).xp);

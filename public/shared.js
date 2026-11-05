@@ -2027,7 +2027,9 @@ export const showcaseCost = (n) => niceRound(ECON.showcase.base * Math.pow(2, n 
 // xp needed to go from lvl to lvl+1. Levels 1–7 are a table made for the first days (tools/sim-unlock.mjs: L4 ≈ 47 min,
 // L5 ≈ 87 min of active play, see UNLOCKS); 8–10 carry on with the table's own step (×1.34) into 300·L^1.6 from level 11 on, so the
 // curve has no jump (10 400 → 13 911); late levels need about 60% of the old curve (L13: 18 173 instead of 30 354).
-export const XP_TABLE = [300, 700, 1100, 1600, 2300, 3200, 4300, 5800, 7700, 10400];
+// d2-wall (05.11): L2 300 → 200 and L3 700 → 450 — nobody reached level 3 (parts, market, «Автомийка») on day 1 (sim-report,
+// persona report: 675/700 after ~60 races); with the newbie refills it now lands in the first long session.
+export const XP_TABLE = [200, 450, 1100, 1600, 2300, 3200, 4300, 5800, 7700, 10400];
 export const xpForLevel = (lvl) => (lvl >= 1 && lvl <= XP_TABLE.length ? XP_TABLE[lvl - 1] : Math.round(300 * Math.pow(Math.max(lvl, 1), 1.6)));
 // The curve before the table (300·L^1.8). game.js migrateProgress rescales a player's xp within his level by it, once.
 export const xpForLevelV1 = (lvl) => Math.round(300 * Math.pow(lvl, 1.8));
@@ -2188,6 +2190,13 @@ export function dailyText(d) {
   return fmt(d.money);
 }
 export const REWARD_CASE_HOURS = 4;
+// d2-wall: a newcomer's boosts (ECON.newbie). The reward case: every rcaseMin minutes while the last one was taken in the
+// account's first rcaseHours, else every REWARD_CASE_HOURS. When the next one is ready (ms), for a users row.
+export const NEWBIE_BOOST = ECON.newbie;
+export const rewardCaseNext = (u) => (u.reward_case_at || 0) + (u.created_at && u.reward_case_at >= u.created_at && u.reward_case_at < u.created_at + NEWBIE_BOOST.rcaseHours * 3600e3
+  ? NEWBIE_BOOST.rcaseMin * 60e3 : REWARD_CASE_HOURS * 3600e3);
+// Free «Заправка новачка» left now (0 for a player past fuelHours or with every refill used).
+export const newbieFuelLeft = (u, t) => (u.created_at && t < u.created_at + NEWBIE_BOOST.fuelHours * 3600e3 ? Math.max(0, NEWBIE_BOOST.fuelRefills - (u.newbie_fuel || 0)) : 0);
 // What the reward case gives (src/game.js rewardCase rolls these shares; the app's 2-second strip draws by them too).
 export const REWARD_CASE_ODDS = { money: 0.5, part: 0.3, fuel: 0.12, car: 0.08 };
 
