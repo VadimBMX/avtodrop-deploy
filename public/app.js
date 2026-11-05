@@ -2231,7 +2231,7 @@ function fuelOut(train = true) {
 // d2-wall: a newcomer's free refill (me.newbieFuel, S.NEWBIE_BOOST) takes that place first, on an empty tank only.
 const newbieFuelOn = () => me.newbieFuel > 0 && fuelNow() < 1;
 function refuelBtn() {
-  if (newbieFuelOn()) return `<button class="btn sm yellow refuel-btn nb-fuel" data-act="newbieFuel">${ic('gas-station')} Повний бак · безкоштовно <small>${S.NEWBIE_BOOST.fuelRefills - me.newbieFuel + 1}/${S.NEWBIE_BOOST.fuelRefills}</small></button>`;
+  if (newbieFuelOn()) return `<button class="btn sm yellow refuel-btn nb-fuel" data-act="newbieFuel">${ic('gas-station')} Повний бак · безкоштовно${S.NEWBIE_BOOST.fuelRefills > 1 ? ` <small>${S.NEWBIE_BOOST.fuelRefills - me.newbieFuel + 1}/${S.NEWBIE_BOOST.fuelRefills}</small>` : ''}</button>`;
   const it = S.SHOP_BY_ID.refuel;
   if (!it || !config.stars || fuelNow() >= fmax()) return '';
   const d = me.fuelDeal && me.fuelDeal.until > serverNow() ? me.fuelDeal : null;
