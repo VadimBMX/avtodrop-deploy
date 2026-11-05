@@ -422,9 +422,9 @@ function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false,
     <div class="art">${carArt(c.model, { look: c.look, dirt: c.dirt, thumb: true })}${dirtPip(c)}</div>
     ${tileMarks(c, m)}<div class="nm clamp2" title="${esc(m.name)}">${esc(m.restored ? m.name.replace(/ · R$/, '') : m.name)}</div>
     ${c.plate ? `<div class="meta">${plate(c.plate.text, 'sm', c.pf)}</div>` : ''}
-    <div class="meta row between" style="gap:4px"><span>${c.hp} к.с.</span><b class="disp hn-sale" style="color:var(--text);font-size:14px;font-weight:600" title="${sale == null ? 'Колекційна ціна' : 'Продаж'}">${sale == null ? S.short(c.value) : `${ic('cash')}${S.short(sale)}`}</b></div>${collLine ? `<div class="meta sellp">${sale == null ? 'не продається' : `${collLine === 'short' ? 'колекц.' : 'колекційна'} ${S.short(c.value)}`}</div>` : ''}
+    <div class="meta row between" style="gap:4px"><span>${c.hp} к.с.</span><b class="disp hn-sale" style="color:var(--text);font-size:14px;font-weight:600" title="${sale == null ? 'Колекційна ціна' : 'Продаж'}">${sale == null ? S.short(c.value) : `${ic('cash')}${S.short(sale)}`}</b></div>${collLine ? `<div class="meta sellp">${sale == null ? 'не продається' : `${collLine === 'short' ? 'колекц.' : 'колекційна'} <span class="nw">${S.short(c.value)}</span>`}</div>` : ''}
     ${incLine && c.status === 'garage' ? tileInc(c) : ''}
-    ${sellLine && c.sell != null && !m.secret && c.status === 'garage' && act !== 'none' ? `<div class="meta sellp">продаж ${S.short(c.sell)}</div>` : ''}
+    ${sellLine && c.sell != null && !m.secret && c.status === 'garage' && act !== 'none' ? `<div class="meta sellp">продаж <span class="nw">${S.short(c.sell)}</span></div>` : ''}
     ${c.status === 'market' ? `<div class="status">${ic('building-store')}На ринку</div>` : c.status === 'auction' ? `<div class="status">${ic('hammer')}На аукціоні</div>` : ''}
   </button>`;
 }
@@ -2133,7 +2133,7 @@ TABS.race = async () => {
       ${miniCar(r.model)}
       <div class="grow"><b class="ellipsis">${esc(r.name)}</b><div class="small muted rv-meta"><span class="ellipsis">${esc(M(r.model).name)}</span><span class="nw">· ${r.hp} к.с.</span></div>${r.driver ? `<div class="tiny muted rv-drv">водій: ${esc(r.driver)}</div>` : ''}
         <div class="row mt" style="gap:6px"><span class="diff ${r.id}">${r.label}</span>${rivalChanceChip(r)}</div></div>
-      <div class="center"><b class="win">+${S.short(r.prize)}</b><div class="tiny muted">${r.entry ? `внесок ${S.short(r.entry)}` : 'без внеску'}</div>${r.et ? `<div class="tiny muted">${dec(r.et, 2)} с</div>` : ''}</div></button>`).join('')}</div>
+      <div class="center"><b class="win">+${S.short(r.prize)}</b><div class="tiny muted">${r.entry ? `внесок <span class="nw">${S.short(r.entry)}</span>` : 'без внеску'}</div>${r.et ? `<div class="tiny muted">${dec(r.et, 2)} с</div>` : ''}</div></button>`).join('')}</div>
     <div class="dr-below" id="drBelow"></div>
     ${challengeRaceRow()}
     <details class="dr-how"><summary>${ic('info-circle')} Як їздити</summary><div class="tiny muted">Тисни на суперника, щоб почати. Три жовті — чекай; щойно загориться зелений, жми «Газ». Натиснеш до зеленого — фальстарт (−8% потужності). Реакція 0,10–0,15 с — ідеальний старт (+4%). Під час заїзду перемикай передачі, коли стрілка тахометра в зеленій зоні; не встигнеш — передача перемкнеться сама на відсічці, але пізно. Програв — внесок згоряє.</div>
@@ -3053,7 +3053,7 @@ async function driftView(car, garage) {
       ${miniCar(r.model)}
       <div class="grow"><b class="ellipsis">${esc(r.name)}</b><div class="small muted ellipsis">${esc(M(r.model).name)}</div>
         <div class="row mt" style="gap:6px"><span class="diff ${r.id}">${r.label}</span><span class="chip">ціль ${S.fmt(r.target).replace(' ₴', '')} очок</span></div></div>
-      <div class="center"><b class="win">+${S.short(r.prize)}</b><div class="tiny muted">${r.entry ? `внесок ${S.short(r.entry)}` : 'без внеску'}</div></div></button>`).join('')}</div>
+      <div class="center"><b class="win">+${S.short(r.prize)}</b><div class="tiny muted">${r.entry ? `внесок <span class="nw">${S.short(r.entry)}</span>` : 'без внеску'}</div></div></button>`).join('')}</div>
     <div class="card dhow"><b>Як їздити</b>
       <p>Одна кнопка — «Газ». <b>На прямій</b> тримай — розганяєшся, відпусти — гальмуєш. <b>У повороті</b> тримай — заносить сильніше, відпусти — вирівнюєшся.</p>
       <p>Тримай стрілку в зеленій зоні повороту — у кожного свій кут: швидкий 28°, середній 36°, шпилька 44°. Очки капають за кожен метр у зоні: ×1,5 у самому центрі, більше на швидкості, менше, коли машину виносить з траєкторії.</p>

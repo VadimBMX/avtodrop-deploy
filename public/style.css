@@ -6747,6 +6747,55 @@ body.s2 .s2-parts-go { color: #8a8f98; }
 .lvcap b { color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; }
 .lvcap-note { display: flex; align-items: center; justify-content: center; gap: 4px; }
 
+/* ===== layout-check 2026-11-05 (tools/layout-check.mjs): fixes for what the checker found at 320–430 px ===== */
+/* car sheet: four stat tiles cut «394 к…», «2 250…» on narrow phones — two rows of two there */
+@media (max-width: 374px) { body.s2 .s2c-stats { grid-template-columns: repeat(2, 1fr); } }
+/* gift window: a big sum («+9 940 000 000 ₴») kept on one line, scaled to the screen */
+.gift-sum.win { white-space: nowrap; font-size: clamp(24px, 9.6vw, 38px); }
+/* parts dock: its under-strip (::after, 30 px) painted over the «Автопродаж» header right below the dock */
+body.s2 .pdock { margin-bottom: 26px; }
+/* businesses: «+30 000 ₴/год» ran under «Купити» at 320 px — a smaller picture leaves the text room */
+@media (max-width: 374px) { .bz-card { gap: 9px; padding: 10px; } .bz-img { width: 46px; height: 44px; } .bz-chip { padding: 7px 10px; } }
+/* tap targets ≥ 36 px: small buttons grow to 36, tiny controls get an invisible hit area */
+body.s2 .btn.sm { min-height: 36px; }
+.toggle::before { content: ''; position: absolute; inset: -6px -4px; }
+.toggle.sm::before { inset: -8px -2px; }
+body.s2 .s2-q { height: 36px; }
+body.s2 .s2-lb::before, .tnm-pcls button::before, .pr-lb::before, .s2r-fuel::before, .bz-chip::before { content: ''; position: absolute; inset: -4px; }
+.tnm-pcls button, .pr-lb, .s2r-fuel, .bz-chip { position: relative; }
+.tnm-pcls button::before { inset: -4px -5px; }
+.regcode { min-height: 36px; }
+.dr-how summary { min-height: 36px; box-sizing: border-box; }
+.cm { position: relative; }
+.cm::before { content: ''; position: absolute; inset: -2px -6px; }
+a.txtlink { position: relative; }
+a.txtlink::before { content: ''; position: absolute; inset: -11px -4px; }
+/* «Профіль» tiles at 320–374 px: the info line lost «3 д 19 год», «сет готовий», «+1 млн ₴» to the ellipsis — two lines there */
+@media (max-width: 374px) { .hub-t.tall .hub-i { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; } .hub-t.tall .hub-i [data-until] { white-space: nowrap; } }
+/* drift rivals at 320 px: «ціль 4 170 очок» was cut by the card edge — the chip goes under the difficulty */
+.rivals .rival .grow > .row.mt { flex-wrap: wrap; row-gap: 4px; } /* (beats the ≤ 360 px «nowrap», which assumed a full-width text column) */
+/* case battle picker at 320 px: the top-class chance («A 0,030%») ran into the price — the bar alone there (as in the case list) */
+@media (max-width: 374px) { .bpick .odds-top { display: none; } }
+/* garage cash («6 281 414 ₴», up to 9 digits with VIP 8 h): «₴» fell to its own line at 320 px — one line, scaled */
+body.s2 .income .big { white-space: nowrap; }
+@media (max-width: 374px) { body.s2 .income .inc-row { flex-wrap: wrap; row-gap: 8px; } body.s2 .income .inc-row > .grow { flex: 1 0 100%; } body.s2 .income.inc-compact .inc-btn { width: 100%; justify-content: center; } }
+/* garage car tiles (2 per row at 320 px): «750 / к.с.» broke apart — the power stays whole, the price wraps under it */
+.car .meta.row { flex-wrap: wrap; row-gap: 0; }
+.car .meta.row > span { white-space: nowrap; }
+/* licence: «Подарунок за рівень: +100 тис ₴» broke inside the sum; garage «Продаж усього гаража» link 34 → 36 px */
+.licence .row.between b.win, .sheet .row.between.tiny b.win { white-space: nowrap; }
+body.s2 .garage-h .hn-gsum { min-height: 36px; }
+/* market / PvP rows: a long car name («Mercedes-Benz S600 W140 «Кабан»») on two lines instead of «Mercedes-Be…» */
+body.s2[data-s2pg="market"] #view .list > .li .clamp2, body.s2[data-s2pg="race"] #view .card > .list > .li .clamp2 { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; white-space: normal; line-height: 1.15; }
+/* «Місто» cash strip: the ticking sum («+112 000 000 ₴» after 8 h of a rich garage) ran under «Зібрати» at 320 px —
+   on narrow phones the colour dots and the button icon give way, the sum is a size smaller */
+@media (max-width: 374px) {
+  body.s2 .s2-collect .s2-dots, body.s2 .s2-collect .s2-btn .i { display: none; }
+  body.s2 .s2-collect .s2-st { padding-left: 0; }
+  body.s2 .s2-collect .s2-st b { font-size: 16px; letter-spacing: -.6px; }
+  body.s2 .s2-collect .s2-btn { padding: 0 13px; }
+}
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */
