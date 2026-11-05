@@ -6872,6 +6872,11 @@ body.s2 .qcard.ready { box-shadow: var(--slab-sh-sm), inset 0 0 0 2px var(--gree
 /* Playtest 05.11: the «Перші кроки» card (z 44) floated over open sheets (z 20) — on day 2 it covered the title and
    the ✕ of «Нагороди». While a sheet is open the card steps aside; the ring in the header stays. */
 body:has(#modal:not([hidden])) .coach { visibility: hidden; pointer-events: none; }
+/* art audit 05.11: a country case has no crate picture yet — its flag was a 1.35em circle scaled ×2.4–2.6 (blurry, ~45 px
+   next to 170 px crates). Draw it crisp at crate size with a rim and the crates' shadow until s2/case/c-<cc>.webp exist. */
+.s2-feat-art .s2-cflag, .s2-hero-art .s2-cflag { display: flex; align-items: center; justify-content: center; transform: none; margin: 14px 0; }
+.s2-feat-art .s2-cflag .flag-emb, .s2-hero-art .s2-cflag .flag-emb { width: 116px; height: 116px; vertical-align: 0;
+  box-shadow: 0 0 0 5px #ffffff1c, 0 0 0 6px #0008, 0 20px 26px #000c; }
 
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
