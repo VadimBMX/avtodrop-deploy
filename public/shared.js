@@ -3309,6 +3309,14 @@ export const FACTORY_PAINT = {
   'alfa-romeo-stelvio-quadrifoglio': { hex: '#1f4fa0', finish: 'metallic', name: 'Misano Blue metallic', key: true },
   'maserati-ghibli-trofeo': { hex: '#4a4d52', finish: 'metallic', name: 'Grigio Lava metallic', key: true },
   'lancia-stratos-hf-stradale': { hex: '#f2c200', finish: 'gloss', name: 'Giallo Fly', key: true },
+  'alfa-romeo-giulia-quadrifoglio': { hex: '#133327', finish: 'metallic', name: 'as the current photo', key: true },
+  'aston-martin-valkyrie': { hex: '#cbcbc8', finish: 'metallic', name: 'as the current photo', key: true },
+  'audi-80-quattro': { hex: '#404346', finish: 'metallic', name: 'as the current photo', key: true },
+  'audi-rs4-b7': { hex: '#83888d', finish: 'metallic', name: 'as the current photo', key: true },
+  'bmw-325i-e30': { hex: '#392425', finish: 'metallic', name: 'as the current photo', key: true },
+  'bmw-i4-m50': { hex: '#3d3e41', finish: 'metallic', name: 'as the current photo', key: true },
+  'bmw-m2-competition': { hex: '#1a1a1b', finish: 'gloss', name: 'as the current photo', key: true },
+  'bmw-x5-e70': { hex: '#4c4339', finish: 'metallic', name: 'as the current photo', key: true },
   ...IMPORT_FACTORY, // season-2 batch (tools/cars-import)
 };
 export const isKeyCar = (id) => !!FACTORY_PAINT[id]?.key;
