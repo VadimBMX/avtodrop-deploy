@@ -261,8 +261,8 @@ async function todayPage(browser, uid, name, out, { vp = [390, 844], route = nul
 const splashGoneIn = async (pg, ms) => pg.waitForFunction(() => !document.querySelector('body > .s2-splash'), null, { timeout: ms }).then(() => true, () => false);
 async function todayChecks(browser, out) {
   // 1. intro A for a newcomer, two phone sizes; skip on one, tap-to-end + CTA on the other
-  for (const [i, vp] of [[320, 568], [430, 932]].entries()) {
-    const id = NEW + 100 + i, where = `intro-A ${vp.join('×')}`;
+  for (const [i, [vp, how]] of [[[320, 568], 'skip'], [[320, 568], 'tap'], [[360, 640], 'tap'], [[430, 932], 'tap']].entries()) {
+    const id = NEW + 100 + i, where = `intro-A ${vp.join('×')} ${how}`;
     const { ctx, pg } = await todayPage(browser, id, 'intro', out, { vp, where });
     if (!(await pg.waitForSelector('body > .reel.cine', { timeout: 15000 }).then(() => true, () => false))) {
       out.push({ kind: 'intro', where, msg: 'no cinematic intro A for a new player' });
@@ -273,7 +273,7 @@ async function todayChecks(browser, out) {
     const geo = () => pg.evaluate(() => {
       const r = (s) => document.querySelector(s)?.getBoundingClientRect().toJSON() || null;
       const el = document.querySelector('.reel.cine');
-      return { W: innerWidth, H: innerHeight, sw: document.documentElement.scrollWidth, cine: r('.reel.cine'), go: r('.cn-go'), skip: r('.cn-skip'), t: r('.cn-t'), p: r('.cn-p'),
+      return { W: innerWidth, H: innerHeight, sw: document.documentElement.scrollWidth, cine: r('.reel.cine'), go: r('.cn-go'), skip: r('.cn-skip'), t: r('.cn-t'), p: r('.cn-p'), k: r('.cn-k'), hero: r('.cn-car[data-car="hero"] .cn-img'),
         top: (() => { const e = document.elementFromPoint(innerWidth / 2, innerHeight / 2); return e ? (e.closest('.reel.cine') ? 'cine' : e.closest('.s2-splash') ? 'splash' : e.tagName + '.' + e.className) : null; })(),
         cls: el?.className || '' };
     });
@@ -283,7 +283,7 @@ async function todayChecks(browser, out) {
     if (!inside(g.cine, g) || g.cine.width < g.W - 1 || g.cine.height < g.H - 1) out.push({ kind: 'intro', where, msg: `the intro does not cover the screen: ${JSON.stringify(g.cine)}` });
     if (!inside(g.skip, g) || g.skip.height < 30) out.push({ kind: 'intro', where, msg: `«Пропустити» off screen or too small: ${JSON.stringify(g.skip)}` });
     if (g.sw > g.W + 1) out.push({ kind: 'intro', where, msg: `sideways scroll ${g.sw} > ${g.W}` });
-    if (i === 0) {
+    if (how === 'skip') {
       await pg.locator('.cn-skip').click({ timeout: 3000 });
       await pg.waitForTimeout(700);
       if (await pg.locator('body > .reel.cine').count()) out.push({ kind: 'intro', where, msg: '«Пропустити» did not close the intro' });
@@ -293,6 +293,8 @@ async function todayChecks(browser, out) {
       g = await geo();
       if (!/\bdone\b/.test(g.cls)) out.push({ kind: 'intro', where, msg: `a tap did not jump to the end (${g.cls})` });
       for (const k of ['go', 't', 'p']) if (!inside(g[k], g)) out.push({ kind: 'intro', where, msg: `end frame: .cn-${k} outside the screen ${JSON.stringify(g[k])}` });
+      // the end text must not sit on the hero car (its photo's bottom is the tyres' bottom)
+      if (g.k && g.hero && g.k.top < g.hero.bottom - 10) out.push({ kind: 'intro', where, msg: `end frame: «Твій хід» (top ${Math.round(g.k.top)}) is on the hero car (tyres at ${Math.round(g.hero.bottom)})` });
       if (SHOTS) await pg.screenshot({ path: path.join(SHOTS, `today-intro-${vp.join('x')}.jpg`), type: 'jpeg', quality: 45 });
       await pg.locator('.cn-go').click({ timeout: 3000 });
       await pg.waitForTimeout(700);
