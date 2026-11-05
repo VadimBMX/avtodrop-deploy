@@ -25,7 +25,7 @@ function setup() {
 
 test('rules: 2 refills in 24 h, reward case every 20 min in the first 2 h; L2 200 xp, L3 450 xp, L4+ unchanged', () => {
   assert.deepEqual(S.NEWBIE_BOOST, { fuelRefills: 2, fuelHours: 24, rcaseMin: 20, rcaseHours: 2 });
-  assert.deepEqual([3, 4].map(S.xpForLevel), [1100, 1600]);
+  assert.deepEqual([1, 2, 3, 4].map(S.xpForLevel), [200, 450, 1100, 1600]);
   const c = 1e12;
   assert.equal(S.newbieFuelLeft({ created_at: c, newbie_fuel: 0 }, c + 23 * H), 2);
   assert.equal(S.newbieFuelLeft({ created_at: c, newbie_fuel: 1 }, c + H), 1);
