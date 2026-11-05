@@ -2198,7 +2198,10 @@ function tankCard() {
   const when = f >= fmax() ? `бак повний${spareTxt()}` : me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : '';
   const up = next && me.level >= next.level
     ? `<button class="btn sm outline tk-buy" data-act="tankUp" title="Назавжди: +${next.max - fmax()} пального в баку на всі машини. Без зірок — лише за гривні.">Бак ${next.max} · ${S.short(next.cost)}</button>` : '';
-  return `<div class="card tk-card tk-slim"><div class="tk-row"><span class="tk-ic">${ic('gas-station')}</span><div class="grow tk-tx"><b>Бак <span class="tk-n">${f}<small>/${fmax()}</small></span></b><span class="tiny muted">${when}</span></div>${up}${refuelBtn()}</div>${comebackLine()}</div>`;
+  // r3: the newcomer's free full tank is the main button, on its own row — in the row it cut itself off and squeezed
+  // «0/15» to «0/1…» on a 320–390 px phone (more so next to «Бак 18 · 2 млн»).
+  const nb = newbieFuelOn();
+  return `<div class="card tk-card tk-slim"><div class="tk-row"><span class="tk-ic">${ic('gas-station')}</span><div class="grow tk-tx"><b>Бак <span class="tk-n">${f}<small>/${fmax()}</small></span></b><span class="tiny muted">${when}</span></div>${up}${nb ? '' : refuelBtn()}</div>${nb ? `<div class="tk-nb">${refuelBtn()}</div>` : ''}${comebackLine()}</div>`;
 }
 H.tankUp = (d, el) => {
   const next = S.nextTank(me.tankLvl);

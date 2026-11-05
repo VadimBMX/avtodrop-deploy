@@ -6999,6 +6999,8 @@ body > .reel.cine { z-index: 140; display: block; padding: 0; background: #05060
 .fuel-out .refuel-btn.nb-fuel, .s2-gas-row .refuel-btn.nb-fuel { width: 100%; justify-content: center; min-height: 48px; font-size: 15px; }
 .nb-fuel-row { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 10px 0 4px; text-align: center; }
 .nb-fuel-row .refuel-btn { min-width: 220px; }
+.tk-card .tk-nb { margin-top: 8px; }
+.tk-card .tk-nb .refuel-btn.nb-fuel { width: 100%; justify-content: center; min-height: 44px; margin: 0; }
 
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
