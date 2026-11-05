@@ -3291,6 +3291,7 @@ export const FACTORY_PAINT = {
   'ferrari-testarossa': { hex: '#eeefec', finish: 'gloss', name: 'white', key: true },
   'lamborghini-countach-lp5000-qv': { hex: '#a8141b', finish: 'gloss', name: 'Rosso Siviglia red', key: true },
   'porsche-959': { hex: '#eeefeb', finish: 'gloss', name: 'Grand Prix white', key: true },
+  'zaz-966-vukhatyi': { hex: '#e6d9a2', finish: 'gloss', name: 'ivory cream', key: true },
   'koenigsegg-ccx': { hex: '#ea6a1a', finish: 'gloss', name: 'bright orange (carbon fibre details)', key: true },
   'ferrari-f40': { hex: '#cc1118', finish: 'gloss', name: 'Rosso Corsa', key: true },
   'porsche-carrera-gt': { hex: '#c4161c', finish: 'gloss', name: 'Guards red', key: true },
