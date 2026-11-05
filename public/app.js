@@ -15,6 +15,10 @@ import * as WOW from './wow.js';
 // wIntro: count-ups and swipes for the animated intros (stories, level-up, Halloween sheet, season showroom).
 import * as IFX from './intro-fx.js';
 import { playReel } from './intro-reel.js'; // s2-intro: the first-launch motion intro (S.INTRO_REEL)
+// d1-intro: the start splash stays long enough to see (splash.js); ?intro=A|B previews the new cinematic intros.
+import { liftSplash, splashReady, whenSplashGone, holdSplash } from './splash.js';
+const playCine = (v, o) => import('./intro-cine.js').then((x) => x.playCine(v, o));
+if (/[?&]intro=[ab]\b/i.test(location.search)) import('./intro-cine.js').catch(() => {}); // the preview: load it with the app
 // Ghost challenges: the ghost's replay and the rules (shared with the server), the share card.
 import * as G from './ghost.js';
 // The share card is drawn only when a challenge is thrown: loaded then (like the «Заїзд дня» card), not at start.
@@ -312,7 +316,8 @@ $('#modal').addEventListener('click', (e) => {
 });
 // popups: every window that opens by itself asks POP first (gifts, level-up, «Що нового», «Нагороди» at start,
 // «Бета-тест», «Ярлик на екрані»). Calm = nothing it must not cover; idle = no window or story open.
-const popIdle = () => $('#modal').hidden && !$('.story') && !$('body > .reel') && !$('.confirm') && !hwIntroOpen();
+let introPending = false; // d1-intro: the intro waits for the splash to fade; no window may slip in before it
+const popIdle = () => $('#modal').hidden && !$('.story') && !$('body > .reel') && !introPending && !$('.confirm') && !hwIntroOpen();
 const POP = createPopups({
   idle: popIdle,
   // s2-fix: the Season 2 compensation window is the first thing after the wipe — every player is back on the guide's
@@ -6303,6 +6308,7 @@ async function firstRefresh() {
       return await refresh();
     } catch (e) {
       if (e?.status !== 429 || n >= 6) throw e;
+      splashReady(); // the «wait» card below must be seen
       await new Promise((done) => {
         const wait = Math.min(10, 2 * n);
         $('#view').innerHTML = `<div class="empty retry-state">${ic('clock')}<b>Забагато запитів</b><div class="small muted">Сервер просить трохи зачекати. Спробуємо ще раз за <span id="retryIn">${wait}</span> с.</div><button class="btn yellow mt" id="retryNow">${ic('refresh')} Спробувати зараз</button></div>`;
@@ -6526,10 +6532,17 @@ H.coachToggle = () => {
 // sent 'intro/seen'); it ends on the DROP tab with the starter case, and the coach card shows the first step at once.
 // Otherwise a replay from Профіль / Налаштування / Новини: «Поїхали» goes to DROP, «Пропустити» stays where it was.
 const reelSeconds = () => Math.round(S.INTRO_REEL.scenes.reduce((a, x) => a + x.ms, 0) / 1000);
+// d1-intro: ?intro=A or ?intro=B plays one of the two cinematic intros (public/intro-cine.js) instead, until the owner
+// picks one; the current reel stays the default. Both start once the splash has gone.
+const introVariant = () => {
+  const v = (new URLSearchParams(location.search).get('intro') || '').toUpperCase();
+  return v === 'A' || v === 'B' ? v : null;
+};
 function introReel(first, seen = null) {
   if ($('body > .reel')) return; // the intro's own layer, not a case reel (.reel-wrap > .reel) on the page
   if (!first) closeModal();
-  playReel({
+  const v = introVariant();
+  const opts = {
     carArt: (id) => carArt(id), haptic, again: !first,
     onDone: async (how) => {
       if (!first && how !== 'cta') return;
@@ -6546,6 +6559,15 @@ function introReel(first, seen = null) {
         render();
       }
     },
+  };
+  // Mounted at once under the splash (z-index above it), so the game never flashes between the two; the cinematic
+  // starts its clock when the splash has faded, the reel just runs.
+  if (!v) return playReel(opts);
+  introPending = true;
+  const release = holdSplash(); // the splash stays until the cinematic is mounted under it
+  playCine(v, { ...opts, after: whenSplashGone }).catch(() => playReel(opts)).finally(() => {
+    introPending = false;
+    release();
   });
 }
 let guideScrolled = null;
@@ -7903,6 +7925,7 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide', 'toggleChannel']) {
 }
 
 (async function boot() {
+  liftSplash();
   if (tg?.initData) {
     tg.ready();
     tg.expand();
@@ -7926,7 +7949,7 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide', 'toggleChannel']) {
   measurePlateFont();
   if (!tg?.initData && !config.dev) {
     $('#view').innerHTML = '<div class="empty">Відкрий АВТОДРОП через Telegram-бота</div>';
-    return;
+    return splashReady();
   }
   try {
     await firstRefresh();
@@ -7955,9 +7978,11 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide', 'toggleChannel']) {
       } catch {}
       introReel(true, seen);
     } else if (story === 'whatsnew') POP.offer('whatsnew', () => (whatsNewSeenHere() ? false : whatsNew())); // the event intro; lost → the next entry
+    else if (introVariant()) introReel(false); // d1-intro: ?intro=A|B previews the cinematic on any account
   } catch (e) {
     $('#view').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
   }
+  splashReady();
   // The first pulse tells about gifts (the bug-reward thanks, a comeback, an admin gift): then POP picks the entry's one window.
   setTimeout(() => pulse().catch(() => {}).finally(() => POP.ready()), 800);
   setInterval(pulse, 4000);
