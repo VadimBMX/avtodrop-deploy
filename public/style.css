@@ -6773,7 +6773,7 @@ a.txtlink::before { content: ''; position: absolute; inset: -11px -4px; }
 /* «Профіль» tiles at 320–374 px: the info line lost «3 д 19 год», «сет готовий», «+1 млн ₴» to the ellipsis — two lines there */
 @media (max-width: 374px) { .hub-t.tall .hub-i { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; } .hub-t.tall .hub-i [data-until] { white-space: nowrap; } }
 /* drift rivals at 320 px: «ціль 4 170 очок» was cut by the card edge — the chip goes under the difficulty */
-.rival .row.mt { flex-wrap: wrap; row-gap: 4px; }
+.rivals .rival .grow > .row.mt { flex-wrap: wrap; row-gap: 4px; } /* (beats the ≤ 360 px «nowrap», which assumed a full-width text column) */
 /* case battle picker at 320 px: the top-class chance («A 0,030%») ran into the price — the bar alone there (as in the case list) */
 @media (max-width: 374px) { .bpick .odds-top { display: none; } }
 /* garage cash («6 281 414 ₴», up to 9 digits with VIP 8 h): «₴» fell to its own line at 320 px — one line, scaled */
@@ -6782,6 +6782,9 @@ body.s2 .income .big { white-space: nowrap; }
 /* garage car tiles (2 per row at 320 px): «750 / к.с.» broke apart — the power stays whole, the price wraps under it */
 .car .meta.row { flex-wrap: wrap; row-gap: 0; }
 .car .meta.row > span { white-space: nowrap; }
+/* licence: «Подарунок за рівень: +100 тис ₴» broke inside the sum; garage «Продаж усього гаража» link 34 → 36 px */
+.licence .row.between b.win, .sheet .row.between.tiny b.win { white-space: nowrap; }
+body.s2 .garage-h .hn-gsum { min-height: 36px; }
 /* market / PvP rows: a long car name («Mercedes-Benz S600 W140 «Кабан»») on two lines instead of «Mercedes-Be…» */
 body.s2[data-s2pg="market"] #view .list > .li .clamp2, body.s2[data-s2pg="race"] #view .card > .list > .li .clamp2 { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; white-space: normal; line-height: 1.15; }
 /* «Місто» cash strip: the ticking sum («+112 000 000 ₴» after 8 h of a rich garage) ran under «Зібрати» at 320 px —
