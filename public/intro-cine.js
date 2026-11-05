@@ -13,6 +13,7 @@
 // Only transform/opacity on a dozen elements per frame plus one canvas for smoke and speed lines (DPR ≤ 1.5).
 // The root is `body > .reel.cine` so the app's «intro on screen» checks (popIdle, introReel) see it like the reel.
 import * as S from './shared.js';
+import { wheelData, wheelHtml, WW_CAP } from './race-wheels.js'; // the drag race's wheel discs (race-wheels-data.js)
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
 const reduced = () => {
@@ -34,6 +35,18 @@ const IMG = {
   city: 's2/bg/race-bg2.webp',
   stage: 's2/bg/car-card.webp',
 };
+const MODEL = { rx7: 'mazda-rx-7-fd', r34: 'nissan-skyline-gt-r-r34', svj: 'lamborghini-aventador-svj', supra: 'toyota-supra-a80', huracan: 'lamborghini-huracan-evo', aurora: 'porsche-911-turbo-s-aurora' };
+// Lamp points measured on each photo (fractions of its width / height, the car facing right): the headlight lens and
+// the tail lamp. The glow and the beam start exactly there and ride with the car (a left-moving car is the mirrored
+// photo, so its points mirror with it).
+export const LAMPS = {
+  rx7: { head: [0.975, 0.7], tail: [0.025, 0.54] },
+  r34: { head: [0.955, 0.6], tail: [0.02, 0.52] },
+  svj: { head: [0.945, 0.655], tail: [0.045, 0.59] },
+  supra: { head: [0.96, 0.62], tail: [0.025, 0.5] },
+  huracan: { head: [0.965, 0.675], tail: [0.04, 0.56] },
+  aurora: { head: [0.93, 0.585], tail: [0.04, 0.57] },
+};
 export const CINE = {
   A: { name: 'Нічний заліт', cars: { far: 'rx7', mid: 'r34', hero: 'svj' }, end: 4700, cta: 3900 },
   B: { name: 'Драг-старт', cars: { far: 'supra', mid: 'huracan', hero: 'aurora' }, end: 5600, cta: 4800 },
@@ -51,25 +64,31 @@ const eBack = (k) => 1 + 2.4 * Math.pow(k - 1, 3) + 1.4 * Math.pow(k - 1, 2);
 const bump = (t, a, b) => Math.sin(Math.PI * seg(t, a, b));
 const rnd = (a, b) => a + Math.random() * (b - a);
 
-const carHtml = (k, src, flip = false) => `<div class="cn-car${flip ? ' flip' : ''}" data-car="${k}">
-  <div class="cn-body"><img class="cn-g2" src="${src}" alt=""><img class="cn-g1" src="${src}" alt=""><img class="cn-img" src="${src}" alt="">
-    <i class="cn-tail"></i><i class="cn-head"></i><i class="cn-sweep" style="-webkit-mask-image:url(${src});mask-image:url(${src})"><b></b></i></div>
+const pc = ([x, y]) => `left:${(x * 100).toFixed(2)}%;top:${(y * 100).toFixed(2)}%`;
+const carHtml = (k, key, flip = false) => {
+  const src = IMG[key], lamp = LAMPS[key], d = wheelData(MODEL[key]);
+  const wheels = d ? `<div class="ww" data-s="0" style="aspect-ratio:${d.w} / ${d.h}">${d.wheels.map((q) => wheelHtml(d, q)).join('')}</div>` : '';
+  return `<div class="cn-car${flip ? ' flip' : ''}" data-car="${k}" data-model="${MODEL[key]}">
+  <div class="cn-body"><img class="cn-g2" src="${src}" alt=""><img class="cn-g1" src="${src}" alt=""><img class="cn-img" src="${src}" alt="">${wheels}
+    <i class="cn-tail" style="${pc(lamp.tail)}"></i><i class="cn-head" style="${pc(lamp.head)}"></i><i class="cn-sweep" style="-webkit-mask-image:url(${src});mask-image:url(${src})"><b></b></i></div>
   <img class="cn-refl" src="${src}" alt=""></div>`;
+};
 
 function sceneHtml(v, again) {
   const C = CINE[v].cars, go = S.INTRO_REEL.scenes.at(-1);
   const tape = `Сезон ${String(S.S2_RESET.season).padStart(2, '0')} · Місто`;
   const world = v === 'A'
     ? `<div class="cn-bg"><img src="${IMG.city}" alt=""></div><i class="cn-wet"></i>
-       ${carHtml('far', IMG[C.far])}${carHtml('mid', IMG[C.mid], true)}${carHtml('hero', IMG[C.hero])}`
+       <i class="cn-night"></i>
+       ${carHtml('far', C.far)}${carHtml('mid', C.mid, true)}${carHtml('hero', C.hero)}`
     : `<div class="cn-world"><div class="cn-bg"><img src="${IMG.city}" alt=""></div><i class="cn-road"></i><i class="cn-dash d1"></i><i class="cn-dash d2"></i>
          <div class="cn-posts">${'<i></i>'.repeat(5)}</div>
-         ${carHtml('far', IMG[C.far])}${carHtml('mid', IMG[C.mid])}${carHtml('hero', IMG[C.hero])}</div>
+         ${carHtml('far', C.far)}${carHtml('mid', C.mid)}${carHtml('hero', C.hero)}</div>
        <div class="cn-poster"><img class="cn-stage" src="${IMG.stage}" alt=""><i class="cn-cone"></i>
-         ${carHtml('pl', IMG[C.far], true)}${carHtml('pr', IMG[C.mid])}${carHtml('ph', IMG[C.hero])}</div>
+         ${carHtml('pl', C.far, true)}${carHtml('pr', C.mid)}${carHtml('ph', C.hero)}</div>
        <div class="cn-tree"><i class="st"></i><i class="a"></i><i class="a"></i><i class="a"></i><i class="g"></i></div>`;
   return `<div class="cn-cam">${world}<canvas class="cn-fx"></canvas></div>
-    <i class="cn-dark"></i>${v === 'A' ? '<div class="cn-hl"><i></i><i></i></div>' : ''}<i class="cn-vign"></i>
+    <i class="cn-dark"></i><i class="cn-vign"></i>
     <div class="cn-mark"><span class="cn-word">АВТО<b>ДРОП</b></span><span class="cn-tape"><em>${esc(tape)}</em></span></div>
     <i class="cn-flash"></i>
     <div class="cn-end"><small class="cn-k">${esc(go.kicker)}</small><h2 class="cn-t">${esc(go.title)}</h2><p class="cn-p">${esc(go.text)}</p>
@@ -178,10 +197,18 @@ export function playCine(v, { haptic = () => {}, again = false, onDone = () => {
   const cam = q('.cn-cam'), fx = makeFx(q('.cn-fx'));
   const cars = {};
   el.querySelectorAll('.cn-car').forEach((c) => {
-    cars[c.dataset.car] = { el: c, body: c.querySelector('.cn-body'), g1: c.querySelector('.cn-g1'), g2: c.querySelector('.cn-g2'), tail: c.querySelector('.cn-tail'), head: c.querySelector('.cn-head'), sweep: c.querySelector('.cn-sweep b'), refl: c.querySelector('.cn-refl'), w: 0 };
+    cars[c.dataset.car] = { el: c, body: c.querySelector('.cn-body'), g1: c.querySelector('.cn-g1'), g2: c.querySelector('.cn-g2'), tail: c.querySelector('.cn-tail'), head: c.querySelector('.cn-head'), sweep: c.querySelector('.cn-sweep b'), refl: c.querySelector('.cn-refl'), img: c.querySelector('.cn-img'), ww: c.querySelector('.ww'), w: 0, turn: 0 };
+    const d = wheelData(c.dataset.model), C = cars[c.dataset.car];
+    if (C.ww && d) {
+      // the disc photo goes in through CSSOM (as race-wheels.js does); r = mean wheel radius as a share of the photo width
+      const url = `url("${(C.img.currentSrc || C.img.getAttribute('src')).replace(/"/g, '%22')}")`;
+      C.ww.querySelectorAll('.ww-p').forEach((p) => (p.style.backgroundImage = url));
+      C.spin = [...C.ww.querySelectorAll('.ww-s')];
+      C.r = d.wheels.reduce((a, q) => a + Math.sqrt(q.a * q.b), 0) / d.wheels.length / d.w;
+    }
   });
   const N = {
-    bg: q('.cn-bg'), dark: q('.cn-dark'), flash: q('.cn-flash'), mark: q('.cn-word'), tape: q('.cn-tape'), hl: q('.cn-hl'),
+    bg: q('.cn-bg'), dark: q('.cn-dark'), night: q('.cn-night'), flash: q('.cn-flash'), mark: q('.cn-word'), tape: q('.cn-tape'),
     k: q('.cn-k'), t: q('.cn-t'), p: q('.cn-p'), go: q('.cn-go'), skip: q('.cn-skip'), hint: q('.cn-hint'),
     road: q('.cn-dash.d1'), road2: q('.cn-dash.d2'), posts: [...el.querySelectorAll('.cn-posts i')], world: q('.cn-world'), poster: q('.cn-poster'),
     tree: [...el.querySelectorAll('.cn-tree i')], treeBox: q('.cn-tree'), stage: q('.cn-stage'), cone: q('.cn-cone'),
@@ -207,8 +234,22 @@ export function playCine(v, { haptic = () => {}, again = false, onDone = () => {
   };
   layout();
 
-  // place a car: x = its left edge, g = the ground line; r = pitch in deg; vx = speed px/ms (for the ghost trail)
-  const put = (c, x, g, r = 0, vx = 0, o = 1) => {
+  // The wheels roll with the car's speed over the road (px/ms): true rolling turns, capped at the race's WW_CAP (a
+  // faster turn strobes at 60 Hz), the level 0–3 brings the race's trailing copies / rim haze / blur streak.
+  let DT = 0; // ms since the last drawn frame (0 on a jump: the wheels keep their angle)
+  const roll = (c, ground) => {
+    if (!c.spin) return;
+    const rPx = c.r * c.w, real = ground > 0.002 ? (ground * 1000) / (2 * Math.PI * rPx) : 0;
+    c.turn = (c.turn + Math.min(real, WW_CAP) * 360 * (DT / 1000)) % 360;
+    const lvl = real <= 0 ? 0 : real < WW_CAP * 0.9 ? 1 : real < WW_CAP * 2.2 ? 2 : 3;
+    if (String(lvl) !== c.ww.dataset.s) c.ww.dataset.s = String(lvl);
+    const tr = `rotate(${c.turn.toFixed(1)}deg)`;
+    c.spin.forEach((s) => (s.style.transform = tr));
+  };
+  // place a car: x = its left edge, g = the ground line; r = pitch in deg; vx = speed px/ms on screen (the ghost
+  // trail); ground = its speed over the road (the wheels), the screen speed unless the world moves under it
+  const put = (c, x, g, r = 0, vx = 0, o = 1, ground = Math.abs(vx)) => {
+    roll(c, o ? ground : 0);
     const h = c.w / 2.5;
     c.el.style.transform = `translate3d(${x.toFixed(1)}px,${(g - h * 0.95).toFixed(1)}px,0) rotate(${r.toFixed(2)}deg)`;
     c.el.style.opacity = o;
@@ -244,7 +285,8 @@ export function playCine(v, { haptic = () => {}, again = false, onDone = () => {
   const A = {
     shakes: [{ t: 0, amp: 1.4, dur: 950 }, { t: 1300, amp: 4, dur: 350 }, { t: 1640, amp: 7, dur: 420 }, { t: 2700, amp: 13, dur: 560 }, { t: 3230, amp: 9, dur: 420 }],
     taps: [[960, 'medium'], [1640, 'light'], [2700, 'heavy'], [3230, 'rigid']],
-    farX: (t) => lerp(-L.wF - 60, W + 80, eIO(seg(t, 1050, 1620)) * 0.3 + seg(t, 1050, 1620) * 0.7),
+    // the RX-7 rolls in out of the dark with only its own lamps lit, then rips across once the street lights up
+    farX: (t) => (t < 1050 ? lerp(-L.wF * 0.98, -L.wF * 0.42, eOut(seg(t, 0, 1050))) : lerp(-L.wF * 0.42, W + 80, eIn(seg(t, 1050, 1600)) * 0.55 + seg(t, 1050, 1600) * 0.45)),
     midX: (t) => lerp(W + 40, -L.wM - 80, seg(t, 1360, 1980)),
     heroX: (t) => lerp(-L.wH * 1.3, (W - L.wH) / 2 - W * 0.01, eOut4(seg(t, 1900, 2760))),
     frame(t, dt, live) {
@@ -254,13 +296,19 @@ export function playCine(v, { haptic = () => {}, again = false, onDone = () => {
       cam.style.transformOrigin = `50% 62%`;
       cam.style.transform = `translate3d(${sx.toFixed(1)}px,${sy.toFixed(1)}px,0) scale(${z.toFixed(4)}) rotate(${tilt.toFixed(2)}deg)`;
       tf(N.bg, -34 * eOut(seg(t, 1900, 2950)) + 10 * bump(t, 1050, 1980), 0, 1.06);
-      N.dark.style.opacity = (1 - seg(t, 940, 1250)).toFixed(3);
-      const hk = seg(t, 80, 960);
-      tf(N.hl, 0, 0, 0.25 + 2.4 * eIn(hk), 0, t < 960 ? Math.min(1, hk * 2.2) : 1 - seg(t, 960, 1150));
-      N.flash.style.opacity = (0.9 * (seg(t, 900, 960) - seg(t, 960, 1300)) + 0.4 * (seg(t, 3200, 3230) - seg(t, 3230, 3480))).toFixed(3);
+      N.dark.style.opacity = '0';
+      const nk = seg(t, 960, 1250);
+      N.night.style.opacity = (1 - nk).toFixed(3);
+      const lit = (0.16 + 0.84 * nk).toFixed(3); // the car itself is unlit in the dark: only its lamps show
+      [cars.far.img, cars.far.ww, cars.far.refl].forEach((n) => n && (n.style.filter = nk < 1 ? `brightness(${lit})` : ''));
+      N.flash.style.opacity = (0.55 * (seg(t, 900, 960) - seg(t, 960, 1300)) + 0.4 * (seg(t, 3200, 3230) - seg(t, 3230, 3480))).toFixed(3);
       const fx0 = this.farX(t), mx0 = this.midX(t), hx0 = this.heroX(t);
-      put(cars.far, fx0, L.gF, 0, (fx0 - this.farX(t - 16)) / 16, t > 1040 && t < 1640 ? 1 : 0);
+      put(cars.far, fx0, L.gF, 0, (fx0 - this.farX(t - 16)) / 16, t < 1640 ? 1 : 0);
+      cars.far.head.style.opacity = '1';
+      cars.far.tail.style.opacity = '0.5';
       put(cars.mid, mx0, L.gM, 0, (mx0 - this.midX(t - 16)) / 16, t > 1350 && t < 2000 ? 1 : 0);
+      cars.mid.head.style.opacity = '1';
+      cars.mid.tail.style.opacity = '0.5';
       const hv = (hx0 - this.heroX(t - 16)) / 16;
       const pitch = 1.9 * bump(t, 2250, 2900) - 0.7 * bump(t, 2900, 3250);
       put(cars.hero, hx0, L.gH, pitch, hv, t > 1890 ? 1 : 0);
@@ -352,7 +400,7 @@ export function playCine(v, { haptic = () => {}, again = false, onDone = () => {
         const g = { far: L.gF, mid: L.gM, hero: L.gH }[k];
         const idle = t < 1250 ? 0.6 * Math.sin(t * 0.33 + k.length) : 0;
         const pitch = -2.4 * bump(t, 1250, 1800) * (k === 'hero' ? 1 : 0.7);
-        put(c, x, g + idle, pitch, xv + v * 0.9, poster ? 0 : 1);
+        put(c, x, g + idle, pitch, xv + v * 0.9, poster ? 0 : 1, Math.max(0, xv + v));
         c.tail.style.opacity = t < 1250 ? '0.55' : '0.3';
         c.head.style.opacity = '1';
       }
@@ -396,6 +444,7 @@ export function playCine(v, { haptic = () => {}, again = false, onDone = () => {
     const prev = t;
     t += dt;
     for (const [at, kind] of P.taps) if (prev < at && t >= at) haptic(kind);
+    DT = dt;
     P.frame(t, dt, true);
     fx.step(dt);
     if (t >= def.end) el.classList.add('done');
@@ -405,6 +454,7 @@ export function playCine(v, { haptic = () => {}, again = false, onDone = () => {
     if (t >= def.end) return;
     t = def.end;
     fx.clear();
+    DT = 0;
     P.frame(t, 16, false);
     el.classList.add('done', 'skipped');
   };
