@@ -6747,6 +6747,33 @@ body.s2 .s2-parts-go { color: #8a8f98; }
 .lvcap b { color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; }
 .lvcap-note { display: flex; align-items: center; justify-content: center; gap: 4px; }
 
+/* ===== design pass 2026-11-05 («щоб не було натяку на старий дизайн»): leftovers of the Season 1 look under «Асфальт».
+   Season 1 slanted every display heading (--slant: skewX(-8deg)); «Асфальт» headings stand upright. The night intro's
+   wordmark keeps its slam (it is italic by design). */
+body.s2 { --slant: skewX(0deg); }
+body.s2 .rl-mark-w { --slant: skewX(-8deg); }
+body.s2 .dr-coach-t { font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: var(--text); }
+/* the drag coach: an asphalt slab instead of the flat black veil */
+body.s2 .dr-coach { background: #07080bf0; }
+body.s2 .dr-coach-in { padding: 18px 16px 16px; border-radius: var(--r); background: var(--slab); box-shadow: var(--slab-sh); }
+/* VIP card: the «ще …» chip sat under the crown medallion */
+body.s2 .vip-card > .row.between > .chip { margin-right: 78px; position: relative; z-index: 1; }
+/* «Апгрейд»: the S1 flat boxes → slabs, the dial's centre pressed in */
+body.s2 .up-pair .side { background: var(--slab); border: 0; border-radius: 14px; box-shadow: var(--slab-sh-sm); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+body.s2 .gauge .center { background: var(--slab-in); border: 0; box-shadow: var(--slab-sh-in), 0 0 0 6px #ffffff06; }
+body.s2 .gauge .center b { font-family: var(--s2-mono); }
+/* empty states: the pressed-in asphalt well instead of the S1 hairline box */
+body.s2 .empty-line { background: var(--slab-in); box-shadow: var(--slab-sh-in); border-radius: 12px; color: var(--muted); }
+/* «Майстерня → Мийка»: the S1 bare rows → one slab like the СТО cards; names in the display face */
+body.s2 .wash-now > b { font: 800 20px/1.1 var(--f-fc); text-transform: uppercase; letter-spacing: .4px; }
+body.s2 .wash-opts { margin-top: 16px; padding: 12px 12px 14px; border-radius: var(--r); background: var(--slab); box-shadow: var(--slab-sh); }
+body.s2 .wash-opt b { font: 800 15px var(--f-fc); text-transform: uppercase; letter-spacing: .4px; }
+body.s2 .wash-opt .small b { font: inherit; font-weight: 800; text-transform: none; letter-spacing: 0; }
+body.s2 .wash-opt .ic { background: var(--slab-in); box-shadow: var(--slab-sh-in); color: var(--accent); }
+/* «Подарунок!»: the S1 iOS-orange glowing tile → an asphalt slab, the icon in the gift's colour (yellow by default) */
+body.s2 .gift-ic { background: var(--slab); box-shadow: var(--slab-sh); color: var(--c, var(--accent)); border-radius: 22px; }
+body.s2 .gift-ic > .i { width: 54px; height: 54px; }
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */
