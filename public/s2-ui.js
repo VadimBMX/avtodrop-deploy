@@ -24,7 +24,7 @@ const CASE_COL = { starter: '#39ff88', rust: '#ff8a3d', city: '#3d8bff', tuning:
 const CASE_SHORT = { rust: 'Іржавий', city: 'Міський', tuning: 'Тюнінг', sport: 'Спорт', premium: 'Преміум', elite: 'Еліта', starter: 'Стартовий' };
 // Country crates (art audit 05.11, prompts in the art report): drop s2/case/c-<cc>.webp + o-<cc>.webp (cc = ua, jp, de,
 // it, us, gb, cn) and add the code here, e.g. ['ua', 'jp']; until then the case shows its round flag.
-const COUNTRY_ART = new Set([]);
+const COUNTRY_ART = new Set(['ua', 'jp', 'de']);
 const caseKey = (cs) => CASE_ART[cs.id] || (cs.country && COUNTRY_ART.has(cs.country.toLowerCase()) ? cs.country.toLowerCase() : null)
   || (/hallow|hw/i.test(cs.id) ? 'halloween' : null);
 const caseCol = (cs) => CASE_COL[cs.id] || (cs.country ? '#22c1a5' : clsCol(S.CLASS_ORDER.filter((k) => cs.weights[k]).pop()));
