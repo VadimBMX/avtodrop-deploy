@@ -94,7 +94,7 @@ function sceneHtml(v, again) {
     <i class="cn-flash"></i>
     <div class="cn-end"><small class="cn-k">${esc(go.kicker)}</small><h2 class="cn-t">${esc(go.title)}</h2><p class="cn-p">${esc(go.text)}</p>
       <button class="cn-go" type="button">${esc(again ? S.INTRO_REEL.ctaAgain : S.INTRO_REEL.cta)}</button></div>
-    <button class="cn-skip" type="button">Пропустити</button><small class="cn-hint">торкнись — одразу до кейсу</small>`;
+    <button class="cn-skip" type="button">Пропустити</button><small class="cn-hint">торкнись — до кінця інтро</small>`;
 }
 
 // ---- smoke / sparks / speed lines on one canvas ----

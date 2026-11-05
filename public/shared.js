@@ -966,7 +966,7 @@ export const PARTS = {
   brakes: { name: 'Гальма', icon: 'disc', stat: 'et', fx: [0.003, 0.006, 0.01, 0.015, 0.02], hint: 'стабільність' },
   body: { name: 'Обвіс', icon: 'feather', stat: 'kg', fx: [0.01, 0.02, 0.03, 0.05, 0.07], hint: 'легша вага' },
   // Electric cars take these instead of engine, turbo, exhaust and gearbox (PETROL_ONLY / EV_ONLY).
-  motor: { name: 'Електромотор', icon: 'bolt', stat: 'hp', fx: [0.03, 0.07, 0.12, 0.18, 0.25], hint: 'потужність', ev: true },
+  motor: { name: 'Е-мотор', icon: 'bolt', stat: 'hp', fx: [0.03, 0.07, 0.12, 0.18, 0.25], hint: 'потужність', ev: true },
   battery: { name: 'Батарея', icon: 'battery', stat: 'hp', fx: [0.02, 0.05, 0.09, 0.14, 0.2], hint: 'потужність', ev: true },
   reducer: { name: 'Редуктор', icon: 'settings', stat: 'shift', fx: [0.1, 0.2, 0.35, 0.5, 0.65], hint: 'швидший розгін', ev: true },
 };
