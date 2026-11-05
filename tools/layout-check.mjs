@@ -290,8 +290,21 @@ function analyze(opts) {
         r1.selectNodeContents(n);
         const rs = [...r1.getClientRects()].filter((q) => q.width > 1);
         const lines = rs.filter((q, i) => i === 0 || q.top >= rs[i - 1].bottom - 2).length;
-        if (lines > 1) {
-          add('wrapnum', el, `${lines} lines`);
+        if (lines < 2) continue;
+        // where the lines break (character offsets); only a break inside «300 млн ₴» / «+9 940 000 000 ₴» counts
+        const t = n.textContent, cuts = [];
+        let lastTop = null;
+        for (let c = 0; c < t.length; c++) {
+          if (!t[c].trim()) continue;
+          r1.setStart(n, c);
+          r1.setEnd(n, c + 1);
+          const q = r1.getBoundingClientRect();
+          if (lastTop !== null && q.top > lastTop + 4) cuts.push(c);
+          lastTop = q.top;
+        }
+        const nums = [...t.matchAll(/[+−-]?\d[\d  ,.]*\d?\s*(тис|млн|млрд|к\.с\.)?\s*[₴%★]?/g)].map((m) => [m.index, m.index + m[0].trimEnd().length]);
+        if (cuts.some((c) => nums.some(([x, y]) => c > x && c < y))) {
+          add('wrapnum', el, `${lines} lines, broken inside the number`);
           break;
         }
       }
