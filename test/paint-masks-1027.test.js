@@ -26,6 +26,6 @@ test('paint 27.10: the 29 re-masked cars are paintable, their masks sit on the p
     assert.ok(m.p[0] <= m.p[1] && m.p[1] <= m.p[2], `${id}: lightness percentiles`);
     assert.ok(m.x1 - m.x0 > 0.8 * m.w && m.top < 0.5 * m.h, `${id}: body box`);
   }
-  // still off on purpose (the photo can't separate body from glass / carbon cleanly)
-  for (const id of ['bugatti-veyron-16-4', 'koenigsegg-jesko', 'pagani-huayra', 'ssc-tuatara']) assert.ok(!set.has(id), id);
+  // still off on purpose (the photo can't separate body from glass / carbon cleanly) — unless re-shot as a green key photo (d2-art)
+  for (const id of ['bugatti-veyron-16-4', 'koenigsegg-jesko', 'pagani-huayra', 'ssc-tuatara']) assert.ok(meta.cars[id]?.base ? set.has(id) : !set.has(id), id);
 });
