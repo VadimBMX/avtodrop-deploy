@@ -6792,6 +6792,21 @@ body.s2 .ev-row.on .ev-ic { background: var(--slab-in); box-shadow: var(--slab-s
 body.s2 .ev-row:not(.on) .ev-ic { filter: none; opacity: .8; }
 /* the share-card preview: a slab frame, not the class-colour glow */
 body.s2 .share-prev { box-shadow: var(--slab-sh); background: #121317; }
+/* «Сезон 2» compensation window: the bare little flag → a slab tile, the season line as a real heading */
+body.s2 .s2-pop .tg-home-ic { display: grid; place-items: center; width: 64px; height: 64px; margin: 2px auto 12px; border-radius: 18px;
+  background: var(--slab); box-shadow: var(--slab-sh-sm); color: var(--accent); font-size: 30px; }
+body.s2 .s2-pop > b.disp { display: block; font-size: 24px; line-height: 1.1; }
+body.s2 .s2-pop .s2-li > .i { color: var(--accent); }
+/* «Гонки»: the streak tile (S1 orange-tinted hairline card with a glowing icon) and the «Виклики друзям» row → slabs;
+   the rivals' S1 difficulty stripe goes (the difficulty word says it), and the word is no longer slanted */
+body.s2 .rs-tile, body.s2 .chg-row { background: var(--slab); box-shadow: var(--slab-sh-sm); border-radius: 14px; }
+body.s2 .rs-tile.ready { box-shadow: var(--slab-sh-sm), inset 0 0 0 2px var(--accent); }
+body.s2 .rs-tile + .chg-row { margin-top: 10px; }
+body.s2 .rs-tx b, body.s2 .chg-row b { font: 800 15px/1.2 var(--f-fc); text-transform: uppercase; letter-spacing: .4px; }
+body.s2 .rs-ic, body.s2 .rs-tile.lit .rs-ic { background: var(--slab-in); box-shadow: var(--slab-sh-in); }
+body.s2 .chg-row > .i:first-child { color: var(--neon); }
+body.s2 .rivals .rival::before { display: none; }
+body.s2 .rival .diff, body.s2 .diff { transform: none; font-style: normal; }
 
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
