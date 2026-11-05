@@ -979,7 +979,7 @@ async function openRewards(result, auto = false) {
   sheet('Нагороди', `${result ? `<div class="card center reward-res pop">${result.car ? `<div class="reveal-wrap r${S.rankOf(M(result.car.model).cls)}" style="--c:${rc};height:110px"><div class="art">${carArt(result.car.model, { glow: true })}</div></div><b class="disp rr-name">${esc(M(result.car.model).name)}</b>` : `<span class="rr-ic">${ic('gift')}</span>`}
       <div class="small muted">${esc(result.title)}</div><div class="rr-text win">${esc(result.text)}</div></div>` : ''}
     ${rewardsAllCard()}
-    <div class="h2"><span>Щоденний бонус</span><span>день ${r.ready ? r.nextDay : r.todayIndex + 1} з ${r.days.length}</span></div>
+    <div class="h2"><span>Щоденний бонус</span><span>день ${r.ready ? r.nextDay : r.todayIndex + 1}/${r.days.length}</span></div>
     <div class="card"><div class="days">${r.days.map((d, i) => {
       const e = ic(d.money ? 'coin' : d.parts ? 'tool' : d.car ? 'car' : 'box');
       const label = d.money ? S.short(d.money).replace(' ₴', '') : d.parts ? `Деталі ×${d.parts}` : d.label;
@@ -2391,7 +2391,8 @@ H.startRace = async (d) => {
   if (state.race.coach && !drSeen()) return dragCoach(state.race);
   runRace();
 };
-// «Ще раз»: the same difficulty again (the rival list is drawn anew after every race, so it's a new car of that tier).
+// «Ще раз» / «Ще спроба»: the same difficulty again (the rival list is drawn anew after every race, so it's a new car of
+// that tier — not «Реванш»: the rival you lost to is gone, persona playtest 05.11).
 H.raceRetry = async (d) => {
   state.race = null;
   await H.startRace(d);
@@ -2973,7 +2974,7 @@ function raceResult() {
         <div class="dr-chips">${r.shifts.map((q, i) => `<span class="qchip q-${q}">${i + 1}→${i + 2} ${QLABEL[q]}</span>`).join('')}</div></div></div>
       ${tip ? `<div class="dr-tip">${ic('info-circle')}<span>${tip}</span></div>` : ''}</div>
     ${challengeCta(R)}</div>
-    <div class="dr-dock"><div class="dr-btns"><button class="btn ghost" data-act="raceExit">Інший суперник</button><button class="btn yellow btn2" data-act="raceRetry" data-rival="${esc(R.rival.id)}" ${me.fuel < 1 ? 'disabled' : ''}><span>${ic('refresh')} ${r.win ? 'Ще раз' : 'Реванш'}</span><small>${R.rival.label ? `${esc(R.rival.label)} · ` : ''}${ic('gas-station')}−1 · ${me.fuel}/${fmax()}</small></button></div></div>`;
+    <div class="dr-dock"><div class="dr-btns"><button class="btn ghost" data-act="raceExit">Інший суперник</button><button class="btn yellow btn2" data-act="raceRetry" data-rival="${esc(R.rival.id)}" ${me.fuel < 1 ? 'disabled' : ''}><span>${ic('refresh')} ${r.win ? 'Ще раз' : 'Ще спроба'}</span><small>${R.rival.label ? `${esc(R.rival.label)} · ` : ''}${ic('gas-station')}−1 · ${me.fuel}/${fmax()}</small></button></div></div>`;
 }
 const n0s = (n) => Math.round(n || 0).toLocaleString('uk-UA');
 // ---------- drift («Дрифт 2.0») ----------

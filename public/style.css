@@ -6869,6 +6869,9 @@ body.s2 .tnm-tile.hot, body.s2 .clb-invite { box-shadow: var(--slab-sh-sm), inse
 body.s2 .lb.me, body.s2 .clb-mem.me, body.s2 .li.on, body.s2 .cases-list .li.on { box-shadow: inset 0 0 0 2px var(--accent); background: #ffd4000d; }
 body.s2 .rival.boss.open { box-shadow: var(--slab-sh-sm), inset 0 0 0 2px var(--accent); }
 body.s2 .qcard.ready { box-shadow: var(--slab-sh-sm), inset 0 0 0 2px var(--green); }
+/* Playtest 05.11: the «Перші кроки» card (z 44) floated over open sheets (z 20) — on day 2 it covered the title and
+   the ✕ of «Нагороди». While a sheet is open the card steps aside; the ring in the header stays. */
+body:has(#modal:not([hidden])) .coach { visibility: hidden; pointer-events: none; }
 
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's

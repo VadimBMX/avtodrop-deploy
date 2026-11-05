@@ -2957,8 +2957,9 @@ export const GUIDE_STEPS = [
   { key: 'part_case', tab: 'shop', target: '[data-act="openParts"]', title: 'Відкрий кейс з деталями', text: 'Деталь випаде з тих, що підходять твоїм машинам. Далі — встанови її.' },
   { key: 'install', tab: 'garage', target: '#view .car[data-act="car"]', title: 'Встанови деталь на машину', text: 'Тисни на машину → слот деталі → «Встановити». Більше к.с. — швидше в гонках.' },
   // 'level2' is the key of the «install» step while parts are still locked (its name stays for players and tests);
+  // its title names the install step (playtest 05.11: «Досягни 3-го рівня» here and on the last step read as one step twice);
   // the level itself comes from UNLOCKS (parts: level 3 since 03.11).
-  { key: 'level2', tab: 'race', target: '.rival', title: `Досягни ${UNLOCK_BY_KEY.parts.level}-го рівня`, text: `Рівень ${UNLOCK_BY_KEY.parts.level} відкриє деталі в Майстерні. Досвід дають заїзди, нові машини й завдання.` },
+  { key: 'level2', tab: 'race', target: '.rival', title: `Встанови деталь · з ${UNLOCK_BY_KEY.parts.level}-го рівня`, text: `Рівень ${UNLOCK_BY_KEY.parts.level} відкриє деталі в Майстерні. Досвід дають заїзди, нові машини й завдання.` },
   { key: 'level3', tab: 'race', target: '.rival', title: 'Досягни 3-го рівня', text: 'Досвід дають заїзди (перемога — більше), нові машини в колекції й завдання.' },
 ];
 // p: { introSeen (the player came through the intro stories), off (hints turned off), keys, garage (cars in the garage),

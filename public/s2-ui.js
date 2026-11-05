@@ -545,7 +545,8 @@ function openBtn(cs, n) {
   const m = me(), deal = X.caseNow(cs), keys = m.keys[cs.id] || 0;
   const paid = Math.max(0, n - keys), free = m.slots - m.used, price = deal.price;
   if (free < 1) return `<button class="s2-open s2-full-g" data-act="toGarage">${X.ic('building-warehouse')}Гараж повний · звільнити місце</button>`; // s2-audit
-  if (free < n) return `<button class="s2-open" disabled>Вільно ${free} з ${m.slots}</button>`;
+  // «Вільно 4 з 6» in the caps font read as «ВІЛЬНО 4 3 6» and didn't say what to do (persona playtest 05.11).
+  if (free < n) return `<button class="s2-open" disabled>У гаражі лише ${free} ${X.plural(free, ['вільне місце', 'вільні місця', 'вільних місць'])} · вибери менше</button>`;
   if (paid && price * paid > m.balance) return `<button class="s2-open" disabled>Бракує ${S.short(price * paid - m.balance)}</button>`;
   return `<button class="s2-open opencase" data-act="openCase" data-expect="${price * paid}">${X.ic('box')}<span class="l">${cs.starter ? 'Відкрити' : 'Відкрити'}</span><span class="p">${cs.starter ? 'безкоштовно' : paid ? shortN(price * paid) + ' ₴' : `${X.ic('key')} ${n}`}</span></button>`;
 }
@@ -725,7 +726,12 @@ function garageView(base) {
   const build = m.slots < S.MAX_SLOTS ? `<div class="s2-fl a-fl build"><span class="a-pn">P${m.slots + 1}</span><div class="s2-tape"><span>БУДУЄТЬСЯ · ПОВЕРХ P${m.slots + 1}</span></div><span class="s2-fl-hint">+1 місце для машини</span><button class="s2-btn sm" data-act="buySlot">${X.ic('plus')}${S.short(S.slotCost(m.slots))}</button></div>` : '';
   const free = Math.max(0, m.slots - m.cars.filter((c) => c.status !== 'showcase').length);
   // 03.11 (owner): top-down — P1 (the dearest car) on top, then the next free places, the floor being built last.
-  const empties = Array.from({ length: Math.min(free, 2) }, (_, i) => `<button class="s2-fl a-fl empty" data-act="toCases"><span class="a-pn">P${cars.length + 1 + i}</span><span class="s2-fl-hint">${X.ic('plus')} Вільне місце — відкрий кейс</span></button>`).join('');
+  // Only two empty floors are drawn; with more free places the second one stands for all the rest («P3–P6»), so the
+  // numbers don't jump from P3 to the floor being built (P7) — persona playtest 05.11.
+  const empties = Array.from({ length: Math.min(free, 2) }, (_, i) => {
+    const n = cars.length + 1 + i, rest = i === 1 && free > 2;
+    return `<button class="s2-fl a-fl empty" data-act="toCases"><span class="a-pn">P${n}${rest ? `–P${cars.length + free}` : ''}</span><span class="s2-fl-hint">${X.ic('plus')} ${rest ? `Ще ${free - 1} ${X.plural(free - 1, ['вільне місце', 'вільні місця', 'вільних місць'])} — відкрий кейс` : 'Вільне місце — відкрий кейс'}</span></button>`;
+  }).join('');
   return parkHead() + `${X.vipSaleBanner()}${X.paBanner()}<div class="seg s2-gseg">${[['park', 'Паркінг'], ['cars', 'Машини'], ['showcase', 'Вітрина']].map(([k, t]) => `<button class="${s.garageView === k ? 'on' : ''}" data-act="gView" data-k="${k}">${t}</button>`).join('')}</div>
     <div class="s2-inc"><div class="grow"><small>${X.ic('coin')} Дохід гаража · ${shortN(m.income.rate)}/год</small><b id="pending">${S.fmt(X.pendingNow())}</b><small class="s2-cap">Каса вміщує ${m.income.capH} год${m.income.capH < S.GARAGE_CAP.vipHours ? ` · з VIP — ${S.GARAGE_CAP.vipHours} год` : ' (VIP)'}</small></div><button class="s2-btn sm" data-act="collect" ${X.pendingNow() < 1 ? 'disabled' : ''}>Забрати</button></div>
     <div class="s2-park"><div class="s2-sign"><span>${esc(name)} · PARKING</span></div>${cars.map((c, i) => floor(c, i + 1)).join('')}${empties}${build}</div>
