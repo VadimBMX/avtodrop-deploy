@@ -35,3 +35,17 @@ test('cinematic intros: two variants behind ?intro=, ≤ 6 s to the CTA, skippab
   assert.match(app, /return v === 'A' \|\| v === 'B' \? v : null;/);
   assert.match(app, /if \(!v\) return playReel\(opts\);/, 'the reel stays the default');
 });
+
+test('cinematic intros: every car has measured lamp points and the race wheel data, lamps placed from them', async () => {
+  const { LAMPS } = await import('../public/intro-cine.js');
+  const { wheelData } = await import('../public/race-wheels.js');
+  const src = read('intro-cine.js');
+  const model = Object.fromEntries([...src.matchAll(/(\w+): '([a-z0-9-]+)'/g)].filter(([, k]) => LAMPS[k]).map(([, k, id]) => [k, id]));
+  for (const v of ['A', 'B']) for (const key of Object.values(CINE[v].cars)) {
+    const l = LAMPS[key];
+    assert.ok(l && l.head[0] > 0.85 && l.tail[0] < 0.15, `${key}: head at the front, tail at the back`);
+    assert.ok(wheelData(model[key]), `${key}: wheel discs from race-wheels-data.js`);
+  }
+  assert.match(src, /<i class="cn-head" style="\$\{pc\(lamp\.head\)\}">/);
+  assert.doesNotMatch(src, /cn-hl/, 'no free-floating headlights');
+});

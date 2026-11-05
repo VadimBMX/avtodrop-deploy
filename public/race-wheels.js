@@ -47,7 +47,7 @@ export function spinOf(v, rPx) {
 const f = (n) => n.toFixed(4);
 const KEYS = [{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }];
 
-function wheelHtml(d, q) {
+export function wheelHtml(d, q) {
   const b = wheelBox(d.w, d.h, q);
   const photo = `<i class="ww-p" style="width:${f(b.pw)}%;left:${f(b.pl)}%;top:${f(b.pt)}%;aspect-ratio:${d.w} / ${d.h};transform-origin:${b.origin};transform:${b.inv}"></i>`;
   const inner = q.spin ? `${photo}<i class="ww-k k1">${photo}</i><i class="ww-k k2">${photo}</i>` : '<i class="ww-z"></i>';
