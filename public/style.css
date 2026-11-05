@@ -6993,12 +6993,24 @@ body > .reel.cine { z-index: 140; display: block; padding: 0; background: #05060
 .cn-hint { position: absolute; left: 0; right: 0; bottom: calc(16px + var(--safe-b, 0px)); z-index: 7; text-align: center; font: 600 12px var(--f-body); color: #6f737c; pointer-events: none; transition: opacity .3s; }
 .cine.cta .cn-skip, .cine.cta .cn-hint { opacity: 0; pointer-events: none; transition: opacity .3s; }
 .cine.rm .cn-go { animation: none; }
+/* r3: short phones (320×568, 360×640, Telegram's ~700 px): the end text sat on the hero car's wheels — a tighter
+   block, and a scrim under it so «Твій хід» / the title stay readable where they still touch the car */
+@media (max-height: 720px) {
+  .cn-end { bottom: calc(14px + var(--safe-b, 0px)); }
+  .cn-end::before { content: ''; position: absolute; left: -40px; right: -40px; top: -28px; bottom: -14px; z-index: -1; background: linear-gradient(#05060800, #050608d9 34%, #050608f2); pointer-events: none; opacity: 0; transition: opacity .4s; }
+  .cine.cta .cn-end::before { opacity: 1; }
+  .cn-t { margin: 4px 0 4px; font-size: 22px; }
+  .cn-p { margin-bottom: 12px; font-size: 13px; line-height: 1.35; }
+  .cn-go { height: 50px; font-size: 16px; }
+}
 
 /* d2-wall: a newcomer's free full tank (app.js refuelBtn / H.newbieFuel) */
 .refuel-btn.nb-fuel small { opacity: .7; font-weight: 600; margin-left: 4px; }
 .fuel-out .refuel-btn.nb-fuel, .s2-gas-row .refuel-btn.nb-fuel { width: 100%; justify-content: center; min-height: 48px; font-size: 15px; }
 .nb-fuel-row { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 10px 0 4px; text-align: center; }
 .nb-fuel-row .refuel-btn { min-width: 220px; }
+.tk-card .tk-nb { margin-top: 8px; }
+.tk-card .tk-nb .refuel-btn.nb-fuel { width: 100%; justify-content: center; min-height: 44px; margin: 0; }
 
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's

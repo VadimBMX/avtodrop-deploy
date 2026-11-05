@@ -2,7 +2,7 @@
 // a prototype-polluting object, a huge body, a wrong content type) and bursts of the same call in parallel. Anything
 // answered with 5xx (or a dropped connection) is listed. Only DEV test players (x-dev-user header) are used.
 //   DEV=1 PORT=3517 DATA_DIR=<empty dir> node server.js
-//   FUZZ_URL=http://localhost:3517 node tools/fuzz-http.mjs
+//   FUZZ_URL=http://localhost:3517 [FUZZ_DB=<dir>/avtodrop.db] node tools/fuzz-http.mjs
 import { openDb } from '../src/db.js';
 import { createGame } from '../src/game.js';
 
@@ -51,6 +51,20 @@ for (const name of ['collect', 'rewards/daily', 'case/open', 'parts/open', 'plat
   const body = JSON.stringify(name === 'case/open' ? { caseId: 'starter', count: 1 } : name === 'parts/open' ? { caseId: 'scrap', count: 1 } : { all: true });
   await Promise.all(Array.from({ length: 8 }, () => send(name, body, 'application/json', id2)));
   n += 8;
+}
+// r3: «Заправка новачка» ×8 at once on an empty tank — filled once. Needs the server's database file (FUZZ_DB, the
+// DATA_DIR's avtodrop.db) to empty the tank, since no API does that.
+if (process.env.FUZZ_DB) {
+  const { DatabaseSync } = await import('node:sqlite');
+  const fdb = new DatabaseSync(process.env.FUZZ_DB);
+  const id3 = uid + 2;
+  await send('me', '{}', 'application/json', id3);
+  fdb.prepare('UPDATE users SET fuel = 0, fuel_at = ? WHERE id = ?').run(Date.now(), id3);
+  const st = await Promise.all(Array.from({ length: 8 }, () => send('fuel/newbie', '{}', 'application/json', id3)));
+  n += 8;
+  const used = fdb.prepare('SELECT newbie_fuel FROM users WHERE id = ?').get(id3).newbie_fuel;
+  if (st.filter((s) => s === 200).length !== 1 || used !== 1) problems.push(`fuel/newbie ×8 at once: ${st.join(',')} → newbie_fuel ${used} (want one 200 and 1)`);
+  fdb.close();
 }
 console.log(`${n} requests, ${problems.length} problem(s)`);
 for (const p of [...new Set(problems)].slice(0, 80)) console.log('- ' + p);

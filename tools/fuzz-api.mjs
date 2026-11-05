@@ -250,6 +250,8 @@ function check(tag) {
   bad("SELECT ti.trade_id, ti.car_id FROM trade_items ti JOIN trades t ON t.id = ti.trade_id LEFT JOIN cars c ON c.id = ti.car_id WHERE t.status = 'open' AND c.id IS NULL", 'open trade with a missing car');
   bad("SELECT id, creator_id FROM pvp WHERE status IN ('open','pending','live') AND creator_id NOT IN (SELECT id FROM users)", 'pvp of a missing user');
   bad("SELECT user_id FROM races WHERE status = 'running' GROUP BY user_id HAVING COUNT(*) > 5", 'many running races');
+  bad(`SELECT id, newbie_fuel FROM users WHERE newbie_fuel > ${S.NEWBIE_BOOST.fuelRefills}`, 'free newbie tank used more often than allowed');
+  bad("SELECT id, status FROM container_lots WHERE status = 'done' AND top_bidder > 0 AND car_id IS NULL", '«Причал» lot won by a player with no car');
   stale("SELECT p.id, p.car_id FROM pvp p LEFT JOIN cars c ON c.id = p.car_id WHERE p.status IN ('open','pending') AND (c.id IS NULL OR c.owner_id <> p.creator_id)", 'open PvP challenge whose car is gone');
   stale("SELECT b.id FROM trades b JOIN trade_items i ON i.trade_id = b.id LEFT JOIN cars c ON c.id = i.car_id WHERE b.status = 'open' AND c.id IS NULL", 'open trade whose car is gone');
   if (tableExists('clubs')) {
@@ -414,6 +416,56 @@ const MOVES = {
       if (chance(0.3)) call(op.seller_id, 'auction/cancel', { id: op.id });
     }
   },
+  // r3 (05.11 rules): a won auction never puts the winner over his limits. The winner's garage (and maybe showcase)
+  // fills up after the bid, the lot ends: he gets it on the showcase, or his bid back and the lot is relisted for an
+  // hour. Interleaved with other bidders on the relisted lot, his own retry, a second sweep and a seller cancel.
+  auctionFull: (u) => {
+    const s = pick(others(u));
+    if (own(s).length < 2) admin('give-car', { id: s, model: 'vaz-2107' });
+    refresh();
+    const c = own(s)[0];
+    if (!c || !call(s, 'auction/create', { carId: c.id, startPrice: 1000, hours: 1 })) return;
+    const a = q("SELECT * FROM auctions WHERE car_id = ? AND status = 'open'").get(c.id);
+    const gc = () => q("SELECT COUNT(*) n FROM cars WHERE owner_id = ? AND status <> 'showcase'").get(u).n;
+    const sc = () => q("SELECT COUNT(*) n FROM cars WHERE owner_id = ? AND status = 'showcase'").get(u).n;
+    q('UPDATE users SET slots = ? WHERE id = ?').run(gc() + 1 + ri(2), u); // a free slot or two for the bid
+    if (chance(0.5)) q('UPDATE users SET showcase_slots = ? WHERE id = ?').run(sc() + ri(2), u);
+    const b0 = q('SELECT balance FROM users WHERE id = ?').get(u).balance;
+    if (!call(u, 'auction/bid', { id: a.id, amount: 1000 + ri(5000) })) return;
+    const slots = q('SELECT slots, showcase_slots FROM users WHERE id = ?').get(u);
+    if (chance(0.8)) while (gc() < slots.slots) g.giveCar(u, 'vaz-2107'); // filled after the bid (a reward, a case…)
+    if (chance(0.5)) while (sc() < slots.showcase_slots) q("UPDATE cars SET status = 'showcase' WHERE id = ?").run(g.giveCar(u, 'vaz-2107').id);
+    T = a.ends_at + 1 + ri(5000);
+    g.settleAuctions();
+    if (chance(0.5)) g.settleAuctions(); // a second sweep in the same tick
+    const r = q('SELECT * FROM auctions WHERE id = ?').get(a.id), car = q('SELECT owner_id, status FROM cars WHERE id = ?').get(a.car_id);
+    const after = q('SELECT slots, showcase_slots FROM users WHERE id = ?').get(u);
+    if (r.status === 'done' && car.owner_id === u) {
+      if (car.status === 'garage' && gc() > after.slots) bug('auction-overfill', `auction ${a.id}: winner ${u} got a car into a full garage (${gc()}/${after.slots})`);
+      if (sc() > after.showcase_slots) bug('auction-overfill', `auction ${a.id}: winner ${u} showcase ${sc()}/${after.showcase_slots}`);
+    } else if (r.status === 'open') {
+      if (r.top_bidder != null || car.owner_id !== s || car.status !== 'auction') bug('auction-relist', `relisted auction ${a.id} in a bad state: ${short({ r, car })}`);
+      // other lots of his may settle in the same sweep (as a seller he gets paid), so: not less than before the bid, and told
+      if (q('SELECT balance FROM users WHERE id = ?').get(u).balance < b0) bug('auction-relist', `winner ${u} of relisted ${a.id} not refunded`);
+      if (!q("SELECT 1 FROM events WHERE user_id = ? AND text LIKE '%гараж заповнений%повернуто%'").get(u)) bug('auction-relist', `winner ${u} of relisted ${a.id} not told why`);
+      if (call(u, 'auction/bid', { id: a.id, amount: 1e6 })) bug('auction-relist', `winner ${u} with a full garage could bid on the relisted lot ${a.id} again`);
+      const v = pick(others(u).filter((x) => x !== s));
+      if (chance(0.6)) call(v, 'auction/bid', { id: a.id, amount: 2000 + ri(3000) });
+      if (chance(0.3)) call(s, 'auction/cancel', { id: a.id });
+      if (chance(0.5)) {
+        T = q('SELECT ends_at FROM auctions WHERE id = ?').get(a.id).ends_at + 1;
+        g.settleAuctions();
+      }
+    } else if (r.status !== 'cancelled') bug('auction-relist', `auction ${a.id} ended as ${r.status} with car ${short(car)}`);
+  },
+  // r3: «Заправка новачка» — an empty tank, the free full tank, a double-submit: used at most fuelRefills times.
+  newbieFuel: (u) => {
+    q('UPDATE users SET fuel = 0, fuel_at = ? WHERE id = ?').run(T, u);
+    const r1 = call(u, 'fuel/newbie');
+    if (r1) q('UPDATE users SET fuel = 0, fuel_at = ? WHERE id = ?').run(T, u); // drained again at once
+    const r2 = call(u, 'fuel/newbie');
+    if (r1 && r2 && S.NEWBIE_BOOST.fuelRefills < 2) bug('paid-twice', `fuel/newbie filled the tank twice for ${u}`);
+  },
   trade: (u) => {
     const o = pick(others(u));
     const mine = own(u).slice(0, ri(3)).map((c) => c.id), theirs = own(o).slice(0, ri(2)).map((c) => c.id);
@@ -547,7 +599,7 @@ const MOVES = {
     const k = pick(['buy-slot', 'tank/upgrade', 'buy-showcase', 'showcase', 'upgrade', 'dealer/tradein', 'containers', 'containers/bid', 'barn', 'barn/start', 'barn/claim',
       'dayrace', 'dayrace/start', 'dayrace/claim', 'buyer/sell', 'prestige', 'prestige/trophy', 'showroom/set', 'boss/list', 'boss/start', 'challenge/create',
       'fair/seed', 'fair/rotate', 'promo', 'dream/set', 'emoji/set', 'style/equip', 'frames/equip', 'level/seen', 'casino/slots', 'casino/roulette', 'casino/mines/start',
-      'casino/crash/start', 'fuel/deal', 'vip/sale']);
+      'casino/crash/start', 'fuel/deal', 'fuel/newbie', 'vip/sale']);
     call(u, k, randomBody(u));
   },
   harvested: (u) => {
@@ -673,7 +725,7 @@ const MOVES = {
   },
 };
 const WEIGHTS = { me: 3, collect: 4, caseOpen: 10, sell: 5, sellMany: 2, race: 8, drift: 4, pvp: 4, battle: 2, marketSell: 5, marketBuy: 5, marketCancel: 2, itemSell: 3, itemBuy: 3,
-  auction: 4, trade: 4, room: 3, plates: 4, parts: 6, paint: 3, biz: 4, club: 4, pass: 2, shop: 2, daily: 5, tourney: 2, misc: 6, harvested: 8, casino: 3, challenge: 2, stars: 2, garbage: 18, give: 3, xp: 1, reset: 1 };
+  auction: 4, auctionFull: 3, newbieFuel: 2, trade: 4, room: 3, plates: 4, parts: 6, paint: 3, biz: 4, club: 4, pass: 2, shop: 2, daily: 5, tourney: 2, misc: 6, harvested: 8, casino: 3, challenge: 2, stars: 2, garbage: 18, give: 3, xp: 1, reset: 1 };
 const BAG = Object.entries(WEIGHTS).flatMap(([k, w]) => Array(w).fill(k));
 
 // ---------- the clock ----------

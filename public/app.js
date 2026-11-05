@@ -2198,7 +2198,10 @@ function tankCard() {
   const when = f >= fmax() ? `бак повний${spareTxt()}` : me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : '';
   const up = next && me.level >= next.level
     ? `<button class="btn sm outline tk-buy" data-act="tankUp" title="Назавжди: +${next.max - fmax()} пального в баку на всі машини. Без зірок — лише за гривні.">Бак ${next.max} · ${S.short(next.cost)}</button>` : '';
-  return `<div class="card tk-card tk-slim"><div class="tk-row"><span class="tk-ic">${ic('gas-station')}</span><div class="grow tk-tx"><b>Бак <span class="tk-n">${f}<small>/${fmax()}</small></span></b><span class="tiny muted">${when}</span></div>${up}${refuelBtn()}</div>${comebackLine()}</div>`;
+  // r3: the newcomer's free full tank is the main button, on its own row — in the row it cut itself off and squeezed
+  // «0/15» to «0/1…» on a 320–390 px phone (more so next to «Бак 18 · 2 млн»).
+  const nb = newbieFuelOn();
+  return `<div class="card tk-card tk-slim"><div class="tk-row"><span class="tk-ic">${ic('gas-station')}</span><div class="grow tk-tx"><b>Бак <span class="tk-n">${f}<small>/${fmax()}</small></span></b><span class="tiny muted">${when}</span></div>${up}${nb ? '' : refuelBtn()}</div>${nb ? `<div class="tk-nb">${refuelBtn()}</div>` : ''}${comebackLine()}</div>`;
 }
 H.tankUp = (d, el) => {
   const next = S.nextTank(me.tankLvl);
@@ -7967,7 +7970,7 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide', 'toggleChannel']) {
   }
   PAINT.loadPaintMeta(); // in parallel with /api/config: one round trip less before the first screen
   try {
-    config = await (await fetch('/api/config')).json();
+    config = (await (await fetch('/api/config')).json()) || config; // r3: a «null» body (a proxy mid-deploy) kept the defaults
   } catch {}
   setImages(config.images, config.thumbs);
   // body masks' index (small); painted cars render as plain photos if it's slow or missing
@@ -8024,7 +8027,13 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide', 'toggleChannel']) {
       if (changed) renderHeader();
     } catch {}
   }, 20000);
-})();
+})().catch((e) => {
+  // r3: the splash sits over the whole app (d1-intro), so a boot that throws must still let it go — else the player
+  // looks at the logo forever. The error is shown where the game would be.
+  splashReady();
+  if (!$('#view').innerHTML) $('#view').innerHTML = `<div class="empty">${esc(e?.message || String(e))}</div>`;
+  throw e;
+});
 
 // ---------- ghost challenges («Виклик-привид»: public/ghost.js, public/challenge-card.js) ----------
 // After any finished drag run «Кинути виклик другу» throws it as a challenge: the share sheet with the card picture —
