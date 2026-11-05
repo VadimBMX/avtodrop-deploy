@@ -406,6 +406,9 @@ CREATE INDEX IF NOT EXISTS auctions_time ON auctions(created_at);
 CREATE INDEX IF NOT EXISTS gifts_time ON gifts(created_at);
 CREATE INDEX IF NOT EXISTS support_time ON support(created_at);
 CREATE INDEX IF NOT EXISTS races_time ON races(created_at);
+-- r3 (launch rehearsal 05.11): the player's form (game.js myForm, every rivals list) and race/start's «expire the running
+-- one» read races by player — without it both scanned the whole table (it grows by every race of every player).
+CREATE INDEX IF NOT EXISTS races_user ON races(user_id, id);
 CREATE INDEX IF NOT EXISTS pvp_fin ON pvp(finished_at);
 CREATE INDEX IF NOT EXISTS battles_fin ON battles(finished_at);
 CREATE INDEX IF NOT EXISTS container_bids_at ON container_bids(at);
