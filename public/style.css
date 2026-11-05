@@ -6996,6 +6996,7 @@ body > .reel.cine { z-index: 140; display: block; padding: 0; background: #05060
 
 /* d2-wall: a newcomer's free full tank (app.js refuelBtn / H.newbieFuel) */
 .refuel-btn.nb-fuel small { opacity: .7; font-weight: 600; margin-left: 4px; }
+.fuel-out .refuel-btn.nb-fuel, .s2-gas-row .refuel-btn.nb-fuel { width: 100%; justify-content: center; min-height: 48px; font-size: 15px; }
 .nb-fuel-row { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 10px 0 4px; text-align: center; }
 .nb-fuel-row .refuel-btn { min-width: 220px; }
 

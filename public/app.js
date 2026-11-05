@@ -2221,7 +2221,7 @@ function fuelOut(train = true) {
     ${comebackLine()}
     ${train ? `<div class="small">Поки бак наповнюється — потренуйся в дрифті: тренування безкоштовне, без пального, з підказками над кожним поворотом.</div>
     ${refuelBtn() ? `<div class="mt">${refuelBtn()}</div>` : ''}
-    <button class="btn mt fh-train" data-act="fuelTrain">${ic('target-arrow')} Тренування дрифту · безкоштовно</button>
+    <button class="btn mt fh-train ${newbieFuelOn() ? 'ghost' : ''}" data-act="fuelTrain">${ic('target-arrow')} Тренування дрифту · безкоштовно</button>
     <div class="tiny muted mt">Або відкрий кейс чи забери нагороду: кейс нагород буває з повним баком.</div>
     <div class="btns mt"><button class="btn sm ghost" data-act="toCases">${ic('box')} Кейси</button><button class="btn sm ghost" data-act="fuelGifts">${ic('gift')} Нагороди</button></div>${tankOffer()}</div>`
     : `${refuelBtn() ? `<div style="margin-bottom:8px">${refuelBtn()}</div>` : ''}<div class="small">Поки бак наповнюється — тренування нижче безкоштовне. Або відкрий кейс чи забери нагороду: кейс нагород буває з повним баком.</div>
