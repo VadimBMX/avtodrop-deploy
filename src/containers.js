@@ -119,9 +119,16 @@ export function createContainers(ctx) {
 
   // The end of a lot, exactly once (the status guard): a human winner gets the car — in the garage, or on the showcase
   // when the garage is full — with its serial when it's an edition and 100% dirt when it was flooded. Then a new lot.
+  // Owner 05.11: never over the limits — with the garage and the showcase both full (filled after the bid, since a bid
+  // needs a free slot) the lot is cancelled like an admin close: the bid goes back, no car, a fresh lot comes up.
   function settle(L, t = now()) {
     if (!q(`UPDATE container_lots SET status = 'done', settled_at = ?, pending = NULL, version = version + 1 WHERE id = ? AND ${OPEN}`).run(t, L.id).changes) return;
-    if (L.top_bidder > 0) {
+    const room = L.top_bidder > 0 ? ctx.auctionRoom(L.top_bidder) : null;
+    if (L.top_bidder > 0 && !room) {
+      q("UPDATE container_lots SET status = 'cancelled' WHERE id = ?").run(L.id);
+      addMoney(L.top_bidder, L.top_bid);
+      tell(L.top_bidder, `🔨 ${lotTitle(L)}: гараж і вітрина заповнені, тож контейнер не видано — ставку ${S.fmt(L.top_bid)} повернуто`, true);
+    } else if (L.top_bidder > 0) {
       const uid = L.top_bidder;
       bank(uid);
       const g = giveCar(uid, L.model, 'container');
@@ -133,7 +140,7 @@ export function createContainers(ctx) {
         q('UPDATE cars SET serial = ? WHERE id = ?').run(serial, g.id);
       }
       if (L.junk) q('UPDATE cars SET dirt = 100, dirt_at = ? WHERE id = ?').run(t, g.id);
-      if (garageCount(uid) > userRow(uid).slots) q("UPDATE cars SET status = 'showcase' WHERE id = ?").run(g.id);
+      if (room === 'showcase') q("UPDATE cars SET status = 'showcase' WHERE id = ?").run(g.id);
       q('UPDATE container_lots SET car_id = ?, serial = ? WHERE id = ?').run(g.id, serial, L.id);
       tell(uid, `🔨 Ти виграв ${lotTitle(L)} за ${S.fmt(L.top_bid)}! Відкрий контейнер на «Причалі» (Ринок → Причал)`, true);
       recalc(uid);
@@ -264,6 +271,7 @@ export function createContainers(ctx) {
     if (amt > cap) fail(cap < min ? `Замало грошей: ставка — не більше половини балансу (до ${S.fmt(cap)})` : `Ставка — не більше половини балансу: до ${S.fmt(cap)}`);
     if (q(`SELECT COUNT(*) n FROM container_lots WHERE top_bidder = ? AND ${OPEN} AND id <> ?`).get(uid, L.id).n >= R.maxLeading) fail(`Бути лідером можна щонайбільше в ${R.maxLeading} лотах одночасно`);
     if (q("SELECT COUNT(*) n FROM container_lots WHERE top_bidder = ? AND status = 'done' AND settled_at > ?").get(uid, t - 86400e3).n >= R.winsPerDay) fail(`Ліміт: ${R.winsPerDay} виграних контейнерів на добу`);
+    ctx.needAuctionSlot(uid); // owner 05.11: every lot he leads (car auctions too) holds a free garage slot
     pay(uid, amt);
     const prev = L.top_bidder, prevBid = L.top_bid;
     if (L.status === 'waiting') {

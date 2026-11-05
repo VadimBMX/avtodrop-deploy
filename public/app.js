@@ -2886,7 +2886,7 @@ async function settleLive(s) {
   clearInterval(R.poll);
   R.phase = 'done';
   R.result = s;
-  haptic(s.win ? 'success' : 'error');
+  haptic(s.refund ? 'warning' : s.win ? 'success' : 'error');
   if (s.win) FX.flash('#4ade80', 0.25, 500);
   state.resultFx = { win: !!s.win };
   await refresh();
@@ -2905,6 +2905,10 @@ function raceSheetHtml({ tag = '', win, diff, amount, note, rows, start, shifts 
 }
 function liveResult() {
   const R = state.race, s = R.result, my = s.me.run, rv = s.rival.run;
+  // Owner 05.11: neither finished → no winner, both bets came back.
+  if (s.refund || !my || !rv) return `<div class="rhero"><div class="rhero-tag">PvP наживо</div><div class="rhero-t">Нічия</div>
+      <div class="rhero-sub">ніхто з вас не доїхав до фінішу</div><div class="rhero-amt">±0 ₴</div><div class="tiny muted">ставку ${S.fmt(s.bet)} повернуто обом</div></div>
+    <button class="btn outline" data-act="pvpExit">До PvP</button>`;
   const startTxt = (x) => (x.jump ? 'фальстарт' : x.perfectStart ? 'ідеальний старт' : `реакція ${dec(x.reaction, 3)} с`);
   return raceSheetHtml({ tag: 'PvP наживо', win: s.win, diff: Math.abs(my.time - rv.time), amount: s.win ? '+' + S.fmt(s.prize) : '−' + S.fmt(s.bet),
     note: s.win ? `банк мінус ${S.FEE * 100}% комісії` : 'ставка пішла суперникові',
@@ -3744,7 +3748,7 @@ async function pvpView(car) {
     <div class="h2"><span>Відкриті виклики</span></div>
     ${data.open.length ? `<div class="list">${data.open.map((p) => carRow(p.car, p.mine ? `<button class="btn sm red" data-act="pvpCancel" data-id="${p.id}">Скасувати</button>` : `<button class="btn sm" data-act="pvpAccept" data-id="${p.id}" data-bet="${p.bet}">${S.short(p.bet)}</button>`)
       .replace('</b></div>', `</b></div><div class="tiny muted">${esc(p.creator)} · ${dec(p.car.et, 2)} с ${p.car.et < car.et ? '<span class="lose">швидший за твою</span>' : '<span class="win">повільніший за твою</span>'}</div>${p.mine ? '' : pvpWho(p)}`)).join('')}</div>` : emptyLine('flag-3', 'Поки порожньо — кинь виклик вище: його побачать усі, хто зайде в PvP')}
-    ${data.history.length ? `<div class="h2"><span>Історія</span></div><div class="list">${data.history.map((h) => `<div class="li"><div class="grow"><b class="${h.win ? 'win' : 'lose'}">${h.win ? 'Перемога' : 'Поразка'}</b> <span class="muted small">vs ${esc(h.rival.name)}${h.result?.live ? '' : ' · на автопілоті'}</span><div class="tiny muted">${esc(M(h.me.model).name)} проти ${esc(M(h.rival.car.model).name)}</div></div><b>${h.win ? '+' + S.short(h.result.prize - h.bet) : '−' + S.short(h.bet)}</b></div>`).join('')}</div>` : ''}`;
+    ${data.history.length ? `<div class="h2"><span>Історія</span></div><div class="list">${data.history.map((h) => `<div class="li"><div class="grow"><b class="${h.refund ? 'muted' : h.win ? 'win' : 'lose'}">${h.refund ? 'Нічия' : h.win ? 'Перемога' : 'Поразка'}</b> <span class="muted small">vs ${esc(h.rival.name)}${h.refund ? ' · ніхто не доїхав' : h.result?.live ? '' : ' · на автопілоті'}</span><div class="tiny muted">${esc(M(h.me.model).name)} проти ${esc(M(h.rival.car.model).name)}</div></div><b>${h.refund ? 'ставку повернуто' : h.win ? '+' + S.short(h.result.prize - h.bet) : '−' + S.short(h.bet)}</b></div>`).join('')}</div>` : ''}`;
 }
 H.pvpCar = () => pickCar('Обери авто', (id) => (state.raceCar = state.raceCarPicked = id, markRaceCarPick(), render()));
 H.pvpCreate = () => act('pvp/create', { carId: state.raceCar, bet: num($('#bet').value) }, 'Виклик створено — чекай суперника');

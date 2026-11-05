@@ -310,6 +310,7 @@ test('economy: the same holds through the real server (persistent bidder, 40 lot
     paid += d.lot.result.price;
     ev += db.prepare('SELECT ev FROM container_lots WHERE id = ?').get(l.id).ev;
     db.prepare("UPDATE container_lots SET settled_at = settled_at - 86400e3 WHERE id = ?").run(l.id); // keep under the daily limit
+    db.prepare("DELETE FROM cars WHERE owner_id = 5 AND origin = 'container'").run(); // keep a free slot (owner 05.11: a bid needs one)
   }
   assert.ok(paid > 0);
   assert.ok(ev / paid > 0.7 && ev / paid < 0.9, `server return ${(ev / paid).toFixed(3)}`);
@@ -344,10 +345,10 @@ test('settlement: a full garage puts the car on the showcase; a flooded car come
   const sJunk = seedFor('odesa', (L) => L.junk);
   const { mk, call, lotOf, muteBots, add, db } = setup({ seeds: [sJunk, 1] });
   mk(5);
-  db.prepare('UPDATE users SET slots = 0 WHERE id = 5').run();
   const l = lotOf(5, 'odesa');
   muteBots(l.id);
   call(5, 'containers/bid', { id: l.id, amount: l.minBid });
+  db.prepare('UPDATE users SET slots = 0 WHERE id = 5').run(); // the garage filled up after the bid (a bid needs a free slot)
   add(R.liveMs + 1);
   call(5, 'containers/lot', { id: l.id });
   const c = db.prepare('SELECT c.* FROM cars c JOIN container_lots l ON l.car_id = c.id WHERE l.id = ?').get(l.id);
