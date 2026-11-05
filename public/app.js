@@ -537,10 +537,26 @@ function back() {
   state.page = state.page === 'tradeNew' || state.page === 'room' ? 'trades' : state.page === 'battle' ? 'battles' : state.page === 'lot' ? 'market' : null;
   render();
 }
+// A race or a drift still running ON SCREEN (lights, 3·2·1, the run): the bottom bar and the header don't leave it.
+// One whose screen is already gone (left by the balance button, a banner, a deep link) is abandoned, so it can never
+// lock the bar — before, a tap on the balance during the lights left «Спочатку доїдь заїзд» on every tab until a
+// reload (n5-bugs).
+function runBusy() {
+  if (state.race && state.race.phase !== 'done' && state.race.phase !== 'idle') {
+    if ($('#drScene')) return 'Спочатку доїдь заїзд';
+    state.race = null;
+  }
+  if (state.drift && state.drift.phase !== 'done') {
+    // A drift past its 3·2·1 keeps simulating off screen and sends itself: wait for it; one stuck in the countdown is gone.
+    if ($('#dSign') || state.drift.phase !== 'count') return 'Спочатку доїдь дрифт';
+    state.drift = null;
+  }
+  return '';
+}
 document.querySelectorAll('#tabs button').forEach((b) =>
   b.addEventListener('click', () => {
-    if (state.race && state.race.phase !== 'done' && state.race.phase !== 'idle') return toast('Спочатку доїдь заїзд', true);
-    if (state.drift && state.drift.phase !== 'done') return toast('Спочатку доїдь дрифт', true);
+    const busy = runBusy();
+    if (busy) return toast(busy, true);
     haptic('light');
     // Opening «Гонки» from the bottom bar always starts on the drag races (drift and PvP are the tabs next to it).
     if (b.dataset.tab === 'race' && state.tab !== 'race') state.raceView = 'race';
@@ -556,7 +572,12 @@ document.querySelectorAll('#tabs button').forEach((b) =>
     // A level reached in a race waits while its result is on screen (autoLevel skips state.race): show it on leaving.
     if (fromRace) setTimeout(autoLevel, 300);
   }));
-$('#balance').addEventListener('click', () => (state.tab = 'menu', go('store')));
+$('#balance').addEventListener('click', () => {
+  const busy = runBusy();
+  if (busy) return toast(busy, true);
+  state.tab = 'menu';
+  go('store');
+});
 $('#gift').addEventListener('click', () => openRewards());
 $('#avatar').addEventListener('click', () => openProfile());
 H.go = (d) => go(d.page);
@@ -3320,6 +3341,8 @@ function runDrift() {
   let n = 3;
   el('dSign').textContent = n;
   const count = setInterval(() => {
+    // Left the drift screen during the 3·2·1: stop here (the run is abandoned, runBusy() frees the bottom bar).
+    if (state.drift !== D || !el('dSign')) return clearInterval(count);
     n--;
     haptic('light');
     if (n > 0) return (el('dSign').textContent = n);

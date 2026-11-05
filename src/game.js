@@ -32,6 +32,13 @@ export class GameError extends Error {}
 const fail = (msg) => {
   throw new GameError(msg);
 };
+// A refusal that keeps what the call wrote before it (db.tx commits instead of rolling back): «the challenge is
+// cancelled» must really cancel it. Only for writes that stand on their own, never half of a deal.
+const failKeep = (msg) => {
+  const e = new GameError(msg);
+  e.keep = true;
+  throw e;
+};
 
 const KYIV = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv', year: 'numeric', month: '2-digit', day: '2-digit' });
 // A Kyiv day starts on a whole UTC hour, so the date is kept per hour (Intl formatting is slow; dayOf runs many times a call).
@@ -268,7 +275,7 @@ export function createGame(db, opts = {}) {
   // origin: the case the car came out of (S.ORIGIN_SELL sets its instant-sale share), null for any other source.
   function giveCar(uid, model, origin = null) {
     // The one door every car comes in by: a car not in the game (a NEW_RAW car still without its photo) never gets in.
-    if (!S.MODELS[model]) fail('Невідома модель');
+    if (!own(S.MODELS, model)) fail('Невідома модель'); // own keys only: admin give-car 'constructor' made a broken car
     // «Тиражні» (S.EDITION_CARS) never enter the collection: not counted in collections, sets or country secrets.
     const isNew = !S.MODELS[model].edition && !q('SELECT 1 FROM collection WHERE user_id = ? AND model = ?').get(uid, model);
     const r = q('INSERT INTO cars (owner_id, model, tank, tank_at, created_at, dirt_at, origin) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uid, model, S.CAR_TANK, now(), now(), now(), origin);
@@ -1237,7 +1244,7 @@ export function createGame(db, opts = {}) {
   function paintCar(uid, { carId, color }) {
     const c = paintTarget(uid, carId);
     const id = color ? String(color) : null;
-    if (id && !S.PAINT_BY_ID[id]) fail('Невідомий колір');
+    if (id && !own(S.PAINT_BY_ID, id)) fail('Невідомий колір');
     const cur = S.PAINT_BY_ID[c.paint] ? c.paint : null;
     if (cur === id) fail(id ? 'Машина вже цього кольору' : 'Машина й так у заводському кольорі');
     const price = id ? S.paintPrice(c.model) : 0;
@@ -1249,7 +1256,7 @@ export function createGame(db, opts = {}) {
   function liveryCar(uid, { carId, livery }) {
     const c = paintTarget(uid, carId);
     const id = livery ? String(livery) : null;
-    if (id && !S.LIVERY_BY_ID[id]) fail('Невідома ліврея');
+    if (id && !own(S.LIVERY_BY_ID, id)) fail('Невідома ліврея'); // 'constructor' was paid for and stored (n5-bugs)
     // A season livery is a pass reward: only for its owner, and free.
     if (id && S.LIVERY_BY_ID[id].cos && !q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(uid, S.LIVERY_BY_ID[id].cos)) fail(S.LIVERY_BY_ID[id].star ? 'Ця ліврея продається в «Стилі» за зірки' : 'Ця ліврея — нагорода сезонного пропуску');
     const cur = S.LIVERY_BY_ID[c.livery] ? c.livery : null;
@@ -1754,7 +1761,7 @@ export function createGame(db, opts = {}) {
   }
   function bossStart(uid, { carId, boss, hard }) {
     startLimit(uid, 'races');
-    const b = S.BOSS_BY_ID[String(boss)];
+    const b = Object.hasOwn(S.BOSS_BY_ID, String(boss)) ? S.BOSS_BY_ID[String(boss)] : null; // 'valueOf' was a 500 (n5-bugs)
     if (!b) fail('Невідомий бос');
     const rows = bossRows(uid);
     if (!bossOpen(b, rows)) fail('Спершу переможи попереднього боса');
@@ -1821,7 +1828,7 @@ export function createGame(db, opts = {}) {
     if (!ids.length) fail('Обери хоча б одну машину');
     const cars = ids.map((id) => noCollector(noSecret(ownCar(uid, id))));
     if (q("SELECT COUNT(*) n FROM cars WHERE owner_id = ? AND status = 'garage'").get(uid).n - ids.length < 1) fail('У гаражі має залишитися хоча б одна машина');
-    const t = S.MODELS[target];
+    const t = own(S.MODELS, target); // 'toString' passed every check and burned the cars at a NaN chance (n5-bugs)
     if (!t || t.secret) fail('Обери машину-ціль');
     const stake = cars.reduce((s, c) => s + S.MODELS[c.model].price, 0);
     if (t.price < stake * S.UPGRADE.minMult) fail(`Ціль має бути щонайменше в ${S.UPGRADE.minMult} раза дорожча`);
@@ -2098,7 +2105,7 @@ export function createGame(db, opts = {}) {
     if (!cc || cc.owner_id !== p.creator_id || cc.status !== 'garage') {
       q("UPDATE pvp SET status = 'cancelled' WHERE id = ?").run(p.id);
       addMoney(p.creator_id, p.bet);
-      fail('Суперник уже не має цього авто — виклик скасовано');
+      failKeep('Суперник уже не має цього авто — виклик скасовано');
     }
     const c = ownCar(uid, carId);
     pay(uid, p.bet);
@@ -2152,7 +2159,7 @@ export function createGame(db, opts = {}) {
     if (!carOk(p.car_id, p.creator_id)) {
       q("UPDATE pvp SET status = 'cancelled' WHERE id = ?").run(p.id);
       addMoney(p.creator_id, p.bet);
-      fail('Суперник уже не має цього авто — виклик скасовано');
+      failKeep('Суперник уже не має цього авто — виклик скасовано');
     }
     if (!pvpLive(p.creator_id)) return { offline: true };
     pay(uid, p.bet);
@@ -2175,7 +2182,7 @@ export function createGame(db, opts = {}) {
     const cc = carOk(p.car_id, p.creator_id), oc = carOk(p.opp_car_id, p.opponent_id);
     if (!cc || !oc) {
       releasePvp(p);
-      fail('Однієї з машин уже немає в гаражі');
+      failKeep('Однієї з машин уже немає в гаражі');
     }
     soil(cc);
     soil(oc);
@@ -2604,8 +2611,17 @@ export function createGame(db, opts = {}) {
   const isLegacy = (uid) => !!q('SELECT 1 FROM legacy WHERE id = ?').get(uid);
   function invalidateTrades(carIds) {
     if (!carIds.length) return;
-    const rows = q(`SELECT DISTINCT t.id FROM trades t JOIN trade_items i ON i.trade_id = t.id WHERE t.status = 'open' AND i.car_id IN (${carIds.map(() => '?').join(',')})`).all(...carIds);
+    const marks = carIds.map(() => '?').join(',');
+    const rows = q(`SELECT DISTINCT t.id FROM trades t JOIN trade_items i ON i.trade_id = t.id WHERE t.status = 'open' AND i.car_id IN (${marks})`).all(...carIds);
     for (const t of rows) q("UPDATE trades SET status = 'invalid', updated_at = ? WHERE id = ?").run(now(), t.id);
+    // An open PvP challenge of a car that left the garage (sold, listed, traded…) is cancelled and its bet goes back;
+    // it stayed in the list for everybody before (n5-bugs). A pending one also gives the asker's bet back.
+    for (const p of q(`SELECT * FROM pvp WHERE status IN ('open', 'pending') AND car_id IN (${marks})`).all(...carIds)) {
+      if (p.status === 'pending') addMoney(p.opponent_id, p.bet);
+      addMoney(p.creator_id, p.bet);
+      q("UPDATE pvp SET status = 'cancelled', opponent_id = NULL, opp_car_id = NULL, opp_snapshot = NULL, req_at = NULL WHERE id = ?").run(p.id);
+      event(p.creator_id, `🏁 PvP-виклик скасовано: машини вже немає в гаражі — ставку ${S.fmt(p.bet)} повернуто`);
+    }
   }
   function tradeCreate(uid, { to, give, get, giveMoney, getMoney }) {
     const toId = findPlayer(to);
@@ -3007,7 +3023,7 @@ export function createGame(db, opts = {}) {
     };
   }
   function battleCreate(uid, { caseId, count, botOk = false }) {
-    const cs = S.CASE_BY_ID[caseId];
+    const cs = own(S.CASE_BY_ID, caseId);
     if (!cs || cs.starter) fail('Обери кейс');
     const n = int(count, 1, 10, 'Кількість');
     if (!BATTLE_COUNTS.includes(n)) fail(`Кейсів у батлі: ${BATTLE_COUNTS.join(', ')}`);
@@ -4603,7 +4619,7 @@ export function createGame(db, opts = {}) {
   function adminGivePart(who, { id, type, tier, count }) {
     const uid = int(id, 1, Number.MAX_SAFE_INTEGER, 'ID');
     userRow(uid);
-    if (!S.PARTS[type] || !S.TIER_BY_ID[tier]) fail('Невідома деталь');
+    if (!own(S.PARTS, type) || !own(S.TIER_BY_ID, tier)) fail('Невідома деталь');
     const n = int(count, -1000, 1000, 'Кількість');
     if (!n) fail('Вкажи кількість');
     const had = q('SELECT count FROM parts WHERE user_id = ? AND type = ? AND tier = ?').get(uid, type, tier)?.count || 0;
@@ -4618,7 +4634,7 @@ export function createGame(db, opts = {}) {
   function adminGiveKeys(who, { id, caseId, count }, { quiet = false } = {}) {
     const uid = int(id, 1, Number.MAX_SAFE_INTEGER, 'ID');
     userRow(uid);
-    if (!S.CASE_BY_ID[caseId]) fail('Невідомий кейс');
+    if (!own(S.CASE_BY_ID, caseId)) fail('Невідомий кейс');
     const n = int(count, -1000, 1000, 'Кількість');
     if (!n) fail('Вкажи кількість');
     const had = q('SELECT count FROM keys WHERE user_id = ? AND case_id = ?').get(uid, caseId)?.count || 0;
@@ -4716,6 +4732,7 @@ export function createGame(db, opts = {}) {
       for (const a of q("SELECT id FROM auctions WHERE seller_id = ? AND status = 'open'").all(uid)) adminMarketRemove(who, { kind: 'auction', id: a.id }, false);
       for (const l of q('SELECT * FROM item_listings WHERE seller_id = ?').all(uid)) closeItemLot(l);
       PA?.dropLeader(uid); // «Аукціон номера»: a frozen account can't win a plate (his bid comes back)
+      CT?.dropLeader(uid, { refund: true }); // «Причал»: nor a container
     }
     alog(who, banned ? 'ban' : 'unban', uid, r ? { reason: r } : null);
     return {};
@@ -4747,7 +4764,12 @@ export function createGame(db, opts = {}) {
     // Their leading bids on other people's auctions are dropped; the money was already taken and the balance resets anyway.
     q("UPDATE auctions SET top_bid = NULL, top_bidder = NULL WHERE top_bidder = ? AND status = 'open'").run(uid);
     q("UPDATE plate_auctions SET top_bid = NULL, top_bidder = NULL WHERE top_bidder = ? AND status = 'open'").run(uid); // the same on «Аукціон номера»
-    q("UPDATE pvp SET status = 'cancelled' WHERE creator_id = ? AND status = 'open'").run(uid);
+    CT?.dropLeader(uid, { refund: false }); // and on «Причал»: no old bid back on an outbid, no container won after the reset
+    // His challenges go without a refund (the balance resets anyway); one somebody asked to race gives the asker's
+    // bet back; a race he asked for goes back to the list without paying the reset account its old bet.
+    for (const p of q("SELECT * FROM pvp WHERE creator_id = ? AND status = 'pending'").all(uid)) addMoney(p.opponent_id, p.bet);
+    q("UPDATE pvp SET status = 'cancelled' WHERE creator_id = ? AND status IN ('open', 'pending')").run(uid);
+    q("UPDATE pvp SET status = 'open', opponent_id = NULL, opp_car_id = NULL, opp_snapshot = NULL, req_at = NULL WHERE opponent_id = ? AND status = 'pending'").run(uid);
     q("UPDATE battles SET status = 'cancelled', finished_at = ? WHERE creator_id = ? AND status = 'open'").run(t, uid);
     q("UPDATE trades SET status = 'cancelled', updated_at = ? WHERE status = 'open' AND (from_id = ? OR to_id = ?)").run(t, uid, uid);
     for (const r of q("SELECT * FROM trade_rooms WHERE status IN ('open', 'active') AND (host_id = ? OR guest_id = ?)").all(uid, uid)) {
@@ -4773,6 +4795,11 @@ export function createGame(db, opts = {}) {
     q("UPDATE vip_subs SET expires_at = ?, canceled = 1 WHERE user_id = ? AND expires_at > ?").run(t, uid, t);
     q('DELETE FROM plates WHERE owner_id = ?').run(uid);
     q('DELETE FROM races WHERE user_id = ? AND status = ?').run(uid, 'running');
+    q("UPDATE drift_runs SET status = 'expired' WHERE user_id = ? AND status = 'running'").run(uid); // its entry was pre-reset money
+    // «Сарайна знахідка»: a find not yet claimed goes too (its stages were paid with pre-reset money and parts — the
+    // reset account claimed the «R» edition car after the reset, n5-bugs). Kept as 'dropped', so the week's free
+    // find (one per week, UNIQUE source) isn't handed out a second time.
+    q("UPDATE barn_finds SET status = 'dropped', run_until = NULL, done_at = ? WHERE user_id = ? AND status IN ('found', 'work')").run(t, uid);
     // 04.11 (David): a reset player kept his businesses (user_business, Season 2) — they go with the rest
     q('DELETE FROM user_business WHERE uid = ?').run(uid);
     q(`UPDATE users SET balance = ?, slots = ?, showcase_slots = ?, cap_level = 0, income_at = ?, banked = 0, fuel = ?, fuel_at = ?,

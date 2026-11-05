@@ -627,7 +627,9 @@ export function openDb(file) {
       db.exec('COMMIT');
       return r;
     } catch (e) {
-      db.exec('ROLLBACK');
+      // A GameError raised with failKeep (e.keep): the refusal goes to the player, but what was written before it —
+      // a stale PvP challenge cancelled and its bet refunded — is kept.
+      db.exec(e?.keep ? 'COMMIT' : 'ROLLBACK');
       throw e;
     } finally {
       depth--;
