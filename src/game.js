@@ -32,6 +32,13 @@ export class GameError extends Error {}
 const fail = (msg) => {
   throw new GameError(msg);
 };
+// A refusal that keeps what the call wrote before it (db.tx commits instead of rolling back): «the challenge is
+// cancelled» must really cancel it. Only for writes that stand on their own, never half of a deal.
+const failKeep = (msg) => {
+  const e = new GameError(msg);
+  e.keep = true;
+  throw e;
+};
 
 const KYIV = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv', year: 'numeric', month: '2-digit', day: '2-digit' });
 // A Kyiv day starts on a whole UTC hour, so the date is kept per hour (Intl formatting is slow; dayOf runs many times a call).
@@ -2098,7 +2105,7 @@ export function createGame(db, opts = {}) {
     if (!cc || cc.owner_id !== p.creator_id || cc.status !== 'garage') {
       q("UPDATE pvp SET status = 'cancelled' WHERE id = ?").run(p.id);
       addMoney(p.creator_id, p.bet);
-      fail('Суперник уже не має цього авто — виклик скасовано');
+      failKeep('Суперник уже не має цього авто — виклик скасовано');
     }
     const c = ownCar(uid, carId);
     pay(uid, p.bet);
@@ -2152,7 +2159,7 @@ export function createGame(db, opts = {}) {
     if (!carOk(p.car_id, p.creator_id)) {
       q("UPDATE pvp SET status = 'cancelled' WHERE id = ?").run(p.id);
       addMoney(p.creator_id, p.bet);
-      fail('Суперник уже не має цього авто — виклик скасовано');
+      failKeep('Суперник уже не має цього авто — виклик скасовано');
     }
     if (!pvpLive(p.creator_id)) return { offline: true };
     pay(uid, p.bet);
@@ -2175,7 +2182,7 @@ export function createGame(db, opts = {}) {
     const cc = carOk(p.car_id, p.creator_id), oc = carOk(p.opp_car_id, p.opponent_id);
     if (!cc || !oc) {
       releasePvp(p);
-      fail('Однієї з машин уже немає в гаражі');
+      failKeep('Однієї з машин уже немає в гаражі');
     }
     soil(cc);
     soil(oc);
@@ -2604,8 +2611,17 @@ export function createGame(db, opts = {}) {
   const isLegacy = (uid) => !!q('SELECT 1 FROM legacy WHERE id = ?').get(uid);
   function invalidateTrades(carIds) {
     if (!carIds.length) return;
-    const rows = q(`SELECT DISTINCT t.id FROM trades t JOIN trade_items i ON i.trade_id = t.id WHERE t.status = 'open' AND i.car_id IN (${carIds.map(() => '?').join(',')})`).all(...carIds);
+    const marks = carIds.map(() => '?').join(',');
+    const rows = q(`SELECT DISTINCT t.id FROM trades t JOIN trade_items i ON i.trade_id = t.id WHERE t.status = 'open' AND i.car_id IN (${marks})`).all(...carIds);
     for (const t of rows) q("UPDATE trades SET status = 'invalid', updated_at = ? WHERE id = ?").run(now(), t.id);
+    // An open PvP challenge of a car that left the garage (sold, listed, traded…) is cancelled and its bet goes back;
+    // it stayed in the list for everybody before (n5-bugs). A pending one also gives the asker's bet back.
+    for (const p of q(`SELECT * FROM pvp WHERE status IN ('open', 'pending') AND car_id IN (${marks})`).all(...carIds)) {
+      if (p.status === 'pending') addMoney(p.opponent_id, p.bet);
+      addMoney(p.creator_id, p.bet);
+      q("UPDATE pvp SET status = 'cancelled', opponent_id = NULL, opp_car_id = NULL, opp_snapshot = NULL, req_at = NULL WHERE id = ?").run(p.id);
+      event(p.creator_id, `🏁 PvP-виклик скасовано: машини вже немає в гаражі — ставку ${S.fmt(p.bet)} повернуто`);
+    }
   }
   function tradeCreate(uid, { to, give, get, giveMoney, getMoney }) {
     const toId = findPlayer(to);
@@ -4747,7 +4763,11 @@ export function createGame(db, opts = {}) {
     // Their leading bids on other people's auctions are dropped; the money was already taken and the balance resets anyway.
     q("UPDATE auctions SET top_bid = NULL, top_bidder = NULL WHERE top_bidder = ? AND status = 'open'").run(uid);
     q("UPDATE plate_auctions SET top_bid = NULL, top_bidder = NULL WHERE top_bidder = ? AND status = 'open'").run(uid); // the same on «Аукціон номера»
-    q("UPDATE pvp SET status = 'cancelled' WHERE creator_id = ? AND status = 'open'").run(uid);
+    // His challenges go without a refund (the balance resets anyway); one somebody asked to race gives the asker's
+    // bet back; a race he asked for goes back to the list without paying the reset account its old bet.
+    for (const p of q("SELECT * FROM pvp WHERE creator_id = ? AND status = 'pending'").all(uid)) addMoney(p.opponent_id, p.bet);
+    q("UPDATE pvp SET status = 'cancelled' WHERE creator_id = ? AND status IN ('open', 'pending')").run(uid);
+    q("UPDATE pvp SET status = 'open', opponent_id = NULL, opp_car_id = NULL, opp_snapshot = NULL, req_at = NULL WHERE opponent_id = ? AND status = 'pending'").run(uid);
     q("UPDATE battles SET status = 'cancelled', finished_at = ? WHERE creator_id = ? AND status = 'open'").run(t, uid);
     q("UPDATE trades SET status = 'cancelled', updated_at = ? WHERE status = 'open' AND (from_id = ? OR to_id = ?)").run(t, uid, uid);
     for (const r of q("SELECT * FROM trade_rooms WHERE status IN ('open', 'active') AND (host_id = ? OR guest_id = ?)").all(uid, uid)) {
