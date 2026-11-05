@@ -25,3 +25,9 @@ test('garage tank card: the newcomer\'s free full tank sits on its own row, not 
   assert.ok(at > 0 && at < cut, 'the full-width rule exists, before the wIntro block');
   assert.match(css.slice(at, css.indexOf('}', at)), /width: 100%/);
 });
+
+test('splash: a boot that throws still lets the splash go (it covers the whole app now); a «null» config is survived', () => {
+  const app = read('app.js');
+  assert.match(app, /\}\)\(\)\.catch\(\(e\) => \{\n[^]*?splashReady\(\);[^]*?throw e;\n\}\);/, 'boot().catch → splashReady');
+  assert.match(app, /config = \(await \(await fetch\('\/api\/config'\)\)\.json\(\)\) \|\| config;/, 'a null body keeps the defaults');
+});

@@ -7970,7 +7970,7 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide', 'toggleChannel']) {
   }
   PAINT.loadPaintMeta(); // in parallel with /api/config: one round trip less before the first screen
   try {
-    config = await (await fetch('/api/config')).json();
+    config = (await (await fetch('/api/config')).json()) || config; // r3: a «null» body (a proxy mid-deploy) kept the defaults
   } catch {}
   setImages(config.images, config.thumbs);
   // body masks' index (small); painted cars render as plain photos if it's slow or missing
@@ -8027,7 +8027,13 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide', 'toggleChannel']) {
       if (changed) renderHeader();
     } catch {}
   }, 20000);
-})();
+})().catch((e) => {
+  // r3: the splash sits over the whole app (d1-intro), so a boot that throws must still let it go — else the player
+  // looks at the logo forever. The error is shown where the game would be.
+  splashReady();
+  if (!$('#view').innerHTML) $('#view').innerHTML = `<div class="empty">${esc(e?.message || String(e))}</div>`;
+  throw e;
+});
 
 // ---------- ghost challenges («Виклик-привид»: public/ghost.js, public/challenge-card.js) ----------
 // After any finished drag run «Кинути виклик другу» throws it as a challenge: the share sheet with the card picture —
