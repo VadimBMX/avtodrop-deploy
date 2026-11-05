@@ -16,6 +16,8 @@
 //   hardcore   «хардкор» 5×60 — active + upgrades + tanks;
 //   smallDonor «донатер-малий» 2×30 — casual-plus who buys one 50 ⭐ pack on day 1.
 // Every persona follows «Перші кроки» the way the app leads (installs one part when that step comes).
+// After the first pass of a session (money and fuel spent) a bot checks back every CHECK minutes until the session ends:
+// claims (reward case, keys), races on fuel that came back, cases. «wall» = the minute the first session's first pass ended.
 import fs from 'node:fs';
 import path from 'node:path';
 import { openDb } from '../src/db.js';
@@ -30,6 +32,7 @@ const LABEL = arg('label', 'newbies'), OUT = arg('out', 'reports');
 let seed = SEED * 7919 + 13;
 Math.random = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32);
 
+const CHECK = 5; // minutes between check-backs inside a session
 const COST = { open: 7, openMany: 10, sell: 3, claim: 4, collect: 2, race: 8, upgrade: 8, biz: 4, buy: 3, key: 6, part: 8 };
 const ALL = {
   casual: { sessions: [[9, 10], [21, 10]], share: 0.6, many: false },
@@ -145,7 +148,11 @@ function race(b) {
     const me = call(b, 'me');
     // A persona that does not race still follows «Перші кроки» through its race steps (the app leads there).
     if (b.a.races === false && !['race', 'win'].includes(me.newbie?.key)) return;
-    if (me.fuel < 1) return;
+    if (me.fuel < 1) {
+      // d2-wall: a newcomer's free refill (fuel/newbie; the app offers it on the empty-tank card). Absent in older code.
+      if (me.newbieFuel > 0 && tryCall(b, 'fuel/newbie')) { spendTime(b, COST.claim); continue; }
+      return;
+    }
     const car = me.cars.filter((c) => c.status === 'garage').sort((x, y) => value(y) - value(x))[0];
     if (!car) return;
     const rv = tryCall(b, 'race/rivals', { carId: car.id });
@@ -305,6 +312,19 @@ for (let day = 0; day < DAYS; day++) {
       buyStuff(b);
       cases(b);
       buyStuff(b);
+      // The first pass is over: everything the money and the tank allowed. In the first session that is «the wall».
+      if (b.sessions === 0) b.wall = Math.round(gameMin(b));
+      // d2-wall: a player who stays checks back every CHECK minutes — fuel that came back, the reward case, keys — and
+      // races / opens again. Waiting time is idle.
+      while (b.left > CHECK) {
+        t += CHECK * 60e3; b.mins += CHECK; b.left -= CHECK; b.idle += CHECK;
+        const before = userQ.get(b.id).balance;
+        claims(b);
+        race(b);
+        claims(b);
+        cases(b);
+        if (userQ.get(b.id).balance !== before) b.lastAct = Math.round(gameMin(b));
+      }
       const me = call(b, 'me');
       // An «empty» session: nothing bought or opened (only claims / races). «Broke»: even before spending, the money
       // could not pay the cheapest case at the persona's share.
@@ -316,6 +336,7 @@ for (let day = 0; day < DAYS; day++) {
       b.idle += Math.max(0, b.left);
       b.left = 0;
       observe(b, me);
+      if (b.sessions === 1) b.s1 = { level: me.level, worth: worthOf(me), balance: me.balance, xp: me.xp, idle: +(b.idle / s[1]).toFixed(3) };
       b.play += s[1]; b.sess = 0;
       observe(b, me);
       t += 60e3;
@@ -344,7 +365,7 @@ function spendLag(b) {
 const out = {
   label: LABEL, seed: SEED, days: DAYS, perArch: PER, runMs: Date.now() - t0,
   bots: bots.map((b) => ({
-    id: b.id, kind: b.kind, marks: b.marks, days: b.days, flow: b.flow, firstCls: b.firstCls, biz: b.biz, newbieDone: b.newbieDone,
+    id: b.id, kind: b.kind, wall: b.wall, s1: b.s1, marks: b.marks, days: b.days, flow: b.flow, firstCls: b.firstCls, biz: b.biz, newbieDone: b.newbieDone,
     idle: +(b.idle / Math.max(1, b.play)).toFixed(3), play: b.play, acted: Math.round(b.mins), paidStars: b.paidStars,
     capLostShare: b.capPot ? +(b.capLost / b.capPot).toFixed(3) : 0, capSessions: b.capSessions, xpOver: b.xpOver, sessions: b.sessions,
     empty: b.empty, emptyMax: b.emptyMax, broke: b.broke, brokeMax: b.brokeMax, explosions: explosions(b), spend: spendLag(b),
