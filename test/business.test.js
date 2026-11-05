@@ -30,10 +30,10 @@ function setup() {
 
 test('rules: the four businesses, rate / cap / step costs from one config', () => {
   assert.deepEqual(B.BIZ.list.map((b) => [b.id, b.level, b.price, b.income]), [
-    ['wash', 3, 2e6, 30000], ['gas', 5, 6e6, 80000], ['sto', 7, 15e6, 180000], ['salon', 10, 50e6, 500000]]); // S2: СТО 8 → 7, Автосалон 15 → 10 (S1 players reached L10 after ~18 h; L15 never in a 14-day season)
-  assert.equal(B.rateOf({ id: 'wash', level: 1 }), 30000);
-  assert.equal(B.rateOf({ id: 'wash', level: 2, eq: 1, ads: 1 }), Math.round(30000 * 1.25 * 1.14));
-  assert.equal(B.rateOf({ id: 'wash', level: 1 }, 0.15), 34500); // the district hook multiplies in
+    ['wash', 3, 2e6, 60000], ['gas', 5, 6e6, 160000], ['sto', 7, 15e6, 360000], ['salon', 10, 50e6, 1000000]]); // 05.11: income ×2 (growth 1,75 → 1,5). S2: СТО 8 → 7, Автосалон 15 → 10 (S1 players reached L10 after ~18 h; L15 never in a 14-day season)
+  assert.equal(B.rateOf({ id: 'wash', level: 1 }), 60000);
+  assert.equal(B.rateOf({ id: 'wash', level: 2, eq: 1, ads: 1 }), Math.round(60000 * 1.25 * 1.14));
+  assert.equal(B.rateOf({ id: 'wash', level: 1 }, 0.15), 69000); // the district hook multiplies in
   assert.equal(B.capHoursOf({ staff: 0 }, false), 4);
   assert.equal(B.capHoursOf({ staff: 2 }, true), 10);
   for (const k of B.BRANCH_KEYS) {
@@ -70,20 +70,20 @@ test('the box fills over time, stops at 4 h (8 h with VIP); banked money is kept
   T.call(u, 'biz/buy', { id: 'wash' });
   T.add(2 * H);
   let b = T.one(u, 'wash');
-  assert.equal(b.box, 60000);
+  assert.equal(b.box, 120000);
   assert.equal(b.full, false);
   assert.equal(b.fullAt, T.at() + 2 * H);
   T.add(10 * H);
   b = T.one(u, 'wash');
-  assert.equal(b.box, 120000);
+  assert.equal(b.box, 240000);
   assert.equal(b.full, true);
   // VIP: the box holds 8 h, but the 8 h already passed don't turn into money afterwards (bought → banked first).
   T.db.prepare('UPDATE users SET stars = 1000 WHERE id = ?').run(u);
   T.call(u, 'shop/stars', { item: 'vip' });
-  assert.equal(T.one(u, 'wash').box, 120000);
+  assert.equal(T.one(u, 'wash').box, 240000);
   assert.equal(T.one(u, 'wash').capH, 8);
   T.add(6 * H);
-  assert.equal(T.one(u, 'wash').box, 240000);
+  assert.equal(T.one(u, 'wash').box, 480000);
 });
 
 test('collect one or all: the box goes to the balance once, logged as biz/collect', () => {
@@ -95,14 +95,14 @@ test('collect one or all: the box goes to the balance once, logged as biz/collec
   T.add(1 * H);
   const b0 = T.bal(u);
   const r = T.call(u, 'biz/collect', { id: 'wash' });
-  assert.equal(r.got, 30000);
-  assert.equal(T.bal(u), b0 + 30000);
+  assert.equal(r.got, 60000);
+  assert.equal(T.bal(u), b0 + 60000);
   assert.equal(T.call(u, 'biz/collect', { id: 'wash' }).got, 0); // a double tap gets nothing
   const all = T.call(u, 'biz/collect', { all: true });
-  assert.equal(all.got, 80000);
-  assert.equal(T.bal(u), b0 + 110000);
-  assert.equal(T.src('biz/collect').c, 110000);
-  assert.equal(T.db.prepare('SELECT COALESCE(SUM(created), 0) c FROM money_days').get().c - days0, 110000);
+  assert.equal(all.got, 160000);
+  assert.equal(T.bal(u), b0 + 220000);
+  assert.equal(T.src('biz/collect').c, 220000);
+  assert.equal(T.db.prepare('SELECT COALESCE(SUM(created), 0) c FROM money_days').get().c - days0, 220000);
   assert.throws(() => T.call(u, 'biz/collect', { id: 'sto' }), /Спершу купи/);
 });
 
@@ -120,7 +120,7 @@ test('upgrades: costs, max 5, «Персонал» lifts the cap, the building n
     assert.equal(T.bal(u), b0 - r.paid);
   }
   assert.throws(() => T.call(u, 'biz/upgrade', { id: 'wash', branch: 'eq' }), /максимумі/);
-  assert.equal(T.one(u, 'wash').rate, Math.round(30000 * 1.4));
+  assert.equal(T.one(u, 'wash').rate, Math.round(60000 * 1.4));
   // An upgrade banks the box first: a full box doesn't grow from the time it stood still.
   T.add(10 * H);
   const full = T.one(u, 'wash').box;
@@ -141,7 +141,7 @@ test('upgrades: costs, max 5, «Персонал» lifts the cap, the building n
   const b = T.one(u, 'wash');
   assert.equal(b.lvl, 3);
   assert.equal(b.build.cost, null);
-  assert.equal(b.rate, Math.round(30000 * 1.6 * (1 + 0.4 + 0.24)));
+  assert.equal(b.rate, Math.round(60000 * 1.6 * (1 + 0.4 + 0.24)));
   assert.throws(() => T.call(u, 'biz/upgrade', { id: 'wash', branch: 'build' }), /максимального/);
   assert.ok(T.src('biz/upgrade').d > 0);
 });
@@ -158,17 +158,17 @@ test('manager: only for an owned business; the box never caps and is credited on
   const b0 = T.bal(u);
   T.add(10 * H);
   const me = T.call(u, 'me');
-  assert.equal(T.bal(u), b0 + 120000 + 300000); // the banked 4 h + 10 h uncapped
+  assert.equal(T.bal(u), b0 + 240000 + 600000); // the banked 4 h + 10 h uncapped
   assert.equal(me.biz[0].box, 0);
   assert.ok(me.biz[0].mgr > T.at());
-  assert.equal(T.src('biz/manager').c, 420000);
+  assert.equal(T.src('biz/manager').c, 840000);
   // After his 30 days the box caps again from his last day.
   T.add(31 * 24 * H);
   const b1 = T.bal(u);
   T.call(u, 'me');
   const paid = T.bal(u) - b1;
-  assert.ok(Math.abs(paid - (30 * 24 - 10) * 30000) <= 1, String(paid));
-  assert.equal(T.one(u, 'wash').box, 120000);
+  assert.ok(Math.abs(paid - (30 * 24 - 10) * 60000) <= 1, String(paid));
+  assert.equal(T.one(u, 'wash').box, 240000);
   assert.equal(T.one(u, 'wash').manager, 0);
 });
 
@@ -180,8 +180,8 @@ test('me: compact biz state for the home screen', () => {
   T.call(u, 'biz/buy', { id: 'gas' });
   T.add(5 * H);
   const me = T.call(u, 'me');
-  assert.deepEqual(me.biz.map((b) => [b.id, b.lvl, b.box, b.rate, b.cap, b.full]), [['wash', 1, 120000, 30000, 120000, true], ['gas', 1, 320000, 80000, 320000, true]]);
-  assert.equal(me.bizTotalBox, 440000);
+  assert.deepEqual(me.biz.map((b) => [b.id, b.lvl, b.box, b.rate, b.cap, b.full]), [['wash', 1, 240000, 60000, 240000, true], ['gas', 1, 640000, 160000, 640000, true]]);
+  assert.equal(me.bizTotalBox, 880000);
 });
 
 test('perk «Заправка»: +1 tank and a faster refill — only when owned', () => {
