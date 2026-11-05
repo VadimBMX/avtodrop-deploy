@@ -190,3 +190,20 @@ test('N5-5 admin reset: an unfinished barn find and a running drift run do not s
   err(() => call(1, 'drift/finish', { runId: run.runId, score: 1e6, log: [] }));
   assert.equal(bal(1), start, 'no pre-reset drift entry or prize');
 });
+
+// ---------- N5-6 (client): a tap on the balance during the lights / 3·2·1 locked the bottom bar until a reload ----------
+// The end-to-end check is tools/ui-sweep.mjs (leaveRunCheck); here the source keeps the three guards.
+test('N5-6 app.js: the header balance and the tabs go through runBusy(); a run whose screen is gone frees the bar; the drift countdown stops off screen', async () => {
+  const fs = await import('node:fs');
+  const app = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const fn = app.slice(app.indexOf('function runBusy()'), app.indexOf('function runBusy()') + 700);
+  assert.match(fn, /\$\('#drScene'\)/, 'a drag race counts as running only while its scene is on screen');
+  assert.match(fn, /\$\('#dSign'\)/, 'a drift counts as running only while its screen is on screen (or past its countdown)');
+  assert.match(fn, /state\.race = null/);
+  assert.match(fn, /state\.drift = null/);
+  const bal = app.slice(app.indexOf("$('#balance').addEventListener"), app.indexOf("$('#balance').addEventListener") + 200);
+  assert.match(bal, /runBusy\(\)/, 'the balance button refuses during a run');
+  const tabs = app.slice(app.indexOf("document.querySelectorAll('#tabs button').forEach"), app.indexOf("document.querySelectorAll('#tabs button').forEach") + 300);
+  assert.match(tabs, /runBusy\(\)/);
+  assert.match(app, /if \(state\.drift !== D \|\| !el\('dSign'\)\) return clearInterval\(count\);/, 'the 3·2·1 stops when the drift screen is gone');
+});
