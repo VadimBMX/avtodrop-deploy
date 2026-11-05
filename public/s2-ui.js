@@ -523,7 +523,8 @@ function openBtn(cs, n) {
   const m = me(), deal = X.caseNow(cs), keys = m.keys[cs.id] || 0;
   const paid = Math.max(0, n - keys), free = m.slots - m.used, price = deal.price;
   if (free < 1) return `<button class="s2-open s2-full-g" data-act="toGarage">${X.ic('building-warehouse')}Гараж повний · звільнити місце</button>`; // s2-audit
-  if (free < n) return `<button class="s2-open" disabled>Вільно ${free} з ${m.slots}</button>`;
+  // «Вільно 4 з 6» in the caps font read as «ВІЛЬНО 4 3 6» and didn't say what to do (persona playtest 05.11).
+  if (free < n) return `<button class="s2-open" disabled>У гаражі лише ${free} ${X.plural(free, ['вільне місце', 'вільні місця', 'вільних місць'])} · вибери менше</button>`;
   if (paid && price * paid > m.balance) return `<button class="s2-open" disabled>Бракує ${S.short(price * paid - m.balance)}</button>`;
   return `<button class="s2-open opencase" data-act="openCase" data-expect="${price * paid}">${X.ic('box')}<span class="l">${cs.starter ? 'Відкрити' : 'Відкрити'}</span><span class="p">${cs.starter ? 'безкоштовно' : paid ? shortN(price * paid) + ' ₴' : `${X.ic('key')} ${n}`}</span></button>`;
 }

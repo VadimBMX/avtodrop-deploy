@@ -957,7 +957,7 @@ async function openRewards(result, auto = false) {
   sheet('Нагороди', `${result ? `<div class="card center reward-res pop">${result.car ? `<div class="reveal-wrap r${S.rankOf(M(result.car.model).cls)}" style="--c:${rc};height:110px"><div class="art">${carArt(result.car.model, { glow: true })}</div></div><b class="disp rr-name">${esc(M(result.car.model).name)}</b>` : `<span class="rr-ic">${ic('gift')}</span>`}
       <div class="small muted">${esc(result.title)}</div><div class="rr-text win">${esc(result.text)}</div></div>` : ''}
     ${rewardsAllCard()}
-    <div class="h2"><span>Щоденний бонус</span><span>день ${r.ready ? r.nextDay : r.todayIndex + 1} з ${r.days.length}</span></div>
+    <div class="h2"><span>Щоденний бонус</span><span>день ${r.ready ? r.nextDay : r.todayIndex + 1}/${r.days.length}</span></div>
     <div class="card"><div class="days">${r.days.map((d, i) => {
       const e = ic(d.money ? 'coin' : d.parts ? 'tool' : d.car ? 'car' : 'box');
       const label = d.money ? S.short(d.money).replace(' ₴', '') : d.parts ? `Деталі ×${d.parts}` : d.label;
