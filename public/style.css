@@ -6878,6 +6878,11 @@ body:has(#modal:not([hidden])) .coach { visibility: hidden; pointer-events: none
 .s2-feat-art .s2-cflag .flag-emb, .s2-hero-art .s2-cflag .flag-emb { width: 116px; height: 116px; vertical-align: 0;
   box-shadow: 0 0 0 5px #ffffff1c, 0 0 0 6px #0008, 0 20px 26px #000c; }
 
+/* d1-rules 05.11: the newbie come-back hint (public/comeback-hint.js) — one quiet line, no card of its own */
+.cb-hint { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 8px 0 2px; font-size: 12.5px; line-height: 1.35; color: var(--muted); text-align: center; }
+.cb-hint .i { width: 14px; height: 14px; flex: none; color: #ffd400; }
+.cb-hint span { min-width: 0; }
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */

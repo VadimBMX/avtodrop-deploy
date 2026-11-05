@@ -758,10 +758,12 @@ export function createGame(db, opts = {}) {
   function fuelState(u) {
     const max = fuelMax(u);
     // fix5: a full tank may hold up to CANISTER.spare more «в запасі» (a canister on a full tank); races use it first.
-    if (u.fuel >= max) return { fuel: Math.min(u.fuel, max + S.CANISTER.spare), max, at: now(), next: null, fullAt: u.fuel_at };
+    if (u.fuel >= max) return { fuel: Math.min(u.fuel, max + S.CANISTER.spare), max, at: now(), next: null, fullAt: u.fuel_at, fillAt: null };
     const r = S.regenAt(u.fuel_at, now(), regenMs(u), max - u.fuel, evOv, vipMult((u.vip_until || 0) > now())); // s2-biz: regenMs
     const fuel = u.fuel + r.n;
-    return { fuel, max, at: fuel >= max ? now() : r.at, next: r.next, fullAt: fuel >= max ? r.at : null };
+    // fillAt: when the tank will be full again (the come-back hint, public/comeback-hint.js) — the same regen run to the end.
+    const fillAt = fuel >= max ? null : S.regenAt(u.fuel_at, Number.MAX_SAFE_INTEGER, regenMs(u), max - u.fuel, evOv, vipMult((u.vip_until || 0) > now())).at;
+    return { fuel, max, at: fuel >= max ? now() : r.at, next: r.next, fullAt: fuel >= max ? r.at : null, fillAt };
   }
   // Fuel into the shared tank (clubs' «Клубна заправка», «Каністра»), never above the player's own max (the same
   // bookkeeping as a race start). Returns how much really went in.
@@ -827,7 +829,7 @@ export function createGame(db, opts = {}) {
       id: u.id, username: u.username, firstName: u.first_name, balance: u.balance, intro, guide,
       slots: u.slots, used: cars.filter((c) => c.status !== 'showcase').length, showcaseSlots: u.showcase_slots, fragments,
       income: { rate: Math.round(inc.rate), pending: inc.pending, capH: inc.capH, since: u.income_at, banked: u.banked, comebackUntil: u.comeback_cap_until > now() ? u.comeback_cap_until : 0 },
-      fuel: Math.min(fuel.fuel, fuel.max), fuelSpare: Math.max(0, fuel.fuel - fuel.max), fuelNext: fuel.next, fuelMax: fuel.max, tankLvl: u.tank_lvl || 0, cars, keys, collection, pity, plates, parts: inventory(uid),
+      fuel: Math.min(fuel.fuel, fuel.max), fuelSpare: Math.max(0, fuel.fuel - fuel.max), fuelNext: fuel.next, fuelFullAt: fuel.fillAt, createdAt: u.created_at, fuelMax: fuel.max, tankLvl: u.tank_lvl || 0, cars, keys, collection, pity, plates, parts: inventory(uid),
       partsAutosell: autoSellOf(u), partsNextAt: partNextAt(u) > now() ? partNextAt(u) : 0, // part cases: «Автопродаж», the pause
       level: u.level, levelSeen: u.level_seen, xp: u.xp, xpNeed: S.xpForLevel(u.level), levelCap: levelCapOut(u),
       xpToday: u.xp_day === day ? u.xp_day_capped : 0, xpCaseToday: u.xp_case_day === day ? u.xp_case_used : 0, newbie: newbieState(u),

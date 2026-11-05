@@ -45,6 +45,7 @@ import { installGoals, goalsHead } from './goals-ui.js';
 import { installPlateAuction, paHubCard, paBanner, paAsk } from './plate-auction-ui.js';
 import { installSeason2, s2Ask, s2PayCredit, s2CreditCard } from './season2-ui.js';
 import { tankShown, idleCapHours } from './garage-calm.js';
+import { createHintSession } from './comeback-hint.js';
 import { installBusiness, bizHubRow } from './business-ui.js';
 import { BIZ } from './business.js'; // the level-up window lists the businesses a level opens // s2-biz: «Мої бізнеси»
 // «АВТОДРОП: Місто» (Season 02): the bottom bar, the city home, Drop-market, parking, profile hero (public/s2-ui.js).
@@ -2193,7 +2194,7 @@ function tankCard() {
   const when = f >= fmax() ? `бак повний${spareTxt()}` : me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : '';
   const up = next && me.level >= next.level
     ? `<button class="btn sm outline tk-buy" data-act="tankUp" title="Назавжди: +${next.max - fmax()} пального в баку на всі машини. Без зірок — лише за гривні.">Бак ${next.max} · ${S.short(next.cost)}</button>` : '';
-  return `<div class="card tk-card tk-slim"><div class="tk-row"><span class="tk-ic">${ic('gas-station')}</span><div class="grow tk-tx"><b>Бак <span class="tk-n">${f}<small>/${fmax()}</small></span></b><span class="tiny muted">${when}</span></div>${up}${refuelBtn()}</div></div>`;
+  return `<div class="card tk-card tk-slim"><div class="tk-row"><span class="tk-ic">${ic('gas-station')}</span><div class="grow tk-tx"><b>Бак <span class="tk-n">${f}<small>/${fmax()}</small></span></b><span class="tiny muted">${when}</span></div>${up}${refuelBtn()}</div>${comebackLine()}</div>`;
 }
 H.tankUp = (d, el) => {
   const next = S.nextTank(me.tankLvl);
@@ -2213,6 +2214,7 @@ function fuelOut(train = true) {
   const next = me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : 'скоро +1';
   return `<div class="card fuelcard fuel-out mt" id="fuelOut"><div class="row between"><span class="hook-t">${ic('gas-station')} Пальне ${me.fuel}/${fmax()}</span><b class="fuel-next">${next}</b></div>
     <div class="pips fuel">${Array.from({ length: fmax() }, () => '<i></i>').join('')}</div>
+    ${comebackLine()}
     ${train ? `<div class="small">Поки бак наповнюється — потренуйся в дрифті: тренування безкоштовне, без пального, з підказками над кожним поворотом.</div>
     ${refuelBtn() ? `<div class="mt">${refuelBtn()}</div>` : ''}
     <button class="btn mt fh-train" data-act="fuelTrain">${ic('target-arrow')} Тренування дрифту · безкоштовно</button>
@@ -2280,6 +2282,13 @@ function fuelBackSoon() {
 }
 // Fuel as of now (the last `me` may be a few minutes old: the next one may have come since).
 const fuelNow = () => me.fuel + (me.fuel < fmax() && me.fuelNext && serverNow() >= me.fuelNext ? 1 : 0);
+// Owner 05.11: a newbie's empty tank → one quiet «Повернись о HH:MM — каса і паливо будуть повні» (Kyiv time), once per
+// session (public/comeback-hint.js): at the end of a drag race and on the empty-tank cards.
+const comebackPick = createHintSession();
+function comebackLine() {
+  const h = comebackPick({ now: serverNow(), createdAt: me.createdAt, fuel: fuelNow(), fuelFullAt: me.fuelFullAt, income: me.income });
+  return h ? `<div class="cb-hint">${ic('clock')}<span>${h.text}</span></div>` : '';
+}
 // fix5: one fuel for a start, here as on the server — the canister reserve («в запасі», S.CANISTER.spare) goes first.
 function spendFuelLocal() {
   if (me.fuelSpare > 0) me.fuelSpare--;
@@ -2970,6 +2979,7 @@ function raceResult() {
     <div class="s2r-rw"><div class="${r.win ? 'on' : ''}"><img src="s2/coin.webp" alt=""><b>${r.win ? '+' + S.short(r.prize) : r.entry ? '−' + S.short(r.entry) : '0 ₴'}</b><small>${r.win ? 'приз' : r.entry ? 'внесок' : 'тренування'}</small></div>
       <div class="on"><span class="s2r-xp">XP</span><b>+${xpGot}</b><small>досвід</small></div>
       <div class="${r.perfectStart ? 'on' : ''}"><span class="s2r-ic">${ic(r.perfectStart ? 'bolt' : 'flag-3')}</span><b>${r.perfectStart ? '+4%' : r.win ? 'Перемога' : 'Заїзд'}</b><small>${r.perfectStart ? 'ідеальний старт' : 'у статистику'}</small></div></div>
+    ${comebackLine()}
     ${sn ? `<div class="s2-card s2r-season"><div class="row between"><b>Сезон · рівень ${sn.level}</b><span>${n0s(sn.levelXp)} / ${n0s(sn.need)} <em>+${xpGot}</em></span></div><i class="s2r-sbar"><b style="width:${Math.min(100, (sn.levelXp / Math.max(1, sn.need)) * 100)}%"></b></i></div>` : ''}
     ${whyHtml(why)}
     <div class="card dr-sum">
