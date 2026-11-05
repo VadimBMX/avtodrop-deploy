@@ -424,14 +424,33 @@ function clampLabels(x) {
   }
   // s2-audit: a label pushed in from the edge must not lie on top of another one («Шиномонтаж» under «Мій гараж»
   // on a short map) — it fades out until the picture is dragged so it has room again.
-  const all = [...pan.querySelectorAll('.s2-lb, .s2-dl')];
+  const all = [...pan.querySelectorAll('.s2-dl')];
   const rc = all.map((lb) => card(lb).getBoundingClientRect());
   all.forEach((lb, i) => {
     const slid = !!lb.style.getPropertyValue('--dx');
     const hit = slid && all.some((o, j) => j !== i && !o.classList.contains('s2-hid') && rc[j].left < rc[i].right - 2 && rc[j].right > rc[i].left + 2 && rc[j].top < rc[i].bottom - 2 && rc[j].bottom > rc[i].top + 2);
     lb.classList.toggle('s2-hid', hit);
   });
+  // layout-check 05.11: on a short map (320×568: the city is ~230 px tall) the labels of nearby buildings overlap
+  // whatever the pan («Траса» under «Мій гараж», «Мийка 2 млн» under «Заправка»). The more important one stays; the
+  // other first drops its level / price part (.s2-tight), and only if it still overlaps fades out (.s2-hid).
+  const kept = [];
+  const hits = (r) => kept.some((o) => o.left < r.right - 2 && o.right > r.left + 2 && o.top < r.bottom - 2 && o.bottom > r.top + 2);
+  const order = [...pan.querySelectorAll('.s2-lb')].sort((a, b) => lbRank(a) - lbRank(b));
+  for (const lb of order) {
+    let r = lb.getBoundingClientRect();
+    if (hits(r) && !lb.classList.contains('s2-tight') && lb.querySelector('small')) {
+      lb.classList.add('s2-tight');
+      lb._w = lb.offsetWidth;
+      r = lb.getBoundingClientRect();
+    }
+    const hid = hits(r);
+    lb.classList.toggle('s2-hid', hid);
+    if (!hid) kept.push(r);
+  }
 }
+const LB_ORDER = ['garage', 'track', 'auction', 'gas', 'wash', 'sto', 'club', 'dealer', 'shop', 'drift', 'salon', 'tire', 'free1', 'free2'];
+const lbRank = (lb) => (LB_ORDER.indexOf(lb.dataset.k) + 1 || 99);
 // Drag the picture sideways (pointer events; a drag never counts as a tap on a label).
 function mountPan() {
   const vp = document.getElementById('s2Map'), pan = document.getElementById('s2Pan');
