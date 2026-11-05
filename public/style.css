@@ -6747,6 +6747,12 @@ body.s2 .s2-parts-go { color: #8a8f98; }
 .lvcap b { color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; }
 .lvcap-note { display: flex; align-items: center; justify-content: center; gap: 4px; }
 
+/* art audit 05.11: a country case has no crate picture yet — its flag was a 1.35em circle scaled ×2.4–2.6 (blurry, ~45 px
+   next to 170 px crates). Draw it crisp at crate size with a rim and the crates' shadow until s2/case/c-<cc>.webp exist. */
+.s2-feat-art .s2-cflag, .s2-hero-art .s2-cflag { display: flex; align-items: center; justify-content: center; transform: none; margin: 14px 0; }
+.s2-feat-art .s2-cflag .flag-emb, .s2-hero-art .s2-cflag .flag-emb { width: 116px; height: 116px; vertical-align: 0;
+  box-shadow: 0 0 0 5px #ffffff1c, 0 0 0 6px #0008, 0 20px 26px #000c; }
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */
