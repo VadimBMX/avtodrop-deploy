@@ -22,7 +22,7 @@ export function createBugBounty({ q, now, fail, int, userRow, brief, adminMoney,
     if (preset !== B.BUG_CUSTOM) fail('Обери нагороду');
     const money = amount ? int(amount, 0, B.BUG_CUSTOM_MAX, 'Сума') : 0;
     const n = count ? int(count, 0, B.BUG_KEYS_MAX, 'Кількість ключів') : 0;
-    if (n && !S.CASE_BY_ID[caseId]) fail('Невідомий кейс');
+    if (n && !Object.hasOwn(S.CASE_BY_ID, String(caseId))) fail('Невідомий кейс');
     const keys = n ? [{ caseId, count: n }] : [];
     if (!money && !keys.length) fail('Вкажи суму або ключі');
     return { preset: B.BUG_CUSTOM, money, keys };
