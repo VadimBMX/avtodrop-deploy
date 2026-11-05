@@ -45,6 +45,7 @@ import { installGoals, goalsHead } from './goals-ui.js';
 import { installPlateAuction, paHubCard, paBanner, paAsk } from './plate-auction-ui.js';
 import { installSeason2, s2Ask, s2PayCredit, s2CreditCard } from './season2-ui.js';
 import { tankShown, idleCapHours } from './garage-calm.js';
+import { createHintSession } from './comeback-hint.js';
 import { installBusiness, bizHubRow } from './business-ui.js';
 import { BIZ } from './business.js'; // the level-up window lists the businesses a level opens // s2-biz: «Мої бізнеси»
 // «АВТОДРОП: Місто» (Season 02): the bottom bar, the city home, Drop-market, parking, profile hero (public/s2-ui.js).
@@ -2193,7 +2194,7 @@ function tankCard() {
   const when = f >= fmax() ? `бак повний${spareTxt()}` : me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : '';
   const up = next && me.level >= next.level
     ? `<button class="btn sm outline tk-buy" data-act="tankUp" title="Назавжди: +${next.max - fmax()} пального в баку на всі машини. Без зірок — лише за гривні.">Бак ${next.max} · ${S.short(next.cost)}</button>` : '';
-  return `<div class="card tk-card tk-slim"><div class="tk-row"><span class="tk-ic">${ic('gas-station')}</span><div class="grow tk-tx"><b>Бак <span class="tk-n">${f}<small>/${fmax()}</small></span></b><span class="tiny muted">${when}</span></div>${up}${refuelBtn()}</div></div>`;
+  return `<div class="card tk-card tk-slim"><div class="tk-row"><span class="tk-ic">${ic('gas-station')}</span><div class="grow tk-tx"><b>Бак <span class="tk-n">${f}<small>/${fmax()}</small></span></b><span class="tiny muted">${when}</span></div>${up}${refuelBtn()}</div>${comebackLine()}</div>`;
 }
 H.tankUp = (d, el) => {
   const next = S.nextTank(me.tankLvl);
@@ -2213,6 +2214,7 @@ function fuelOut(train = true) {
   const next = me.fuelNext ? `+1 через <span data-until="${me.fuelNext - clockOffset}">${left(me.fuelNext - serverNow())}</span>` : 'скоро +1';
   return `<div class="card fuelcard fuel-out mt" id="fuelOut"><div class="row between"><span class="hook-t">${ic('gas-station')} Пальне ${me.fuel}/${fmax()}</span><b class="fuel-next">${next}</b></div>
     <div class="pips fuel">${Array.from({ length: fmax() }, () => '<i></i>').join('')}</div>
+    ${comebackLine()}
     ${train ? `<div class="small">Поки бак наповнюється — потренуйся в дрифті: тренування безкоштовне, без пального, з підказками над кожним поворотом.</div>
     ${refuelBtn() ? `<div class="mt">${refuelBtn()}</div>` : ''}
     <button class="btn mt fh-train" data-act="fuelTrain">${ic('target-arrow')} Тренування дрифту · безкоштовно</button>
@@ -2280,6 +2282,13 @@ function fuelBackSoon() {
 }
 // Fuel as of now (the last `me` may be a few minutes old: the next one may have come since).
 const fuelNow = () => me.fuel + (me.fuel < fmax() && me.fuelNext && serverNow() >= me.fuelNext ? 1 : 0);
+// Owner 05.11: a newbie's empty tank → one quiet «Повернись о HH:MM — каса і паливо будуть повні» (Kyiv time), once per
+// session (public/comeback-hint.js): at the end of a drag race and on the empty-tank cards.
+const comebackPick = createHintSession();
+function comebackLine() {
+  const h = comebackPick({ now: serverNow(), createdAt: me.createdAt, fuel: fuelNow(), fuelFullAt: me.fuelFullAt, income: me.income });
+  return h ? `<div class="cb-hint">${ic('clock')}<span>${h.text}</span></div>` : '';
+}
 // fix5: one fuel for a start, here as on the server — the canister reserve («в запасі», S.CANISTER.spare) goes first.
 function spendFuelLocal() {
   if (me.fuelSpare > 0) me.fuelSpare--;
@@ -2886,7 +2895,7 @@ async function settleLive(s) {
   clearInterval(R.poll);
   R.phase = 'done';
   R.result = s;
-  haptic(s.win ? 'success' : 'error');
+  haptic(s.refund ? 'warning' : s.win ? 'success' : 'error');
   if (s.win) FX.flash('#4ade80', 0.25, 500);
   state.resultFx = { win: !!s.win };
   await refresh();
@@ -2905,6 +2914,10 @@ function raceSheetHtml({ tag = '', win, diff, amount, note, rows, start, shifts 
 }
 function liveResult() {
   const R = state.race, s = R.result, my = s.me.run, rv = s.rival.run;
+  // Owner 05.11: neither finished → no winner, both bets came back.
+  if (s.refund || !my || !rv) return `<div class="rhero"><div class="rhero-tag">PvP наживо</div><div class="rhero-t">Нічия</div>
+      <div class="rhero-sub">ніхто з вас не доїхав до фінішу</div><div class="rhero-amt">±0 ₴</div><div class="tiny muted">ставку ${S.fmt(s.bet)} повернуто обом</div></div>
+    <button class="btn outline" data-act="pvpExit">До PvP</button>`;
   const startTxt = (x) => (x.jump ? 'фальстарт' : x.perfectStart ? 'ідеальний старт' : `реакція ${dec(x.reaction, 3)} с`);
   return raceSheetHtml({ tag: 'PvP наживо', win: s.win, diff: Math.abs(my.time - rv.time), amount: s.win ? '+' + S.fmt(s.prize) : '−' + S.fmt(s.bet),
     note: s.win ? `банк мінус ${S.FEE * 100}% комісії` : 'ставка пішла суперникові',
@@ -2966,6 +2979,7 @@ function raceResult() {
     <div class="s2r-rw"><div class="${r.win ? 'on' : ''}"><img src="s2/coin.webp" alt=""><b>${r.win ? '+' + S.short(r.prize) : r.entry ? '−' + S.short(r.entry) : '0 ₴'}</b><small>${r.win ? 'приз' : r.entry ? 'внесок' : 'тренування'}</small></div>
       <div class="on"><span class="s2r-xp">XP</span><b>+${xpGot}</b><small>досвід</small></div>
       <div class="${r.perfectStart ? 'on' : ''}"><span class="s2r-ic">${ic(r.perfectStart ? 'bolt' : 'flag-3')}</span><b>${r.perfectStart ? '+4%' : r.win ? 'Перемога' : 'Заїзд'}</b><small>${r.perfectStart ? 'ідеальний старт' : 'у статистику'}</small></div></div>
+    ${comebackLine()}
     ${sn ? `<div class="s2-card s2r-season"><div class="row between"><b>Сезон · рівень ${sn.level}</b><span>${n0s(sn.levelXp)} / ${n0s(sn.need)} <em>+${xpGot}</em></span></div><i class="s2r-sbar"><b style="width:${Math.min(100, (sn.levelXp / Math.max(1, sn.need)) * 100)}%"></b></i></div>` : ''}
     ${whyHtml(why)}
     <div class="card dr-sum">
@@ -3744,7 +3758,7 @@ async function pvpView(car) {
     <div class="h2"><span>Відкриті виклики</span></div>
     ${data.open.length ? `<div class="list">${data.open.map((p) => carRow(p.car, p.mine ? `<button class="btn sm red" data-act="pvpCancel" data-id="${p.id}">Скасувати</button>` : `<button class="btn sm" data-act="pvpAccept" data-id="${p.id}" data-bet="${p.bet}">${S.short(p.bet)}</button>`)
       .replace('</b></div>', `</b></div><div class="tiny muted">${esc(p.creator)} · ${dec(p.car.et, 2)} с ${p.car.et < car.et ? '<span class="lose">швидший за твою</span>' : '<span class="win">повільніший за твою</span>'}</div>${p.mine ? '' : pvpWho(p)}`)).join('')}</div>` : emptyLine('flag-3', 'Поки порожньо — кинь виклик вище: його побачать усі, хто зайде в PvP')}
-    ${data.history.length ? `<div class="h2"><span>Історія</span></div><div class="list">${data.history.map((h) => `<div class="li"><div class="grow"><b class="${h.win ? 'win' : 'lose'}">${h.win ? 'Перемога' : 'Поразка'}</b> <span class="muted small">vs ${esc(h.rival.name)}${h.result?.live ? '' : ' · на автопілоті'}</span><div class="tiny muted">${esc(M(h.me.model).name)} проти ${esc(M(h.rival.car.model).name)}</div></div><b>${h.win ? '+' + S.short(h.result.prize - h.bet) : '−' + S.short(h.bet)}</b></div>`).join('')}</div>` : ''}`;
+    ${data.history.length ? `<div class="h2"><span>Історія</span></div><div class="list">${data.history.map((h) => `<div class="li"><div class="grow"><b class="${h.refund ? 'muted' : h.win ? 'win' : 'lose'}">${h.refund ? 'Нічия' : h.win ? 'Перемога' : 'Поразка'}</b> <span class="muted small">vs ${esc(h.rival.name)}${h.refund ? ' · ніхто не доїхав' : h.result?.live ? '' : ' · на автопілоті'}</span><div class="tiny muted">${esc(M(h.me.model).name)} проти ${esc(M(h.rival.car.model).name)}</div></div><b>${h.refund ? 'ставку повернуто' : h.win ? '+' + S.short(h.result.prize - h.bet) : '−' + S.short(h.bet)}</b></div>`).join('')}</div>` : ''}`;
 }
 H.pvpCar = () => pickCar('Обери авто', (id) => (state.raceCar = state.raceCarPicked = id, markRaceCarPick(), render()));
 H.pvpCreate = () => act('pvp/create', { carId: state.raceCar, bet: num($('#bet').value) }, 'Виклик створено — чекай суперника');

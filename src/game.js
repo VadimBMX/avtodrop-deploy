@@ -272,6 +272,26 @@ export function createGame(db, opts = {}) {
     // "Full" only when it really is: 4/6 and ×3 is "no room for ×3 — 2 free", not "garage full".
     if (free < n) fail(free > 0 ? `Не вистачає місця для ×${n} — вільно ${free}` : 'Гараж заповнений — продай авто або купи місце');
   }
+  // Owner 05.11 (d1-rules): auctions never give more cars than garage slots. Every lot a player leads — a car auction or
+  // a «Причал» container — holds one free garage slot, so a new leading bid needs a free slot beyond the ones already
+  // held. (Before, one free slot let a player lead and win any number of auctions: 5 cars in 3 slots.)
+  const ledAuctions = (uid) => q("SELECT COUNT(*) n FROM auctions WHERE top_bidder = ? AND status = 'open'").get(uid).n
+    + q("SELECT COUNT(*) n FROM container_lots WHERE top_bidder = ? AND status IN ('waiting', 'live')").get(uid).n;
+  function needAuctionSlot(uid) {
+    const free = q('SELECT slots FROM users WHERE id = ?').get(uid).slots - garageCount(uid), led = ledAuctions(uid);
+    if (free - led > 0) return;
+    if (led > 0) fail(`Звільни місце в гаражі — ти вже лідируєш у ${led} ${led === 1 ? 'аукціоні' : 'аукціонах'}`);
+    fail('Гараж заповнений — продай авто або купи місце');
+  }
+  // Where a won auction lot goes: the garage while it has a free slot, else the showcase while that has one, else
+  // nowhere (null) — the caller then refunds the winner. Only reachable when the garage filled up after the bid
+  // (a case, a reward, a battle win), since a bid itself needs a free slot.
+  function auctionRoom(uid) {
+    const u = q('SELECT slots, showcase_slots FROM users WHERE id = ?').get(uid);
+    if (garageCount(uid) < u.slots) return 'garage';
+    if (q("SELECT COUNT(*) n FROM cars WHERE owner_id = ? AND status = 'showcase'").get(uid).n < u.showcase_slots) return 'showcase';
+    return null;
+  }
   // origin: the case the car came out of (S.ORIGIN_SELL sets its instant-sale share), null for any other source.
   function giveCar(uid, model, origin = null) {
     // The one door every car comes in by: a car not in the game (a NEW_RAW car still without its photo) never gets in.
@@ -305,7 +325,7 @@ export function createGame(db, opts = {}) {
 
   // ---------- income ----------
   // Only as many cars as the garage has slots earn income (the best earners), so a garage that went over its
-  // limit (battle win, auction, reward) gives no extra income until the spare cars are sold.
+  // limit (battle win, reward) gives no extra income until the spare cars are sold.
   // The rate now, and (with `from`) what was earned from `from` until now: a car's shine after a wash (S.WASH, +shine
   // for shineHours; dirt itself costs nothing) changes its income over time, so that part is the exact average of its
   // multiplier over the stretch (S.washFactorAvg — the same function the client's S.garageIncome uses). Which cars
@@ -738,10 +758,12 @@ export function createGame(db, opts = {}) {
   function fuelState(u) {
     const max = fuelMax(u);
     // fix5: a full tank may hold up to CANISTER.spare more «в запасі» (a canister on a full tank); races use it first.
-    if (u.fuel >= max) return { fuel: Math.min(u.fuel, max + S.CANISTER.spare), max, at: now(), next: null, fullAt: u.fuel_at };
+    if (u.fuel >= max) return { fuel: Math.min(u.fuel, max + S.CANISTER.spare), max, at: now(), next: null, fullAt: u.fuel_at, fillAt: null };
     const r = S.regenAt(u.fuel_at, now(), regenMs(u), max - u.fuel, evOv, vipMult((u.vip_until || 0) > now())); // s2-biz: regenMs
     const fuel = u.fuel + r.n;
-    return { fuel, max, at: fuel >= max ? now() : r.at, next: r.next, fullAt: fuel >= max ? r.at : null };
+    // fillAt: when the tank will be full again (the come-back hint, public/comeback-hint.js) — the same regen run to the end.
+    const fillAt = fuel >= max ? null : S.regenAt(u.fuel_at, Number.MAX_SAFE_INTEGER, regenMs(u), max - u.fuel, evOv, vipMult((u.vip_until || 0) > now())).at;
+    return { fuel, max, at: fuel >= max ? now() : r.at, next: r.next, fullAt: fuel >= max ? r.at : null, fillAt };
   }
   // Fuel into the shared tank (clubs' «Клубна заправка», «Каністра»), never above the player's own max (the same
   // bookkeeping as a race start). Returns how much really went in.
@@ -807,7 +829,7 @@ export function createGame(db, opts = {}) {
       id: u.id, username: u.username, firstName: u.first_name, balance: u.balance, intro, guide,
       slots: u.slots, used: cars.filter((c) => c.status !== 'showcase').length, showcaseSlots: u.showcase_slots, fragments,
       income: { rate: Math.round(inc.rate), pending: inc.pending, capH: inc.capH, since: u.income_at, banked: u.banked, comebackUntil: u.comeback_cap_until > now() ? u.comeback_cap_until : 0 },
-      fuel: Math.min(fuel.fuel, fuel.max), fuelSpare: Math.max(0, fuel.fuel - fuel.max), fuelNext: fuel.next, fuelMax: fuel.max, tankLvl: u.tank_lvl || 0, cars, keys, collection, pity, plates, parts: inventory(uid),
+      fuel: Math.min(fuel.fuel, fuel.max), fuelSpare: Math.max(0, fuel.fuel - fuel.max), fuelNext: fuel.next, fuelFullAt: fuel.fillAt, createdAt: u.created_at, fuelMax: fuel.max, tankLvl: u.tank_lvl || 0, cars, keys, collection, pity, plates, parts: inventory(uid),
       partsAutosell: autoSellOf(u), partsNextAt: partNextAt(u) > now() ? partNextAt(u) : 0, // part cases: «Автопродаж», the pause
       level: u.level, levelSeen: u.level_seen, xp: u.xp, xpNeed: S.xpForLevel(u.level), levelCap: levelCapOut(u),
       xpToday: u.xp_day === day ? u.xp_day_capped : 0, xpCaseToday: u.xp_case_day === day ? u.xp_case_used : 0, newbie: newbieState(u),
@@ -2078,7 +2100,7 @@ export function createGame(db, opts = {}) {
     }));
     const history = q("SELECT * FROM pvp WHERE status = 'done' AND (creator_id = ? OR opponent_id = ?) ORDER BY finished_at DESC LIMIT 20").all(uid, uid).map((p) => {
       const mine = p.creator_id === uid;
-      return { id: p.id, bet: p.bet, win: p.winner_id === uid, me: JSON.parse(mine ? p.snapshot : p.opp_snapshot), rival: { name: name(mine ? p.opponent_id : p.creator_id), car: JSON.parse(mine ? p.opp_snapshot : p.snapshot) }, result: JSON.parse(p.result), at: p.finished_at };
+      return { id: p.id, bet: p.bet, win: p.winner_id === uid, refund: p.winner_id == null, me: JSON.parse(mine ? p.snapshot : p.opp_snapshot), rival: { name: name(mine ? p.opponent_id : p.creator_id), car: JSON.parse(mine ? p.opp_snapshot : p.snapshot) }, result: JSON.parse(p.result), at: p.finished_at };
     });
     return { open, history };
   }
@@ -2207,6 +2229,7 @@ export function createGame(db, opts = {}) {
     };
     return {
       id: p.id, status: p.status, bet: p.bet, prize: Math.floor(p.bet * 2 * (1 - S.FEE)), startAt: p.start_at, greenAt: p.green_at,
+      refund: p.status === 'done' && p.winner_id == null, // owner 05.11: neither finished → both bets back
       me: side(mine ? 'c' : 'o'), rival: side(mine ? 'o' : 'c'), win: p.status === 'done' ? p.winner_id === uid : null, now: now(),
     };
   }
@@ -2246,8 +2269,19 @@ export function createGame(db, opts = {}) {
     return pvpOut(q('SELECT * FROM pvp WHERE id = ?').get(p.id), uid);
   }
   // Both finished, or time is up: whoever never finished (lost connection) is counted with a late start and late shifts.
+  // Owner 05.11: when neither finished, nobody raced — both bets go back (no winner, no XP, no streak) instead of the
+  // faster car winning on two autopilot runs.
   function settleLive(p) {
     const late = (snap) => pvpRun(JSON.parse(snap), 1.5, Array(S.SHIFTS).fill('late'));
+    if (!p.c_run && !p.o_run) {
+      if (!q("UPDATE pvp SET status = 'done', winner_id = NULL, result = ?, c_u = 1, o_u = 1, finished_at = ? WHERE id = ? AND status = 'live'")
+        .run(JSON.stringify({ refund: true, live: true, bet: p.bet }), now(), p.id).changes) return;
+      for (const who of [p.creator_id, p.opponent_id]) {
+        addMoney(who, p.bet);
+        event(who, `🏁 PvP з ${name(who === p.creator_id ? p.opponent_id : p.creator_id)}: ніхто не доїхав — ставку ${S.fmt(p.bet)} повернуто`);
+      }
+      return;
+    }
     const a = p.c_run ? JSON.parse(p.c_run) : late(p.snapshot);
     const b = p.o_run ? JSON.parse(p.o_run) : late(p.opp_snapshot);
     const winner = a.time <= b.time ? p.creator_id : p.opponent_id;
@@ -2385,7 +2419,7 @@ export function createGame(db, opts = {}) {
     if (a.seller_id === uid) fail('Не можна ставити на свій лот');
     const amt = int(amount, 1, 1e13, 'Ставка');
     if (amt < minBid(a)) fail(`Мінімальна ставка ${S.fmt(minBid(a))}`);
-    if (a.top_bidder !== uid) needSlots(uid, 1);
+    if (a.top_bidder !== uid) needAuctionSlot(uid); // every lot he already leads holds a slot (owner 05.11)
     if (a.top_bidder) addMoney(a.top_bidder, a.top_bid);
     pay(uid, amt);
     const ends = a.ends_at - now() < 60e3 ? now() + 60e3 : a.ends_at;
@@ -2418,11 +2452,23 @@ export function createGame(db, opts = {}) {
       db.tx(() => {
         const model = S.MODELS[carRow(a.car_id).model].name;
         bank(a.seller_id);
+        // Owner 05.11: the winner's garage (and showcase) filled up after the bid → no car over the limit. The bid goes
+        // back to him and the lot is put up again for an hour without a leader (only the top bid is kept, so there is
+        // no «next bidder» to pass it to); a relisted lot that ends with no bids goes back to the seller as usual.
+        const room = a.top_bidder ? auctionRoom(a.top_bidder) : null;
+        if (a.top_bidder && !room) {
+          addMoney(a.top_bidder, a.top_bid);
+          q('UPDATE auctions SET top_bid = NULL, top_bidder = NULL, ends_at = ? WHERE id = ?').run(now() + 3600e3, a.id);
+          event(a.top_bidder, `🔨 Аукціон на ${model}: гараж заповнений, тож машину не видано — ставку ${S.fmt(a.top_bid)} повернуто`);
+          event(a.seller_id, `🔨 Переможцю аукціону на ${model} не вистачило місця в гаражі — лот знову на аукціоні ще годину`);
+          return;
+        }
         if (a.top_bidder) {
           bank(a.top_bidder);
           const got = Math.floor(a.top_bid * (1 - S.FEE));
           addMoney(a.seller_id, got);
           transferCar(a.car_id, a.top_bidder);
+          if (room === 'showcase') q("UPDATE cars SET status = 'showcase' WHERE id = ?").run(a.car_id);
           track(a.seller_id, 'market');
           track(a.top_bidder, 'market');
           recalc(a.top_bidder);
@@ -5316,7 +5362,7 @@ export function createGame(db, opts = {}) {
   for (const k of SCH.mutating) ADMIN_MUTATING.add(k);
   HELPER_ACTIONS.add('schedule'); // helpers may look at the plan, not change it
   // «Причал» (src/containers.js): its calls, its admin tab and its gate (it opens with the auctions).
-  CT = createContainers({ db, q, now, fail, int, name, addMoney, pay, notify, giveCar, carRow, carOut, garageCount, userRow, metaGet, metaSet, bank,
+  CT = createContainers({ db, q, now, fail, int, name, addMoney, pay, notify, giveCar, carRow, carOut, garageCount, userRow, metaGet, metaSet, bank, needAuctionSlot, auctionRoom,
     alog: (...a) => alog(...a), recalc: (...a) => recalc(...a), seed: opts.containerSeed, eventOn: (ev) => ev === 'halloween' && HW.on() });
   Object.assign(GATES, CT.gates);
   Object.assign(handlers, CT.api);
