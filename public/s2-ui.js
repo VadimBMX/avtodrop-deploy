@@ -3,6 +3,7 @@
 // small re-skins of the rating, store and achievements. Installed once by app.js with its helpers (like the other
 // *-ui.js modules); game logic stays in app.js — every action here is an existing data-act handler.
 import * as S from './shared.js';
+import * as F from './frames.js';
 import * as B from './business.js';
 import { playOpen } from './s2-reel.js';
 import { warDemo } from './war-demo.js';
@@ -34,23 +35,15 @@ function caseArt(cs, open = false, cls = '') {
   if (cs.starter) return `<img class="s2-cimg ${cls}" src="s2/x-gift.webp" alt="" draggable="false">`;
   return `<span class="s2-cflag ${cls}">${X.caseIcon(cs)}</span>`;
 }
-// Frame holes (centre x, centre y, radius of the free circle — shares of the picture's width / height / width; the
-// picture's own size; the dark disc's radius), from tools/frame_holes.py (owner 06.11: the helmet sat low-right and too
-// big in «Іржа»). The radius is the largest circle that no part of the frame covers, so crowns / the neon skyline / the
-// smoke never sit on the helmet; the disc is wider so it fills the whole visible hole. Re-run the tool if a frame changes.
-const HOLES = {
-  f0: [0.4977, 0.5614, 0.2546, 216, 220, 0.3183], f1: [0.4907, 0.4205, 0.2326, 215, 220, 0.2907], f2: [0.4953, 0.4841, 0.2893, 213, 220, 0.3127],
-  f3: [0.5000, 0.5477, 0.2627, 217, 220, 0.3041], f4: [0.5159, 0.5046, 0.3022, 220, 219, 0.3250], f5: [0.4862, 0.4886, 0.2372, 217, 220, 0.2965],
-  f6: [0.5023, 0.5250, 0.2896, 214, 220, 0.2990], f7: [0.4977, 0.5023, 0.2937, 218, 220, 0.3052], f8: [0.5114, 0.4977, 0.2025, 220, 214, 0.2531],
-  f9: [0.5000, 0.4977, 0.3064, 217, 220, 0.3179], f10: [0.5000, 0.4977, 0.3081, 217, 220, 0.3542], f11: [0.5000, 0.4932, 0.3076, 217, 220, 0.3214],
-  f12: [0.4903, 0.5705, 0.2659, 207, 220, 0.3323], f13: [0.5024, 0.4977, 0.3038, 210, 220, 0.3204], f14: [0.4909, 0.5068, 0.2575, 219, 220, 0.3219],
-  f15: [0.4977, 0.4977, 0.3177, 218, 220, 0.3315], f16: [0.5000, 0.5023, 0.2801, 215, 220, 0.3080], f17: [0.5000, 0.4977, 0.3172, 219, 220, 0.3423] };
+// Frame hole (centre x, centre y, radius of the free circle — shares of the box; the box's width / height; the dark
+// disc's radius). r5-frames: every frame is drawn in code (public/frames.js) with the same ring, r 35.5…46 of a 100-unit
+// box, so one hole fits all; the disc (r 36.5) tucks just under the ring's inner edge.
+const FRAME_HOLE = [0.5, 0.5, F.RING.in / 100, 1, 1, (F.RING.in + 1) / 100];
 // The helmets' outline (all nine alike, tools/frame_holes.py): the smallest circle round it — centre x, centre y,
 // radius as shares of the 160 px picture. The chin reaches further than the dome, so the picture's own middle is not
 // the helmet's: centring that circle in the hole leaves the same gap to the ring all round.
 const HELMET_FIT = [0.4712, 0.5304, 0.4713];
-const HELMET_FILL = 0.84; // the helmet's circle takes this share of the free hole
-const holeOf = (f) => HOLES['f' + f] || [0.5, 0.5, 0.3, 1, 1, 0.32];
+const HELMET_FILL = 0.8; // the helmet's circle takes this share of the free hole
 // Achievement → badge picture (public/s2/bd/b<N>.webp, all drawn gold; lower tiers are tinted in CSS).
 const ACH_BADGE = { cases: 1, wins: 2, pvp: 9, battles: 10, collection: 3, rarest: 11, secrets: 12, garage: 0, level: 13, play: 14, streak: 6, merges: 15, tuned: 16, plates: 17, friends: 5, dream: 18 };
 const TIER_CLS = ['br', 'sv', 'gd', 'dm'];
@@ -62,9 +55,9 @@ const badgeBtn = (key, tier, owner, cls = '') => `<button class="s2-bdb ${cls}" 
 // set with 'frames/helmet' / 'frames/equip'. Other players: `helmet` + `frame` on every player object the API returns
 // (rating, card, club, hall, battles…; market rows: sellerLook) — collected into LOOKS by UI2.onApi (app.js api()).
 // No frame picked → the free «Іржа» (S.PROFILE_FRAMES rust) is drawn.
-const FR_NONE = S.FRAME_BY_ID.rust.fr;
-const frImg = (id) => (id && S.FRAME_BY_ID[id] ? S.FRAME_BY_ID[id].fr : FR_NONE);
-const LOOKS = new Map(); // player id → { h, f (picture index), frame (id or null) }
+const FR_NONE = 'rust';
+const frImg = (id) => (id && S.FRAME_BY_ID[id] ? id : FR_NONE); // the frame drawn (public/frames.js id)
+const LOOKS = new Map(); // player id → { h, f (frame drawn), frame (id worn or null) }
 function lookSeen(o, depth = 0) {
   if (!o || typeof o !== 'object' || depth > 6) return;
   if (Array.isArray(o)) return o.forEach((x) => lookSeen(x, depth + 1));
@@ -78,14 +71,16 @@ function myLook() {
   return { h: Number.isInteger(m.helmet) ? m.helmet : S.helmetDefault(m.id), f: frImg(m.frame), frame: m.frame || null };
 }
 const lookOf = (id) => (Number(id) === me()?.id ? myLook() : LOOKS.get(Number(id)) || { h: S.helmetDefault(id), f: FR_NONE, frame: null });
-function avatar({ h, f }, size, lvl = null, cls = '') {
-  const [cx, cy, r, w, hh, rb] = holeOf(f);
+// `live`: the frame may move (header, profile, look picker, shop, licence — public/frames.js frameWatch animates it only
+// on screen and never under reduced motion); rows in lists keep the still pose.
+export function avatar({ h, f }, size, lvl = null, cls = '', live = false) {
+  const [cx, cy, r, w, hh, rb] = FRAME_HOLE;
   const k = w / hh; // shares of the width → of the height
   const d = (HELMET_FILL * r) / HELMET_FIT[2]; // the helmet picture's width (share of the frame's width)
   const pc = (v) => `${+(v * 100).toFixed(3)}%`;
   return `<span class="s2-ava ${cls}" style="width:${size}px;height:${Math.round(size / k)}px"><i class="hb" style="left:${pc(cx - rb)};top:${pc(cy - rb * k)};width:${pc(rb * 2)};height:${pc(rb * 2 * k)}"></i>
     <img class="hm" src="s2/av/h${h}.webp" alt="" style="left:${pc(cx - HELMET_FIT[0] * d)};top:${pc(cy - HELMET_FIT[1] * d * k)};width:${pc(d)}">
-    <img class="fr" src="s2/fr/f${f}.webp" alt="">${lvl != null ? `<b class="s2lv">${lvl}</b>` : ''}</span>`;
+    ${F.frameHtml(f, { live })}${lvl != null ? `<b class="s2lv">${lvl}</b>` : ''}</span>`;
 }
 // Small round helmet (header, tab bar): the helmet on a dark disc in a level ring.
 const helmet = (h, size) => `<span class="s2-hel" style="width:${size}px;height:${size}px"><img src="s2/av/h${h}.webp" alt=""></span>`;
@@ -134,7 +129,10 @@ export function installS2(x) {
     } catch {}
   };
   // The licence (app.js licenceCard): the player's helmet in his frame and his achievement badges (tap → what it is).
-  UI2.ava = (id, size, lvl) => avatar(lookOf(id), size, lvl);
+  UI2.ava = (id, size, lvl) => avatar(lookOf(id), size, lvl, '', true);
+  UI2.avatar = avatar; // r5-frames: the shop's frame previews round the player's own helmet
+  UI2.myLook = myLook;
+  F.frameWatch();
   UI2.achRow = achRow;
   document.getElementById('s2back')?.addEventListener('click', () => X.back());
   // DROP pressed again on the DROP tab → back to the market (capture: before app.js switches the tab).
@@ -180,7 +178,7 @@ function header() {
   if (hud && t) {
     const name = m.username || m.firstName || 'Гравець';
     const sub = `рівень ${m.level}${m.vip ? ' · VIP' : ''}`;
-    t.innerHTML = `<span class="s2-hudme" role="button" aria-label="Профіль">${helmet(look.h, 36)}<span class="s2-who"><b class="ellipsis">${esc(name)}</b><small class="ellipsis">${sub}</small></span></span>`;
+    t.innerHTML = `<span class="s2-hudme${look.frame ? ' s2-hudfr' : ''}" role="button" aria-label="Профіль">${look.frame ? avatar(look, 38, null, '', true) : helmet(look.h, 36)}<span class="s2-who"><b class="ellipsis">${esc(name)}</b><small class="ellipsis">${sub}</small></span></span>`;
     t.onclick = () => document.getElementById('avatar')?.click();
   } else if (t) t.onclick = null;
   // s2-ui2: every inner page gets the mockups' heading — a small section label over the title — and its section glow.
@@ -766,7 +764,7 @@ function profileHero() {
   const badges = ach ? ach.filter((a) => a.claimed > 0).sort((a, b) => b.claimed - a.claimed).slice(0, 5) : [];
   const playH = Math.floor((m.stats?.playMs || 0) / 3600e3);
   const stat = (t, v) => `<div class="s2-stat"><small>${t}</small><b>${v}</b></div>`;
-  return `<div class="s2-prof"><button class="s2-prof-ava" data-act="s2Look" aria-label="Змінити шолом і рамку">${avatar(look, 150, m.level)}</button>
+  return `<div class="s2-prof"><button class="s2-prof-ava" data-act="s2Look" aria-label="Змінити шолом і рамку">${avatar(look, 150, m.level, '', true)}</button>
     <h2>${esc(name)}</h2><div class="s2-prof-sub">${m.club?.name ? `<span class="acc">${esc(m.club.tag ? m.club.tag + ' · ' : '')}${esc(m.club.name)}</span>` : ''}${m.vip ? `<span class="acc">${X.ic('crown')} VIP</span>` : ''}<span>рівень ${m.level}</span></div>
     <div class="s2-badges" id="s2Badges">${heroBadges(badges, m.id)}</div>
     <div class="s2-stats">${stat('Гараж', S.short(m.stats?.value || 0).replace(' ₴', ''))}${stat('Рейтинг', C.place ? '#' + C.place : '—').replace('class="s2-stat"', 'class="s2-stat" id="s2Rank"')}${stat('Кейсів', n0(m.stats?.cases))}
@@ -799,11 +797,25 @@ async function lookSheet(fresh = true) {
   }
   const l = myLook();
   const hs = Array.from({ length: S.HELMETS }, (_, i) => `<button class="s2-pick ${i === l.h ? 'on' : ''}" data-act="s2SetLook" data-k="h" data-n="${i}"><img src="s2/av/h${i}.webp" alt=""></button>`).join('');
-  const sorted = [...frameList].sort((a, b) => (b.allowed - a.allowed) || (a.soon ? 1 : 0) - (b.soon ? 1 : 0));
-  const fs = sorted.map((f) => `<button class="s2-pick fr s2-fpick${f.id === l.frame ? ' on' : ''}${f.allowed ? '' : ' lock'}" data-act="s2SetLook" data-k="f" data-id="${f.id}" aria-label="${esc(f.name)}">
-    <img src="${f.img}" alt="">${f.allowed ? '' : `<i class="s2-lk">${X.ic('lock')}</i>`}<small>${esc(f.name)}</small>${f.allowed ? '' : `<em>${esc(f.hint)}</em>`}</button>`).join('');
+  // Open first, then the premium ones still to buy (with their price), then the rest; «скоро» last.
+  const rank = (f) => (f.allowed ? 0 : f.shop ? 1 : f.soon ? 3 : 2);
+  const sorted = [...frameList].sort((a, b) => rank(a) - rank(b));
+  const fs = sorted.map((f) => {
+    const buy = !f.allowed && f.shop;
+    return `<button class="s2-pick fr s2-fpick${f.id === l.frame ? ' on' : ''}${f.allowed ? '' : ' lock'}${buy ? ' buy' : ''}" data-act="s2SetLook" data-k="f" data-id="${f.id}" aria-label="${esc(f.name)}">
+    ${avatar({ h: l.h, f: f.id }, 76, null, 's2-fpv', true)}${f.allowed || buy ? '' : `<i class="s2-lk">${X.ic('lock')}</i>`}<small>${esc(f.name)}</small>${buy ? `<em class="s2-fprice">${X.ic('star')} ${S.PROFILE_FRAME_STARS}</em>` : f.allowed ? '' : `<em>${esc(f.hint)}</em>`}</button>`;
+  }).join('');
   const n = frameList.filter((f) => f.allowed).length;
-  X.sheet('Мій вигляд', `<div class="s2-look-pv">${avatar(l, 120, me().level)}</div><div class="s2-h"><b>Шолом</b></div><div class="s2-picks">${hs}</div><div class="s2-h"><b>Рамка</b><span>відкрито ${n} з ${frameList.length}</span></div><div class="s2-picks s2-fpicks">${fs}</div>`);
+  X.sheet('Мій вигляд', `<div class="s2-look-pv">${avatar(l, 160, me().level, '', true)}</div><div class="s2-h"><b>Шолом</b></div><div class="s2-picks">${hs}</div><div class="s2-h"><b>Рамка</b><span>відкрито ${n} з ${frameList.length}</span></div><div class="s2-picks s2-fpicks">${fs}</div>`);
+}
+// r5-frames: a premium frame not bought yet — the big live preview round the player's helmet and the buy buttons
+// (app.js H.buyItem: the star credit first, else a Telegram invoice; H.buyItemStars: the stars on the account).
+function frameBuySheet(f) {
+  const it = S.SHOP_BY_ID[f.shop], m = me();
+  X.sheet(`Рамка «${f.name}»`, `<div class="s2-look-pv">${avatar({ h: myLook().h, f: f.id }, 160, m.level, '', true)}</div>
+    <div class="center muted">${esc(f.hint)} · анімована · назавжди</div>
+    <div class="btns mt s2-fbuy"><button class="btn yellow" data-act="buyItem" data-id="${it.id}">${X.ic('star')} ${it.stars} · Купити</button>${(m.stars || 0) >= it.stars ? `<button class="btn ghost" data-act="buyItemStars" data-id="${it.id}" data-p="${it.stars}">з рахунку</button>` : ''}</div>
+    <div class="tiny muted center mt">Після оплати рамка одразу з’явиться на аватарі</div>`);
 }
 // ---------- achievement badges: tap → what it is ----------
 // What each achievement is for (one line) and the unit its progress counts in (plural forms for «ще N … до золота»);
@@ -888,8 +900,8 @@ function ratingAfter() {
     if (!ava || ava.querySelector('.s2-ava')) return;
     const id = Number(p.dataset.id) || 0;
     const L = lookOf(id); // s2-fix: the player's own frame; without one the podium's gold / steel / bronze
-    const f = L.frame ? L.f : place === 1 ? 0 : place === 2 ? 7 : 11;
-    ava.insertAdjacentHTML('afterbegin', avatar({ h: L.h, f }, place === 1 ? 92 : 74));
+    const f = L.frame ? L.f : place === 1 ? 'gold' : place === 2 ? 'steel' : 'bronze';
+    ava.insertAdjacentHTML('afterbegin', avatar({ h: L.h, f }, place === 1 ? 92 : 74, null, '', true));
     ava.classList.add('s2-has');
   });
   const lbs = document.querySelectorAll('.list .lb .lb-ava');
@@ -906,8 +918,8 @@ function clubAfter() {
   for (const a of document.querySelectorAll('.clb-mem .lb-ava')) {
     if (a.querySelector('img')) continue;
     const L = lookOf(Number(a.closest('.clb-mem')?.dataset.id) || 0);
-    a.innerHTML = `<img src="s2/av/h${L.h}.webp" alt="">`;
-    a.classList.add('s2-hel');
+    if (L.frame) (a.innerHTML = avatar(L, 34), a.classList.add('s2-lbf')); // r5-frames: a worn frame shows like in the rating
+    else (a.innerHTML = `<img src="s2/av/h${L.h}.webp" alt="">`, a.classList.add('s2-hel'));
   }
 }
 function storeAfter() {
@@ -1019,6 +1031,7 @@ const handlers = {
     const m = me();
     if (d.k === 'f') {
       const f = frameList?.find((x) => x.id === d.id);
+      if (f && !f.allowed && f.shop) return frameBuySheet(f);
       if (f && !f.allowed) return X.toast(`«${f.name}»: ${f.hint}`);
     }
     let r;
@@ -1034,7 +1047,7 @@ const handlers = {
     header();
     if (st().tab === 'menu' && !st().page) {
       const a = document.querySelector('.s2-prof-ava');
-      if (a) a.innerHTML = avatar(myLook(), 150, m.level);
+      if (a) a.innerHTML = avatar(myLook(), 150, m.level, '', true);
     }
   },
 };

@@ -246,7 +246,7 @@ test('season 2: frames — list, equip only owned, take off; the welcome window 
   ownerReset(e.g);
   const f = e.call(1, 'frames');
   assert.equal(f.list.length, S.PROFILE_FRAMES.length);
-  assert.ok(f.list.every((x) => x.img === `s2/fr/f${x.fr}.webp`));
+  assert.ok(f.list.every((x) => S.FRAME_BY_ID[x.id]));
   for (const id of ['patron', 'legend_s1', 'veteran_s1', 'vip', 'season2', 'king', 'halloween', 'club_leader', 'diamond', 'drift', 'racer', 'lightning', 'rust']) assert.ok(S.FRAME_BY_ID[id], id);
   assert.throws(() => e.call(1, 'frames/equip', { id: 'king' }), /ще немає/);
   assert.throws(() => e.call(1, 'frames/equip', { id: '__proto__' }), /Невідома рамка/);

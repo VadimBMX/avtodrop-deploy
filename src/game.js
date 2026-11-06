@@ -4015,6 +4015,7 @@ export function createGame(db, opts = {}) {
     if (it.id === 'pass' && u.premium_season === S.seasonOf(now())) fail('Преміум-пропуск цього сезону вже куплено');
     if (it.id === 'slot' && u.slots >= S.MAX_SLOTS) fail('Максимум місць');
     if (it.cos && q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(uid, it.cos)) fail('Цей предмет «Стилю» вже твій');
+    if (it.pframe && frameOwned(uid, it.pframe)) fail('Ця рамка вже твоя — надягай її в «Мій вигляд»');
     if (it.sub && subActive(uid)) fail('VIP-підписка вже діє — керувати нею можна в магазині');
     if (S.VIP_SALE.items.includes(it.id) && u.vip_sale_until > now()) return S.vipSalePrice(S.shopPrice(it, u.star_slots));
     if (it.deal && !(u.fuel_deal_until > now())) fail('Знижка на бак уже закінчилась');
@@ -4047,6 +4048,8 @@ export function createGame(db, opts = {}) {
     q('UPDATE vip_subs SET canceled = ? WHERE user_id = ?').run(cancel ? 1 : 0, uid);
     return { sub: subOut(subRow(uid)) };
   }
+  // r5-frames: a premium profile frame (S.FRAME_SHOP_ITEMS) is a user_frames row (src/season2.js), kept for good.
+  const frameOwned = (uid, id) => !!q('SELECT 1 FROM user_frames WHERE user_id = ? AND frame = ?').get(uid, id);
   function applyItem(uid, itemId) {
     const it = S.SHOP_BY_ID[itemId];
     const u = userRow(uid);
@@ -4073,6 +4076,11 @@ export function createGame(db, opts = {}) {
       grantCosmetic(uid, it.cos);
       styleWear(uid, it.cos);
       out.cosmetic = it.cos;
+    }
+    if (it.pframe) { // bought → worn at once
+      q('INSERT OR IGNORE INTO user_frames (user_id, frame, source, at) VALUES (?, ?, ?, ?)').run(uid, it.pframe, 'shop', now());
+      q('UPDATE users SET frame = ? WHERE id = ?').run(it.pframe, uid);
+      out.frame = it.pframe;
     }
     return out;
   }
@@ -4145,7 +4153,7 @@ export function createGame(db, opts = {}) {
       const renewal = !!(it.sub && recurring && !first);
       // Two invoices paid back to back both pass the pre-checkout; the second one would buy nothing (or a once-only pack
       // twice, a cosmetic owned already, a second subscription next to the running one — that one is also cancelled).
-      const owned = it.cos && q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(userId, it.cos);
+      const owned = (it.cos && q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(userId, it.cos)) || (it.pframe && frameOwned(userId, it.pframe));
       const running = it.sub && !renewal ? subActive(userId) : null;
       const twoSubs = !!(running && running.charge_id !== chargeId);
       // s2-qa: a «Менеджер» paid for a business the player doesn't own (an invoice from before the Season 2 wipe) is

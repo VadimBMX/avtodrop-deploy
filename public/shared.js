@@ -2711,34 +2711,45 @@ export const SEASON_BADGE_TOP = 100;
 
 // ---------- «Сезон 02»: the one-shot wipe and the compensation (src/season2.js) ----------
 // Profile frames (around the helmet avatar in the profile, the rating, the player card, club / trade / battle rows).
-// One worn per player (users.frame, set through 'frames/equip'); `fr` = the picture public/s2/fr/f<fr>.webp.
+// One worn per player (users.frame, set through 'frames/equip'); drawn in code by public/frames.js (the same id).
 // Which a player may wear (frameAllowed below, the same rule on the server and in the look picker):
-//   · `own`  — granted once and kept for good (user_frames): the Season 1 compensation, later event prizes;
+//   · `own`  — granted once and kept for good (user_frames): the Season 1 compensation, later event prizes, and the
+//              premium frames bought for Telegram Stars (`shop`: the S.SHOP_BY_ID item, PROFILE_FRAME_STARS ⭐);
 //   · `lvl`  — free from that player level on (level drops at a season wipe, so these are re-earned each season);
 //   · `vip`  — while VIP is active; `club` — while the player owns (leads) an auto club.
-// `soon`: an `own` frame with no way to earn it yet (shown locked, «скоро»). A frame that stops being allowed (VIP ran
-// out, club given away) is simply not shown — players see no frame until they pick another one.
+// `soon`: an `own` frame with no way to earn it yet (shown locked, «скоро»). `anim`: it moves (profile, header, picker,
+// shop; rows in lists show it still). A frame that stops being allowed (VIP ran out, club given away) is simply not
+// shown — players see no frame until they pick another one.
 // Not the plate frames of «Стиль» (STYLE_SLOTS.frame), which go round the number plates.
+export const PROFILE_FRAME_STARS = 100;
 export const PROFILE_FRAMES = [
-  { id: 'rust', fr: 17, name: 'Іржа', hint: 'з 1-го рівня', lvl: 1 },
-  { id: 'steel', fr: 7, name: 'Сталь', hint: 'з 5-го рівня', lvl: 5 },
-  { id: 'racer', fr: 15, name: 'Гонщик', hint: 'з 10-го рівня', lvl: 10 },
-  { id: 'gold', fr: 4, name: 'Золото', hint: 'з 15-го рівня', lvl: 15 },
-  { id: 'neon', fr: 2, name: 'Неон', hint: 'з 20-го рівня', lvl: 20 },
-  { id: 'smoke', fr: 5, name: 'Димка', hint: 'з 30-го рівня', lvl: 30 },
-  { id: 'inferno', fr: 6, name: 'Інферно', hint: 'з 40-го рівня', lvl: 40 },
-  { id: 'vip', fr: 0, name: 'VIP', hint: 'поки діє VIP', vip: true },
-  { id: 'club_leader', fr: 12, name: 'Лідер клубу', hint: 'для власника автоклубу', club: true },
-  { id: 'patron', fr: 9, name: 'Меценат', hint: 'підтримав гру зірками в Сезоні 1', own: true },
-  { id: 'legend_s1', fr: 10, name: 'Легенда S1', hint: 'топ-10 рейтингу Сезону 1', own: true },
-  { id: 'veteran_s1', fr: 11, name: 'Ветеран S1', hint: 'дійшов до 3-го рівня в Сезоні 1', own: true },
-  { id: 'season2', fr: 1, name: 'Сезон 2', hint: 'нагорода Сезону 2 — скоро', own: true, soon: true },
-  { id: 'king', fr: 3, name: 'Король', hint: 'переможцю сезону — скоро', own: true, soon: true },
-  { id: 'halloween', fr: 8, name: 'Хелловін', hint: 'святкова подія — скоро', own: true, soon: true },
-  { id: 'diamond', fr: 13, name: 'Діамант', hint: 'скоро', own: true, soon: true },
-  { id: 'drift', fr: 14, name: 'Дрифт', hint: 'скоро', own: true, soon: true },
-  { id: 'lightning', fr: 16, name: 'Блискавка', hint: 'скоро', own: true, soon: true },
-].map((f) => ({ ...f, img: `s2/fr/f${f.fr}.webp` }));
+  { id: 'rust', name: 'Іржа', hint: 'з 1-го рівня', lvl: 1 },
+  { id: 'steel', name: 'Сталь', hint: 'з 5-го рівня', lvl: 5 },
+  { id: 'racer', name: 'Гонщик', hint: 'з 10-го рівня', lvl: 10 },
+  { id: 'gold', name: 'Золото', hint: 'з 15-го рівня', lvl: 15 },
+  { id: 'neon', name: 'Неон', hint: 'з 20-го рівня', lvl: 20 },
+  { id: 'smoke', name: 'Дим', hint: 'з 30-го рівня', lvl: 30 },
+  { id: 'inferno', name: 'Інферно', hint: 'з 40-го рівня', lvl: 40 },
+  { id: 'vip', name: 'VIP', hint: 'поки діє VIP', vip: true },
+  { id: 'club_leader', name: 'Лідер клубу', hint: 'для власника автоклубу', club: true },
+  { id: 'patron', name: 'Меценат', hint: 'підтримав гру зірками в Сезоні 1', own: true },
+  { id: 'legend_s1', name: 'Легенда S1', hint: 'топ-10 рейтингу Сезону 1', own: true },
+  { id: 'veteran_s1', name: 'Ветеран S1', hint: 'дійшов до 3-го рівня в Сезоні 1', own: true },
+  { id: 'fire', name: 'Вогонь', hint: 'полум’я навколо аватара', own: true, shop: 'pf-fire', anim: true },
+  { id: 'neon_pulse', name: 'Неон-пульс', hint: 'рожево-блакитне дихання', own: true, shop: 'pf-neon-pulse', anim: true },
+  { id: 'lightning', name: 'Блискавка', hint: 'електричні розряди по колу', own: true, shop: 'pf-lightning', anim: true },
+  { id: 'gold_pure', name: 'Чисте золото', hint: 'дзеркальне золото з відблиском', own: true, shop: 'pf-gold', anim: true },
+  { id: 'ice', name: 'Лід', hint: 'кришталі й морозне мерехтіння', own: true, shop: 'pf-ice', anim: true },
+  { id: 'carbon', name: 'Карбон', hint: 'карбон із жовтою гоночною смугою', own: true, shop: 'pf-carbon', anim: true },
+  { id: 'season2', name: 'Сезон 2', hint: 'нагорода Сезону 2 — скоро', own: true, soon: true },
+  { id: 'king', name: 'Король', hint: 'переможцю сезону — скоро', own: true, soon: true },
+  { id: 'halloween', name: 'Хелловін', hint: 'святкова подія — скоро', own: true, soon: true },
+  { id: 'diamond', name: 'Діамант', hint: 'скоро', own: true, soon: true },
+  { id: 'drift', name: 'Дрифт', hint: 'скоро', own: true, soon: true },
+];
+// The premium frames as Stars items (S.SHOP_BY_ID): bought once — an invoice, the stars on the account or the star
+// credit — and kept for good (src/game.js itemPrice / applyItem: user_frames 'shop', worn at once).
+export const FRAME_SHOP_ITEMS = PROFILE_FRAMES.filter((f) => f.shop).map((f) => ({ id: f.shop, pframe: f.id, name: `Рамка профілю «${f.name}»`, stars: PROFILE_FRAME_STARS, hint: f.hint }));
 export const FRAME_BY_ID = Object.fromEntries(PROFILE_FRAMES.map((f) => [f.id, f]));
 // May a player wear this frame? p: { level, vip (bool), clubOwner (bool), owned (array / Set of frame ids) }.
 export function frameAllowed(id, p = {}) {
@@ -2866,7 +2877,7 @@ export function styleWorn(claims, style) {
 }
 // The look of a worn cosmetic for CSS classes: 'season' for a season one, else the item's look (neon, carbon…).
 export const styleLook = (id) => { const c = cosmeticOf(id); return c ? (c.season ? SEASON_THEMES[c.season]?.look || 'season' : c.look) : null; };
-export const SHOP_BY_ID = Object.fromEntries([...SHOP_ITEMS, ...STYLE_ITEMS, ...DAY_DEALS, ...BIZ_SHOP_ITEMS /* s2-biz */].map((i) => [i.id, i]));
+export const SHOP_BY_ID = Object.fromEntries([...SHOP_ITEMS, ...STYLE_ITEMS, ...DAY_DEALS, ...BIZ_SHOP_ITEMS /* s2-biz */, ...FRAME_SHOP_ITEMS /* r5-frames */].map((i) => [i.id, i]));
 export const shopPrice = (item, starSlots = 0) => (item.id === 'slot' ? item.stars * Math.pow(2, starSlots) : item.stars);
 // Home-screen shortcut (WebApp.addToHomeScreen): offered from the 3rd day in the game, one key once it's added.
 export const HOME_SCREEN = { day: 3, caseId: 'city', count: 1 };
