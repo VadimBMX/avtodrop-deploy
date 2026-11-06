@@ -1,4 +1,7 @@
-"""Measures the profile frames' holes and the helmets' outline for the avatar (public/s2-ui.js HOLES / HELMET_FIT).
+"""Measures the helmets' outline for the avatar (public/s2-ui.js HELMET_FIT).
+
+r5-frames: the profile frames are drawn in code now (public/frames.js, one ring r 35.5…46 of a 100-unit box, so
+public/s2-ui.js FRAME_HOLE is fixed); the frame part below only runs if raster frames come back to public/s2/fr.
 
   python -I tools/frame_holes.py            → prints the HOLES table and HELMET_FIT to paste into public/s2-ui.js
 
@@ -64,7 +67,8 @@ def main():
     for p in frames:
         cx, cy, r, w, h, rb = frame_hole(p)
         rows.append(f"{os.path.basename(p)[:-5]}: [{cx:.4f}, {cy:.4f}, {r:.4f}, {w}, {h}, {rb:.4f}]")
-    print('const HOLES = {\n  ' + ',\n  '.join(', '.join(rows[i:i + 3]) for i in range(0, len(rows), 3)) + ' };')
+    if rows:
+        print('const HOLES = {\n  ' + ',\n  '.join(', '.join(rows[i:i + 3]) for i in range(0, len(rows), 3)) + ' };')
     hs = [helmet_circle(p) for p in sorted(glob.glob(os.path.join(ROOT, 'av', 'h*.webp')))]
     cx, cy, r = (sum(v[i] for v in hs) / len(hs) for i in range(3))
     spread = max(max(abs(v[0] - cx), abs(v[1] - cy), abs(v[2] - r)) for v in hs)

@@ -7281,12 +7281,30 @@ function storeMain(sh) {
   const day = dd ? `<div class="card offer st-daydeal"><div class="row between"><b class="disp" style="font-size:19px">${ic('flame')} Угода дня</b><span class="chip">${dd.taken ? 'нова через' : 'ще'} <span data-until="${dd.next - clockOffset}"></span></span></div>
     <div class="dd-name">${esc(dd.name)}</div>
     <div class="row between mt">${dd.taken ? '<span class="tiny muted">Сьогодні вже взято — завтра нова</span>' : `<span class="tiny muted">раз на день · лише сьогодні</span>${storeBuyBtns({ id: dd.id, price: dd.stars }, sh)}`}</div></div>` : '';
-  return `${day}${starter}${packs}${vip}
+  return `${day}${starter}${packs}${vip}${frameShop(sh)}
   <button class="card row st-style-promo" data-act="storeView" data-k="style"><span class="ic tint" style="--c:#b48cff">${ic('sparkles')}</span><div class="grow"><b>Стиль</b><div class="tiny muted">рамки номерів, фони вітрини, лівреї, колір імені — лише вигляд, без характеристик</div></div><span class="chev">${ic('chevron-right')}</span></button>
   <div class="card row"><span class="ic tint" style="--c:#ffc400">${ic('ticket')}</span><div class="grow"><b>Преміум-пропуск · Сезон ${me.season.id}</b><div class="tiny muted">Друга доріжка нагород і машина сезону</div></div>${sh.premium ? '<span class="chip">куплено</span>' : storeBuyBtns(it.pass, sh)}</div>
   <div class="h2"><span>Зручності</span></div>
   ${[['refuel', 'gas-station', `Пальне ${fmax()}/${fmax()} одразу`], ['cool', 'wind', 'Зняті деталі одразу готові'], ['slot', 'building-warehouse', `Зараз ${me.slots} місць · кожне наступне ×2`]].map(([id, icon, sub]) => `<div class="card row"><span class="ic tint" style="--c:#939497">${ic(icon)}</span><div class="grow"><b>${esc(it[id].name)}</b><div class="tiny muted">${sub}</div></div>${storeBuyBtns(it[id], sh, 'ghost')}</div>`).join('')}`;
 }
+// r5-frames: «Рамки профілю» — the premium animated frames (S.FRAME_SHOP_ITEMS, 100 ⭐, kept for good), each previewed
+// live round the player's own helmet (UI2.avatar; public/frames.js moves only the ones on screen). Bought → worn at once.
+function frameShop(sh) {
+  if (!UI2.avatar || !S.FRAME_SHOP_ITEMS.length) return '';
+  const owned = new Set(me.frames || []), look = UI2.myLook();
+  const tile = (it) => {
+    const own = owned.has(it.pframe), on = me.frame === it.pframe;
+    const btn = !own ? storeBuyBtns({ id: it.id, price: it.stars }, sh)
+      : on ? `<button class="btn sm ghost on" disabled>${ic('check')} Надіто</button>`
+      : `<button class="btn sm" data-act="frameWear" data-id="${it.pframe}">Надіти</button>`;
+    return `<div class="pfs-item${own ? ' own' : ''}${on ? ' on' : ''}"><span class="pfs-pv">${UI2.avatar({ h: look.h, f: it.pframe }, 92, null, '', true)}</span>
+      <b>${esc(S.FRAME_BY_ID[it.pframe].name)}</b><small>${own ? `${ic('check')} твоя` : esc(it.hint)}</small>${btn}</div>`;
+  };
+  return `<div class="h2"><span>${ic('sparkles')} Рамки профілю</span><span>${ic('star')} ${S.PROFILE_FRAME_STARS}</span></div>
+    <div class="tiny muted sty-where">анімовані, навколо твого шолома — у профілі, рейтингу, клубі й на картці. Назавжди</div>
+    <div class="pfs-grid">${S.FRAME_SHOP_ITEMS.map(tile).join('')}</div>`;
+}
+H.frameWear = (d) => act('frames/equip', { id: d.id }, 'Рамку надіто');
 // ---- «Стиль»: classes of what a player wears (S.styleWorn ids → CSS), used on every screen that shows a player ----
 const styleCls = (prefix, id) => { const l = id && S.styleLook(id); return l ? ` ${prefix}-${l}` : ''; };
 const nameCls = (style) => styleCls('nm', style?.name).trim();

@@ -27,19 +27,12 @@ function setup() {
   return { db, g, call, run, get, mk, add: (ms) => (t += ms), at: () => t };
 }
 
-test('frames: every id maps to an existing picture, one rule for who may wear what', () => {
-  const seen = new Set();
+test('frames: every id is drawn in code (public/frames.js), one rule for who may wear what', () => {
   for (const f of S.PROFILE_FRAMES) {
-    assert.ok(Number.isInteger(f.fr) && f.fr >= 0 && f.fr <= 17, f.id);
-    assert.ok(!seen.has(f.fr), `picture f${f.fr} used twice`);
-    seen.add(f.fr);
-    assert.ok(fs.existsSync(new URL(`../public/${f.img}`, import.meta.url)), f.img);
     assert.ok(f.name && f.hint, f.id);
     assert.equal([f.lvl, f.vip, f.club, f.own].filter(Boolean).length, 1, `${f.id}: exactly one way to get it`);
   }
-  assert.equal(seen.size, 18, 'all 18 generated frames are used');
   for (let h = 0; h < S.HELMETS; h++) assert.ok(fs.existsSync(new URL(`../public/s2/av/h${h}.webp`, import.meta.url)));
-  assert.deepEqual(['patron', 'legend_s1', 'veteran_s1', 'vip', 'king'].map((id) => S.FRAME_BY_ID[id].fr), [9, 10, 11, 0, 3]);
   assert.equal(S.frameAllowed('rust', { level: 1 }), true);
   assert.equal(S.frameAllowed('gold', { level: 14 }), false);
   assert.equal(S.frameAllowed('gold', { level: 15 }), true);

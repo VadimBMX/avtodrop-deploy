@@ -5,6 +5,7 @@
 //     otherwise the usual Telegram invoice opens;
 //   · s2CreditCard(): the credit's line in the shop.
 import * as S from './shared.js';
+import { frameHtml } from './frames.js';
 
 let X = null; // { me, H, api, act, toast, ic, esc, sheet, closeModal, confirmBox, pop, refresh }
 let asked = false;
@@ -22,8 +23,8 @@ export function welcomeLines(w) {
   const out = [];
   const prev = S.S2_RESET.prevSeason;
   if (w.credit > 0) out.push(['star', `${w.credit} ⭐ кредиту в магазині`, `${S.S2_RESET.creditPct}% зірок, витрачених у Сезоні ${prev} (VIP, «Стиль», пакети). Ними можна платити в магазині замість Telegram Stars`]);
-  // s2-fix: + its picture; the first one is already worn (src/season2.js compensate: S2_RESET.framePriority)
-  (w.frames || []).filter((f) => S.FRAME_BY_ID[f]).forEach((f, i) => out.push(['sparkles', `Рамка «${S.FRAME_BY_ID[f].name}»`, `${S.FRAME_BY_ID[f].hint}${i ? '' : ' · уже на аватарі'}`, S.FRAME_BY_ID[f].img]));
+  // s2-fix: + its frame id (drawn by public/frames.js); the first one is already worn (src/season2.js compensate: S2_RESET.framePriority)
+  (w.frames || []).filter((f) => S.FRAME_BY_ID[f]).forEach((f, i) => out.push(['sparkles', `Рамка «${S.FRAME_BY_ID[f].name}»`, `${S.FRAME_BY_ID[f].hint}${i ? '' : ' · уже на аватарі'}`, f]));
   if (w.veteran) out.push(['trophy', `Значок «${w.veteran.title}» · ${w.veteran.name}`, `за ${w.level}-й рівень у Сезоні ${prev} — назавжди в профілі`]);
   if (w.keys > 0) {
     const capped = w.friends > w.keys ? ` (максимум ${S.S2_RESET.friendKeysMax})` : '';
@@ -46,7 +47,7 @@ export function s2Ask() {
       <b class="disp">СЕЗОН ${cur.season} · «МІСТО»</b>
       <div class="muted mt">Прогрес обнулено для всіх, щоб нові бізнеси й економіка були чесними з першого дня. Акаунт, друзі, клуб і покупки — на місці.</div>
       <div class="mt">${lines.length ? `Дякуємо, що грав у Сезоні ${S.S2_RESET.prevSeason}! Ось що тобі повернулося:` : 'Стартовий кейс уже чекає — відкривай і будуй гараж заново.'}</div>
-      ${lines.length ? `<div class="s2-list">${lines.map(([i, t, s, img]) => `<div class="s2-li">${img ? `<img class="s2-li-fr" src="${img}" alt="">` : ic(i)}<span><b>${esc(t)}</b><small>${esc(s)}</small></span></div>`).join('')}</div>` : ''}
+      ${lines.length ? `<div class="s2-list">${lines.map(([i, t, s, img]) => `<div class="s2-li">${img ? `<span class="s2-li-fr">${frameHtml(img)}</span>` : ic(i)}<span><b>${esc(t)}</b><small>${esc(s)}</small></span></div>`).join('')}</div>` : ''}
       <div class="btns mt"><button class="btn yellow" data-act="s2Ok">Погнали!</button></div></div>`);
     X.api('s2/welcome-seen', {}).then(() => {
       if (X.me()) X.me().s2Welcome = null;
