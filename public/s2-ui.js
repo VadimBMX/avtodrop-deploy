@@ -591,7 +591,7 @@ function marketView(base) {
   const s = st(), m = me();
   const cs = S.CASE_BY_ID[s.caseId] || S.CASE_BY_ID.rust;
   const deal = X.caseNow(cs), keys = m.keys[cs.id] || 0;
-  const tag = deal.why === 'day' ? `${X.ic('flame')} Кейс дня −${S.CASE_OF_DAY.off * 100}%` : deal.off ? `${X.ic('flame')} −${Math.round((1 - deal.price / cs.price) * 100)}%` : cs.starter ? `${X.ic('gift')} Подарунок новачку` : cs.country ? `${X.ic('world')} Країна` : `${X.ic('box')} За рідкістю`;
+  const tag = deal.why === 'day' ? `${X.ic('flame')} Кейс дня −${S.CASE_OF_DAY.off * 100}%` : deal.off ? `${X.ic('flame')} −${Math.round((1 - deal.price / cs.price) * 100)}%` : cs.starter ? `${X.ic('gift')} Подарунок на старт` : cs.country ? `${X.ic('world')} Країна` : `${X.ic('box')} За рідкістю`;
   const feat = `<div class="s2-feat" style="--cc:${caseCol(cs)}" data-act="s2Case" data-id="${cs.id}" role="button">
     <div class="s2-feat-tx"><span class="s2-tag">${tag}</span><h3>${esc(cs.name)}</h3>
       <div class="s2-price">${cs.starter ? 'Безкоштовно' : S.fmt(deal.price)}${deal.off ? ` <s>${shortN(cs.price)}</s>` : ''}</div>
