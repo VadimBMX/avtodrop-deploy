@@ -2675,8 +2675,8 @@ export const PASS_COSMETICS = { 5: 'livery', 10: 'frame', 15: 'showcase', 20: 'g
 // Themed seasons (from season 2): a name for the pass screen, their own names and looks for the cosmetics, and a sixth
 // cosmetic at level 30 of the free track (an underglow). Season 1 keeps its five «Сезон 1» items exactly as they were.
 export const SEASON_THEMES = {
-  2: { name: 'Нічний Токіо', tagline: 'неон, естакади й дрифт до ранку', color: '#ff2bd6', accent: '#00e5ff', look: 'season2',
-    cos: { livery: 'Ліврея «Неон Сібуя»', frame: 'Рамка номера «Ханко»', showcase: 'Фон вітрини «Шуто-експрес»', gold: 'Ліврея «Сакура · Золото»', badge: 'Значок «Нічний Токіо»', glow: 'Підсвітка «Токійський неон»' },
+  2: { name: 'Місто', tagline: 'нічне місто, бізнеси й неон', color: '#ff2bd6', accent: '#00e5ff', look: 'season2',
+    cos: { livery: 'Ліврея «Неон Сібуя»', frame: 'Рамка номера «Ханко»', showcase: 'Фон вітрини «Шуто-експрес»', gold: 'Ліврея «Сакура · Золото»', badge: 'Значок «Сезон 02 · Місто»', glow: 'Підсвітка «Токійський неон»' },
     liveries: { szn: 'Неон Сібуя', gold: 'Сакура · Золото' } },
 };
 export const seasonTheme = (n) => SEASON_THEMES[n] || null;
