@@ -589,7 +589,12 @@ function openBtn(cs, n) {
   const paid = Math.max(0, n - keys), free = m.slots - m.used, price = deal.price;
   if (free < 1) return `<button class="s2-open s2-full-g" data-act="toGarage">${X.ic('building-warehouse')}Гараж повний · звільнити місце</button>`; // s2-audit
   // «Вільно 4 з 6» in the caps font read as «ВІЛЬНО 4 3 6» and didn't say what to do (persona playtest 05.11).
-  if (free < n) return `<button class="s2-open" disabled>Лише ${free} ${X.plural(free, ['вільне місце', 'вільні місця', 'вільних місць'])} · вибери менше</button>`;
+  // r7-ux (playtest 06.11: ×6 remembered, then a grey «Лише 5 вільних місць» on every visit): open what fits, once.
+  if (free < n) {
+    const kp = Math.max(0, free - keys);
+    if (kp && price * kp > m.balance) return `<button class="s2-open" disabled>Бракує ${S.short(price * kp - m.balance)}</button>`;
+    return `<button class="s2-open opencase s2-fit" data-act="openCase" data-n="${free}" data-expect="${price * kp}">${X.ic('box')}<span class="l">Відкрити ×${free} (що влізе)</span><span class="p">${kp ? shortN(price * kp) + ' ₴' : `${X.ic('key')} ${free}`}</span></button>`;
+  }
   if (paid && price * paid > m.balance) return `<button class="s2-open" disabled>Бракує ${S.short(price * paid - m.balance)}</button>`;
   return `<button class="s2-open opencase" data-act="openCase" data-expect="${price * paid}">${X.ic('box')}<span class="l">${cs.starter ? 'Відкрити' : 'Відкрити'}</span><span class="p">${cs.starter ? 'безкоштовно' : paid ? shortN(price * paid) + ' ₴' : `${X.ic('key')} ${n}`}</span></button>`;
 }
@@ -603,8 +608,7 @@ function dock(cs) {
   const fast = cs.starter ? '' : fastPill(st().fast);
   // r6: the no-room note lives INSIDE the sticky dock — after it, the dock's ::after strip (it hides what scrolls between
   // the dock and the bar) lay right on it, so «продати дешевші» was never visible. It names the count that fits (×3 / ×1).
-  const fit = [3, 1].find((k) => k <= free);
-  const note = free < n && free >= 0 && !cs.starter ? `<div class="s2-note">${free > 0 ? `Не вистачає місця для ×${n} — обери ×${fit} або продай машину` : 'Гараж заповнений — продай машину або купи місце в гаражі'} · <a class="txtlink" data-act="sellCheap" data-n="${Math.max(1, n - free)}">продати дешевші</a></div>` : '';
+  const note = free < n && free >= 0 && !cs.starter ? `<div class="s2-note">${free > 0 ? `Для ×${n} мало місця — вільно ${free}` : 'Гараж заповнений — продай машину або купи місце в гаражі'} · <a class="txtlink" data-act="sellCheap" data-n="${Math.max(1, n - free)}">продати дешевші</a></div>` : '';
   return `<div class="s2-dock${cs.starter ? '' : ' s2-dock2'}${note ? ' s2-dock-note' : ''}">${counts || fast ? `<div class="s2-dock-r">${counts}${fast}</div>` : ''}${openBtn(cs, n)}${note}</div>`;
 }
 function oddsTiles(cs, weights) {

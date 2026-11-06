@@ -50,13 +50,14 @@ test('new player: starter case free once, garage starts with 6 slots', () => {
   assert.equal(call(1, 'me').newbie.ready, true);
 });
 
-test('cases open as x1, x3 or x6 only', () => {
+// r7-ux: the picker offers ×1/×3/×6; short of room the «Відкрити ×K (що влізе)» button opens K = free slots (2, 4, 5 too)
+test('cases open as x1, x3, x6 or what fits — never more than 6', () => {
   const { mk, call, rich } = setup();
   mk(1);
   rich(1);
   assert.equal(call(1, 'case/open', { caseId: 'rust', count: 6 }).results.length, 6);
   assert.equal(call(1, 'case/open', { caseId: 'rust', count: 3 }).results.length, 3);
-  assert.throws(() => call(1, 'case/open', { caseId: 'rust', count: 5 }), /1, 3 або 6/);
+  assert.throws(() => call(1, 'case/open', { caseId: 'rust', count: 7 }), /Кількість/);
 });
 
 test('pity guarantees the first rare class of the case after its n opens', () => {

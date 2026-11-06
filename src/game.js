@@ -938,7 +938,8 @@ export function createGame(db, opts = {}) {
     const cs = own(S.CASE_BY_ID, caseId);
     if (!cs) fail('Невідомий кейс');
     const n = int(count ?? 1, 1, 6, 'Кількість');
-    if (![1, 3, 6].includes(n)) fail('Можна відкрити 1, 3 або 6');
+    // r7-ux: any count up to 6 — short of room the client offers «Відкрити ×K (що влізе)» with K = free slots (2, 4, 5
+    // too). The price is per case (price × n), so the count changes nothing in the economy.
     needSlots(uid, n);
     const k = q('SELECT count FROM keys WHERE user_id = ? AND case_id = ?').get(uid, caseId)?.count || 0;
     if (cs.starter && k < n) fail('Стартовий кейс уже відкрито');

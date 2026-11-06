@@ -1696,16 +1696,17 @@ TABS.cases = () => {
     if (onDrop && free < 1) return `<div class="tiny muted center mt">Гараж заповнений · ${me.used}/${me.slots} — продай машину або купи місце, щоб відкрити ще</div>`;
     // r4-ux: right after a drop, short of room for the picked ×N, the button opens what fits (×3 / ×1) once — the pick
     // stays; the no-room block with its two buttons is for a count the player taps on this screen.
-    const fit = [3, 1].find((k) => k <= free);
+    const fit = free >= 1 && free < n ? free : 0; // r7-ux: what fits — any count up to 6 (server openCase)
     if (free < n && onDrop && !state.countPicked && fit) {
       const fp = Math.max(0, fit - keys);
-      if (fp && price * fp > me.balance) return `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(price * fp - me.balance)}</button>`;
-      return `<button class="btn opencase second" data-act="openCase" data-n="${fit}" data-expect="${price * fp}"><span class="oc-l">Відкрити ×${fit}</span><span class="oc-p">${fp ? S.fmt(price * fp) : `${ic('key')}${fit}`}</span></button>`;
+      if (fp && price * fp > me.balance) return `<button class="btn opencase second" disabled><span class="oc-l">Відкрити ×${fit}</span><span class="oc-p">бракує ${S.short(price * fp - me.balance)}</span></button>`;
+      // r7-ux: the dock row has no room for «(що влізе)» next to the label — it rides in the price line
+      return `<button class="btn opencase second" data-act="openCase" data-n="${fit}" data-expect="${price * fp}"><span class="oc-l">Відкрити ×${fit}</span><span class="oc-p">що влізе · ${fp ? S.short(price * fp) : `${ic('key')}${fit}`}</span></button>`;
     }
     if (free < n) return noRoomHtml(n, free);
     // Not enough money: say so on the button, with how much is missing.
-    if (paid && short > 0) return `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(short)}</button>`;
-    return `<button class="btn opencase ${onDrop ? 'second' : deal.off ? 'yellow' : ''}${onDrop && state.fx?.type === 'case' ? ` lockin" style="--lk:${dropLockMs(d)}ms` : ''}" data-act="openCase" data-expect="${price * paid}">${paid ? `<span class="oc-l">${d && state.dropCase === cs.id ? 'Відкрити ще' : d ? `Відкрити «${esc(cs.name)}»` : 'Відкрити'}</span><span class="oc-p">${S.fmt(price * paid)}${deal.off ? ` <s>${S.short(cs.price * paid)}</s>` : ''}${keys ? ` + ${ic('key')}${Math.min(keys, n)}` : ''}</span>` : cs.starter ? 'Відкрити безкоштовно' : `Відкрити ключем ${ic('key')} ${n}`}</button>`;
+    if (paid && short > 0) return onDrop ? `<button class="btn opencase second" disabled><span class="oc-l">Відкрити ×${n}</span><span class="oc-p">бракує ${S.short(short)}</span></button>` : `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(short)}</button>`;
+    return `<button class="btn opencase ${onDrop ? 'second' : deal.off ? 'yellow' : ''}${onDrop && state.fx?.type === 'case' ? ` lockin" style="--lk:${dropLockMs(d)}ms` : ''}" data-act="openCase" data-expect="${price * paid}">${paid && onDrop ? `<span class="oc-l">Відкрити ×${n}</span><span class="oc-p">${S.short(price * paid)}${keys ? ` + ${ic('key')}${Math.min(keys, n)}` : ''}</span>` : paid ? `<span class="oc-l">${d && state.dropCase === cs.id ? 'Відкрити ще' : d ? `Відкрити «${esc(cs.name)}»` : 'Відкрити'}</span><span class="oc-p">${S.fmt(price * paid)}${deal.off ? ` <s>${S.short(cs.price * paid)}</s>` : ''}${keys ? ` + ${ic('key')}${Math.min(keys, n)}` : ''}</span>` : cs.starter ? 'Відкрити безкоштовно' : `Відкрити ключем ${ic('key')} ${n}`}</button>`;
   };
   let stage;
   if (d?.length === 1) {
@@ -1801,11 +1802,11 @@ function pityHook(st) {
 // fits once (data-n) and keeps the player's ×N pick; «Продати N дешевші» fits next to it at 320 px.
 function noRoomHtml(n, free) {
   const need = n - free; // over the limit (a battle prize) free is negative: sell enough to open again
-  const fit = [3, 1].find((k) => k <= free);
+  const fit = free >= 1 && free < n ? free : 0; // r7-ux: what fits — any count up to 6 (server openCase)
   const cs = S.CASE_BY_ID[state.caseId], keys = me.keys[cs?.id] || 0;
   const expect = fit && cs ? caseNow(cs).price * Math.max(0, fit - keys) : '';
   return `<button class="btn noroom" disabled>${free > 0 ? `Для ×${n} мало місця · вільно ${free} ${plural(free, ['місце', 'місця', 'місць'])}` : `Гараж заповнений · ${me.used}/${me.slots}`}</button>
-    <div class="btns noroom-btns mt">${fit ? `<button class="btn outline" data-act="openCase" data-n="${fit}" data-expect="${expect}">Відкрити ×${fit}</button>` : ''}<button class="btn ghost" data-act="sellCheap" data-n="${need}">${ic('cash')}<span>Продати ${need === 1 ? 'дешевшу' : `${need} дешевші`}</span></button></div>
+    <div class="btns noroom-btns mt">${fit ? `<button class="btn outline" data-act="openCase" data-n="${fit}" data-expect="${expect}">Відкрити ×${fit} (що влізе)</button>` : ''}<button class="btn ghost" data-act="sellCheap" data-n="${need}">${ic('cash')}<span>Продати ${need === 1 ? 'дешевшу' : `${need} дешевші`}</span></button></div>
     <div class="tiny muted center mt">або купи місце в гаражі</div>`;
 }
 H.sellCheap = (d) => {
@@ -6653,7 +6654,9 @@ function paintGuide() {
   // Once per step: bring a target that is below the fold (the first rival) into view.
   // Only as far as needed to clear the tab bar: centring it pushed the freshly dropped car under the header.
   const below = target.getBoundingClientRect().bottom - (window.innerHeight - 96);
-  if (here && guideScrolled !== key && below > 0) {
+  // r7-ux (playtest 06.11, 360×640: the dropped car slid off the top): a target in a sticky dock is on screen already —
+  // scrolling for it only moved the page under it; and nothing scrolls over a drop result.
+  if (here && guideScrolled !== key && below > 0 && !held && !target.closest('.drop-dock, .s2-dock')) {
     guideScrolled = key;
     window.scrollBy({ top: below, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }

@@ -27,3 +27,34 @@ test('first steps 7/8 below the parts level: «Дійди до 3-го рівня
   assert.equal(st.tab, 'race');
   assert.doesNotMatch(read('app.js'), /key === 'level2' \? `<button class="coach-go" data-act="workshopGo">/);
 });
+
+test('short of garage room: the button opens what fits (K = free slots) and the server takes any count up to 6', async () => {
+  const dock = s2.slice(s2.indexOf('function openBtn('), s2.indexOf('const fastPill'));
+  assert.match(dock, /data-n="\$\{free\}"/);
+  assert.match(dock, /Відкрити ×\$\{free\} \(що влізе\)/);
+  assert.doesNotMatch(dock, /вибери менше/);
+  const app = read('app.js');
+  assert.equal((app.match(/const fit = free >= 1 && free < n \? free : 0;/g) || []).length, 2);
+  const { openDb } = await import('../src/db.js');
+  const { createGame } = await import('../src/game.js');
+  const db = openDb(':memory:');
+  const g = createGame(db, { now: () => Date.parse('2026-11-06T12:00:00+02:00'), notify: () => {} });
+  g.ensureUser({ id: 7, first_name: 'T' });
+  db.prepare('UPDATE users SET balance = 10000000 WHERE id = 7').run();
+  db.prepare("DELETE FROM keys WHERE user_id = 7 AND case_id = 'starter'").run();
+  const bal = () => db.prepare('SELECT balance FROM users WHERE id = 7').get().balance;
+  let b0 = bal();
+  g.api['case/open'](7, { caseId: 'rust', count: 1 });
+  const one = b0 - bal();
+  b0 = bal();
+  const r = g.api['case/open'](7, { caseId: 'rust', count: 4 });
+  assert.equal(r.results.length, 4);
+  assert.equal(b0 - bal(), one * 4, 'price × count, nothing else');
+});
+
+test('DROP dock: «Відкрити ×N · price» with no case name; short of money the same one-row button; no guide scroll over a drop', () => {
+  const app = read('app.js');
+  assert.match(app, /\$\{paid && onDrop \? `<span class="oc-l">Відкрити ×\$\{n\}<\/span><span class="oc-p">\$\{S\.short\(price \* paid\)\}/);
+  assert.match(app, /return onDrop \? `<button class="btn opencase second" disabled><span class="oc-l">Відкрити ×\$\{n\}<\/span><span class="oc-p">бракує/);
+  assert.match(app, /below > 0 && !held && !target\.closest\('\.drop-dock, \.s2-dock'\)/);
+});
