@@ -93,6 +93,43 @@ async function scan(page, where, out) {
   for (const h of hits) out.push({ kind: 'text', where, msg: h });
 }
 
+// r6: a sticky dock paints a solid strip under itself (::after, top 100%, z −1) so nothing shows between it and the
+// bar; at the end of a page that strip lies on whatever plain content follows the dock (the no-room note, 06.11). A
+// later box that is its own layer (glass card: backdrop-filter, transform…) is painted above the strip, so it is fine.
+async function stripScan(page, where, out) {
+  const hits = await page.evaluate(async () => {
+    const y0 = scrollY;
+    window.scrollTo(0, document.documentElement.scrollHeight);
+    await new Promise((ok) => setTimeout(ok, 250));
+    const res = [];
+    const ownLayer = (x) => {
+      for (; x && x.id !== 'view'; x = x.parentElement) {
+        const c = getComputedStyle(x);
+        if (c.backdropFilter !== 'none' || c.transform !== 'none' || c.filter !== 'none' || c.isolation === 'isolate' || Number(c.opacity) < 1 || (c.position !== 'static' && c.zIndex !== 'auto')) return true;
+      }
+      return false;
+    };
+    for (const dock of document.querySelectorAll('#view *')) {
+      const ds = getComputedStyle(dock);
+      if (ds.position !== 'sticky' || !dock.offsetParent) continue;
+      const af = getComputedStyle(dock, '::after');
+      if (!af.content || af.content === 'none' || af.position !== 'absolute' || ds.overflow !== 'visible') continue;
+      const d = dock.getBoundingClientRect(), top = d.top + (parseFloat(af.top) || d.height), bottom = top + (parseFloat(af.height) || 0);
+      if (bottom - top < 4) continue;
+      for (const e of document.querySelectorAll('#view button, #view a, #view .tiny, #view .small, #view .s2-note, #view b, #view span')) {
+        if (dock.contains(e) || e.contains(dock) || !e.offsetParent || !(e.textContent || '').trim()) continue;
+        const r = e.getBoundingClientRect();
+        if (r.height < 4 || r.bottom <= top + 2 || r.top >= bottom - 2 || r.right <= d.left || r.left >= d.right) continue;
+        if (ownLayer(e)) continue;
+        res.push(`«${(e.textContent || '').trim().slice(0, 40)}» (${e.tagName}.${e.className}) under the strip of ${dock.className}`);
+      }
+    }
+    window.scrollTo(0, y0);
+    return res.slice(0, 3);
+  }).catch(() => []);
+  for (const h of hits) out.push({ kind: 'strip', where, msg: h });
+}
+
 async function sweep(browser, uid, name) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, locale: 'uk-UA' });
   const page = await ctx.newPage();
@@ -161,6 +198,7 @@ async function sweep(browser, uid, name) {
     }, v).catch((e) => out.push({ kind: 'nav', where, msg: String(e).slice(0, 200) }));
     await page.waitForTimeout(900);
     await scan(page, where, out);
+    await stripScan(page, where, out);
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `${where.replace(/[^a-z0-9.-]+/gi, '_')}.jpg`), type: 'jpeg', quality: 45 }).catch(() => {});
     if (CLICKS) {
       const n = await page.locator('[data-act]:visible').count();
