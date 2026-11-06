@@ -2435,7 +2435,8 @@ H.startRace = async (d) => {
   try {
     r = await api('race/start', { carId: state.raceCar, rival: d.rival });
   } catch (e) {
-    return toast(e.message, true);
+    // r6 persona: a broke player saw a bare «Недостатньо гривень» and kept tapping the same rival
+    return toast(e.message === 'Недостатньо гривень' ? 'Не вистачає на внесок · «Тренування» — без внеску' : e.message, true);
   }
   spendFuelLocal();
   renderHeader();
