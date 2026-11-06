@@ -16,12 +16,13 @@ export const reducedMotion = () => RM.matches;
 
 const TIERS = {
   full: { n: 1, speed: 1, dpr: 2 },
-  tile: { n: 0.42, speed: 1.12, dpr: 1.5 },
+  tile: { n: 0.55, speed: 1.12, dpr: 1.5 },
   short: { n: 0.5, speed: 2.1, dpr: 2 },
-  tshort: { n: 0.32, speed: 2.2, dpr: 1.5 }, // ×3 / ×6 in fast mode
+  tshort: { n: 0.42, speed: 2.1, dpr: 1.5 }, // ×3 / ×6 in fast mode
   preview: { n: 0.62, speed: 1, dpr: 2 }, // the shop / look-picker cards
 };
 export const DURATION = { gold: 1.9, bolt: 1.55, fire: 1.95, chrome: 1.6 }; // seconds at speed 1
+const SOFT = { fire: 1.5 }; // all glow, no hard edges: fewer pixels to fill (−45 % fill at the same look)
 
 // ---------- tiny seeded rng ----------
 function rng(seed) {
@@ -186,7 +187,7 @@ const BUILD = {
   // «Золотий дощ»: coins tumble down around the car (catching the light as they flip), land on the turntable with a
   // spark and a glint; a warm floor glow and a slow golden sheen across the car.
   gold(G, n, seed) {
-    const R = rng(seed), H = G.H;
+    const R = rng(seed), H = Math.max(G.H, 190); // sizes: a small ×3 / ×6 tile still reads
     const coins = Array.from({ length: Math.max(6, Math.round(32 * n)) }, () => {
       const land = G.gy + (R() - 0.45) * G.ry * 2.2;
       const x = G.cx + (R() * 2 - 1) * G.rx * 1.25;
@@ -280,7 +281,7 @@ const BUILD = {
   // «Блискавка»: two–three bolts strike the turntable (flickering, re-forking every few frames), each with a blue-white
   // flash that lights the car, a burst at the impact and electric arcs crawling along the turntable's edge.
   bolt(G, n, seed) {
-    const R = rng(seed), H = G.H;
+    const R = rng(seed), H = Math.max(G.H, 190); // sizes: a small ×3 / ×6 tile still reads
     const k = n < 0.6 ? 2 : 3;
     const strikes = Array.from({ length: k }, (_, i) => {
       // the hits land on the near rim of the turntable, left / right of the car, never on the same side twice in a row
@@ -407,8 +408,8 @@ const BUILD = {
   // «Вогняний вибух»: a burst ring of flame runs out over the turntable from under the car, tongues of fire rise off it,
   // embers drift up long after; the car is lit warm from below.
   fire(G, n, seed) {
-    const R = rng(seed), H = G.H;
-    const segs = Math.max(26, Math.round(64 * n));
+    const R = rng(seed), H = Math.max(G.H, 190); // sizes: a small ×3 / ×6 tile still reads
+    const segs = Math.max(24, Math.round(52 * n));
     const ring_ = Array.from({ length: segs }, (_, i) => ({ a: (i / segs) * Math.PI * 2 + R() * 0.1, j: R(), s: 0.8 + R() * 0.5 }));
     const tongues = Array.from({ length: Math.max(12, Math.round(44 * n)) }, () => ({ a: R() * Math.PI * 2, t: 0.02 + R() * 0.42, r: 0.7 + R() * 0.4, v: H * (0.3 + R() * 0.35), life: 0.35 + R() * 0.4, s: H * (0.09 + R() * 0.08), dx: (R() - 0.5) * H * 0.12 }));
     const embers = Array.from({ length: Math.max(8, Math.round(30 * n)) }, () => ({ a: R() * Math.PI * 2, r: 0.3 + R() * 1.3, t: 0.1 + R() * 0.5, life: 0.9 + R() * 0.9, v: H * (0.18 + R() * 0.28), w: 2 + R() * 4, p: R() * 6.3, s: Math.max(1, H * (0.006 + R() * 0.006)) }));
@@ -417,6 +418,7 @@ const BUILD = {
     const glows = Array.from({ length: 6 }, (_, i) => glow(fireCol(i / 5), 0.85));
     const gOf = (k) => glows[Math.min(5, Math.round(k * 5))];
     const gEm = glow([255, 214, 150], 1);
+    const fa = n < 0.7 ? 0.65 : 1; // lighter flames on the ×3 / ×6 tiles
     return {
       dur: DURATION.fire,
       draw(b, f, t, M) {
@@ -428,7 +430,7 @@ const BUILD = {
         const rk = easeOut(t / 0.7), rad = 0.3 + rk * 0.85, fade = 1 - clamp01((t - 0.2) / 0.75);
         if (fade > 0) {
           // a continuous ring of fire (wide deep red → orange → a hot thin core), then flame licks along it
-          const fp = [[9, RED, 0.2 * fade], [4, ORA, 0.3 * fade], [1.4, [255, 190, 80], 0.5 * fade], [0.45, HOT, 0.6 * fade]];
+          const fp = [[7, RED, 0.24 * fade], [3.5, ORA, 0.32 * fade], [1.4, [255, 190, 80], 0.5 * fade], [0.45, HOT, 0.6 * fade]];
           ring(b, G, rad, true, fp, H * 0.009 * (1 - rk * 0.4));
           ring(f, G, rad, false, fp, H * 0.009 * (1 - rk * 0.4));
           for (const s of ring_) {
@@ -437,8 +439,8 @@ const BUILD = {
             const ctx = Math.sin(s.a) > 0 ? f : b, sz = H * 0.11 * s.s * (1 - rk * 0.35);
             const lick = 0.55 + 0.45 * Math.sin(t * 24 + s.j * 9);
             // a flame: a wide warm body and a narrow hot tip above it
-            put(ctx, gOf(clamp01(0.45 + rk * 0.4 + s.j * 0.15)), x, y - sz * 0.45 * lick, sz * 0.8, sz * 1.5 * lick, fade * 0.55);
-            put(ctx, gOf(clamp01(rk * 0.5 + s.j * 0.2)), x, y - sz * 0.8 * lick, sz * 0.38, sz * 1.9 * lick, fade * 0.75);
+            put(ctx, gOf(clamp01(0.45 + rk * 0.4 + s.j * 0.15)), x, y - sz * 0.45 * lick, sz * 0.8, sz * 1.5 * lick, fade * 0.55 * fa);
+            put(ctx, gOf(clamp01(rk * 0.5 + s.j * 0.2)), x, y - sz * 0.8 * lick, sz * 0.38, sz * 1.9 * lick, fade * 0.75 * fa);
           }
         }
         // tongues of flame: rise, lean, shrink, cool from white-yellow to deep red
@@ -477,7 +479,7 @@ const BUILD = {
   // «Хромована хвиля»: a polished-metal shockwave runs out over the turntable (bright core, thin cyan / magenta
   // fringes, a second fainter echo), a specular band sweeps across the car body with a few glints, silver flecks fly.
   chrome(G, n, seed) {
-    const R = rng(seed), H = G.H;
+    const R = rng(seed), H = Math.max(G.H, 190); // sizes: a small ×3 / ×6 tile still reads
     const flecks = Array.from({ length: Math.max(6, Math.round(18 * n)) }, () => ({ a: R() * Math.PI * 2, v: 0.9 + R() * 0.9, t: 0.02 + R() * 0.1, life: 0.45 + R() * 0.4, s: Math.max(1, H * (0.006 + R() * 0.006)) }));
     const glints = Array.from({ length: 3 }, (_, i) => ({ u: 0.25 + i * 0.25 + (R() - 0.5) * 0.1, v: 0.25 + R() * 0.3 }));
     const gw = glow([235, 242, 255]), gl = glint([200, 225, 255]);
@@ -556,7 +558,7 @@ export function play(host, look, { tier = 'full', delay = 0, loop = false, perio
   let G = null, M = null, fx = null, start = 0, stopped = false, runs = 0, dpr = 1, shownAt = 0, dropAnim = null;
   const setup = () => {
     G = measure(host);
-    dpr = Math.min(T.dpr, devicePixelRatio || 1);
+    dpr = Math.min(T.dpr, SOFT[look] || 9, devicePixelRatio || 1);
     for (const c of [cb, cf]) (c.width = Math.max(1, Math.round(G.W * dpr)), c.height = Math.max(1, Math.round(G.H * dpr)));
     M = carMask(G, dpr);
     fx = BUILD[look](G, T.n, seed ?? ((Math.random() * 1e9) | 0) + runs * 7919);
@@ -621,7 +623,7 @@ export function play(host, look, { tier = 'full', delay = 0, loop = false, perio
       setup();
       render({ gold: 0.75, bolt: 0.03, fire: 0.3, chrome: 0.4 }[look]);
       for (const c of [cb, cf]) c.classList.add('dfx-still');
-      if (!loop) s.tm = setTimeout(() => (cb.classList.add('dfx-out'), cf.classList.add('dfx-out'), (s.tm = setTimeout(() => s.stop(), 700))), 900);
+      if (!loop) s.tm = setTimeout(() => (cb.classList.add('dfx-out'), cf.classList.add('dfx-out'), (s.tm = setTimeout(() => s.stop(), 700))), 1400);
     }, delay);
     return s;
   }
@@ -635,7 +637,7 @@ export function play(host, look, { tier = 'full', delay = 0, loop = false, perio
 export function frameAt(host, look, t, { tier = 'full', seed = 1 } = {}) {
   const T = TIERS[tier] || TIERS.full;
   if (!host || !BUILD[look]) return () => {};
-  const G = measure(host), dpr = Math.min(T.dpr, devicePixelRatio || 1), cs = [];
+  const G = measure(host), dpr = Math.min(T.dpr, SOFT[look] || 9, devicePixelRatio || 1), cs = [];
   const ctxs = ['dfx-b', 'dfx-f'].map((cls) => {
     const c = document.createElement('canvas');
     c.className = 'dfx-c ' + cls;

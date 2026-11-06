@@ -18,7 +18,7 @@ function sampleModel() {
   const c = (me()?.cars || []).filter((x) => x.status !== 'auction').sort((a, b) => b.value - a.value)[0];
   return c?.model || AURORA;
 }
-const stage = (look, cls = '') => `<div class="dfx-pv ${cls}" data-fx="${look}"><div class="a-car"><div class="art">${X.carArt(sampleModel())}</div></div></div>`;
+const stage = (look, cls = '', i = 0) => `<div class="dfx-pv ${cls}" data-fx="${look}" data-i="${i}"><div class="a-car"><div class="art">${X.carArt(sampleModel())}</div></div></div>`;
 
 // ---------- looping previews (only while on screen) ----------
 const players = new WeakMap();
@@ -27,7 +27,8 @@ function watchPreviews(root = document) {
   io ||= new IntersectionObserver((ents) => {
     for (const e of ents) {
       const el = e.target, p = players.get(el);
-      if (e.isIntersecting && !p) players.set(el, DFX.play(el, el.dataset.fx, { tier: 'preview', loop: true, drop: true, period: 2900 }));
+      // staggered by the card's place, so the four cards take turns instead of firing together
+      if (e.isIntersecting && !p) players.set(el, DFX.play(el, el.dataset.fx, { tier: 'preview', loop: true, drop: true, period: 2400, delay: (Number(el.dataset.i) || 0) * 600 }));
       else if (!e.isIntersecting && p) (p.stop(), players.delete(el));
     }
   }, { threshold: 0.25 });
@@ -38,12 +39,12 @@ function watchPreviews(root = document) {
 // The section in «Стиль» (app.js styleView): 2 × 2 cards, each a live preview, the name, a hint and its button.
 export function styleSection(sh, buyBtns) {
   const worn = me()?.dropfx || null;
-  const card = (it) => {
+  const card = (it, i) => {
     const own = owned(it), on = worn === it.cos;
     const btn = !own ? buyBtns({ id: it.id, price: it.stars }, sh, 'yellow')
       : on ? `<button class="btn sm ghost on" data-act="dfxEquip" data-id="">${X.ic('check')} Увімкнено</button>`
       : `<button class="btn sm" data-act="dfxEquip" data-id="${it.cos}">Увімкнути</button>`;
-    return `<div class="dfx-card fx-${it.look}${own ? ' own' : ''}${on ? ' on' : ''}">${stage(it.look)}<div class="dfx-tx"><b>${X.esc(it.short)}</b><small>${own ? `${X.ic('check')} твоє${on ? ' · грає' : ''}` : X.esc(it.hint)}</small></div>${btn}</div>`;
+    return `<div class="dfx-card fx-${it.look}${own ? ' own' : ''}${on ? ' on' : ''}">${stage(it.look, '', i)}<div class="dfx-tx"><b>${X.esc(it.short)}</b><small>${own ? `${X.ic('check')} твоє${on ? ' · грає' : ''}` : X.esc(it.hint)}</small></div>${btn}</div>`;
   };
   return `<div class="h2 dfx-h" id="dfxSec"><span>${X.ic(S.DROPFX.icon)} ${S.DROPFX.title}</span><span>${X.ic('star')} ${S.DROPFX.stars}</span></div>
     <div class="tiny muted sty-where">${X.esc(S.DROPFX.where)}. Бачиш лише ти. Один увімкнений за раз, куплені — назавжди.</div>
