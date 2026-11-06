@@ -847,6 +847,7 @@ export function createGame(db, opts = {}) {
       luck: luckOf(u.id), rescueAt: rescueNext(u),
       stars: u.stars, vipUntil: u.vip_until, vip: u.vip_until > now(), starterBought: !!u.starter_bought,
       style: styleOf(uid, claims.filter((k) => k.startsWith('cos:'))), // «Стиль»: what is worn (owned ones are in claims)
+      dropfx: S.dropFxWorn(claims, styleSet(uid)), // r5-shop: the worn «Ефект дропу» (private, only in me)
       homeOffer: !claims.includes('home-screen') && daysPlayed(uid) >= S.HOME_SCREEN.day, // offer the home-screen shortcut
       season: (({ claimed, ...s }) => s)(seasonInfo(u)), badges: badgesOf(uid),
       legacy: isLegacy(uid), // played the first version: «Гравець з перших днів» badge in the profile
@@ -3351,7 +3352,7 @@ export function createGame(db, opts = {}) {
   // Put on a cosmetic the player owns ('' = take the slot off).
   function styleEquip(uid, { slot, id }) {
     const sl = String(slot || '');
-    if (!S.STYLE_SLOTS.includes(sl)) fail('Невідомий слот');
+    if (!S.STYLE_SLOTS.includes(sl) && sl !== S.DROPFX.slot) fail('Невідомий слот'); // r5-shop: + the private «Ефект дропу» slot
     const want = id ? String(id) : '';
     if (want) {
       const c = S.cosmeticOf(want);
@@ -3359,12 +3360,12 @@ export function createGame(db, opts = {}) {
       if (!q('SELECT 1 FROM claims WHERE user_id = ? AND key = ?').get(uid, want)) fail('Спершу купи цей предмет у «Стилі»');
     }
     q('UPDATE users SET style = ? WHERE id = ?').run(JSON.stringify({ ...styleSet(uid), [sl]: want }), uid);
-    return { style: styleOf(uid) };
+    return { style: styleOf(uid), dropfx: S.dropFxWorn(cosClaims(uid), styleSet(uid)) };
   }
   // A cosmetic just bought goes on at once (its slot), liveries wait in the paint shop.
   function styleWear(uid, cosId) {
     const c = S.cosmeticOf(cosId);
-    if (c && S.STYLE_SLOTS.includes(c.kind)) q('UPDATE users SET style = ? WHERE id = ?').run(JSON.stringify({ ...styleSet(uid), [c.kind]: cosId }), uid);
+    if (c && (S.STYLE_SLOTS.includes(c.kind) || c.kind === S.DROPFX.slot)) q('UPDATE users SET style = ? WHERE id = ?').run(JSON.stringify({ ...styleSet(uid), [c.kind]: cosId }), uid);
   }
   // ---------- home-screen shortcut and emoji status (Telegram WebApp, Bot API 8.0) ----------
   const daysPlayed = (uid) => q('SELECT COUNT(*) n FROM user_days WHERE user_id = ?').get(uid).n;

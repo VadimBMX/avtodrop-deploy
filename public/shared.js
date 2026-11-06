@@ -2837,6 +2837,26 @@ export const STYLE_ITEMS = [
   { id: 'gl-magenta', kind: 'glow', look: 'magenta', name: 'Підсвітка «Фіолетова»', stars: 75, hint: 'неон під днищем' },
   { id: 'gl-amber', kind: 'glow', look: 'amber', name: 'Підсвітка «Бурштин»', stars: 75, hint: 'теплий неон під днищем' },
 ].map((it) => ({ ...it, cos: 'cos:x:' + it.id }));
+// ---------- «Ефект дропу» (r5-shop, owner 06.11): what plays when MY dropped car lands on the result stage ----------
+// Sold like any «Стиль» item (claim "cos:x:<id>", the same invoice / credit / refund path), but a private slot: only
+// the owner sees it (his own case opens), so it is kept out of STYLE_SLOTS / styleWorn (the public look). The pick
+// lives in the same users.style JSON under `dropfx` ('' = off) and comes back as me.dropfx. Drawn by public/dropfx.js.
+export const DROPFX = { slot: 'dropfx', stars: 120, title: 'Ефект дропу', icon: 'sparkles', where: 'грає, коли твоя машина з кейса стає на поворотний стіл (×3 / ×6 — на кожній)' };
+export const DROPFX_ITEMS = [
+  { id: 'fx-gold', look: 'gold', name: 'Ефект «Золотий дощ»', short: 'Золотий дощ', hint: 'золоті монети й іскри падають довкола' },
+  { id: 'fx-bolt', look: 'bolt', name: 'Ефект «Блискавка»', short: 'Блискавка', hint: 'розряди б’ють у стіл, спалах' },
+  { id: 'fx-fire', look: 'fire', name: 'Ефект «Вогняний вибух»', short: 'Вогняний вибух', hint: 'вогняне кільце й жарини' },
+  { id: 'fx-chrome', look: 'chrome', name: 'Ефект «Хромована хвиля»', short: 'Хромована хвиля', hint: 'хромова хвиля й відблиск' },
+].map((it) => ({ ...it, kind: DROPFX.slot, stars: DROPFX.stars, cos: 'cos:x:' + it.id }));
+STYLE_KINDS[DROPFX.slot] = { title: DROPFX.title, short: DROPFX.title, icon: DROPFX.icon, where: DROPFX.where, own: true };
+STYLE_ITEMS.push(...DROPFX_ITEMS);
+// The worn drop effect: the pick while owned, else none (never on by itself). Returns the look ('gold'…) or null.
+export function dropFxWorn(claims, style) {
+  const pick = style && typeof style[DROPFX.slot] === 'string' ? style[DROPFX.slot] : '';
+  const it = pick && (claims || []).includes(pick) ? DROPFX_ITEMS.find((x) => x.cos === pick) : null;
+  return it ? it.cos : null;
+}
+export const dropFxLook = (cos) => DROPFX_ITEMS.find((x) => x.cos === cos)?.look || null;
 // Event cosmetics ("cos:e:<id>"): earned in an event (public/halloween.js), never sold — not in STYLE_ITEMS / the shop.
 export const EVENT_COSMETICS = [
   { id: 'hw-pumpkin', kind: 'frame', look: 'pumpkin', name: 'Рамка «Гарбуз»', hint: 'нагорода «Ночі Хелловіну»', event: 'halloween' },
