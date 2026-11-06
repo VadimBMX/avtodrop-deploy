@@ -120,7 +120,7 @@ test('default calendar: 8 weeks from 2.11, after Halloween, no clashes, only exi
   }
   // Every week has a country, and the named examples are there.
   for (let w = 1; w <= 8; w++) assert.ok(evs.some((e) => e.seed === `w${w}-country`));
-  for (const t of ['Тиждень Японії', 'Вихідні удачі', 'Ніч дрифту: Токіо', 'Старт сезону: подвійний досвід']) assert.ok(evs.some((e) => e.title === t), t);
+  for (const t of ['Тиждень Японії', 'Вихідні удачі', 'Ніч дрифту · Місто', 'Старт сезону: подвійний досвід']) assert.ok(evs.some((e) => e.title === t), t);
   // No more generous than the rotation it replaces: luck / race / fuel / plates days over 8 weeks ≤ the rotation's.
   const rot = S.eventsBetween(S.kyivParse('2026-11-02T00:00'), S.kyivParse('2026-12-28T00:00'));
   const days = (list, id, k = 'id') => list.filter((e) => e[k] === id).reduce((n, e) => n + (e.end - e.start), 0) / DAY;

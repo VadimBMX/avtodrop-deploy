@@ -12,10 +12,10 @@ import * as HW from '../public/halloween.js';
 // Seasons in this window: S2 till 16.11 23:00, S3 till 30.11, S4 till 14.12, S5 till 28.12 (S.seasonEndOf).
 const W = (seed, kind, from, to, title, params = {}) => ({ seed, kind, from, to, title, ...params });
 export const DEFAULT_PLAN = [
-  // Week 1 · старт Сезону 2 «Нічний Токіо»
+  // Week 1 · старт Сезону 2 «Місто» (was «Нічний Токіо» until 06.11)
   W('w1-country', 'country', '2026-11-03T00:00', '2026-11-09T00:00', 'Тиждень Японії', { country: 'JP' }),
   W('w1-xp', 'xp', '2026-11-03T00:00', '2026-11-05T00:00', 'Старт сезону: подвійний досвід'),
-  W('w1-drift', 'drift', '2026-11-06T18:00', '2026-11-07T00:00', 'Ніч дрифту: Токіо'),
+  W('w1-drift', 'drift', '2026-11-06T18:00', '2026-11-07T00:00', 'Ніч дрифту · Місто'),
   W('w1-luck', 'luck', '2026-11-07T00:00', '2026-11-09T00:00', 'Вихідні удачі'),
   // Week 2
   W('w2-country', 'country', '2026-11-09T00:00', '2026-11-16T00:00', 'Тиждень Німеччини', { country: 'DE' }),
@@ -149,8 +149,21 @@ export function createSchedule(ctx) {
     changed();
     return { added: added.length, skipped };
   }
+  // r6 (06.11): Season 2 is «Місто» (owner) — a slot already seeded under the old «Нічний Токіо» wording takes the new
+  // title on the next start, but only while its title is still the seeded one (an owner's own edit in «Події» stays).
+  const RESEEDED_TITLES = [{ seed: 'w1-drift', was: 'Ніч дрифту: Токіо' }];
+  function renameSeeded() {
+    let n = 0;
+    for (const r of RESEEDED_TITLES) {
+      const to = DEFAULT_PLAN.find((s) => s.seed === r.seed)?.title;
+      if (to) n += Number(q('UPDATE event_plan SET title = ? WHERE seed = ? AND title = ?').run(to, r.seed, r.was).changes);
+    }
+    if (n) changed();
+    return n;
+  }
   // Seeded once per database (the live server passes opts.seedSchedule); the panel can bring missing slots back.
   function seedOnce() {
+    renameSeeded();
     if (metaGet(SEED_META)) return null;
     return seed('system');
   }
