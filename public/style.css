@@ -7815,3 +7815,134 @@ body.s2 .s2-ct small.s2-ct-k .i { width: 11px; height: 11px; }
 .s2c-st.s2c-st-q { text-align: left; color: inherit; font: inherit; cursor: pointer; }
 .s2c-st.s2c-st-q small { display: flex; align-items: center; gap: 3px; }
 .s2c-st.s2c-st-q small .i { width: 12px; height: 12px; flex: none; opacity: .8; }
+
+/* r9-plates */
+/* Plate frames («Рамки номерів», S.STYLE_ITEMS kind frame) drawn in code — public/plate-frames.js puts
+   .plf > .plf-r(.plf-s) + .plf-a/.plf-b/.plf-c into every framed plate. .plf-r is the rim: a rounded ring of thickness --t
+   round the plate (masked to the ring), lit on top and shaded below like the helmet frames; the other layers stand out of
+   it. 50 ⭐ looks are still; the 100 ⭐ ones (blaze, volt, pulse, gild) move with transform / opacity only, and only under
+   .plf.live (on screen, no reduced motion). Without .live each one is a finished still picture. */
+.plate.pf-neon, .plate.pf-carbon, .plate.pf-chrome, .plate.pf-flame, .plate.pf-ua, .plate.pf-blaze, .plate.pf-volt, .plate.pf-pulse, .plate.pf-gild { overflow: visible; --t: max(2.5px, calc(var(--h) * .15)); --tw: max(1px, calc(var(--h) * .05)); --pr: calc(var(--h) * .12); }
+.plf { position: absolute; inset: calc(-1px - var(--t)); z-index: 3; display: block; pointer-events: none; border-radius: calc(var(--pr) + var(--t)); }
+.plf > i, .plf-r > i { position: absolute; display: block; pointer-events: none; }
+.plf-r { inset: 0; box-sizing: border-box; border-radius: inherit; padding: calc(var(--t) + 1px); overflow: hidden; background: #15171b;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+.plf-r::before { content: ''; position: absolute; inset: 0; border-radius: inherit; z-index: 1; background: linear-gradient(180deg, #ffffffa0 0, #ffffff30 7%, #fff0 16%, #0000 84%, #00000070 100%); box-shadow: inset 0 0 0 .6px #000a; }
+.plf-r::after { content: ''; position: absolute; z-index: 1; inset: calc(var(--t) + 1px - max(.7px, calc(var(--h) * .03))); border-radius: var(--pr); border: max(.7px, calc(var(--h) * .03)) solid var(--lip, #000b); }
+.plf-s { inset: 0; }
+.plf-a::before, .plf-a::after, .plf-b::before, .plf-b::after, .plf-c::before, .plf-c::after { content: ''; position: absolute; display: block; }
+
+/* ---- 50 ⭐: still ---- */
+.plate.pf-neon:not(.lit) { box-shadow: 0 0 0 var(--t) #0a0d12, 0 0 calc(var(--h) * .7) #00c8ff59, 0 2px 8px #0009; }
+.pf-neon .plf-r { background: linear-gradient(180deg, #1d2532, #0a0d12 50%, #141a24); --lip: #00e5ff55; }
+.pf-neon .plf-a { inset: calc(var(--t) * .55 + .5px - var(--tw) / 2); border-radius: calc(var(--pr) + var(--t) * .45); border: var(--tw) solid #c4fbff;
+  box-shadow: 0 0 1.5px .5px #00e5ff, 0 0 calc(var(--h) * .3) #00d0ffb0, inset 0 0 1.5px .5px #00e5ff; }
+.pf-neon .plf-b { inset: .5px; border-radius: inherit; border: max(.6px, calc(var(--h) * .022)) solid #a46bffb0; }
+
+.plate.pf-carbon:not(.lit) { box-shadow: 0 0 0 var(--t) #0c0d10, 0 2px 8px #000a; }
+.pf-carbon .plf-r { --cw: max(2.4px, calc(var(--h) * .1)); background: repeating-conic-gradient(from 45deg, #42464f 0 25%, #0a0b0d 0 50%) 0 0 / var(--cw) var(--cw), #111; --lip: #000; }
+.pf-carbon .plf-s { background: linear-gradient(105deg, #fff0 28%, #ffffff3a 40%, #fff0 50%, #fff0 74%, #ffffff22 80%, #fff0 86%); }
+.pf-carbon .plf-b { inset: calc(var(--t) * .62); border-radius: calc(var(--pr) + var(--t) * .4); border: max(.6px, calc(var(--h) * .025)) solid #e8202a; box-shadow: 0 0 2px #e8202a88; }
+
+.plate.pf-chrome:not(.lit) { box-shadow: 0 0 0 var(--t) #8a939c, 0 2px 8px #0009; }
+.pf-chrome .plf-r { background: linear-gradient(180deg, #fff 0%, #e4e9ee 14%, #a3acb6 34%, #3a4148 49%, #5e6872 54%, #c9d0d7 72%, #fff 87%, #8a939c 100%); --lip: #1f242a; }
+.pf-chrome .plf-s { background: linear-gradient(112deg, #fff0 18%, #ffffffd0 25%, #fff0 31%, #fff0 66%, #ffffff90 71%, #fff0 76%); }
+
+.plate.pf-flame:not(.lit) { box-shadow: 0 0 0 var(--t) #c4180c, 0 0 calc(var(--h) * .55) #ff4d0070, 0 2px 8px #0009; }
+.pf-flame .plf-r { background: linear-gradient(180deg, #6a0b04 0%, #c4180c 22%, #ff4a00 52%, #ff9a00 78%, #ffd23a 100%); --lip: #3a0602; }
+.pf-flame .plf-a { --fh: calc(var(--h) * .44); left: calc(var(--t) * .8); right: calc(var(--t) * .8); bottom: calc(100% - var(--t) * .75); height: var(--fh);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 40' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='1' x2='0' y2='0'%3E%3Cstop offset='0' stop-color='%23fffbe0'/%3E%3Cstop offset='.3' stop-color='%23ffe066'/%3E%3Cstop offset='.66' stop-color='%23ff9a00'/%3E%3Cstop offset='1' stop-color='%23ff5a00' stop-opacity='0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M0 40C3 34 6 30 6 23C9 28 10 32 10 35C12 30 15 25 14 14C18 21 21 28 20 34C22 31 24 28 23 22C27 28 29 33 29 36C31 32 33 28 33 20C37 26 40 32 39 36C41 34 43 31 44 27C46 32 47 36 48 40Z' fill='url(%23g)'/%3E%3C/svg%3E") repeat-x 0 100% / calc(var(--fh) * 2) 100%; -webkit-mask: linear-gradient(90deg, #0000, #000 8%, #000 92%, #0000); mask: linear-gradient(90deg, #0000, #000 8%, #000 92%, #0000); }
+
+.plate.pf-ua:not(.lit) { box-shadow: 0 0 0 var(--t) #0057b7, 0 2px 8px #0009; }
+.pf-ua .plf-r { background: linear-gradient(180deg, #3d8bff 0%, #0057b7 30%, #004a9e 49.6%, #ffd500 50.4%, #ffdf3a 70%, #e0a800 100%); --lip: #00000080; }
+.pf-ua .plf-s { background: linear-gradient(110deg, #fff0 22%, #ffffff70 30%, #fff0 37%); }
+
+/* ---- 100 ⭐: animated ---- */
+/* «Живий вогонь»: a charred rim with lava running along it, two rows of flames licking up the top edge, flames rising
+   along the sides, the glow flickering */
+.plate.pf-blaze:not(.lit) { box-shadow: 0 0 0 var(--t) #2a0801, 0 0 calc(var(--h) * .5) #ff4a0080, 0 2px 8px #0009; }
+.pf-blaze .plf-r { background: linear-gradient(180deg, #5a1203, #1c0601 40%, #2a0801 60%, #7a1a04); --lip: #ffb347; }
+.pf-blaze .plf-r::after { box-shadow: 0 0 2px #ff7a1a, inset 0 0 1.5px #ff7a1a; }
+.pf-blaze .plf-s { left: 0; top: 0; bottom: 0; right: auto; width: calc(100% + var(--h) * 1.6); opacity: .85;
+  background: repeating-linear-gradient(90deg, #ff3a0000 0, #ff6a00c0 calc(var(--h) * .35), #ffd36ae0 calc(var(--h) * .5), #ff6a00c0 calc(var(--h) * .65), #ff3a0000 calc(var(--h) * 1), #ff3a0000 calc(var(--h) * 1.6)); }
+.pf-blaze .plf-a { --fh: calc(var(--h) * var(--fk, .7)); --fw: calc(var(--fh) * 1.2); left: calc(var(--t) * .2); right: calc(var(--t) * .2); bottom: calc(100% - var(--t) * .8); height: var(--fh); overflow: hidden;
+  -webkit-mask: linear-gradient(90deg, #0000, #000 6%, #000 94%, #0000); mask: linear-gradient(90deg, #0000, #000 6%, #000 94%, #0000); }
+.pf-blaze .plf-a::before { top: 0; bottom: 0; left: calc(var(--fw) * -1); right: 0; transform-origin: 50% 100%; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 40' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='1' x2='0' y2='0'%3E%3Cstop offset='0' stop-color='%23ffb000'/%3E%3Cstop offset='.4' stop-color='%23ff4a00'/%3E%3Cstop offset='.75' stop-color='%23ff2a00' stop-opacity='.8'/%3E%3Cstop offset='1' stop-color='%23ff2000' stop-opacity='0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M0 40C2 32 5 28 4 20C7 25 9 29 9 32C10 24 12 16 10 4C15 13 19 22 17 30C19 27 21 24 20 17C24 23 26 29 26 33C28 27 31 22 30 12C35 20 38 28 36 34C38 31 40 29 40 24C43 29 46 34 48 40Z' fill='url(%23g)'/%3E%3C/svg%3E") repeat-x 0 100% / var(--fw) 100%; }
+.pf-blaze .plf-a::after { top: 30%; bottom: 0; left: calc(var(--fw) * -.7); right: 0; transform-origin: 50% 100%; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 40' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='1' x2='0' y2='0'%3E%3Cstop offset='0' stop-color='%23fffbe0'/%3E%3Cstop offset='.3' stop-color='%23ffe066'/%3E%3Cstop offset='.66' stop-color='%23ff9a00'/%3E%3Cstop offset='1' stop-color='%23ff5a00' stop-opacity='0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M0 40C3 34 6 30 6 23C9 28 10 32 10 35C12 30 15 25 14 14C18 21 21 28 20 34C22 31 24 28 23 22C27 28 29 33 29 36C31 32 33 28 33 20C37 26 40 32 39 36C41 34 43 31 44 27C46 32 47 36 48 40Z' fill='url(%23g)'/%3E%3C/svg%3E") repeat-x calc(var(--fw) * .3) 100% / calc(var(--fw) * .7) 100%; }
+.pf-blaze .plf-c { --fs: calc(var(--h) * .3); --sw: calc(var(--fs) * .9); top: calc(var(--t) * .3); bottom: calc(var(--t) * .5); left: calc(var(--t) * .75 - var(--fs)); right: calc(var(--t) * .75 - var(--fs)); overflow: hidden;
+  -webkit-mask: linear-gradient(#000 45%, #0000); mask: linear-gradient(#000 45%, #0000); }
+.pf-blaze .plf-c::before, .pf-blaze .plf-c::after { top: 0; bottom: calc(var(--sw) * -1); width: var(--fs); }
+.pf-blaze .plf-c::before { left: 0; transform-origin: 100% 50%; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 24' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='1' x2='0' y2='0'%3E%3Cstop offset='0' stop-color='%23ffb000'/%3E%3Cstop offset='.4' stop-color='%23ff4a00'/%3E%3Cstop offset='.75' stop-color='%23ff2a00' stop-opacity='.8'/%3E%3Cstop offset='1' stop-color='%23ff2000' stop-opacity='0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cg transform='translate(0 24) rotate(-90)'%3E%3Cpath d='M0 40C1 33 4 30 3 22C6 26 7 30 7 33C8 26 10 20 9 8C13 16 16 24 15 31C17 28 18 25 18 18C21 24 23 30 24 40Z' fill='url(%23g)'/%3E%3C/g%3E%3C/svg%3E") repeat-y 100% 0 / 100% var(--sw); }
+.pf-blaze .plf-c::after { right: 0; transform-origin: 0 50%; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 24' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='1' x2='0' y2='0'%3E%3Cstop offset='0' stop-color='%23ffb000'/%3E%3Cstop offset='.4' stop-color='%23ff4a00'/%3E%3Cstop offset='.75' stop-color='%23ff2a00' stop-opacity='.8'/%3E%3Cstop offset='1' stop-color='%23ff2000' stop-opacity='0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cg transform='translate(40 0) scale(-1 1)'%3E%3Cg transform='translate(0 24) rotate(-90)'%3E%3Cpath d='M0 40C1 33 4 30 3 22C6 26 7 30 7 33C8 26 10 20 9 8C13 16 16 24 15 31C17 28 18 25 18 18C21 24 23 30 24 40Z' fill='url(%23g)'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat-y 0 0 / 100% var(--sw); }
+.pf-blaze .plf-b { z-index: -1; inset: calc(var(--t) * .2); border-radius: inherit; box-shadow: 0 0 calc(var(--h) * .4) calc(var(--h) * .05) #ff5a00a0, 0 calc(var(--h) * -.18) calc(var(--h) * .55) #ff8a0070; }
+.pf-blaze .plf.live .plf-s { animation: plf-lava 2.6s linear infinite; }
+.pf-blaze .plf.live .plf-a::before { animation: plf-lick 1.5s linear infinite; }
+.pf-blaze .plf.live .plf-a::after { animation: plf-lick2 .95s linear infinite; }
+.pf-blaze .plf.live .plf-c::before, .pf-blaze .plf.live .plf-c::after { animation: plf-rise 1.1s linear infinite; }
+.pf-blaze .plf.live .plf-b { animation: plf-flicker 1.3s ease-in-out infinite; }
+@keyframes plf-lava { to { transform: translateX(calc(var(--h) * -1.6)); } }
+@keyframes plf-lick { 0% { transform: translateX(0) scaleY(1); } 25% { transform: translateX(calc(var(--fw) * .25)) scaleY(.8); } 50% { transform: translateX(calc(var(--fw) * .5)) scaleY(1.06); } 75% { transform: translateX(calc(var(--fw) * .75)) scaleY(.86); } 100% { transform: translateX(var(--fw)) scaleY(1); } }
+@keyframes plf-lick2 { 0% { transform: translateX(0) scaleY(1); } 30% { transform: translateX(calc(var(--fw) * .21)) scaleY(1.15); } 65% { transform: translateX(calc(var(--fw) * .455)) scaleY(.78); } 100% { transform: translateX(calc(var(--fw) * .7)) scaleY(1); } }
+@keyframes plf-rise { 0% { transform: translateY(0) scaleX(1); } 50% { transform: translateY(calc(var(--sw) * -.5)) scaleX(.8); } 100% { transform: translateY(calc(var(--sw) * -1)) scaleX(1); } }
+@keyframes plf-flicker { 0%, 100% { opacity: 1; } 20% { opacity: .6; } 45% { opacity: .95; } 70% { opacity: .5; } }
+
+/* small plates sit right under a car name on the cards: shorter flames and a little air above them */
+.plate.sm.pf-blaze { --fk: .52; margin-top: 4px; }
+.plate.sm.pf-flame { margin-top: 3px; }
+
+/* «Блискавка»: a dark steel rim with an electric lip; arcs crawl clockwise round it (top →, right ↓, bottom ←, left ↑),
+   flickering */
+.plate.pf-volt:not(.lit) { box-shadow: 0 0 0 var(--t) #0b1120, 0 0 calc(var(--h) * .55) #2f8cff70, 0 2px 8px #0009; }
+.pf-volt .plf-r { background: linear-gradient(180deg, #3a4a66, #0b1120 40%, #0b1120 62%, #26324a); --lip: #58b6ff; }
+.pf-volt .plf-r::after { box-shadow: 0 0 2px #2f8cff; }
+.pf-volt .plf-s { inset: calc(var(--t) * .5); border-radius: calc(var(--pr) + var(--t) * .5); border: max(.5px, calc(var(--h) * .02)) solid #7cc8ff70; }
+.pf-volt .plf { --ah: max(7px, calc(var(--h) * .42)); }
+.pf-volt .plf-a, .pf-volt .plf-b { left: calc(var(--t) * .3); right: calc(var(--t) * .3); height: var(--ah); overflow: hidden; -webkit-mask: linear-gradient(90deg, #0000, #000 5%, #000 95%, #0000); mask: linear-gradient(90deg, #0000, #000 5%, #000 95%, #0000); }
+.pf-volt .plf-a { top: calc(var(--t) * .5 + .5px - var(--ah) / 2); }
+.pf-volt .plf-b { bottom: calc(var(--t) * .5 + .5px - var(--ah) / 2); }
+.pf-volt .plf-a::before, .pf-volt .plf-a::after, .pf-volt .plf-b::before, .pf-volt .plf-b::after { top: 0; bottom: 0; left: calc(var(--ah) * -3); right: calc(var(--ah) * -3); }
+.pf-volt .plf-a::before, .pf-volt .plf-b::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 20' preserveAspectRatio='none'%3E%3Cg fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M0 10L4 7L8 12L12 6L16 11L19 8L23 13L27 7L31 11L35 8L38 10M19 8L21 3L24 2M27 7L29 13L32 16' stroke='%232f8cff' stroke-opacity='.5' stroke-width='3.4'/%3E%3Cpath d='M0 10L4 7L8 12L12 6L16 11L19 8L23 13L27 7L31 11L35 8L38 10M19 8L21 3L24 2M27 7L29 13L32 16' stroke='%239fd6ff' stroke-width='1.5'/%3E%3Cpath d='M0 10L4 7L8 12L12 6L16 11L19 8L23 13L27 7L31 11L35 8L38 10M19 8L21 3L24 2M27 7L29 13L32 16' stroke='%23fff' stroke-width='.6'/%3E%3C/g%3E%3C/svg%3E") repeat-x 0 50% / calc(var(--ah) * 3) 100%; }
+.pf-volt .plf-a::after, .pf-volt .plf-b::before { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 20' preserveAspectRatio='none'%3E%3Cg fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M0 10L3 12L7 8L10 13L14 7L18 12L22 9L26 11M10 13L12 17' stroke='%232f8cff' stroke-opacity='.5' stroke-width='3.4'/%3E%3Cpath d='M0 10L3 12L7 8L10 13L14 7L18 12L22 9L26 11M10 13L12 17' stroke='%239fd6ff' stroke-width='1.5'/%3E%3Cpath d='M0 10L3 12L7 8L10 13L14 7L18 12L22 9L26 11M10 13L12 17' stroke='%23fff' stroke-width='.6'/%3E%3C/g%3E%3C/svg%3E") repeat-x calc(var(--ah) * 1.6) 50% / calc(var(--ah) * 3) 100%; opacity: .8; }
+.pf-volt .plf-c { top: calc(var(--t) * .3); bottom: calc(var(--t) * .3); left: calc(var(--t) * .5 + .5px - var(--ah) / 2); right: calc(var(--t) * .5 + .5px - var(--ah) / 2); overflow: hidden; -webkit-mask: linear-gradient(#0000, #000 12%, #000 88%, #0000); mask: linear-gradient(#0000, #000 12%, #000 88%, #0000); }
+.pf-volt .plf-c::before, .pf-volt .plf-c::after { width: var(--ah); top: calc(var(--ah) * -3); bottom: calc(var(--ah) * -3); background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 60' preserveAspectRatio='none'%3E%3Cg transform='matrix(0 1 1 0 0 0)'%3E%3Cg fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M0 10L4 7L8 12L12 6L16 11L19 8L23 13L27 7L31 11L35 8L38 10M19 8L21 3L24 2M27 7L29 13L32 16' stroke='%232f8cff' stroke-opacity='.5' stroke-width='3.4'/%3E%3Cpath d='M0 10L4 7L8 12L12 6L16 11L19 8L23 13L27 7L31 11L35 8L38 10M19 8L21 3L24 2M27 7L29 13L32 16' stroke='%239fd6ff' stroke-width='1.5'/%3E%3Cpath d='M0 10L4 7L8 12L12 6L16 11L19 8L23 13L27 7L31 11L35 8L38 10M19 8L21 3L24 2M27 7L29 13L32 16' stroke='%23fff' stroke-width='.6'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat-y 50% 0 / 100% calc(var(--ah) * 3); }
+.pf-volt .plf-c::before { left: 0; }
+.pf-volt .plf-c::after { right: 0; background-position: 50% calc(var(--ah) * 1.2); }
+.pf-volt .plf.live .plf-a::before { animation: plf-arc-r 1.6s linear infinite; }
+.pf-volt .plf.live .plf-a::after { animation: plf-arc-r2 1.1s linear infinite; }
+.pf-volt .plf.live .plf-b::before { animation: plf-arc-l 1.25s linear infinite; }
+.pf-volt .plf.live .plf-b::after { animation: plf-arc-l 1.7s linear -.6s infinite; }
+.pf-volt .plf.live .plf-c::before { animation: plf-arc-u 1.3s linear infinite; }
+.pf-volt .plf.live .plf-c::after { animation: plf-arc-d 1.45s linear -.4s infinite; }
+@keyframes plf-arc-r { 0% { transform: translateX(0); opacity: 1; } 18% { opacity: .25; } 22% { opacity: 1; } 61% { opacity: .9; } 64% { opacity: .15; } 68% { opacity: 1; } 100% { transform: translateX(calc(var(--ah) * 3)); opacity: 1; } }
+@keyframes plf-arc-r2 { 0% { transform: translateX(0); opacity: .8; } 40% { opacity: .1; } 46% { opacity: .9; } 100% { transform: translateX(calc(var(--ah) * 3)); opacity: .8; } }
+@keyframes plf-arc-l { 0% { transform: translateX(0); opacity: 1; } 33% { opacity: .2; } 37% { opacity: 1; } 80% { opacity: .85; } 83% { opacity: .2; } 87% { opacity: 1; } 100% { transform: translateX(calc(var(--ah) * -3)); opacity: 1; } }
+@keyframes plf-arc-u { 0% { transform: translateY(0); opacity: 1; } 45% { opacity: .2; } 50% { opacity: 1; } 100% { transform: translateY(calc(var(--ah) * -3)); opacity: 1; } }
+@keyframes plf-arc-d { 0% { transform: translateY(0); opacity: 1; } 25% { opacity: .2; } 30% { opacity: 1; } 100% { transform: translateY(calc(var(--ah) * 3)); opacity: 1; } }
+
+/* «Неон-пульс»: a black rim with two neon tubes, pink outside and blue inside, breathing in turn */
+.plate.pf-pulse { --t: max(3.2px, calc(var(--h) * .19)); --tw: max(1.1px, calc(var(--h) * .06)); }
+.plate.pf-pulse:not(.lit) { box-shadow: 0 0 0 var(--t) #06070b, 0 2px 8px #000a; }
+.pf-pulse .plf-r { background: linear-gradient(180deg, #1a1c24, #06070b 30%, #06070b 70%, #12141b); --lip: #000; }
+.pf-pulse .plf-a { inset: calc(var(--t) * .2); border-radius: calc(var(--pr) + var(--t) * .8); border: var(--tw) solid #ff8ff0;
+  box-shadow: 0 0 1.5px .6px #ff2bd6, 0 0 calc(var(--h) * .6) #ff2bd6d0, inset 0 0 2px #ff2bd6; }
+.pf-pulse .plf-b { inset: calc(var(--t) * .66 + .5px); border-radius: calc(var(--pr) + var(--t) * .34); border: var(--tw) solid #7ff4ff;
+  box-shadow: 0 0 1.5px .6px #14c8ff, 0 0 calc(var(--h) * .45) #14c8ffc0, inset 0 0 2px #14c8ff; }
+.pf-pulse .plf.live .plf-a { animation: plf-breathe 2.6s ease-in-out infinite; }
+.pf-pulse .plf.live .plf-b { animation: plf-breathe 2.6s ease-in-out -1.3s infinite; }
+@keyframes plf-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+
+/* «Дзеркальне золото»: a mirror-gold rim, a glint sweeping across it, sparkles at two corners */
+.plate.pf-gild:not(.lit) { box-shadow: 0 0 0 var(--t) #8a5a12, 0 0 calc(var(--h) * .45) #f5c84a50, 0 2px 8px #0009; }
+.pf-gild .plf-r { background: linear-gradient(180deg, #fff7d6 0%, #f9d867 12%, #d9a933 30%, #7a4f09 47%, #a8730e 55%, #f3c64a 72%, #fff1b8 87%, #8a5a12 100%); --lip: #4a2e03; }
+.pf-gild .plf-s { top: 0; bottom: 0; left: -45%; right: auto; width: 35%; z-index: 2; background: linear-gradient(100deg, #fff0 25%, #fffdf0 50%, #fff0 75%); transform: translateX(221%); }
+.pf-gild .plf-a, .pf-gild .plf-c { width: max(8px, calc(var(--h) * .5)); height: max(8px, calc(var(--h) * .5)); background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-10 -10 20 20'%3E%3Ccircle r='4.5' fill='%23fff3b0' fill-opacity='.55'/%3E%3Cpath d='M0 -10Q1.1 -1.1 10 0Q1.1 1.1 0 10Q-1.1 1.1 -10 0Q-1.1 -1.1 0 -10Z' fill='%23fffdf2'/%3E%3C/svg%3E") center / contain no-repeat; transform: scale(.8); }
+.pf-gild .plf-a { right: calc(var(--h) * -.14); top: calc(var(--h) * -.17); }
+.pf-gild .plf-c { left: calc(var(--h) * -.1); bottom: calc(var(--h) * -.13); transform: scale(.55) rotate(45deg); }
+.pf-gild .plf-b { z-index: -1; inset: calc(var(--t) * .3); border-radius: inherit; box-shadow: 0 0 calc(var(--h) * .35) #ffd86a60; }
+.pf-gild .plf.live .plf-s { animation: plf-glint 3.4s ease-in-out infinite; }
+.pf-gild .plf.live .plf-a { animation: plf-twinkle 3.4s ease-out infinite; }
+.pf-gild .plf.live .plf-c { animation: plf-twinkle2 3.4s ease-out infinite; }
+@keyframes plf-glint { 0% { transform: translateX(0); } 50%, 100% { transform: translateX(543%); } }
+@keyframes plf-twinkle { 0%, 38% { transform: scale(0) rotate(0); opacity: 0; } 48% { transform: scale(1.05) rotate(45deg); opacity: 1; } 64%, 100% { transform: scale(0) rotate(90deg); opacity: 0; } }
+@keyframes plf-twinkle2 { 0%, 6% { transform: scale(0) rotate(0); opacity: 0; } 14% { transform: scale(.75) rotate(45deg); opacity: 1; } 28%, 100% { transform: scale(0) rotate(90deg); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .plf *, .plf *::before, .plf *::after { animation: none !important; } }

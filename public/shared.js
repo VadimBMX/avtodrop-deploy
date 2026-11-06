@@ -2835,6 +2835,11 @@ export const STYLE_ITEMS = [
   { id: 'frame-chrome', kind: 'frame', look: 'chrome', name: 'Рамка «Хром»', stars: 50, hint: 'полірований метал' },
   { id: 'frame-flame', kind: 'frame', look: 'flame', name: 'Рамка «Вогонь»', stars: 50, hint: 'помаранчево-червона' },
   { id: 'frame-ua', kind: 'frame', look: 'ua', name: 'Рамка «Синьо-жовта»', stars: 50, hint: 'синій верх, жовтий низ' },
+  // r9-plates: premium animated plate frames (drawn in code, public/plate-frames.js + the r9-plates block of style.css)
+  { id: 'frame-blaze', kind: 'frame', look: 'blaze', name: 'Рамка «Живий вогонь»', stars: 100, anim: true, hint: 'анімована: язики полум’я по краях' },
+  { id: 'frame-volt', kind: 'frame', look: 'volt', name: 'Рамка «Блискавка»', stars: 100, anim: true, hint: 'анімована: розряди повзуть довкола' },
+  { id: 'frame-pulse', kind: 'frame', look: 'pulse', name: 'Рамка «Неон-пульс»', stars: 100, anim: true, hint: 'анімована: рожевий і блакитний дихають' },
+  { id: 'frame-gold', kind: 'frame', look: 'gild', name: 'Рамка «Дзеркальне золото»', stars: 100, anim: true, hint: 'анімована: дзеркальне золото з відблиском' },
   { id: 'bg-city', kind: 'showcase', look: 'city', name: 'Фон «Нічне місто»', stars: 100, hint: 'вогні багатоповерхівок' },
   { id: 'bg-track', kind: 'showcase', look: 'track', name: 'Фон «Гоночний трек»', stars: 100, hint: 'шахова лінія фінішу' },
   { id: 'bg-neon', kind: 'showcase', look: 'neon', name: 'Фон «Неоновий гараж»', stars: 100, hint: 'фіолетова сітка й неон' },
