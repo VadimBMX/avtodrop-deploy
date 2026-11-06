@@ -241,7 +241,9 @@ const SPOTS = [
   { k: 'salon', x: 1322, y: 360, t: 'Автосалон', c: '#5ee7f0', i: 'building-arch', biz: 'salon' },
   { k: 'dealer', x: 876, y: 580, t: 'Трейд-ін', c: '#a2a3a6', i: 'refresh' },
   // r4-ux (owner 06.11: «Де майстерня?» — hints sent players to «Майстерня», the map had none): its own building.
-  { k: 'workshop', x: 168, y: 372, t: 'Майстерня', c: '#ff8a1f', i: 'tool' },
+  // r7-ux (playtest 06.11: 4 swipes to the left, over an empty lot — nobody found it): the lot with the yellow car and
+  // the charger in the middle of the city, just above «Трейд-ін».
+  { k: 'workshop', x: 850, y: 478, t: 'Майстерня', c: '#ff8a1f', i: 'tool' },
   { k: 'free2', x: 1580, y: 352, t: 'Вільна ділянка', c: '#39ff88', i: 'plus', free: true },
 ];
 // Businesses (another part of Season 2 adds me.biz): accept a list or a map of { type|id, name, income|rate, pending, level }.
@@ -279,14 +281,18 @@ function spotText(sp) {
 function cityView() {
   const s = st();
   const war = s.cityView === 'war';
+  // r7-ux (playtest 06.11, 360×640: «Траса» off screen after an old drag): coming in from another screen the map starts
+  // centred on «Траса» and «Мій гараж» again — the remembered drag only lives while the player stays on this map.
+  const vpNow = document.getElementById('s2Map');
+  if (!vpNow || vpNow.classList.contains('war') !== war) delete s['pan_' + (s.cityView || 'city')];
   const seg = `<div class="s2-seg"><button class="${war ? '' : 'on'}" data-act="s2City" data-k="city">${X.ic('building-skyscraper')}Моє місто</button><button class="${war ? 'on' : ''}" data-act="s2City" data-k="war">${X.ic('flag-3')}Війна районів</button></div>`;
   return `<div class="s2-city" id="s2City">${seg}${war ? warMap() : cityMap()}</div>`;
 }
 function cityMap() {
-  const labels = SPOTS.map((sp) => `<button class="s2-lb${sp.free ? ' free' : ''}${sp.k === 'garage' ? ' main' : ''}" data-act="s2Spot" data-k="${sp.k}" style="left:${(sp.x / CITY_W) * 100}%;top:${(sp.y / CITY_H) * 100}%;--c:${sp.c}"><i>${X.ic(sp.i)}</i>${sp.t}${spotText(sp)}</button>`).join('');
+  const labels = SPOTS.map((sp) => `<button class="s2-lb${sp.free ? ' free' : ''}${sp.k === 'garage' ? ' main' : ''}${sp.k === 'track' ? ' top' : ''}" data-act="s2Spot" data-k="${sp.k}" style="left:${(sp.x / CITY_W) * 100}%;top:${(sp.y / CITY_H) * 100}%;--c:${sp.c}"><i>${X.ic(sp.i)}</i>${sp.t}${spotText(sp)}</button>`).join('');
   const quick = [['quests', 'target-arrow', 'Цілі', me().questReady], ['events', 'calendar', 'Події', 0], ['season', 'ticket', 'Пропуск', me().season?.ready]]
     .map(([k, i, t, n]) => `<button class="s2-q" data-act="s2Quick" data-k="${k}">${X.ic(i)}<span>${t}</span>${n ? `<b>${n > 9 ? '9+' : n}</b>` : ''}</button>`).join('');
-  return `<div class="s2-map" id="s2Map"><div class="s2-pan" id="s2Pan" data-w="${CITY_W}" data-h="${CITY_H}" data-x="875"><img src="s2/city.webp" alt="" draggable="false">${labels}</div>
+  return `<div class="s2-map" id="s2Map"><div class="s2-pan" id="s2Pan" data-w="${CITY_W}" data-h="${CITY_H}" data-x="952"><img src="s2/city.webp" alt="" draggable="false">${labels}</div>
       <div class="s2-ef l"></div><div class="s2-ef r"></div><div class="s2-quick">${quick}</div><div class="s2-hint">${X.ic('arrows-exchange')}Гортай місто</div></div>
     ${collectSheet()}`;
 }
@@ -458,20 +464,38 @@ function clampLabels(x) {
   // layout-check 05.11: on a short map (320×568: the city is ~230 px tall) the labels of nearby buildings overlap
   // whatever the pan («Траса» under «Мій гараж», «Мийка 2 млн» under «Заправка»). The more important one stays; the
   // other first drops its level / price part (.s2-tight), and only if it still overlaps fades out (.s2-hid).
+  // r7-ux (playtest 06.11, 360×640: «Траса» lay under «Мій гараж» and a tap there opened the garage): before a label
+  // gives up its level part or fades, it first steps UP out of the way (--dy, its stem grows down to the building).
+  // «Траса» is never faded: it is the main loop, and it sits above every other label (.s2-lb.top, z-index).
   const kept = [];
   const hits = (r) => kept.some((o) => o.left < r.right - 2 && o.right > r.left + 2 && o.top < r.bottom - 2 && o.bottom > r.top + 2);
+  const mapTop = document.getElementById('s2Map')?.getBoundingClientRect().top ?? -1e9;
   const order = [...pan.querySelectorAll('.s2-lb')].sort((a, b) => lbRank(a) - lbRank(b));
   for (const lb of order) {
+    if (lb.style.getPropertyValue('--dy')) lb.style.removeProperty('--dy');
     let r = lb.getBoundingClientRect();
+    const dy = hits(r) ? liftLabel(r, hits, mapTop) : 0;
+    if (dy) (lb.style.setProperty('--dy', -dy + 'px'), (r = lb.getBoundingClientRect()));
     if (hits(r) && !lb.classList.contains('s2-tight') && lb.querySelector('small')) {
       lb.classList.add('s2-tight');
       lb._w = lb.offsetWidth;
       r = lb.getBoundingClientRect();
     }
-    const hid = hits(r);
+    const hid = hits(r) && lb.dataset.k !== 'track';
     lb.classList.toggle('s2-hid', hid);
     if (!hid) kept.push(r);
   }
+}
+// How far (px) a label must step up so it clears the labels already placed — 0 if no step up to LIFT_MAX does, or if it
+// would leave the top of the map.
+const LIFT_MAX = 44;
+function liftLabel(r, hits, mapTop) {
+  for (let d = 4; d <= LIFT_MAX; d += 4) {
+    const q = { left: r.left, right: r.right, top: r.top - d, bottom: r.bottom - d };
+    if (q.top < mapTop + 2) return 0;
+    if (!hits(q)) return d;
+  }
+  return 0;
 }
 const LB_ORDER = ['garage', 'track', 'auction', 'gas', 'wash', 'sto', 'workshop', 'club', 'dealer', 'shop', 'drift', 'salon', 'tire', 'free1', 'free2'];
 const lbRank = (lb) => (LB_ORDER.indexOf(lb.dataset.k) + 1 || 99);
@@ -552,6 +576,14 @@ function bazaarView() {
     <button class="hub-store s2-store-row" data-act="go" data-page="store"><img src="s2/x-vip.webp" alt=""><span class="grow"><b>Магазин</b><span class="hub-i">Гривні, VIP, «Стиль»</span></span><span class="chev">${X.ic('chevron-right')}</span></button></div>`;
 }
 
+// r7-ux (playtest 06.11: a tap on «Міський» before the starter was opened did nothing at all — render puts the starter
+// back while the first-steps guide is on it): say why.
+function starterFirst(id) {
+  const m = me();
+  if (!id || id === 'starter' || m.guide !== 'starter' || !m.keys?.starter) return false;
+  X.toast('Спершу відкрий стартовий — він безкоштовний');
+  return true;
+}
 // ---------- DROP ----------
 function dropView(base) {
   const s = st(), m = me();
@@ -567,7 +599,12 @@ function openBtn(cs, n) {
   const paid = Math.max(0, n - keys), free = m.slots - m.used, price = deal.price;
   if (free < 1) return `<button class="s2-open s2-full-g" data-act="toGarage">${X.ic('building-warehouse')}Гараж повний · звільнити місце</button>`; // s2-audit
   // «Вільно 4 з 6» in the caps font read as «ВІЛЬНО 4 3 6» and didn't say what to do (persona playtest 05.11).
-  if (free < n) return `<button class="s2-open" disabled>Лише ${free} ${X.plural(free, ['вільне місце', 'вільні місця', 'вільних місць'])} · вибери менше</button>`;
+  // r7-ux (playtest 06.11: ×6 remembered, then a grey «Лише 5 вільних місць» on every visit): open what fits, once.
+  if (free < n) {
+    const kp = Math.max(0, free - keys);
+    if (kp && price * kp > m.balance) return `<button class="s2-open" disabled>Бракує ${S.short(price * kp - m.balance)}</button>`;
+    return `<button class="s2-open opencase s2-fit" data-act="openCase" data-n="${free}" data-expect="${price * kp}">${X.ic('box')}<span class="l">Відкрити ×${free} (що влізе)</span><span class="p">${kp ? shortN(price * kp) + ' ₴' : `${X.ic('key')} ${free}`}</span></button>`;
+  }
   if (paid && price * paid > m.balance) return `<button class="s2-open" disabled>Бракує ${S.short(price * paid - m.balance)}</button>`;
   return `<button class="s2-open opencase" data-act="openCase" data-expect="${price * paid}">${X.ic('box')}<span class="l">${cs.starter ? 'Відкрити' : 'Відкрити'}</span><span class="p">${cs.starter ? 'безкоштовно' : paid ? shortN(price * paid) + ' ₴' : `${X.ic('key')} ${n}`}</span></button>`;
 }
@@ -581,8 +618,7 @@ function dock(cs) {
   const fast = cs.starter ? '' : fastPill(st().fast);
   // r6: the no-room note lives INSIDE the sticky dock — after it, the dock's ::after strip (it hides what scrolls between
   // the dock and the bar) lay right on it, so «продати дешевші» was never visible. It names the count that fits (×3 / ×1).
-  const fit = [3, 1].find((k) => k <= free);
-  const note = free < n && free >= 0 && !cs.starter ? `<div class="s2-note">${free > 0 ? `Не вистачає місця для ×${n} — обери ×${fit} або продай машину` : 'Гараж заповнений — продай машину або купи місце в гаражі'} · <a class="txtlink" data-act="sellCheap" data-n="${Math.max(1, n - free)}">продати дешевші</a></div>` : '';
+  const note = free < n && free >= 0 && !cs.starter ? `<div class="s2-note">${free > 0 ? `Для ×${n} мало місця — вільно ${free}` : 'Гараж заповнений — продай машину або купи місце в гаражі'} · <a class="txtlink" data-act="sellCheap" data-n="${Math.max(1, n - free)}">продати дешевші</a></div>` : '';
   return `<div class="s2-dock${cs.starter ? '' : ' s2-dock2'}${note ? ' s2-dock-note' : ''}">${counts || fast ? `<div class="s2-dock-r">${counts}${fast}</div>` : ''}${openBtn(cs, n)}${note}</div>`;
 }
 function oddsTiles(cs, weights) {
@@ -603,7 +639,7 @@ function marketView(base) {
   const list = S.CASES.filter((c) => !c.starter || m.keys[c.id]);
   const tile = (c) => {
     const dl = X.caseNow(c);
-    return `<button class="s2-ct ${c.id === cs.id ? 'on' : ''}" style="--cc:${caseCol(c)}" data-act="s2Pick" data-id="${c.id}">${dl.off ? `<span class="s2-ct-hot">−${Math.round(dl.off * 100)}%</span>` : ''}${m.keys[c.id] && !c.starter ? `<span class="s2-ct-key">${X.ic('key')}${m.keys[c.id]}</span>` : ''}${caseArt(c)}<b>${esc(CASE_SHORT[c.id] || c.name)}</b><small>${c.starter ? 'ключ' : shortN(dl.price)}</small></button>`;
+    return `<button class="s2-ct ${c.id === cs.id ? 'on' : ''}" style="--cc:${caseCol(c)}" data-act="s2Pick" data-id="${c.id}">${dl.off ? `<span class="s2-ct-hot">−${Math.round(dl.off * 100)}%</span>` : ''}${caseArt(c)}<b>${esc(CASE_SHORT[c.id] || c.name)}</b><small${m.keys[c.id] && !c.starter ? ' class="s2-ct-k"' : ''}>${c.starter ? 'ключ' : m.keys[c.id] ? `${X.ic('key')}ключ ×${m.keys[c.id]}` : shortN(dl.price)}</small></button>`;
   };
   const rar = list.filter((c) => c.group !== 'country'), cty = list.filter((c) => c.group === 'country');
   return `<div class="feed" id="dropFeed" hidden></div><div class="s2-page s2-drop">
@@ -1024,6 +1060,7 @@ const handlers = {
   s2Quick: (d) => (d.k === 'events' ? X.H.eventsOpen() : X.go(d.k)),
   s2Pick: (d) => {
     const s = st();
+    if (starterFirst(d.id)) return;
     if (s.caseId === d.id) return handlers.s2Case(d);
     s.caseId = d.id;
     s.drop = null;
@@ -1032,6 +1069,7 @@ const handlers = {
   },
   s2Case: (d) => {
     const s = st();
+    if (starterFirst(d.id)) return;
     if (d.id) s.caseId = d.id;
     s.s2case = !!d.id;
     s.s2all = false;

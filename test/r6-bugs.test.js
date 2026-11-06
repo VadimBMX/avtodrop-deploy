@@ -60,8 +60,8 @@ test('DROP case page, short of room: the note with «продати дешевш
   const dock = ui.slice(ui.indexOf('function dock(cs)'), ui.indexOf('function oddsTiles'));
   assert.match(dock, /\$\{openBtn\(cs, n\)\}\$\{note\}<\/div>`/, 'the note is the dock\'s last child');
   assert.doesNotMatch(dock, /<\/div>\$\{free < n/, 'no note after the dock');
-  assert.match(dock, /обери ×\$\{fit\}/);
-  assert.match(dock, /const fit = \[3, 1\]\.find\(\(k\) => k <= free\)/);
+  // r7-ux: the button itself opens what fits («Відкрити ×K (що влізе)», K = free slots), the note says how many are free
+  assert.match(dock, /Для ×\$\{n\} мало місця — вільно \$\{free\}/);
   // the strip is still there for what scrolls under the dock; the note row keeps ×N and the button on one line
   assert.match(css, /body\.s2 \.s2-dock::after, body\.s2 \.pdock::after \{ background: #07080b; height: 40px; \}/);
   assert.match(css, /body\.s2 \.s2-dock\.s2-dock-note \{ flex-wrap: wrap; row-gap: 4px; \}/);

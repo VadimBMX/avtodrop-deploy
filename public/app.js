@@ -31,7 +31,7 @@ import { installBarn } from './barn-ui.js';
 import { installBuyer } from './buyer-ui.js';
 import { installTopStrip, raceCarChoice, garageSig, bossWall, sovietEra, coachShift } from './firsthour.js';
 // popups (crit4 №5): one self-opening window per app entry, by priority (public/popups.js).
-import { createPopups } from './popups.js';
+import { createPopups, firstSession, bugAskTabOk } from './popups.js';
 // «Автоклуби»: page «Клуб», [TAG] next to names, the menu row, club_<code> invite links (public/clubs-ui.js).
 import { installClubs, clubTag, clubHub, clubFromLink } from './clubs-ui.js';
 // D-race: the boss's fight-poster intro before the lights; «scene mode» (no tab bar) while a run is on screen.
@@ -1237,7 +1237,7 @@ function carSheet(id, best = null) {
     <div class="s2c-stage stg stg-a r${rank} ${shining(c) ? 'shining' : ''}"><i class="stg-cone"></i><i class="stg-sb"></i><i class="stg-sheen"></i>${c.plate ? `<div class="s2c-plate">${plate(c.plate.text)}</div>` : ''}
       ${stageLayers(carArt(c.model, { glow: rank >= 3, look: c.look, dirt: c.dirt }))}</div>
     <div class="s2c-name"><span class="s2c-cls">${m.cls}</span><b class="ellipsis">${esc(S.CLASSES[m.cls].name)} · ${m.year}</b>${c.serial ? `<span class="chip ed-chip">${m.restored ? ic('sparkles') + 'R ' : ic('box')}${S.serialText(c.serial)}</span>` : ''}${c.stars ? starsHtml(c, { cls: 'pr-c' }) : ''}${dirtTag(c)}<span class="s2c-flag">${esc(originText(m))}</span></div>
-    <div class="s2c-stats">${tile('Потужність', `${c.hp} к.с.`)}${tile('402 м', `${dec(c.et, 2)} с`)}${tile("Маса", `${Math.round(st.kg).toLocaleString("uk-UA")} кг`)}${tile('Стан', `${Math.max(0, 100 - (c.dirt || 0))}%`)}</div>
+    <div class="s2c-stats">${tile('Потужність', `${c.hp} к.с.`)}${tile('402 м', `${dec(c.et, 2)} с`)}${tile("Маса", `${Math.round(st.kg).toLocaleString("uk-UA")} кг`)}<button class="s2c-st s2c-st-q" data-act="stateInfo"><small>Стан ${ic('info-circle')}</small><b>${Math.max(0, 100 - (c.dirt || 0))}%</b></button></div>
     <div class="s2c-val"><div><small>${m.secret ? 'Колекційна ціна' : 'Ціна продажу'}</small><b>${S.short(price)}</b><span class="${inc && inc.earning !== false ? 'up' : ''}">${inc ? (inc.earning === false ? 'не заробляє — немає місця' : `+${S.short(inc.rate)} / год`) : c.status === 'showcase' ? 'на вітрині — без доходу' : 'без доходу'}${m.secret ? '' : ` · <span class="nw">колекційна ${S.short(c.value)}</span>`}</span></div>${s2Spark(c)}</div>
     ${locked ? `<div class="card mt center muted">Авто виставлено на ${c.status === 'market' ? 'ринок' : 'аукціон'} — керуй ним у «Ринок → Авторинок → Мої лоти».</div>` : `
     <div class="s2c-acts">${act('s2CarMode', 'tool', 'Тюнінг', 'data-k="tune"')}${act('washCar', 'droplet', 'Помити', '', !washable(c))}${act('carShowcase', c.status === 'showcase' ? 'arrow-back-up' : 'star', c.status === 'showcase' ? 'У гараж' : 'Вітрина')}${act('carSellMenu', 'cash', 'Продати', '', !!m.secret || c.status !== 'garage')}</div>
@@ -1696,16 +1696,17 @@ TABS.cases = () => {
     if (onDrop && free < 1) return `<div class="tiny muted center mt">Гараж заповнений · ${me.used}/${me.slots} — продай машину або купи місце, щоб відкрити ще</div>`;
     // r4-ux: right after a drop, short of room for the picked ×N, the button opens what fits (×3 / ×1) once — the pick
     // stays; the no-room block with its two buttons is for a count the player taps on this screen.
-    const fit = [3, 1].find((k) => k <= free);
+    const fit = free >= 1 && free < n ? free : 0; // r7-ux: what fits — any count up to 6 (server openCase)
     if (free < n && onDrop && !state.countPicked && fit) {
       const fp = Math.max(0, fit - keys);
-      if (fp && price * fp > me.balance) return `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(price * fp - me.balance)}</button>`;
-      return `<button class="btn opencase second" data-act="openCase" data-n="${fit}" data-expect="${price * fp}"><span class="oc-l">Відкрити ×${fit}</span><span class="oc-p">${fp ? S.fmt(price * fp) : `${ic('key')}${fit}`}</span></button>`;
+      if (fp && price * fp > me.balance) return `<button class="btn opencase second" disabled><span class="oc-l">Відкрити ×${fit}</span><span class="oc-p">бракує ${S.short(price * fp - me.balance)}</span></button>`;
+      // r7-ux: the dock row has no room for «(що влізе)» next to the label — it rides in the price line
+      return `<button class="btn opencase second" data-act="openCase" data-n="${fit}" data-expect="${price * fp}"><span class="oc-l">Відкрити ×${fit}</span><span class="oc-p">що влізе · ${fp ? S.short(price * fp) : `${ic('key')}${fit}`}</span></button>`;
     }
     if (free < n) return noRoomHtml(n, free);
     // Not enough money: say so on the button, with how much is missing.
-    if (paid && short > 0) return `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(short)}</button>`;
-    return `<button class="btn opencase ${onDrop ? 'second' : deal.off ? 'yellow' : ''}${onDrop && state.fx?.type === 'case' ? ` lockin" style="--lk:${dropLockMs(d)}ms` : ''}" data-act="openCase" data-expect="${price * paid}">${paid ? `<span class="oc-l">${d && state.dropCase === cs.id ? 'Відкрити ще' : d ? `Відкрити «${esc(cs.name)}»` : 'Відкрити'}</span><span class="oc-p">${S.fmt(price * paid)}${deal.off ? ` <s>${S.short(cs.price * paid)}</s>` : ''}${keys ? ` + ${ic('key')}${Math.min(keys, n)}` : ''}</span>` : cs.starter ? 'Відкрити безкоштовно' : `Відкрити ключем ${ic('key')} ${n}`}</button>`;
+    if (paid && short > 0) return onDrop ? `<button class="btn opencase second" disabled><span class="oc-l">Відкрити ×${n}</span><span class="oc-p">бракує ${S.short(short)}</span></button>` : `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(short)}</button>`;
+    return `<button class="btn opencase ${onDrop ? 'second' : deal.off ? 'yellow' : ''}${onDrop && state.fx?.type === 'case' ? ` lockin" style="--lk:${dropLockMs(d)}ms` : ''}" data-act="openCase" data-expect="${price * paid}">${paid && onDrop ? `<span class="oc-l">Відкрити ×${n}</span><span class="oc-p">${S.short(price * paid)}${keys ? ` + ${ic('key')}${Math.min(keys, n)}` : ''}</span>` : paid ? `<span class="oc-l">${d && state.dropCase === cs.id ? 'Відкрити ще' : d ? `Відкрити «${esc(cs.name)}»` : 'Відкрити'}</span><span class="oc-p">${S.fmt(price * paid)}${deal.off ? ` <s>${S.short(cs.price * paid)}</s>` : ''}${keys ? ` + ${ic('key')}${Math.min(keys, n)}` : ''}</span>` : cs.starter ? 'Відкрити безкоштовно' : `Відкрити ключем ${ic('key')} ${n}`}</button>`;
   };
   let stage;
   if (d?.length === 1) {
@@ -1801,11 +1802,11 @@ function pityHook(st) {
 // fits once (data-n) and keeps the player's ×N pick; «Продати N дешевші» fits next to it at 320 px.
 function noRoomHtml(n, free) {
   const need = n - free; // over the limit (a battle prize) free is negative: sell enough to open again
-  const fit = [3, 1].find((k) => k <= free);
+  const fit = free >= 1 && free < n ? free : 0; // r7-ux: what fits — any count up to 6 (server openCase)
   const cs = S.CASE_BY_ID[state.caseId], keys = me.keys[cs?.id] || 0;
   const expect = fit && cs ? caseNow(cs).price * Math.max(0, fit - keys) : '';
   return `<button class="btn noroom" disabled>${free > 0 ? `Для ×${n} мало місця · вільно ${free} ${plural(free, ['місце', 'місця', 'місць'])}` : `Гараж заповнений · ${me.used}/${me.slots}`}</button>
-    <div class="btns noroom-btns mt">${fit ? `<button class="btn outline" data-act="openCase" data-n="${fit}" data-expect="${expect}">Відкрити ×${fit}</button>` : ''}<button class="btn ghost" data-act="sellCheap" data-n="${need}">${ic('cash')}<span>Продати ${need === 1 ? 'дешевшу' : `${need} дешевші`}</span></button></div>
+    <div class="btns noroom-btns mt">${fit ? `<button class="btn outline" data-act="openCase" data-n="${fit}" data-expect="${expect}">Відкрити ×${fit} (що влізе)</button>` : ''}<button class="btn ghost" data-act="sellCheap" data-n="${need}">${ic('cash')}<span>Продати ${need === 1 ? 'дешевшу' : `${need} дешевші`}</span></button></div>
     <div class="tiny muted center mt">або купи місце в гаражі</div>`;
 }
 H.sellCheap = (d) => {
@@ -6624,7 +6625,7 @@ function paintGuide() {
     const title = ready ? esc(nb.text) : esc(st.title);
     const sub = ready ? 'Крок виконано' : `Перші кроки · ${n + 1}/${total}${here ? '' : ` · ${esc(tabName || TITLES[st.tab] || '')}`}`;
     const side = ready ? `<button class="coach-claim" data-act="newbieQuest">${ic('gift')}+${money}</button>` : money ? `<span class="coach-rw">+${money}</span>` : '';
-    const more = coachOpen && !ready ? `<div class="coach-more">${esc(st.text)}<div class="coach-foot">${!here ? `<button class="coach-go" data-act="guideGo">${esc(tabName || 'Перейти')} ${ic('arrow-right')}</button>` : ''}${key === 'level2' ? `<button class="coach-go" data-act="workshopGo">${ic('tool')} Майстерня</button>` : ''}<button class="coach-off" data-act="guideOff">Сховати підказки</button></div></div>` : '';
+    const more = coachOpen && !ready ? `<div class="coach-more">${esc(st.text)}<div class="coach-foot">${!here ? `<button class="coach-go" data-act="guideGo">${esc(tabName || 'Перейти')} ${ic('arrow-right')}</button>` : ''}<button class="coach-off" data-act="guideOff">Сховати підказки</button></div></div>` : '';
     const html = `<div class="coach-row" data-act="${ready ? 'newbieQuest' : here || coachOpen ? 'coachToggle' : 'guideGo'}" role="button" tabindex="0"><span class="coach-n">${ready ? ic('check') : n + 1}</span>
       <span class="coach-tx"><small>${sub}</small><b>${!here ? ic('arrow-right') : ''}${title}</b></span>${side}</div>${more}${coachOpen || ready ? '' : '<i class="coach-bar"></i>'}`;
     let el = $('#guide');
@@ -6653,7 +6654,9 @@ function paintGuide() {
   // Once per step: bring a target that is below the fold (the first rival) into view.
   // Only as far as needed to clear the tab bar: centring it pushed the freshly dropped car under the header.
   const below = target.getBoundingClientRect().bottom - (window.innerHeight - 96);
-  if (here && guideScrolled !== key && below > 0) {
+  // r7-ux (playtest 06.11, 360×640: the dropped car slid off the top): a target in a sticky dock is on screen already —
+  // scrolling for it only moved the page under it; and nothing scrolls over a drop result.
+  if (here && guideScrolled !== key && below > 0 && !held && !target.closest('.drop-dock, .s2-dock')) {
     guideScrolled = key;
     window.scrollBy({ top: below, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }
@@ -9592,7 +9595,9 @@ function homeAskOnce(tries = 0) {
 // an odd price, write to support; useful finds get a bonus. The support page keeps the same line.
 const BUG_ASK_KEY = 'avtodrop.bugAsk1';
 const bugRewarded = () => !!me?.badges?.some((b) => b.key === 'tester'); // src/bugbounty.js: a rewarded find gives this badge
-let bugAskTimer = 0, bugAskOn = false;
+let bugAskTimer = 0, bugAskOn = false, bugEntryAt = 0;
+// r7-ux (playtest 06.11: it popped up ~9 min into the very first session, over the garage or a race): not in the first
+// session (popups.js firstSession) and never over the garage or Траса (bugAskTabOk). Still once per player (BUG_ASK_KEY).
 function bugAskOnce(tries = 0) {
   if (bugAskOn && !tries) return;
   bugAskOn = true;
@@ -9605,7 +9610,9 @@ function bugAskOnce(tries = 0) {
   bugAskTimer = setTimeout(() => {
     if ((me?.level || 1) < 2 || guideOn()) return void (bugAskOn = false); // asked again after a later refresh (after «Перші кроки»)
     if (bugRewarded()) return; // fix5 (qa4): he already found a bug and got its reward — no «Знайшов баг?» on top
-    if (!$('#modal').hidden || state.opening || state.race || state.page || document.querySelector('.story') || WOW.isOpen()) {
+    bugEntryAt ||= serverNow();
+    if (firstSession(me?.createdAt, bugEntryAt)) return void (bugAskOn = false); // asked again on a later entry
+    if (!bugAskTabOk(state.tab) || state.drift || !$('#modal').hidden || state.opening || state.race || state.page || document.querySelector('.story') || WOW.isOpen()) {
       if (tries < 45) bugAskOnce(tries + 1);
       else bugAskOn = false;
       return;
@@ -9627,6 +9634,8 @@ function bugAskOnce(tries = 0) {
     } else if (r === 'denied') bugAskOn = false;
   }, tries ? 4000 : 6000);
 }
+// r7-ux (playtest 05.11 and 06.11: «Стан 60% — що це?»): one tap says what the number is.
+H.stateInfo = () => toast(`Стан — наскільки машина чиста. Бруд додають гонки; на дохід і швидкість він не впливає. Помий — і машина ${S.WASH.shineHours} год блищить: +${Math.round(S.WASH.shine * 100)}% до доходу`);
 H.bugAskGo = () => {
   closeModal();
   go('support');

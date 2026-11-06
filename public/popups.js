@@ -18,6 +18,10 @@ export const POP_PRI = { gift: 100, s2welcome: 90, level: 80, whatsnew: 60, plat
 export const POP_PLAY = new Set(['gift', 'level', 'fueldeal']); // fueldeal: the tank just ran dry in play
 export const NEW_ENTRY_MS = 30 * 60e3;
 export const READY_FALLBACK_MS = 5000;
+// r7-ux: this app entry (entryAt) is still the player's first session — it began within NEW_ENTRY_MS of the account.
+export const firstSession = (createdAt, entryAt) => !createdAt || entryAt - createdAt < NEW_ENTRY_MS;
+// r7-ux: «Бета-тест» never over the garage or Траса (the playtest saw it on both).
+export const bugAskTabOk = (tab) => tab !== 'garage' && tab !== 'race';
 
 // calm(kind): nothing on screen that a window must not cover (kind: the window that would open — s2-fix: the Season 2
 // compensation window may open over the newbie guide's focus); idle(): no window/story open (the entry's window is closed).

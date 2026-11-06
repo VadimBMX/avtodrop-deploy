@@ -7792,3 +7792,26 @@ body.s2 .dfx-look .dfx-pv .a-car { left: 13%; width: 74%; bottom: 17%; }
 .ct-pop-img { width: 100%; aspect-ratio: 16 / 9; border-radius: 14px; display: block; box-shadow: 0 10px 30px #0008; }
 .ct-pop-h { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; font-size: 22px; color: var(--accent); }
 .dealer-head { margin-top: 18px; } /* owner 29.10: the dealer comes after the players' lots */
+
+/* r7-ux (playtest 06.11, 360×640): overlapping city labels step up instead of hiding «Траса» (s2-ui.js liftLabel):
+   --dy moves the label, its stem grows down to the building; «Траса» sits above every other label. The «Гортай місто»
+   chip moves from the top right (it lay on «Аукціон») to the bottom right, above the quick buttons. */
+body.s2 .s2-lb { transform: translate(calc(-50% + var(--dx, 0px)), calc(-100% + var(--dy, 0px))); }
+body.s2 .s2-lb::after { bottom: calc(-8px + var(--dy, 0px)); height: calc(7px - var(--dy, 0px)); }
+body.s2 .s2-lb.top { z-index: 3; }
+body.s2 .s2-map:not(.war) .s2-hint { top: auto; bottom: 56px; }
+/* r7-ux: «Відкрити ×K (що влізе)» is longer than the ×N row has room for — it takes a row of its own under ×N/«Швидко» */
+body.s2 .s2-dock.s2-dock-note > .s2-open.s2-fit { flex: 1 0 100%; flex-direction: row; gap: 8px; }
+body.s2 .s2-dock.s2-dock-note > .s2-open.s2-fit .p { border-left: 1px solid #00000033; padding-left: 8px; }
+/* r7-ux: on the drop dock «Відкрити ×N · бракує …» is the same one-row button, dimmed while it can't open */
+body.s2 #view .drop-dock .opencase[disabled] { opacity: .55; filter: saturate(.4); }
+/* r7-ux (playtest 06.11, shot 09): «Нагороди чекають» and the first-steps card lay one on the other — the strip waits
+   while the card is shown (body.coach-push) */
+body.coach-push #banners .banner.rwall { display: none; }
+/* r7-ux: a case tile with keys says «ключ ×N» where the price was (the 🔑6 corner badge was too small to notice) */
+body.s2 .s2-ct small.s2-ct-k { color: #ffd400; display: inline-flex; align-items: center; gap: 3px; }
+body.s2 .s2-ct small.s2-ct-k .i { width: 11px; height: 11px; }
+/* r7-ux: «Стан» on the car card is a button — a tap explains it (H.stateInfo) */
+.s2c-st.s2c-st-q { text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.s2c-st.s2c-st-q small { display: flex; align-items: center; gap: 3px; }
+.s2c-st.s2c-st-q small .i { width: 12px; height: 12px; flex: none; opacity: .8; }
