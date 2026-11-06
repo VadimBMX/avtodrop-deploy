@@ -140,11 +140,11 @@ export const ECON = {
   // ---------- «Зірковий кейс» (David 06.11) ----------
   // Bought ONLY for real Telegram Stars (an invoice; never the virtual star credit or the stars on the account — that
   // would be a stars → credit → case → credit loop). Drops VIRTUAL stars onto users.star_credit (the shop balance).
-  // [stars, chance %]: the chances sum to 100, EV = Σ stars × chance = 41.65 ⭐ < 50 ⭐ — the house keeps ~16.7%
-  // (the brief said «≈ 46.6»; the table as given sums to 41.65)
+  // [stars, chance %]: the chances sum to 100, EV = Σ stars × chance = 44.65 ⭐ < 50 ⭐ — the house keeps ~11%
+  // (06.11: the first table gave 41.65; 10 ⭐ 30→25, 50 ⭐ 13→17, 150 ⭐ 4.5→5.5)
   // (test/r11-starcase.test.js pins both). Shown to players as «Шанси» (Telegram wants odds disclosed).
   starCase: {
     stars: 50,
-    prizes: [[10, 30], [20, 25], [30, 18], [50, 13], [75, 8], [150, 4.5], [500, 1.2], [1000, 0.3]],
+    prizes: [[10, 25], [20, 25], [30, 18], [50, 17], [75, 8], [150, 5.5], [500, 1.2], [1000, 0.3]], // EV 44.65 ⭐ (house ~11%)
   },
 };

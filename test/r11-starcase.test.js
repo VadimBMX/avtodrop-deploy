@@ -33,7 +33,7 @@ test('star case: the table — chances sum to 100%, EV below the 50 ⭐ price', 
   const sum = c.prizes.reduce((s, [, p]) => s + p, 0);
   assert.ok(Math.abs(sum - 100) < 1e-9, `chances sum to ${sum}`);
   const ev = c.prizes.reduce((s, [n, p]) => s + (n * p) / 100, 0);
-  assert.ok(Math.abs(ev - 41.65) < 1e-9, `EV ${ev}`);
+  assert.ok(Math.abs(ev - 44.65) < 1e-9, `EV ${ev}`);
   assert.ok(ev < c.stars, 'EV below the price: the house keeps a margin, nothing to farm');
   assert.equal(S.STAR_CASE.ev, ev);
   assert.deepEqual([S.STAR_CASE.min, S.STAR_CASE.max], [10, 1000]);
