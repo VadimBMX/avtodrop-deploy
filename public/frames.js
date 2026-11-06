@@ -302,10 +302,10 @@ const DRAW = {
       ${range(4, (i, a) => { const [x, y] = pt(RM, a + 45); return `<rect x="${f2(x - 1.2)}" y="${f2(y - 4.8)}" width="2.4" height="9.6" rx=".7" transform="rotate(${a + 45} ${x} ${y})" fill="url(#pfSilverV)" stroke="#07080b" stroke-width=".4"/>`; })}`)],
   lightning: () => [lay('pf-glow'), lay('pf-band'),
     svg('pf-d', `${circ(R1 + 0.6, 'stroke="#58b6ff" stroke-width=".9" stroke-opacity=".9"')}${circ(R2 - 0.6, 'stroke="#58b6ff" stroke-width=".7" stroke-opacity=".7"')}${bevel(R1, R2, 0.8)}
-      <path d="${bolt(9, RM, 0, 360, 1.1)}" fill="none" stroke="#7cc8ff" stroke-width=".5" stroke-opacity=".45"/>`),
-    ...[[1, 0, 100], [2, 130, 215], [3, 230, 330], [4, 60, 150]].map(([k, a1, a2]) => {
-      const d = bolt(500 + k * 31, RM, a1, a2);
-      return svg(`pf-arc pf-arc${k}`, `<path d="${d}" fill="none" stroke="#2f8cff" stroke-width="2.6" stroke-opacity=".45" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="#bfe6ff" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="#fff" stroke-width=".4" stroke-linecap="round" stroke-linejoin="round"/>`);
+      <path d="${bolt(9, RM, 0, 360, 1.4)}" fill="none" stroke="#7cc8ff" stroke-width=".7" stroke-opacity=".6"/>`),
+    ...[[1, -10, 105], [2, 125, 220], [3, 225, 335], [4, 50, 160], [5, 170, 280]].map(([k, a1, a2]) => {
+      const d = bolt(500 + k * 31, RM, a1, a2, 3.4);
+      return svg(`pf-arc pf-arc${k}`, `<path d="${d}" fill="none" stroke="#2f8cff" stroke-width="3.8" stroke-opacity=".4" stroke-linecap="round" stroke-linejoin="round" filter="url(#pfSoft)"/><path d="${d}" fill="none" stroke="#9fd6ff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="#fff" stroke-width=".6" stroke-linecap="round" stroke-linejoin="round"/>`);
     })],
   gold_pure: () => [lay('pf-glow'), lay('pf-band'),
     svg('pf-d', `${range(36, (i, a) => `<path d="${seg(R2 - 1.9, R2, a, a + 10)}" fill="${i % 2 ? '#fff4c4' : '#a8730e'}" fill-opacity=".55"/>`)}
