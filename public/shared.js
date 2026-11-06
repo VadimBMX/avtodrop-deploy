@@ -2842,13 +2842,19 @@ export const STYLE_ITEMS = [
   { id: 'lv-neon', kind: 'livery', look: 'xneon', name: 'Ліврея «Нічний неон»', stars: 150, hint: 'темний кузов, неонові лінії' },
   { id: 'lv-carbon', kind: 'livery', look: 'xcarbon', name: 'Ліврея «Карбон»', stars: 150, hint: 'карбоновий кузов' },
   { id: 'lv-chrome', kind: 'livery', look: 'xchrome', name: 'Ліврея «Chrome»', stars: 150, hint: 'дзеркальний хром' },
-  { id: 'nm-gold', kind: 'name', look: 'gold', name: 'Золоте ім’я', stars: 75, hint: 'золотий градієнт' },
-  { id: 'nm-neon', kind: 'name', look: 'neon', name: 'Неонове ім’я', stars: 75, hint: 'блакитне світіння' },
-  { id: 'nm-flame', kind: 'name', look: 'flame', name: 'Вогняне ім’я', stars: 75, hint: 'від жовтого до червоного' },
-  { id: 'nm-ua', kind: 'name', look: 'ua', name: 'Синьо-жовте ім’я', stars: 75, hint: 'синій і жовтий' },
+  // r9-names: names are drawn in CSS (.nm-<look>, public/style.css «r9-names»): gold with a moving shine; the 100 ⭐
+  // ones (anim) move all the time — a flowing gradient, a short glitch now and then (never flashing).
+  { id: 'nm-gold', kind: 'name', look: 'gold', name: 'Золоте ім’я', stars: 75, hint: 'поліроване золото з відблиском' },
+  { id: 'nm-neon', kind: 'name', look: 'neon', name: 'Неонове ім’я', stars: 75, hint: 'блакитна неонова трубка' },
+  { id: 'nm-flame', kind: 'name', look: 'flame', name: 'Вогняне ім’я', stars: 75, hint: 'розпечене, з жаром' },
+  { id: 'nm-ua', kind: 'name', look: 'ua', name: 'Синьо-жовте ім’я', stars: 75, hint: 'синій і жовтий, з відблиском' },
+  { id: 'nm-rainbow', kind: 'name', look: 'rainbow', name: 'Райдужне ім’я', stars: 100, hint: 'кольори течуть по літерах', anim: true },
+  { id: 'nm-glitch', kind: 'name', look: 'glitch', name: 'Ім’я «Глітч»', stars: 100, hint: 'цифровий збій, анімоване', anim: true },
+  // r9-names: underglow = a neon tube under the sills and its light on the floor, breathing slowly.
   { id: 'gl-cyan', kind: 'glow', look: 'cyan', name: 'Підсвітка «Блакитна»', stars: 75, hint: 'неон під днищем' },
   { id: 'gl-magenta', kind: 'glow', look: 'magenta', name: 'Підсвітка «Фіолетова»', stars: 75, hint: 'неон під днищем' },
   { id: 'gl-amber', kind: 'glow', look: 'amber', name: 'Підсвітка «Бурштин»', stars: 75, hint: 'теплий неон під днищем' },
+  { id: 'gl-rainbow', kind: 'glow', look: 'rainbow', name: 'Підсвітка «Райдуга»', stars: 100, hint: 'колір повільно переливається', anim: true },
 ].map((it) => ({ ...it, cos: 'cos:x:' + it.id }));
 // ---------- «Ефект дропу» (r5-shop, owner 06.11): what plays when MY dropped car lands on the result stage ----------
 // Sold like any «Стиль» item (claim "cos:x:<id>", the same invoice / credit / refund path), but a private slot: only
