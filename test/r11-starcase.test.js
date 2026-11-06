@@ -79,7 +79,7 @@ test('star case: the roll is the fair case RNG and follows the table', () => {
     assert.equal(T.get('SELECT nonce FROM users WHERE id = ?', u).nonce, n0 + 1, 'one fair nonce per roll');
     seen.set(r.won, (seen.get(r.won) || 0) + 1);
   }
-  assert.equal(seen.get(10) > N * 0.25 && seen.get(10) < N * 0.35, true, `10 ⭐ ${seen.get(10)}`);
+  assert.equal(seen.get(10) > N * 0.2 && seen.get(10) < N * 0.3, true, `10 ⭐ ${seen.get(10)} (25% since 06.11)`);
   const total = [...seen].reduce((s, [n, k]) => s + n * k, 0);
   assert.equal(credit(T, u), total);
   for (const k of seen.keys()) assert.ok(S.STAR_CASE.prizes.some(([n]) => n === k));
