@@ -2196,7 +2196,8 @@ export const NEWBIE_BOOST = ECON.newbie;
 export const rewardCaseNext = (u) => (u.reward_case_at || 0) + (u.created_at && u.reward_case_at >= u.created_at && u.reward_case_at < u.created_at + NEWBIE_BOOST.rcaseHours * 3600e3
   ? NEWBIE_BOOST.rcaseMin * 60e3 : REWARD_CASE_HOURS * 3600e3);
 // Free «Заправка новачка» left now (0 for a player past fuelHours or with every refill used).
-export const newbieFuelLeft = (u, t) => (u.created_at && t < u.created_at + NEWBIE_BOOST.fuelHours * 3600e3 ? Math.max(0, NEWBIE_BOOST.fuelRefills - (u.newbie_fuel || 0)) : 0);
+// `from`: when the 24 h start — sign-up, or the Season 2 wipe for a veteran (one free tank on the season's first day too).
+export const newbieFuelLeft = (u, t, from = u.created_at) => (from && t < from + NEWBIE_BOOST.fuelHours * 3600e3 ? Math.max(0, NEWBIE_BOOST.fuelRefills - (u.newbie_fuel || 0)) : 0);
 // What the reward case gives (src/game.js rewardCase rolls these shares; the app's 2-second strip draws by them too).
 export const REWARD_CASE_ODDS = { money: 0.5, part: 0.3, fuel: 0.12, car: 0.08 };
 

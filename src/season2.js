@@ -171,7 +171,7 @@ export function createSeason2(ctx) {
        play_ms = 0, plate_best = 0, luck_spent = 0, luck_got = 0, luck_bonus = 0, luck_bonus_left = 0, bad_streak = 0, rescue_at = 0,
        star_slots = 0, stars = 0, starter_bought = 0, style = '{}', dream_car = NULL, dream_at = 0, comeback_at = 0, comeback_cap_until = 0,
        tank_lvl = 0, sold_day = NULL, sold_full = 0, wash_day = NULL, wash_hand = 0, pack_offer_until = 0, pack_offer_next = 0,
-       fuel_deal_until = 0, fuel_deal_next = 0, day_deal_day = '', parts_open_at = 0, frame = NULL, star_credit = 0`)
+       fuel_deal_until = 0, fuel_deal_next = 0, day_deal_day = '', parts_open_at = 0, frame = NULL, star_credit = 0, newbie_fuel = 0`)
       .run(S.START_BALANCE, S.START_SLOTS, S.SHOWCASE_START, t, S.FUEL_MAX, t, weekOf(t), S.seasonOf(t));
     // A kept auction plate is in the garage value from the start (and not «growth» for the week's race).
     if (kept.length) {

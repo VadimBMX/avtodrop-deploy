@@ -300,3 +300,17 @@ test('season 2: the dealer restocks right after the wipe', () => {
   const lots = e.call(1, 'market/list', {}).list.filter((l) => l.dealer);
   assert.equal(lots.length, S.DEALER.lots);
 });
+
+test('season 2: a veteran gets one free «Заправка новачка» in the first 24 h after the wipe (owner 06.11), even if he used one before', () => {
+  const e = setup();
+  e.run('UPDATE users SET newbie_fuel = 1 WHERE id = 31');
+  e.setT(S2_T);
+  ownerReset(e.g, { reason: 'новий сезон' });
+  assert.equal(e.call(31, 'me').newbieFuel, 1);
+  e.run('UPDATE users SET fuel = 0, fuel_at = ? WHERE id = 31', S2_T);
+  assert.equal(e.call(31, 'fuel/newbie').left, 0);
+  e.run('UPDATE users SET fuel = 0, fuel_at = ? WHERE id = 31', S2_T);
+  assert.throws(() => e.call(31, 'fuel/newbie'), /новачків/);
+  e.setT(S2_T + 25 * 3600e3);
+  assert.equal(e.call(1, 'me').newbieFuel, 0, 'only the first day of the season');
+});

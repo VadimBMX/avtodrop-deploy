@@ -2250,7 +2250,7 @@ H.newbieFuel = async () => {
   haptic('success');
   closeModal();
   await refresh();
-  toast(`Бак повний — подарунок новачку${me.newbieFuel > 0 ? ` (ще ${me.newbieFuel})` : ''}`);
+  toast(`Бак повний — подарунок від гри${me.newbieFuel > 0 ? ` (ще ${me.newbieFuel})` : ''}`);
 };
 // Owner 28.10: when the tank hits 0 a window offers the full tank cheaper (S.FUEL_DEAL), once per deal.
 const FUEL_DEAL_KEY = 'avtodrop.fuelDeal';
@@ -3001,7 +3001,7 @@ function raceResult() {
     <div class="s2r-rw"><div class="${r.win ? 'on' : ''}"><img src="s2/coin.webp" alt=""><b>${r.win ? '+' + S.short(r.prize) : r.entry ? '−' + S.short(r.entry) : '0 ₴'}</b><small>${r.win ? 'приз' : r.entry ? 'внесок' : 'тренування'}</small></div>
       <div class="on"><span class="s2r-xp">XP</span><b>+${xpGot}</b><small>досвід</small></div>
       <div class="${r.perfectStart ? 'on' : ''}"><span class="s2r-ic">${ic(r.perfectStart ? 'bolt' : 'flag-3')}</span><b>${r.perfectStart ? '+4%' : r.win ? 'Перемога' : 'Заїзд'}</b><small>${r.perfectStart ? 'ідеальний старт' : 'у статистику'}</small></div></div>
-    ${newbieFuelOn() ? `<div class="nb-fuel-row">${refuelBtn()}<span class="tiny muted">Бак порожній — новачкам заправка за наш рахунок</span></div>` : comebackLine()}
+    ${newbieFuelOn() ? `<div class="nb-fuel-row">${refuelBtn()}<span class="tiny muted">Бак порожній — перша заправка за наш рахунок</span></div>` : comebackLine()}
     ${sn ? `<div class="s2-card s2r-season"><div class="row between"><b>Сезон · рівень ${sn.level}</b><span>${n0s(sn.levelXp)} / ${n0s(sn.need)} <em>+${xpGot}</em></span></div><i class="s2r-sbar"><b style="width:${Math.min(100, (sn.levelXp / Math.max(1, sn.need)) * 100)}%"></b></i></div>` : ''}
     ${whyHtml(why)}
     <div class="card dr-sum">

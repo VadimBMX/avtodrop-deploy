@@ -401,6 +401,8 @@ export function createGame(db, opts = {}) {
   // 'season_reset_s2', written by season2.js) — so veterans after the wipe and a reset player start again from day 1.
   // Before the wipe has run there's no season anchor (S1 veterans keep their levels and are not held back).
   const WIPE_META = `season_reset_s${S.S2_RESET.season}`;
+  // the free «Заправка новачка»: 24 h from sign-up, or from the Season 2 wipe for veterans (owner 06.11: one tank on the season's first day)
+  const fuelAnchor = (u) => Math.max(u.created_at || 0, Number(metaGet(WIPE_META)) || 0);
   const capAnchor = (u) => Math.max(u.created_at || 0, u.reset_at || 0, Number(metaGet(WIPE_META)) || 0);
   const levelCapFor = (u) => S.levelCapOf(capAnchor(u), now());
   // For /me: null with the cap off; else today's top level, tomorrow's, and whether XP is already piling up over it.
@@ -833,7 +835,7 @@ export function createGame(db, opts = {}) {
       partsAutosell: autoSellOf(u), partsNextAt: partNextAt(u) > now() ? partNextAt(u) : 0, // part cases: «Автопродаж», the pause
       level: u.level, levelSeen: u.level_seen, xp: u.xp, xpNeed: S.xpForLevel(u.level), levelCap: levelCapOut(u),
       xpToday: u.xp_day === day ? u.xp_day_capped : 0, xpCaseToday: u.xp_case_day === day ? u.xp_case_used : 0, newbie: newbieState(u),
-      dailyReady: u.streak_day !== day, streak: u.streak, rewardCaseAt: S.rewardCaseNext(u), newbieFuel: S.newbieFuelLeft(u, now()),
+      dailyReady: u.streak_day !== day, streak: u.streak, rewardCaseAt: S.rewardCaseNext(u), newbieFuel: S.newbieFuelLeft(u, now(), fuelAnchor(u)),
       claims,
       caseOfDay: S.caseOfDayNow(day, evFx()), gameEvents: gameEvents(),
       fair: { seedHash: sha256(u.server_seed), clientSeed: u.client_seed, nonce: u.nonce },
@@ -4249,10 +4251,10 @@ export function createGame(db, opts = {}) {
   // fuelRefills times (S.newbieFuelLeft). Only on an empty tank, so it is never wasted on a half-full one.
   function newbieFuel(uid) {
     const u = userRow(uid);
-    if (S.newbieFuelLeft(u, now()) < 1) fail('Безкоштовна заправка лише для новачків — і вже використана');
+    if (S.newbieFuelLeft(u, now(), fuelAnchor(u)) < 1) fail('Безкоштовна заправка лише для новачків — і вже використана');
     if (fuelState(u).fuel >= 1) fail('Бак ще не порожній — спершу проїдь заїзди');
     q('UPDATE users SET fuel = ?, fuel_at = ?, newbie_fuel = newbie_fuel + 1 WHERE id = ?').run(fuelMax(u), now(), uid);
-    return { fuel: fuelMax(u), left: S.newbieFuelLeft(userRow(uid), now()) };
+    return { fuel: fuelMax(u), left: S.newbieFuelLeft(userRow(uid), now(), fuelAnchor(userRow(uid))) };
   }
   // Owner 28.10: the tank ran dry → a full tank for fewer stars (S.FUEL_DEAL, item refuel_deal) for a while, at most
   // once per everyH. start = the client saw an empty tank (fuel/deal); `me` only reports a running deal.
