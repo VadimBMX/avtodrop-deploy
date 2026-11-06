@@ -19,3 +19,11 @@ test('city map: «Траса» steps out from under «Мій гараж» and is
   // «Гортай місто» no longer at the top right over «Аукціон»
   assert.match(css, /body\.s2 \.s2-map:not\(\.war\) \.s2-hint \{ top: auto; bottom: 56px; \}/);
 });
+
+test('first steps 7/8 below the parts level: «Дійди до 3-го рівня — відкриються деталі», its button leads to Траса', async () => {
+  const S = await import('../public/shared.js');
+  const st = S.GUIDE_STEPS.find((s) => s.key === 'level2');
+  assert.equal(st.title, `Дійди до ${S.unlockLevel('parts')}-го рівня — відкриються деталі`);
+  assert.equal(st.tab, 'race');
+  assert.doesNotMatch(read('app.js'), /key === 'level2' \? `<button class="coach-go" data-act="workshopGo">/);
+});
