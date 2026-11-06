@@ -279,14 +279,18 @@ function spotText(sp) {
 function cityView() {
   const s = st();
   const war = s.cityView === 'war';
+  // r7-ux (playtest 06.11, 360×640: «Траса» off screen after an old drag): coming in from another screen the map starts
+  // centred on «Траса» and «Мій гараж» again — the remembered drag only lives while the player stays on this map.
+  const vpNow = document.getElementById('s2Map');
+  if (!vpNow || vpNow.classList.contains('war') !== war) delete s['pan_' + (s.cityView || 'city')];
   const seg = `<div class="s2-seg"><button class="${war ? '' : 'on'}" data-act="s2City" data-k="city">${X.ic('building-skyscraper')}Моє місто</button><button class="${war ? 'on' : ''}" data-act="s2City" data-k="war">${X.ic('flag-3')}Війна районів</button></div>`;
   return `<div class="s2-city" id="s2City">${seg}${war ? warMap() : cityMap()}</div>`;
 }
 function cityMap() {
-  const labels = SPOTS.map((sp) => `<button class="s2-lb${sp.free ? ' free' : ''}${sp.k === 'garage' ? ' main' : ''}" data-act="s2Spot" data-k="${sp.k}" style="left:${(sp.x / CITY_W) * 100}%;top:${(sp.y / CITY_H) * 100}%;--c:${sp.c}"><i>${X.ic(sp.i)}</i>${sp.t}${spotText(sp)}</button>`).join('');
+  const labels = SPOTS.map((sp) => `<button class="s2-lb${sp.free ? ' free' : ''}${sp.k === 'garage' ? ' main' : ''}${sp.k === 'track' ? ' top' : ''}" data-act="s2Spot" data-k="${sp.k}" style="left:${(sp.x / CITY_W) * 100}%;top:${(sp.y / CITY_H) * 100}%;--c:${sp.c}"><i>${X.ic(sp.i)}</i>${sp.t}${spotText(sp)}</button>`).join('');
   const quick = [['quests', 'target-arrow', 'Цілі', me().questReady], ['events', 'calendar', 'Події', 0], ['season', 'ticket', 'Пропуск', me().season?.ready]]
     .map(([k, i, t, n]) => `<button class="s2-q" data-act="s2Quick" data-k="${k}">${X.ic(i)}<span>${t}</span>${n ? `<b>${n > 9 ? '9+' : n}</b>` : ''}</button>`).join('');
-  return `<div class="s2-map" id="s2Map"><div class="s2-pan" id="s2Pan" data-w="${CITY_W}" data-h="${CITY_H}" data-x="875"><img src="s2/city.webp" alt="" draggable="false">${labels}</div>
+  return `<div class="s2-map" id="s2Map"><div class="s2-pan" id="s2Pan" data-w="${CITY_W}" data-h="${CITY_H}" data-x="952"><img src="s2/city.webp" alt="" draggable="false">${labels}</div>
       <div class="s2-ef l"></div><div class="s2-ef r"></div><div class="s2-quick">${quick}</div><div class="s2-hint">${X.ic('arrows-exchange')}Гортай місто</div></div>
     ${collectSheet()}`;
 }
@@ -458,20 +462,38 @@ function clampLabels(x) {
   // layout-check 05.11: on a short map (320×568: the city is ~230 px tall) the labels of nearby buildings overlap
   // whatever the pan («Траса» under «Мій гараж», «Мийка 2 млн» under «Заправка»). The more important one stays; the
   // other first drops its level / price part (.s2-tight), and only if it still overlaps fades out (.s2-hid).
+  // r7-ux (playtest 06.11, 360×640: «Траса» lay under «Мій гараж» and a tap there opened the garage): before a label
+  // gives up its level part or fades, it first steps UP out of the way (--dy, its stem grows down to the building).
+  // «Траса» is never faded: it is the main loop, and it sits above every other label (.s2-lb.top, z-index).
   const kept = [];
   const hits = (r) => kept.some((o) => o.left < r.right - 2 && o.right > r.left + 2 && o.top < r.bottom - 2 && o.bottom > r.top + 2);
+  const mapTop = document.getElementById('s2Map')?.getBoundingClientRect().top ?? -1e9;
   const order = [...pan.querySelectorAll('.s2-lb')].sort((a, b) => lbRank(a) - lbRank(b));
   for (const lb of order) {
+    if (lb.style.getPropertyValue('--dy')) lb.style.removeProperty('--dy');
     let r = lb.getBoundingClientRect();
+    const dy = hits(r) ? liftLabel(r, hits, mapTop) : 0;
+    if (dy) (lb.style.setProperty('--dy', -dy + 'px'), (r = lb.getBoundingClientRect()));
     if (hits(r) && !lb.classList.contains('s2-tight') && lb.querySelector('small')) {
       lb.classList.add('s2-tight');
       lb._w = lb.offsetWidth;
       r = lb.getBoundingClientRect();
     }
-    const hid = hits(r);
+    const hid = hits(r) && lb.dataset.k !== 'track';
     lb.classList.toggle('s2-hid', hid);
     if (!hid) kept.push(r);
   }
+}
+// How far (px) a label must step up so it clears the labels already placed — 0 if no step up to LIFT_MAX does, or if it
+// would leave the top of the map.
+const LIFT_MAX = 44;
+function liftLabel(r, hits, mapTop) {
+  for (let d = 4; d <= LIFT_MAX; d += 4) {
+    const q = { left: r.left, right: r.right, top: r.top - d, bottom: r.bottom - d };
+    if (q.top < mapTop + 2) return 0;
+    if (!hits(q)) return d;
+  }
+  return 0;
 }
 const LB_ORDER = ['garage', 'track', 'auction', 'gas', 'wash', 'sto', 'workshop', 'club', 'dealer', 'shop', 'drift', 'salon', 'tire', 'free1', 'free2'];
 const lbRank = (lb) => (LB_ORDER.indexOf(lb.dataset.k) + 1 || 99);
