@@ -1,5 +1,5 @@
 // Fuzz + property runner for the game API (src/game.js), in-process on a fresh in-memory database.
-//   node tools/fuzz-api.mjs [--seed=1] [--steps=4000] [--players=12] [--quiet] [--stop]
+//   node tools/fuzz-api.mjs [--seed=1] [--steps=4000] [--players=12] [--quiet] [--stop] [--wipe]
 // Many simulated players act in an interleaved order (the server is one process with synchronous SQLite, so
 // "parallel" requests are interleavings: two players hitting the same lot, a double-submit, a sell between a start
 // and a finish). Each step is either a SCRIPTED move (valid ids from the database: cases ×1/×3/×6, sell, garage
@@ -825,6 +825,40 @@ function protoStored(after) {
     }
   }
 }
+// --wipe (r6, 06.11): the Season 2 wipe half-way through the run (src/season2.js, the owner's 'season2/reset'), then
+// the season's first day for veterans: every player has exactly one free «Заправка новачка» for 24 h from the wipe
+// (game.js fuelAnchor), never a second one, none after the day. The wipe itself resets balances on purpose (its own
+// accounting is test/season2-reset.test.js), so the money baseline starts again after it.
+const WIPE = process.argv.includes('--wipe');
+let wipeAt = 0;
+function seasonWipe() {
+  callLog.push({ s: stepNo, admin: 'season2/reset' });
+  // live, star credit doesn't exist before the wipe (it is the wipe's compensation): drop the setup's test credit, or
+  // the wipe's «star_credit = 0» (no log row, on purpose) would read as a credit/log mismatch
+  q('DELETE FROM star_credit_log').run();
+  q('UPDATE users SET star_credit = 0').run();
+  try {
+    g.adminCall(OWNER, 'season2/reset', { confirm: true, phrase: S.S2_RESET.phrase, reason: 'fuzz' });
+  } catch (e) {
+    return bug('wipe', `season2/reset: ${e?.message}`, { stack: String(e?.stack).split('\n').slice(0, 6).join('\n') });
+  }
+  wipeAt = clock.now();
+  moneyGap = null;
+  refresh();
+  for (const id of PLAYERS) {
+    const me = g.api.me(id, {});
+    if (me.newbieFuel !== S.NEWBIE_BOOST.fuelRefills) bug('wipe-tank', `user ${id}: ${me.newbieFuel} free tanks right after the wipe (want ${S.NEWBIE_BOOST.fuelRefills})`);
+  }
+}
+function wipeCheck(tag) {
+  if (!wipeAt) return;
+  const day = clock.now() < wipeAt + S.NEWBIE_BOOST.fuelHours * 3600e3;
+  for (const id of PLAYERS) {
+    const u = q('SELECT created_at, newbie_fuel FROM users WHERE id = ?').get(id), left = g.api.me(id, {}).newbieFuel;
+    const want = day ? Math.max(0, S.NEWBIE_BOOST.fuelRefills - u.newbie_fuel) : 0;
+    if (left !== want) bug('wipe-tank', `user ${id}: ${left} free tanks after ${tag}, want ${want} (${day ? 'the season\'s first day' : 'after the first day'}, used ${u.newbie_fuel})`);
+  }
+}
 setup();
 if (process.argv.includes('--proto')) {
   for (let i = 0; i < 300; i++) {
@@ -846,6 +880,7 @@ for (stepNo = 1; stepNo <= STEPS; stepNo++) {
     q("INSERT INTO keys (user_id, case_id, count) VALUES (?, 'rust', -1) ON CONFLICT DO UPDATE SET count = -1").run(PLAYERS[0]);
     checkMoney(pre, 'selftest');
   }
+  if (WIPE && stepNo === Math.floor(STEPS / 2)) seasonWipe();
   const u = pick(PLAYERS);
   const mv = pick(BAG);
   try {
@@ -855,6 +890,7 @@ for (stepNo = 1; stepNo <= STEPS; stepNo++) {
   }
   refresh();
   check(mv);
+  if (WIPE && stepNo % 25 === 0) wipeCheck(mv);
   if (!QUIET && stepNo % 500 === 0) process.stdout.write(`.${stepNo}`);
 }
 finish();

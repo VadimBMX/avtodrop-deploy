@@ -93,6 +93,43 @@ async function scan(page, where, out) {
   for (const h of hits) out.push({ kind: 'text', where, msg: h });
 }
 
+// r6: a sticky dock paints a solid strip under itself (::after, top 100%, z −1) so nothing shows between it and the
+// bar; at the end of a page that strip lies on whatever plain content follows the dock (the no-room note, 06.11). A
+// later box that is its own layer (glass card: backdrop-filter, transform…) is painted above the strip, so it is fine.
+async function stripScan(page, where, out) {
+  const hits = await page.evaluate(async () => {
+    const y0 = scrollY;
+    window.scrollTo(0, document.documentElement.scrollHeight);
+    await new Promise((ok) => setTimeout(ok, 250));
+    const res = [];
+    const ownLayer = (x) => {
+      for (; x && x.id !== 'view'; x = x.parentElement) {
+        const c = getComputedStyle(x);
+        if (c.backdropFilter !== 'none' || c.transform !== 'none' || c.filter !== 'none' || c.isolation === 'isolate' || Number(c.opacity) < 1 || (c.position !== 'static' && c.zIndex !== 'auto')) return true;
+      }
+      return false;
+    };
+    for (const dock of document.querySelectorAll('#view *')) {
+      const ds = getComputedStyle(dock);
+      if (ds.position !== 'sticky' || !dock.offsetParent) continue;
+      const af = getComputedStyle(dock, '::after');
+      if (!af.content || af.content === 'none' || af.position !== 'absolute' || ds.overflow !== 'visible') continue;
+      const d = dock.getBoundingClientRect(), top = d.top + (parseFloat(af.top) || d.height), bottom = top + (parseFloat(af.height) || 0);
+      if (bottom - top < 4) continue;
+      for (const e of document.querySelectorAll('#view button, #view a, #view .tiny, #view .small, #view .s2-note, #view b, #view span')) {
+        if (dock.contains(e) || e.contains(dock) || !e.offsetParent || !(e.textContent || '').trim()) continue;
+        const r = e.getBoundingClientRect();
+        if (r.height < 4 || r.bottom <= top + 2 || r.top >= bottom - 2 || r.right <= d.left || r.left >= d.right) continue;
+        if (ownLayer(e)) continue;
+        res.push(`«${(e.textContent || '').trim().slice(0, 40)}» (${e.tagName}.${e.className}) under the strip of ${dock.className}`);
+      }
+    }
+    window.scrollTo(0, y0);
+    return res.slice(0, 3);
+  }).catch(() => []);
+  for (const h of hits) out.push({ kind: 'strip', where, msg: h });
+}
+
 async function sweep(browser, uid, name) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, locale: 'uk-UA' });
   const page = await ctx.newPage();
@@ -161,6 +198,7 @@ async function sweep(browser, uid, name) {
     }, v).catch((e) => out.push({ kind: 'nav', where, msg: String(e).slice(0, 200) }));
     await page.waitForTimeout(900);
     await scan(page, where, out);
+    await stripScan(page, where, out);
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `${where.replace(/[^a-z0-9.-]+/gi, '_')}.jpg`), type: 'jpeg', quality: 45 }).catch(() => {});
     if (CLICKS) {
       const n = await page.locator('[data-act]:visible').count();
@@ -408,15 +446,348 @@ async function todayChecks(browser, out) {
   await ctx.close();
 }
 
+// ---------- r6 (06.11 merges, Season 2 «Місто» day): --r6 ----------
+// At 320×568, 390×844, 430×932: the «Перші кроки» coach card reserves its own space (no overlap with the page top, no
+// gap left once it folds, no jump of a scrolled page), it is not over a drop result; the DROP dock never covers the
+// last row; ×N stays picked over an opening and the DROP tab goes back to the case list; «Майстерня» on the city map at
+// levels 1/2/3; the war map is all free with «Знайти автоклуб» on screen; the pass card Д (Aurora's baked picture, the
+// live layers for any other car) and the car card А; the race result cars on the road; no «Токіо» on the pass.
+const R6_VP = (arg('vp') || '320x568,390x844,430x932').split(',').map((s) => s.split('x').map(Number));
+async function r6Page(browser, uid, name, vp, out, where) {
+  const ctx = await browser.newContext({ viewport: { width: vp[0], height: vp[1] }, deviceScaleFactor: 1, locale: 'uk-UA' });
+  const pg = await ctx.newPage();
+  pg.on('pageerror', (e) => out.push({ kind: 'pageerror', where: where(), msg: String(e?.stack || e).slice(0, 400) }));
+  pg.on('console', (m) => m.type() === 'error' && !/telegram\.org|favicon|ERR_NAME|ERR_INTERNET/i.test(m.text()) && out.push({ kind: 'console', where: where(), msg: m.text().slice(0, 300) }));
+  await pg.route('**/telegram-web-app.js', (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body: '' }));
+  await pg.route(/\/app\.js(\?.*)?$/, async (r) => {
+    const resp = await r.fetch();
+    const body = (await resp.text()) + '\n;window.__qa = { state, render, closeModal, carSheet, go, H, S, me: () => me, refresh };\n';
+    r.fulfill({ response: resp, body, headers: { ...resp.headers(), 'content-length': String(Buffer.byteLength(body)) } });
+  });
+  await pg.goto(`${URL0}/?as=${uid}&name=${name}${uid}`, { waitUntil: 'load' });
+  // iOS WebKit (the owner's iPhone, Telegram) has no scroll anchoring: Chromium would hide a jump of a scrolled page
+  if (!process.env.R6_ANCHOR) await pg.addStyleTag({ content: 'html, body, #view { overflow-anchor: none; }' });
+  await pg.waitForFunction(() => window.__qa?.me?.(), null, { timeout: 20000 });
+  await splashGoneIn(pg, 8000);
+  await pg.waitForTimeout(800);
+  await pg.evaluate(() => document.querySelectorAll('body > .reel.cine').forEach((e) => e.querySelector('.cn-skip')?.click()));
+  await pg.waitForTimeout(400);
+  for (let i = 0; i < 4; i++) { // gift windows (the seed's admin money) would cover the screenshots
+    const b = pg.locator('#modal:not([hidden]) button', { hasText: /Забрати/i });
+    if (!(await b.count())) break;
+    await b.first().click({ timeout: 1500 }).catch(() => {});
+    await pg.waitForTimeout(500);
+  }
+  return { ctx, pg };
+}
+const r6nav = (pg, o) => pg.evaluate((o) => {
+  const Q = window.__qa;
+  Q.closeModal();
+  Object.assign(Q.state, { page: null, race: null, drift: null, ...o });
+  if (o.page) Q.go(o.page);
+  else Q.render();
+}, o);
+// The page's top content (first painted element of #view) vs the coach card; the tab bar's top.
+const coachGeo = (pg) => pg.evaluate(() => {
+  const g = document.getElementById('guide'), v = document.getElementById('view');
+  const first = [...(v?.children || [])].find((e) => e.getBoundingClientRect().height > 4 && getComputedStyle(e).visibility !== 'hidden');
+  const fr = first?.getBoundingClientRect(), gr = g?.getBoundingClientRect();
+  return { y: scrollY, guide: gr ? { top: gr.top, bottom: gr.bottom, out: g.classList.contains('out') } : null, first: fr ? { top: fr.top, abs: fr.top + scrollY, cls: first.className } : null,
+    before: parseFloat(getComputedStyle(v, '::before').height) || 0, push: document.body.classList.contains('coach-push'), tabsTop: document.getElementById('tabs')?.getBoundingClientRect().top ?? innerHeight, H: innerHeight };
+});
+async function r6Checks(browser, out) {
+  let where = 'r6';
+  const W = () => where;
+  const shot = async (pg, n) => SHOTS && pg.screenshot({ path: path.join(SHOTS, `r6-${n.replace(/[^a-z0-9.-]+/gi, '_')}.jpg`), type: 'jpeg', quality: 40 }).catch(() => {});
+  let k = 0;
+  for (const vp of R6_VP) {
+    const tag = vp.join('×');
+    // ---- a new player: coach card, DROP dock, ×N, DROP tab, achievements quiet
+    const id = NEW + 300 + k++;
+    await post('/api/me', {}, as(id, 'r6n' + id));
+    await post('/api/intro/seen', {}, as(id, 'r6n' + id));
+    const { ctx, pg } = await r6Page(browser, id, 'r6n', vp, out, W);
+    for (const tab of ['garage', 'cases', 'city', 'menu']) {
+      where = `${tag} new coach ${tab}`;
+      await pg.evaluate(() => window.scrollTo(0, 0));
+      await r6nav(pg, { tab, s2case: false, drop: null });
+      await pg.evaluate(() => window.__qa.H.coachToggle?.()); // the card open by hand (the tall one: hint text + buttons)
+      await pg.waitForTimeout(450);
+      const g = await coachGeo(pg);
+      if (!g.guide) {
+        out.push({ kind: 'coach', where, msg: 'no coach card for a new player' });
+        continue;
+      }
+      if (g.first && g.first.top < g.guide.bottom - 1) out.push({ kind: 'coach', where, msg: `the card (bottom ${Math.round(g.guide.bottom)}) covers the page top (${g.first.cls} at ${Math.round(g.first.top)})` });
+      if (g.first && g.first.top - g.guide.bottom > 24) out.push({ kind: 'coach', where, msg: `a ${Math.round(g.first.top - g.guide.bottom)} px gap under the card` });
+      if (tab === 'city') {
+        const c = await pg.evaluate(() => {
+          const r = (s) => document.querySelector(s)?.getBoundingClientRect();
+          const sh = r('.s2-city > .s2-sheet'), map = r('#s2Map'), tabs = document.getElementById('tabs').getBoundingClientRect();
+          return { sheet: sh && { top: sh.top, bottom: sh.bottom }, map: map && map.height, tabsTop: tabs.top, sw: document.documentElement.scrollHeight - innerHeight };
+        });
+        if (c.sheet && c.sheet.bottom > c.tabsTop + 1) out.push({ kind: 'coach', where, msg: `the city's bottom sheet goes under the bar while the card is down (sheet bottom ${Math.round(c.sheet.bottom)}, bar ${Math.round(c.tabsTop)})` });
+        if (c.map != null && c.map < 110) out.push({ kind: 'coach', where, msg: `the city map is squeezed to ${Math.round(c.map)} px by the card` });
+      }
+      if (vp[0] === 390) await shot(pg, `${tag}-coach-${tab}`);
+      // scrolled down, the card folding must not move what is under the finger
+      const scrollable = await pg.evaluate(() => document.documentElement.scrollHeight - innerHeight);
+      if (scrollable <= 150 || tab === 'city') await pg.evaluate(() => window.__qa.H.coachToggle?.());
+      if (scrollable > 150 && tab !== 'city') {
+        // past the reserved strip (a strip still partly on screen just closes — that is not a jump)
+        const sy = await pg.evaluate((g) => (window.scrollTo(0, Math.min(document.documentElement.scrollHeight - innerHeight, (g.guide?.bottom || 150) + 40)), scrollY), g);
+        if (sy < (g.guide?.bottom || 0)) out.push({ kind: 'coach-skip', where, msg: `page too short to test the scrolled fold (${Math.round(sy)} px)` });
+        await pg.waitForTimeout(100);
+        // the element under the middle of the screen: where it is before and after (marked, so the same one is measured)
+        const probe = () => pg.evaluate(() => {
+          let e = document.querySelector('[data-r6probe]');
+          if (!e) {
+            // content only: a container round the strip (main, #view itself) moves with it by design
+            const v = document.getElementById('view');
+            for (const fy of [0.5, 0.4, 0.6, 0.3, 0.7]) {
+              const x = document.elementFromPoint(innerWidth / 2, innerHeight * fy);
+              if (x && x !== v && v.contains(x) && !['sticky', 'fixed'].includes(getComputedStyle(x).position)) (e = x);
+              if (e) break;
+            }
+            e?.setAttribute('data-r6probe', '1');
+          }
+          return e ? { top: e.getBoundingClientRect().top, sig: e.tagName + '.' + e.className } : null;
+        });
+        const a = await probe();
+        await pg.evaluate(() => window.__qa.H.coachToggle?.()); // folds into the ring (the same coachFold as the 5 s timer)
+        await pg.waitForTimeout(700);
+        const b = await probe(), g2 = await coachGeo(pg);
+        if (process.env.R6_DEBUG) console.log(where, scrollable, JSON.stringify(a), JSON.stringify(b), g2.before, g2.y);
+        await pg.evaluate(() => document.querySelector('[data-r6probe]')?.removeAttribute('data-r6probe'));
+        if (a && b && Math.abs(a.top - b.top) > 2) out.push({ kind: 'coach', where, msg: `the page jumped ${Math.round(b.top - a.top)} px while scrolled when the card folded` });
+        if (g2.before > 1 && (!g2.guide || g2.guide.out)) out.push({ kind: 'coach', where, msg: `the card folded but the page still keeps ${Math.round(g2.before)} px for it` });
+      }
+    }
+    // the case page: the dock never covers the last row
+    where = `${tag} new dock`;
+    await r6nav(pg, { tab: 'cases', drop: null, s2case: false });
+    await pg.waitForTimeout(500);
+    const dockCheck = async (label) => {
+      const r = await pg.evaluate(async () => {
+        window.scrollTo(0, document.documentElement.scrollHeight);
+        await new Promise((ok) => setTimeout(ok, 350));
+        const dock = document.querySelector('#view .s2-dock, #view .drop-dock');
+        if (!dock) return { none: true };
+        // the dock paints a solid strip under itself (::after, top 100%) over whatever follows it: that covers too
+        const d0 = dock.getBoundingClientRect(), af = getComputedStyle(dock, '::after');
+        const ds = getComputedStyle(dock);
+        const strip = af.content && af.content !== 'none' && af.display !== 'none' && af.position === 'absolute' && ds.position !== 'static' && ds.overflow === 'visible' && ds.overflowY === 'visible' && !/paint|strict|content/.test(ds.contain) ? parseFloat(af.height) || 0 : 0;
+        const d = { top: d0.top, bottom: d0.bottom + strip, left: d0.left, right: d0.right, height: d0.height };
+        const tabs = document.getElementById('tabs').getBoundingClientRect();
+        const bad = [];
+        for (const e of document.querySelectorAll('#view button, #view .s2-cc, #view .card, #view .s2-cl-row, #view a, #view .tiny, #view .s2-note, #view .s2-card, #view h2, #view h3, #view b')) {
+          if (dock.contains(e) || e.contains(dock) || !e.offsetParent) continue;
+          const r = e.getBoundingClientRect();
+          if (r.height < 4 || r.bottom <= 0) continue;
+          // the strip (z −1 in the dock) is painted under a later box that is its own stacking context (the glass cards:
+          // backdrop-filter, a transform…) — only plain content right after the dock is covered by it
+          const ownLayer = (x) => {
+            for (; x && x.id !== 'view'; x = x.parentElement) {
+              const c = getComputedStyle(x);
+              if (c.backdropFilter !== 'none' || c.transform !== 'none' || c.filter !== 'none' || c.isolation === 'isolate' || Number(c.opacity) < 1 || (c.position !== 'static' && c.zIndex !== 'auto')) return true;
+            }
+            return false;
+          };
+          const under = r.top < d0.bottom - 2 || !ownLayer(e);
+          if (under && r.bottom > d.top + 2 && r.top < d.bottom - 2 && r.right > d.left && r.left < d.right) bad.push(`${e.tagName}.${e.className} «${(e.textContent || '').trim().slice(0, 30)}» ${Math.round(r.top)}–${Math.round(r.bottom)} under the dock ${Math.round(d.top)}–${Math.round(d.bottom)}`);
+          else if (r.bottom > tabs.top + 2 && r.top < tabs.top) bad.push(`${e.tagName}.${e.className} «${(e.textContent || '').trim().slice(0, 30)}» under the bar`);
+        }
+        return { bad: bad.slice(0, 4), dockH: Math.round(d.height), dbg: [dock.className, ds.position, ds.zIndex, ds.overflow, ds.contain, af.content, af.display, af.height, af.top, af.zIndex].join(' ') };
+      });
+      if (r.none) return out.push({ kind: 'dock', where: `${where} ${label}`, msg: 'no dock' });
+      for (const b of r.bad) out.push({ kind: 'dock', where: `${where} ${label}`, msg: b });
+      if (process.env.R6_DEBUG) console.log('dock', label, r.dbg);
+      return r;
+    };
+    await dockCheck('case list');
+    const firstCase = await pg.evaluate(() => window.__qa.me().keys?.starter ? 'starter' : 'rust');
+    await r6nav(pg, { tab: 'cases', drop: null, s2case: true, caseId: firstCase });
+    await pg.waitForTimeout(500);
+    await dockCheck('case page');
+    // starter first (the guide), then a rust case ×3: the pick stays ×3 on the drop and after the DROP tab
+    await post('/api/case/open', { caseId: 'starter', count: 1 }, as(id, 'r6n' + id));
+    await adm('money', { id, amount: 5e7 });
+    await pg.evaluate(() => window.__qa.refresh());
+    await r6nav(pg, { tab: 'cases', drop: null, s2case: true, caseId: 'rust', fast: true });
+    await pg.waitForTimeout(400);
+    await pg.locator('#view [data-act="pickCount"][data-n="3"]').first().click({ timeout: 3000 }).catch(() => out.push({ kind: 'count', where, msg: 'no ×3 button' }));
+    await pg.waitForTimeout(200);
+    const open = pg.locator('#view [data-act="openCase"]').first();
+    if (await open.count()) {
+      await open.click({ timeout: 3000 });
+      await pg.waitForFunction(() => window.__qa.state.drop?.length && !window.__qa.state.opening, null, { timeout: 20000 }).catch(() => out.push({ kind: 'count', where, msg: 'no drop after opening ×3' }));
+      await pg.waitForTimeout(2600);
+      where = `${tag} new drop`;
+      if (await pg.locator('#guide:not(.out)').count()) out.push({ kind: 'coach', where, msg: 'the coach card is over the drop result' });
+      const on = await pg.evaluate(() => [...document.querySelectorAll('#view [data-act="pickCount"].on')].map((b) => b.dataset.n));
+      if (on.length && !on.every((n) => n === '3')) out.push({ kind: 'count', where, msg: `×3 not kept on the drop screen (on: ${on})` });
+      await dockCheck('drop');
+      if (vp[0] === 390 || vp[0] === 320) await shot(pg, `${tag}-drop3`);
+      if (process.env.R6_STRIP) (await pg.addStyleTag({ content: '#view .drop-dock::after, #view .s2-dock::after { background: #f0f !important; }' }), await shot(pg, `${tag}-drop3-strip`));
+      await pg.locator('#tabs button[data-tab="cases"]').click({ timeout: 3000 });
+      await pg.waitForTimeout(500);
+      const s = await pg.evaluate(() => ({ drop: window.__qa.state.drop, s2case: window.__qa.state.s2case, count: window.__qa.state.count, list: !!document.querySelector('#view [data-act="s2Pick"], #view .s2-cc, #view [data-act="s2Case"]') }));
+      if (s.drop?.length) out.push({ kind: 'droptab', where, msg: 'DROP tab on a drop result did not close it' });
+      if (s.s2case) out.push({ kind: 'droptab', where, msg: 'DROP tab on a drop result went to the case page, not the case list' });
+      if (s.count !== 3) out.push({ kind: 'count', where, msg: `×N reset to ${s.count} after the DROP tab` });
+      await r6nav(pg, { tab: 'cases', s2case: true, caseId: 'rust' });
+      await pg.waitForTimeout(300);
+      const on2 = await pg.evaluate(() => [...document.querySelectorAll('#view [data-act="pickCount"].on')].map((b) => b.dataset.n));
+      if (on2.join() !== '3') out.push({ kind: 'count', where, msg: `the case page shows ×${on2} after an opening, not ×3` });
+    } else out.push({ kind: 'count', where, msg: 'no open button on the rust case' });
+    // no room: 2 free places, ×6 picked → the drop screen offers the count that fits; the wording names places
+    where = `${tag} new noroom`;
+    const me0 = (await post('/api/me', {}, as(id, 'r6n' + id))).body;
+    await adm('set', { id, field: 'slots', value: me0.used + 2 });
+    await pg.evaluate(() => window.__qa.refresh());
+    await r6nav(pg, { tab: 'cases', s2case: true, caseId: 'rust', drop: null });
+    await pg.locator('#view [data-act="pickCount"][data-n="6"]').first().click({ timeout: 3000 }).catch(() => {});
+    await pg.waitForTimeout(300);
+    const nr = await pg.evaluate(() => ({ t: document.querySelector('#view .s2-open, #view .s2-dock')?.textContent?.trim().slice(0, 120), note: document.querySelector('#view .s2-note')?.textContent?.trim() }));
+    if (nr.t && /\bз\b\s*\d/.test(nr.t)) out.push({ kind: 'noroom', where, msg: `«з» between numbers reads as «3»: ${nr.t}` });
+    await dockCheck('noroom case page');
+    if (vp[0] === 320) await shot(pg, `${tag}-noroom`);
+    await adm('set', { id, field: 'slots', value: 30 });
+    // the war map: free districts, the banner, «Знайти автоклуб» on screen
+    where = `${tag} new war`;
+    await r6nav(pg, { tab: 'city', cityView: 'war' });
+    await pg.waitForTimeout(700);
+    const war = await pg.evaluate(() => {
+      const b = document.querySelector('.s2-war .s2-btn')?.getBoundingClientRect(), tabs = document.getElementById('tabs').getBoundingClientRect();
+      return { free: document.querySelectorAll('.s2-free polygon').length, soon: !!document.querySelector('.s2-war-soon'), leg: document.querySelectorAll('.s2-leg span').length,
+        btn: b && { top: b.top, bottom: b.bottom }, tabsTop: tabs.top, own: [...document.querySelectorAll('.s2-pin-t small')].map((e) => e.textContent).filter((t) => t !== 'вільний') };
+    });
+    if (!war.free || !war.soon || war.leg) out.push({ kind: 'war', where, msg: `war map not neutral: ${JSON.stringify(war)}` });
+    if (war.own.length) out.push({ kind: 'war', where, msg: `districts with an owner: ${war.own.join(', ')}` });
+    if (!war.btn || war.btn.bottom > war.tabsTop + 1) out.push({ kind: 'war', where, msg: `«Знайти автоклуб» not on screen (${JSON.stringify(war.btn)}, bar ${Math.round(war.tabsTop)})` });
+    if (vp[0] === 320) await shot(pg, `${tag}-war`);
+    await ctx.close();
+    // ---- «Майстерня» on the city map at levels 1/2/3
+    for (const lvl of [1, 2, 3]) {
+      const wid = NEW + 400 + k * 10 + lvl;
+      where = `${tag} workshop L${lvl}`;
+      await post('/api/me', {}, as(wid, 'r6w' + wid));
+      await post('/api/intro/seen', {}, as(wid, 'r6w' + wid));
+      if (lvl > 1) await adm('set', { id: wid, field: 'level', value: lvl });
+      const { ctx: c2, pg: p2 } = await r6Page(browser, wid, 'r6w', vp, out, W);
+      await r6nav(p2, { tab: 'city', cityView: 'city' });
+      await p2.waitForTimeout(700);
+      // drag the map to its left end (the building stands at x 168 of 1920)
+      const m = await p2.locator('#s2Map').boundingBox();
+      if (m) {
+        await p2.mouse.move(m.x + 30, m.y + m.height / 2);
+        await p2.mouse.down();
+        await p2.mouse.move(m.x + m.width - 10, m.y + m.height / 2, { steps: 8 });
+        await p2.mouse.up();
+        await p2.mouse.move(m.x + 30, m.y + m.height / 2);
+        await p2.mouse.down();
+        await p2.mouse.move(m.x + m.width - 10, m.y + m.height / 2, { steps: 8 });
+        await p2.mouse.up();
+        await p2.waitForTimeout(900);
+      }
+      const lb = await p2.evaluate(() => {
+        const e = document.querySelector('.s2-lb[data-k="workshop"]');
+        if (!e) return null;
+        const r = e.getBoundingClientRect(), mp = document.getElementById('s2Map').getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return { text: e.textContent.trim(), hid: e.classList.contains('s2-hid'), inside: r.left >= mp.left - 1 && r.right <= mp.right + 1 && r.top >= mp.top - 1 && r.bottom <= mp.bottom + 1, top: hit && (hit === e || e.contains(hit)) };
+      });
+      if (!lb) {
+        out.push({ kind: 'workshop', where, msg: 'no «Майстерня» building on the city map' });
+        await c2.close();
+        continue;
+      }
+      if (lb.hid || !lb.inside || !lb.top) out.push({ kind: 'workshop', where, msg: `the label can't be tapped after dragging to it: ${JSON.stringify(lb)}` });
+      if (lvl < 3 && !/рів\.\s?3/.test(lb.text)) out.push({ kind: 'workshop', where, msg: `the label does not say the parts level: «${lb.text}»` });
+      if (lvl >= 3 && /рів\./.test(lb.text)) out.push({ kind: 'workshop', where, msg: `a level chip at level ${lvl}: «${lb.text}»` });
+      await p2.evaluate(() => document.querySelector('.s2-lb[data-k="workshop"]').click());
+      await p2.waitForTimeout(700);
+      const r = await p2.evaluate(() => ({ tab: window.__qa.state.tab, view: window.__qa.state.shopView, toast: document.getElementById('toast')?.hidden ? '' : document.getElementById('toast')?.textContent, h: document.querySelector('#view')?.textContent.slice(0, 80) }));
+      const want = lvl === 1 ? { tab: 'city' } : lvl === 2 ? { tab: 'shop', view: 'wash' } : { tab: 'shop', view: 'cases' };
+      if (r.tab !== want.tab || (want.view && r.view !== want.view)) out.push({ kind: 'workshop', where, msg: `tap → tab ${r.tab} / ${r.view}, expected ${JSON.stringify(want)} (toast «${r.toast}»)` });
+      if (lvl === 1 && !/2-го рівня/.test(r.toast || '')) out.push({ kind: 'workshop', where, msg: `level 1: toast «${r.toast}»` });
+      if (lvl === 2 && !/3-го рівня/.test(r.toast || '')) out.push({ kind: 'workshop', where, msg: `level 2: no word on the parts level (toast «${r.toast}»)` });
+      if (vp[0] === 320) await shot(p2, `${tag}-workshop-L${lvl}`);
+      await c2.close();
+    }
+    // ---- the veteran: pass card Д (Aurora + another car), car card А, race result
+    const { ctx: c3, pg: p3 } = await r6Page(browser, VET, 'uivet', vp, out, W);
+    for (const other of [null, 'ferrari-f40']) {
+      where = `${tag} vet pass ${other || 'aurora'}`;
+      if (other) await p3.route('**/api/season', async (r) => {
+        const resp = await r.fetch();
+        const j = await resp.json();
+        r.fulfill({ response: resp, body: JSON.stringify({ ...j, car: other }), headers: { ...resp.headers(), 'content-type': 'application/json' } });
+      });
+      await r6nav(p3, { tab: 'menu', page: 'season' });
+      await p3.waitForTimeout(1800);
+      await p3.locator('.season-car').scrollIntoViewIfNeeded().catch(() => {});
+      await p3.waitForTimeout(1200);
+      const p = await p3.evaluate(async () => {
+        const box = document.querySelector('.season-car .showroom.stg-d');
+        if (!box) return { none: true, txt: document.querySelector('#view')?.textContent.slice(0, 200) };
+        const imgs = [...box.querySelectorAll('img')];
+        await Promise.all(imgs.map((i) => (i.complete ? null : new Promise((r) => (i.onload = i.onerror = r)))));
+        const b = box.getBoundingClientRect(), car = box.querySelector('.stg-car img, .stg-car svg')?.getBoundingClientRect();
+        const bg = getComputedStyle(box).backgroundImage;
+        return { baked: !!box.querySelector('.stg-baked'), broken: imgs.filter((i) => !i.naturalWidth).map((i) => i.getAttribute('src')), w: b.width, h: b.height,
+          car: car && { l: car.left - b.left, r: b.right - car.right, t: car.top - b.top, b: b.bottom - car.bottom, w: car.width, h: car.height }, bg: /pass-showroom/.test(bg),
+          tokyo: /Токіо/.test(document.getElementById('view').textContent), title: document.querySelector('.season-car b')?.textContent };
+      });
+      if (p.none) out.push({ kind: 'pass', where, msg: `no stage Д on the pass page: ${p.txt}` });
+      else {
+        if (!other && !p.baked) out.push({ kind: 'pass', where, msg: 'Aurora without its baked showroom picture' });
+        if (other && p.baked) out.push({ kind: 'pass', where, msg: `${other} shows Aurora's baked picture` });
+        if (!p.bg) out.push({ kind: 'pass', where, msg: 'no showroom background' });
+        for (const s of p.broken) out.push({ kind: 'pass', where, msg: `image did not load ${s}` });
+        if (!p.car || p.car.w < 50 || p.car.l < -1 || p.car.r < -1 || p.car.t < -1 || p.car.b < -1) out.push({ kind: 'pass', where, msg: `the live car is not inside the stage: ${JSON.stringify(p.car)} box ${Math.round(p.w)}×${Math.round(p.h)}` });
+        if (p.tokyo) out.push({ kind: 'pass', where, msg: '«Токіо» on the pass page' });
+      }
+      await shot(p3, `${tag}-pass-${other || 'aurora'}`);
+      if (other) await p3.unroute('**/api/season');
+    }
+    where = `${tag} vet car card`;
+    const cs = await p3.evaluate(async () => {
+      const Q = window.__qa, c = Q.me().cars.find((x) => x.status === 'garage');
+      Q.closeModal();
+      Q.carSheet(c.id);
+      await new Promise((r) => setTimeout(r, 1200));
+      const box = document.querySelector('#sheet .s2c-stage.stg-a, .s2c-stage.stg-a');
+      if (!box) return { none: true };
+      const b = box.getBoundingClientRect(), car = box.querySelector('.stg-car img, .stg-car svg')?.getBoundingClientRect();
+      return { car: car && { l: car.left - b.left, r: b.right - car.right, t: car.top - b.top, b: b.bottom - car.bottom, w: car.width }, sw: document.documentElement.scrollWidth, W: innerWidth };
+    });
+    if (cs.none) out.push({ kind: 'carcard', where, msg: 'no stage А on the car card' });
+    else if (!cs.car || cs.car.w < 50 || cs.car.t < -1 || cs.car.b < -1) out.push({ kind: 'carcard', where, msg: `car not inside stage А: ${JSON.stringify(cs.car)}` });
+    await shot(p3, `${tag}-carcard`);
+    await p3.evaluate(() => window.__qa.closeModal());
+    await c3.close();
+  }
+}
+
 const browser = await chromium.launch();
 await seed();
+if (process.argv.includes('--r6')) {
+  const r6 = [];
+  await r6Checks(browser, r6);
+  for (const f of r6) console.log(`- [${f.kind}] ${f.where}: ${f.msg}`);
+  console.log(`r6: ${r6.length} findings`);
+  if (process.argv.includes('--r6only')) (await browser.close(), process.exit(r6.length ? 1 : 0));
+}
 const res = [];
 if (process.argv.includes('--today')) {
   await adm('give-car', { id: VET, model: 'tesla-model-y' });
   await todayChecks(browser, res);
 }
 if (WHO.includes('vet')) await leaveRunCheck(browser, VET, 'vet', res);
-for (const [id, n] of [[NEW, 'new'], [VET, 'vet'], [EDGE, 'edge']].filter(([, n]) => WHO.includes(n))) {
+// --ids=11,38: existing players of the database too (e.g. veterans on a copy after the Season 2 wipe)
+const EXTRA = (arg('ids') || '').split(',').filter(Boolean).map((x) => [Number(x), 'id' + x]);
+for (const [id, n] of [[NEW, 'new'], [VET, 'vet'], [EDGE, 'edge']].filter(([, n]) => WHO.includes(n)).concat(EXTRA)) {
   const r = await sweep(browser, id, n);
   console.log(`${n}: ${r.list} screens, ${r.out.length} findings`);
   res.push(...r.out);

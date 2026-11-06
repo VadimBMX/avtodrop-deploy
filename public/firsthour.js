@@ -95,3 +95,13 @@ export function spendConfirm({ title, amount, balance, note = 'Не поверт
     document.body.append(box);
   });
 }
+
+// r6 (06.11): the «Перші кроки» card reserves its height on top of the page (app.js coachPush). On a page scrolled down
+// that strip is above the screen, so growing / shrinking it would move everything the player is looking at by the
+// card's height — iOS WebKit (Telegram on iPhone) has no scroll anchoring to hide it. Scrolled: change it at once (no
+// slide) and scroll by the same amount; at the top: let it slide. was / h — the reserved px before / after; y — scrollY.
+export function coachShift({ y, was, h }) {
+  if (h === was) return { instant: false, by: 0 };
+  if (!(y > 0)) return { instant: false, by: 0 };
+  return { instant: true, by: h - was }; // the browser clamps at the top: a strip partly on screen just closes
+}

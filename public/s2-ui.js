@@ -579,7 +579,11 @@ function dock(cs) {
   // s2-screens (owner 03.11): «Швидко» lives right here, next to ×1/×3/×6 and the open button (it was a footer row under
   // the bar nobody saw); the same pill sits on the opening overlay and skips the animation mid-way.
   const fast = cs.starter ? '' : fastPill(st().fast);
-  return `<div class="s2-dock${cs.starter ? '' : ' s2-dock2'}">${counts || fast ? `<div class="s2-dock-r">${counts}${fast}</div>` : ''}${openBtn(cs, n)}</div>${free < n && free >= 0 && !cs.starter ? `<div class="s2-note">${free > 0 ? `Не вистачає місця для ×${n} — обери ×1 або продай машину` : 'Гараж заповнений — продай машину або купи місце в гаражі'} · <a class="txtlink" data-act="sellCheap" data-n="${Math.max(1, n - free)}">продати дешевші</a></div>` : ''}`;
+  // r6: the no-room note lives INSIDE the sticky dock — after it, the dock's ::after strip (it hides what scrolls between
+  // the dock and the bar) lay right on it, so «продати дешевші» was never visible. It names the count that fits (×3 / ×1).
+  const fit = [3, 1].find((k) => k <= free);
+  const note = free < n && free >= 0 && !cs.starter ? `<div class="s2-note">${free > 0 ? `Не вистачає місця для ×${n} — обери ×${fit} або продай машину` : 'Гараж заповнений — продай машину або купи місце в гаражі'} · <a class="txtlink" data-act="sellCheap" data-n="${Math.max(1, n - free)}">продати дешевші</a></div>` : '';
+  return `<div class="s2-dock${cs.starter ? '' : ' s2-dock2'}${note ? ' s2-dock-note' : ''}">${counts || fast ? `<div class="s2-dock-r">${counts}${fast}</div>` : ''}${openBtn(cs, n)}${note}</div>`;
 }
 function oddsTiles(cs, weights) {
   const tw = Object.values(weights).reduce((a, b) => a + b, 0);

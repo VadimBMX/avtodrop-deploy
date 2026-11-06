@@ -29,7 +29,7 @@ import { installHalloween, hwNight, HW_DRIFT, hwDriftPumpkins, hwDriftOverlay, h
 import { installBarn } from './barn-ui.js';
 // «Таємний покупець»: a card in «Гараж» under the income card (public/buyer-ui.js).
 import { installBuyer } from './buyer-ui.js';
-import { installTopStrip, raceCarChoice, garageSig, bossWall, sovietEra } from './firsthour.js';
+import { installTopStrip, raceCarChoice, garageSig, bossWall, sovietEra, coachShift } from './firsthour.js';
 // popups (crit4 №5): one self-opening window per app entry, by priority (public/popups.js).
 import { createPopups } from './popups.js';
 // «Автоклуби»: page «Клуб», [TAG] next to names, the menu row, club_<code> invite links (public/clubs-ui.js).
@@ -6519,11 +6519,32 @@ let coachSig = null, coachUntil = 0, coachOpen = false, coachT = null;
 // r4-ux (owner playtest 06.11: the card hid the Ринок title and the first row of tiles): while the card is down the
 // page makes room for it (#view::before grows to the card's height, body.coach-push), so it never covers content;
 // it shrinks back when the card folds into the ring.
+// r6: scrolled down, the strip changes at once (no slide) and the page is put back so what the player looks at stays
+// where it was (firsthour.js coachShift). iOS WebKit has no scroll anchoring, Android's Chromium has: so it is measured,
+// not assumed — an element on screen before and after, the scroll corrected by the real difference (twice: now and on
+// the next frame, in case anchoring moved it again).
+const coachRef = () => [...($('#view')?.children || [])].find((e) => {
+  const r = e.getBoundingClientRect(), p = getComputedStyle(e).position;
+  return r.height > 0 && r.bottom > innerHeight * 0.3 && p !== 'sticky' && p !== 'fixed';
+});
 function coachPush(el) {
   const b = document.body;
-  if (!el) return b.classList.remove('coach-push');
-  b.style.setProperty('--coach-h', `${Math.round(el.offsetHeight + 12)}px`); // offsetHeight: the drop-in animation scales the card
-  b.classList.add('coach-push');
+  const was = b.classList.contains('coach-push') ? parseFloat(b.style.getPropertyValue('--coach-h')) || 0 : 0;
+  const h = el ? Math.round(el.offsetHeight + 12) : 0; // offsetHeight: the drop-in animation scales the card
+  const y = window.scrollY, sh = coachShift({ y, was, h });
+  const ref = sh.instant ? coachRef() : null, top0 = ref?.getBoundingClientRect().top;
+  if (sh.instant) b.classList.add('coach-still');
+  if (el) (b.style.setProperty('--coach-h', `${h}px`), b.classList.add('coach-push'));
+  else b.classList.remove('coach-push');
+  if (!sh.instant) return;
+  const fix = () => {
+    if (!ref?.isConnected) return;
+    const d = ref.getBoundingClientRect().top - top0;
+    if (Math.abs(d) >= 1) window.scrollTo(0, Math.max(0, window.scrollY + d));
+  };
+  if (ref) fix();
+  else window.scrollTo(0, Math.max(0, y + sh.by)); // nothing to measure: the expected shift
+  requestAnimationFrame(() => (fix(), b.classList.remove('coach-still')));
 }
 function coachClear() {
   clearTimeout(coachT);
