@@ -603,7 +603,7 @@ function openBtn(cs, n) {
   if (free < n) {
     const kp = Math.max(0, free - keys);
     if (kp && price * kp > m.balance) return `<button class="s2-open" disabled>Бракує ${S.short(price * kp - m.balance)}</button>`;
-    return `<button class="s2-open opencase s2-fit" data-act="openCase" data-n="${free}" data-expect="${price * kp}">${X.ic('box')}<span class="l">Відкрити ×${free} (що влізе)</span><span class="p">${kp ? shortN(price * kp) + ' ₴' : `${X.ic('key')} ${free}`}</span></button>`;
+    return `<button class="s2-open opencase s2-fit" data-act="openCase" data-n="${free}" data-expect="${price * kp}">${X.ic('box')}<span class="l">Відкрити ×${free}</span><span class="p">${kp ? shortN(price * kp) + ' ₴' : `${X.ic('key')} ${free}`}</span></button>`;
   }
   if (paid && price * paid > m.balance) return `<button class="s2-open" disabled>Бракує ${S.short(price * paid - m.balance)}</button>`;
   return `<button class="s2-open opencase" data-act="openCase" data-expect="${price * paid}">${X.ic('box')}<span class="l">${cs.starter ? 'Відкрити' : 'Відкрити'}</span><span class="p">${cs.starter ? 'безкоштовно' : paid ? shortN(price * paid) + ' ₴' : `${X.ic('key')} ${n}`}</span></button>`;

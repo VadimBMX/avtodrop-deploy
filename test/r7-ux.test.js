@@ -31,7 +31,7 @@ test('first steps 7/8 below the parts level: «Дійди до 3-го рівня
 test('short of garage room: the button opens what fits (K = free slots) and the server takes any count up to 6', async () => {
   const dock = s2.slice(s2.indexOf('function openBtn('), s2.indexOf('const fastPill'));
   assert.match(dock, /data-n="\$\{free\}"/);
-  assert.match(dock, /Відкрити ×\$\{free\} \(що влізе\)/);
+  assert.match(dock, /Відкрити ×\$\{free\}<\/span>/); // short label: «(що влізе)» did not fit next to ×1/×3/×6
   assert.doesNotMatch(dock, /вибери менше/);
   const app = read('app.js');
   assert.equal((app.match(/const fit = free >= 1 && free < n \? free : 0;/g) || []).length, 2);
