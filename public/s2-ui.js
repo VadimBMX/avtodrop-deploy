@@ -574,6 +574,14 @@ function bazaarView() {
     <button class="hub-store s2-store-row" data-act="go" data-page="store"><img src="s2/x-vip.webp" alt=""><span class="grow"><b>Магазин</b><span class="hub-i">Гривні, VIP, «Стиль»</span></span><span class="chev">${X.ic('chevron-right')}</span></button></div>`;
 }
 
+// r7-ux (playtest 06.11: a tap on «Міський» before the starter was opened did nothing at all — render puts the starter
+// back while the first-steps guide is on it): say why.
+function starterFirst(id) {
+  const m = me();
+  if (!id || id === 'starter' || m.guide !== 'starter' || !m.keys?.starter) return false;
+  X.toast('Спершу відкрий стартовий — він безкоштовний');
+  return true;
+}
 // ---------- DROP ----------
 function dropView(base) {
   const s = st(), m = me();
@@ -629,7 +637,7 @@ function marketView(base) {
   const list = S.CASES.filter((c) => !c.starter || m.keys[c.id]);
   const tile = (c) => {
     const dl = X.caseNow(c);
-    return `<button class="s2-ct ${c.id === cs.id ? 'on' : ''}" style="--cc:${caseCol(c)}" data-act="s2Pick" data-id="${c.id}">${dl.off ? `<span class="s2-ct-hot">−${Math.round(dl.off * 100)}%</span>` : ''}${m.keys[c.id] && !c.starter ? `<span class="s2-ct-key">${X.ic('key')}${m.keys[c.id]}</span>` : ''}${caseArt(c)}<b>${esc(CASE_SHORT[c.id] || c.name)}</b><small>${c.starter ? 'ключ' : shortN(dl.price)}</small></button>`;
+    return `<button class="s2-ct ${c.id === cs.id ? 'on' : ''}" style="--cc:${caseCol(c)}" data-act="s2Pick" data-id="${c.id}">${dl.off ? `<span class="s2-ct-hot">−${Math.round(dl.off * 100)}%</span>` : ''}${caseArt(c)}<b>${esc(CASE_SHORT[c.id] || c.name)}</b><small${m.keys[c.id] && !c.starter ? ' class="s2-ct-k"' : ''}>${c.starter ? 'ключ' : m.keys[c.id] ? `${X.ic('key')}ключ ×${m.keys[c.id]}` : shortN(dl.price)}</small></button>`;
   };
   const rar = list.filter((c) => c.group !== 'country'), cty = list.filter((c) => c.group === 'country');
   return `<div class="feed" id="dropFeed" hidden></div><div class="s2-page s2-drop">
@@ -1050,6 +1058,7 @@ const handlers = {
   s2Quick: (d) => (d.k === 'events' ? X.H.eventsOpen() : X.go(d.k)),
   s2Pick: (d) => {
     const s = st();
+    if (starterFirst(d.id)) return;
     if (s.caseId === d.id) return handlers.s2Case(d);
     s.caseId = d.id;
     s.drop = null;
@@ -1058,6 +1067,7 @@ const handlers = {
   },
   s2Case: (d) => {
     const s = st();
+    if (starterFirst(d.id)) return;
     if (d.id) s.caseId = d.id;
     s.s2case = !!d.id;
     s.s2all = false;

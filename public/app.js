@@ -1237,7 +1237,7 @@ function carSheet(id, best = null) {
     <div class="s2c-stage stg stg-a r${rank} ${shining(c) ? 'shining' : ''}"><i class="stg-cone"></i><i class="stg-sb"></i><i class="stg-sheen"></i>${c.plate ? `<div class="s2c-plate">${plate(c.plate.text)}</div>` : ''}
       ${stageLayers(carArt(c.model, { glow: rank >= 3, look: c.look, dirt: c.dirt }))}</div>
     <div class="s2c-name"><span class="s2c-cls">${m.cls}</span><b class="ellipsis">${esc(S.CLASSES[m.cls].name)} · ${m.year}</b>${c.serial ? `<span class="chip ed-chip">${m.restored ? ic('sparkles') + 'R ' : ic('box')}${S.serialText(c.serial)}</span>` : ''}${c.stars ? starsHtml(c, { cls: 'pr-c' }) : ''}${dirtTag(c)}<span class="s2c-flag">${esc(originText(m))}</span></div>
-    <div class="s2c-stats">${tile('Потужність', `${c.hp} к.с.`)}${tile('402 м', `${dec(c.et, 2)} с`)}${tile("Маса", `${Math.round(st.kg).toLocaleString("uk-UA")} кг`)}${tile('Стан', `${Math.max(0, 100 - (c.dirt || 0))}%`)}</div>
+    <div class="s2c-stats">${tile('Потужність', `${c.hp} к.с.`)}${tile('402 м', `${dec(c.et, 2)} с`)}${tile("Маса", `${Math.round(st.kg).toLocaleString("uk-UA")} кг`)}<button class="s2c-st s2c-st-q" data-act="stateInfo"><small>Стан ${ic('info-circle')}</small><b>${Math.max(0, 100 - (c.dirt || 0))}%</b></button></div>
     <div class="s2c-val"><div><small>${m.secret ? 'Колекційна ціна' : 'Ціна продажу'}</small><b>${S.short(price)}</b><span class="${inc && inc.earning !== false ? 'up' : ''}">${inc ? (inc.earning === false ? 'не заробляє — немає місця' : `+${S.short(inc.rate)} / год`) : c.status === 'showcase' ? 'на вітрині — без доходу' : 'без доходу'}${m.secret ? '' : ` · <span class="nw">колекційна ${S.short(c.value)}</span>`}</span></div>${s2Spark(c)}</div>
     ${locked ? `<div class="card mt center muted">Авто виставлено на ${c.status === 'market' ? 'ринок' : 'аукціон'} — керуй ним у «Ринок → Авторинок → Мої лоти».</div>` : `
     <div class="s2c-acts">${act('s2CarMode', 'tool', 'Тюнінг', 'data-k="tune"')}${act('washCar', 'droplet', 'Помити', '', !washable(c))}${act('carShowcase', c.status === 'showcase' ? 'arrow-back-up' : 'star', c.status === 'showcase' ? 'У гараж' : 'Вітрина')}${act('carSellMenu', 'cash', 'Продати', '', !!m.secret || c.status !== 'garage')}</div>
@@ -9634,6 +9634,8 @@ function bugAskOnce(tries = 0) {
     } else if (r === 'denied') bugAskOn = false;
   }, tries ? 4000 : 6000);
 }
+// r7-ux (playtest 05.11 and 06.11: «Стан 60% — що це?»): one tap says what the number is.
+H.stateInfo = () => toast(`Стан — наскільки машина чиста. Бруд додають гонки; на дохід і швидкість він не впливає. Помий — і машина ${S.WASH.shineHours} год блищить: +${Math.round(S.WASH.shine * 100)}% до доходу`);
 H.bugAskGo = () => {
   closeModal();
   go('support');

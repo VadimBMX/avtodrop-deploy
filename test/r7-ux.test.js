@@ -74,3 +74,12 @@ test('«Бета-тест»: not in the first session, never over the garage or 
   assert.match(app, /localStorage\.setItem\(BUG_ASK_KEY, '1'\);/);
   assert.match(css, /body\.coach-push #banners \.banner\.rwall \{ display: none; \}/);
 });
+
+test('small items: a tile with keys says «ключ ×N»; another case before the starter → a toast; «Стан» explains itself', () => {
+  assert.match(s2, /m\.keys\[c\.id\] \? `\$\{X\.ic\('key'\)\}ключ ×\$\{m\.keys\[c\.id\]\}` : shortN\(dl\.price\)/);
+  assert.match(s2, /X\.toast\('Спершу відкрий стартовий — він безкоштовний'\)/);
+  assert.equal((s2.match(/if \(starterFirst\(d\.id\)\) return;/g) || []).length, 2, 's2Pick and s2Case');
+  const app = read('app.js');
+  assert.match(app, /data-act="stateInfo"><small>Стан /);
+  assert.match(app, /H\.stateInfo = \(\) => toast\(`Стан — наскільки машина чиста\./);
+});

@@ -7808,3 +7808,10 @@ body.s2 #view .drop-dock .opencase[disabled] { opacity: .55; filter: saturate(.4
 /* r7-ux (playtest 06.11, shot 09): «Нагороди чекають» and the first-steps card lay one on the other — the strip waits
    while the card is shown (body.coach-push) */
 body.coach-push #banners .banner.rwall { display: none; }
+/* r7-ux: a case tile with keys says «ключ ×N» where the price was (the 🔑6 corner badge was too small to notice) */
+body.s2 .s2-ct small.s2-ct-k { color: #ffd400; display: inline-flex; align-items: center; gap: 3px; }
+body.s2 .s2-ct small.s2-ct-k .i { width: 11px; height: 11px; }
+/* r7-ux: «Стан» on the car card is a button — a tap explains it (H.stateInfo) */
+.s2c-st.s2c-st-q { text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.s2c-st.s2c-st-q small { display: flex; align-items: center; gap: 3px; }
+.s2c-st.s2c-st-q small .i { width: 12px; height: 12px; flex: none; opacity: .8; }
