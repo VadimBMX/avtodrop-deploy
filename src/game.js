@@ -4177,9 +4177,9 @@ export function createGame(db, opts = {}) {
   }
   const itemPriceTx = (uid, itemId) => db.tx(() => itemPrice(uid, itemId));
 
-  // Live feed for the case screen: the latest purple-or-better drops of all players (names shortened).
+  // Live feed for the case screen: the latest purple-or-better drops of all players (names shortened); only drops after the Season 2 wipe.
   function dropFeed() {
-    const rows = q("SELECT d.user_id uid, d.item, d.cls, d.case_id caseId, d.created_at at FROM drops d WHERE d.cls IN ('B', 'A', 'S') AND d.forced <> 3 ORDER BY d.id DESC LIMIT 40").all()
+    const rows = q("SELECT d.user_id uid, d.item, d.cls, d.case_id caseId, d.created_at at FROM drops d WHERE d.cls IN ('B', 'A', 'S') AND d.forced <> 3 AND d.created_at >= ? ORDER BY d.id DESC LIMIT 40").all(Number(metaGet(WIPE_META)) || 0)
       .filter((r) => S.MODELS[r.item] && S.CASE_BY_ID[r.caseId]).slice(0, 12);
     return { list: rows.map((r) => ({ name: name(r.uid), model: r.item, cls: r.cls, caseId: r.caseId, at: r.at })) };
   }
