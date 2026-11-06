@@ -28,7 +28,8 @@ const CASE_SHORT = { rust: 'Іржавий', city: 'Міський', tuning: 'Т
 const COUNTRY_ART = new Set(['ua', 'jp', 'de', 'it', 'us', 'gb', 'cn']);
 const caseKey = (cs) => CASE_ART[cs.id] || (cs.country && COUNTRY_ART.has(cs.country.toLowerCase()) ? cs.country.toLowerCase() : null)
   || (/hallow|hw/i.test(cs.id) ? 'halloween' : null);
-const caseCol = (cs) => CASE_COL[cs.id] || (cs.country ? '#22c1a5' : clsCol(S.CLASS_ORDER.filter((k) => cs.weights[k]).pop()));
+const CTRY_COL = { UA: '#2f7bff', JP: '#ff4d6d', DE: '#c9a227', IT: '#2fbf5b', US: '#5b7cff', GB: '#c0392b', CN: '#ff6a3d' }; // 06.11: case cards without pictures — each country its own colour
+const caseCol = (cs) => CASE_COL[cs.id] || (cs.country ? CTRY_COL[cs.country] || '#22c1a5' : clsCol(S.CLASS_ORDER.filter((k) => cs.weights[k]).pop()));
 function caseArt(cs, open = false, cls = '') {
   const k = caseKey(cs);
   if (k) return `<img class="s2-cimg ${cls}" src="s2/case/${open ? 'o' : 'c'}-${k}.webp" alt="" draggable="false">`;
@@ -290,7 +291,7 @@ function cityView() {
   return `<div class="s2-city" id="s2City">${seg}${war ? warMap() : cityMap()}</div>`;
 }
 function cityMap() {
-  const labels = SPOTS.filter((sp) => sp.soon).map((sp) => `<div class="s2-soon" aria-hidden="true" style="left:${(sp.x / CITY_W) * 100}%;top:${((sp.y + 70) / CITY_H) * 100}%"><span><b>СКОРО</b></span></div>`).join('') + SPOTS.map((sp) => `<button class="s2-lb${sp.free ? ' free' : ''}${sp.soon ? ' soon' : ''}${sp.k === 'garage' ? ' main' : ''}${sp.k === 'track' ? ' top' : ''}" data-act="s2Spot" data-k="${sp.k}" style="left:${(sp.x / CITY_W) * 100}%;top:${(sp.y / CITY_H) * 100}%;--c:${sp.c}"><i>${X.ic(sp.i)}</i>${sp.t}${spotText(sp)}</button>`).join('');
+  const labels = SPOTS.filter((sp) => sp.soon).map((sp) => `<div class="s2-soontape" aria-hidden="true" style="left:${(sp.x / CITY_W) * 100}%;top:${((sp.y + 70) / CITY_H) * 100}%"><span><b>СКОРО</b></span></div>`).join('') + SPOTS.map((sp) => `<button class="s2-lb${sp.free ? ' free' : ''}${sp.soon ? ' soon' : ''}${sp.k === 'garage' ? ' main' : ''}${sp.k === 'track' ? ' top' : ''}" data-act="s2Spot" data-k="${sp.k}" style="left:${(sp.x / CITY_W) * 100}%;top:${(sp.y / CITY_H) * 100}%;--c:${sp.c}"><i>${X.ic(sp.i)}</i>${sp.t}${spotText(sp)}</button>`).join('');
   const quick = [['quests', 'target-arrow', 'Цілі', me().questReady], ['events', 'calendar', 'Події', 0], ['season', 'ticket', 'Пропуск', me().season?.ready]]
     .map(([k, i, t, n]) => `<button class="s2-q" data-act="s2Quick" data-k="${k}">${X.ic(i)}<span>${t}</span>${n ? `<b>${n > 9 ? '9+' : n}</b>` : ''}</button>`).join('');
   return `<div class="s2-map" id="s2Map"><div class="s2-pan" id="s2Pan" data-w="${CITY_W}" data-h="${CITY_H}" data-x="952"><img src="s2/city.webp" alt="" draggable="false">${labels}</div>
@@ -638,9 +639,10 @@ function marketView(base) {
     <div class="s2-feat-art" id="stage">${caseArt(cs)}</div>
     <div class="s2-ods">${oddsTiles(cs, deal.weights)}</div></div>`;
   const list = S.CASES.filter((c) => !c.starter || m.keys[c.id]);
+  // owner/David 06.11: no crate pictures in the list («смішно виглядає») — a coloured card: classes inside, name, price
   const tile = (c) => {
     const dl = X.caseNow(c);
-    return `<button class="s2-ct ${c.id === cs.id ? 'on' : ''}" style="--cc:${caseCol(c)}" data-act="s2Pick" data-id="${c.id}">${dl.off ? `<span class="s2-ct-hot">−${Math.round(dl.off * 100)}%</span>` : ''}${caseArt(c)}<b>${esc(CASE_SHORT[c.id] || c.name)}</b><small${m.keys[c.id] && !c.starter ? ' class="s2-ct-k"' : ''}>${c.starter ? 'ключ' : m.keys[c.id] ? `${X.ic('key')}ключ ×${m.keys[c.id]}` : shortN(dl.price)}</small></button>`;
+    return `<button class="s2-ct ${c.id === cs.id ? 'on' : ''}" style="--cc:${caseCol(c)}" data-act="s2Pick" data-id="${c.id}">${dl.off ? `<span class="s2-ct-hot">−${Math.round(dl.off * 100)}%</span>` : ''}<i class="s2-ct-cls">${S.CLASS_ORDER.filter((k) => dl.weights?.[k]).map((k) => `<em style="--c:${clsCol(k)}">${k}</em>`).join('')}</i><b>${esc(CASE_SHORT[c.id] || c.name)}</b><small${m.keys[c.id] && !c.starter ? ' class="s2-ct-k"' : ''}>${c.starter ? 'ключ' : m.keys[c.id] ? `${X.ic('key')}ключ ×${m.keys[c.id]}` : shortN(dl.price)}</small></button>`;
   };
   const rar = list.filter((c) => c.group !== 'country'), cty = list.filter((c) => c.group === 'country');
   return `<div class="feed" id="dropFeed" hidden></div><div class="s2-page s2-drop">

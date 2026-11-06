@@ -8113,7 +8113,21 @@ body.s2 .s2-ct small.s2-ct-k .i { width: 11px; height: 11px; }
 /* owner 06.11: Шиномонтаж closed for now — dimmed label + «СКОРО» barrier tape over the building */
 body.s2 .s2-lb.soon { filter: saturate(.35); opacity: .85; }
 body.s2 .s2-lb.soon small { color: #ffd400; }
-body.s2 .s2-soon { position: absolute; z-index: 2; transform: translate(-50%, -50%) rotate(-12deg); pointer-events: none; }
-body.s2 .s2-soon span { display: block; padding: 5px 26px; border-radius: 3px; box-shadow: 0 4px 14px #000a;
+body.s2 .s2-soontape { position: absolute; z-index: 2; transform: translate(-50%, -50%) rotate(-12deg); pointer-events: none; }
+body.s2 .s2-soontape span { display: block; padding: 5px 26px; border-radius: 3px; box-shadow: 0 4px 14px #000a;
   background: repeating-linear-gradient(-45deg, #ffd400 0 10px, #15161a 10px 18px); }
-body.s2 .s2-soon b { display: block; padding: 3px 10px; background: #15161a; color: #ffd400; font-weight: 800; font-size: 13px; letter-spacing: .18em; line-height: 1; border-radius: 2px; }
+body.s2 .s2-soontape b { display: block; padding: 3px 10px; background: #15161a; color: #ffd400; font-weight: 800; font-size: 13px; letter-spacing: .18em; line-height: 1; border-radius: 2px; }
+/* owner/David 06.11: case list without crate pictures — coloured cards: the classes inside, the name, the price */
+body.s2 .s2-ct { justify-content: space-between; gap: 6px; min-height: 92px; padding: 12px 8px 11px; overflow: hidden;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--cc) 34%, #1b1c21) 0%, #17181c 70%); border: 1px solid color-mix(in srgb, var(--cc) 40%, transparent); }
+body.s2 .s2-ct::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--cc); opacity: .9; }
+body.s2 .s2-ct.on { box-shadow: 0 0 0 2px var(--accent), 0 0 24px -8px var(--cc); }
+body.s2 .s2-ct-cls { display: flex; gap: 3px; font-style: normal; margin-top: 4px; }
+body.s2 .s2-ct-cls em { font: 800 10px/1 var(--f-body); font-style: normal; color: #111; background: var(--c); border-radius: 5px; padding: 3px 5px; }
+body.s2 .s2-ct b { font-size: 14px; letter-spacing: .02em; }
+body.s2 .s2-ct small { font-size: 13px; }
+body.s2 .s2-ct .s2-ct-hot { top: 6px; left: auto; right: 6px; }
+body.s2 .s2-ct .s2-ct-hot { top: auto; bottom: 6px; right: 6px; left: auto; font-size: 9px; padding: 2px 5px; }
+body.s2 .s2-ct small { padding-right: 0; }
+body.s2 .s2-ct .s2-ct-hot { top: 6px; bottom: auto; left: 6px; right: auto; }
+body.s2 .s2-ct:has(.s2-ct-hot) .s2-ct-cls { margin-top: 16px; }
