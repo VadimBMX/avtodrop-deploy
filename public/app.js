@@ -55,6 +55,7 @@ import { BIZ } from './business.js'; // the level-up window lists the businesses
 // «АВТОДРОП: Місто» (Season 02): the bottom bar, the city home, Drop-market, parking, profile hero (public/s2-ui.js).
 import { installS2, UI2 } from './s2-ui.js';
 import { installDropFx, styleSection as dropFxSection } from './dropfx-ui.js'; // r5-shop: «Ефект дропу»
+import { plateFrameInner, plateFrameWatch } from './plate-frames.js'; // r9-plates: plate frames drawn in code
 
 const tg = window.Telegram?.WebApp;
 const $ = (s, el = document) => el.querySelector(s);
@@ -362,7 +363,7 @@ const left = (ms) => {
 };
 const serverNow = () => Date.now() + clockOffset;
 const plateGroups = (text, wrapChars = false) => String(text).split(' ').map((g) => `<span class="g">${wrapChars ? [...g].map((c) => `<span class="ch">${esc(c)}</span>`).join('') : esc(g)}</span>`).join('');
-const plate = (text, size = '', frame) => `<span class="plate ${size}${plateFrame(text, frame)}"><span class="ua"><i></i>UA</span><span class="tx"><span class="txi">${plateGroups(text)}</span></span></span>`;
+const plate = (text, size = '', frame) => { const pf = plateFrame(text, frame); return `<span class="plate ${size}${pf}"><span class="ua"><i></i>UA</span><span class="tx"><span class="txi">${plateGroups(text)}</span></span>${plateFrameInner(pf)}</span>`; };
 
 // Plate typography adapts to whatever condensed font the device has: capitals are sized to 62% of the
 // plate height and centred vertically, measured from the real font metrics.
@@ -8106,6 +8107,7 @@ for (const k of ['toggleDnd', 'togglePush', 'toggleGuide', 'toggleChannel']) {
   PAINT.watchLooks(document.body);
   DIRT.watchDirt(document.body);
   measurePlateFont();
+  plateFrameWatch(); // r9-plates
   if (!tg?.initData && !config.dev) {
     $('#view').innerHTML = '<div class="empty">Відкрий АВТОДРОП через Telegram-бота</div>';
     return splashReady();
