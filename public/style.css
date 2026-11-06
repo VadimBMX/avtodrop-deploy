@@ -5295,9 +5295,24 @@ body.s2 .s2r.s2r-l .rhero-t { color: #ff5a70; text-shadow: none; }
 .s2r-tag { display: inline-block; padding: 3px 10px; border-radius: 999px; background: #ff3df0; color: #fff; font: 800 11px var(--f-body); }
 .s2r.s2r-l .s2r-tag { background: #ff3d5a; }
 body.s2 .s2r .rhero-amt { font: 900 22px var(--f-disp); background: #ffffff0a; border-radius: 14px; }
-body.s2 .s2r-photo { height: 130px; border-radius: 0; margin: 4px -16px 12px; box-shadow: none; background: linear-gradient(transparent 70%, #00000080), transparent; }
-body.s2 .s2r-photo::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 14px; background: conic-gradient(#fff 25%, #111 0 50%, #fff 0 75%, #111 0) 0 0 / 14px 14px; opacity: .8; }
-body.s2 .s2r-photo .dr-photo-t { left: auto; right: 16px; top: 4px; padding: 5px 10px; border-radius: 999px; background: var(--glass); border: 1px solid var(--glass-b); color: var(--text); font: 700 11px var(--f-body); text-transform: none; letter-spacing: 0; }
+/* Photo finish (owner 06.11: the cars floated on black under the road, one on the other's roof): the side view of the
+   race itself — the bottom of race-bg2.webp (barrier, two-lane road) at full width, cropped to its rows 580–860 of 860
+   so the strip keeps the photo's proportions on any phone and the lanes sit at fixed % of its height: road top 65%,
+   lane line 33%. The rival stands in the far lane, smaller; you in the near one; noses at a checkered line across the
+   road, the loser behind by the real gap. The top fades into the page, so there is no seam under the hero. */
+body.s2 .s2r-photo { height: auto; aspect-ratio: 768 / 280; border-radius: 0; margin: 2px -16px 12px; box-shadow: none; background: none; }
+body.s2 .s2r-photo::before { content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: linear-gradient(transparent 80%, #00000059), url('s2/bg/race-bg2.webp') 50% 100% / 100% auto no-repeat;
+  -webkit-mask: linear-gradient(transparent, #000 30%, #000 92%, #0008); mask: linear-gradient(transparent, #000 30%, #000 92%, #0008); }
+body.s2 .s2r-photo .dr-photo-line { left: 72%; top: auto; bottom: 0; height: 65%; width: 12px; margin-left: -6px; opacity: .9; background-size: 12px 12px; z-index: 1; }
+body.s2 .s2r-photo .dr-photo-line::before { content: ''; position: absolute; left: 50%; bottom: 100%; width: 4px; height: 38%; margin-left: -2px; background: linear-gradient(#5a5b5f, #2a2b2e); }
+body.s2 .s2r-photo .dr-pcar { right: 28%; z-index: 2; }
+body.s2 .s2r-photo .dr-pcar.rv { bottom: 39%; width: 27%; }
+body.s2 .s2r-photo .dr-pcar.me { bottom: 5%; width: 35%; z-index: 3; }
+body.s2 .s2r-photo .dr-pcar img, body.s2 .s2r-photo .dr-pcar svg { filter: drop-shadow(0 3px 2px #000c); }
+body.s2 .s2r-photo .dr-pcar.rv img, body.s2 .s2r-photo .dr-pcar.rv svg { filter: brightness(.85) drop-shadow(0 2px 2px #000c); }
+body.s2 .s2r-photo .dr-photo-t { left: 16px; right: auto; top: 6px; z-index: 4; max-width: calc(72% - 30px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 5px 10px; border-radius: 999px; background: #0d0e11cc; border: 1px solid var(--glass-b); color: var(--text); font: 700 11px var(--f-body); text-transform: none; letter-spacing: 0; }
 .s2r-times { padding: 12px 14px; }
 .s2r-tr { display: flex; align-items: center; gap: 10px; }
 .s2r-tr + .s2r-tr { margin-top: 10px; }
