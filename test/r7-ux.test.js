@@ -83,3 +83,7 @@ test('small items: a tile with keys says «ключ ×N»; another case before t
   assert.match(app, /data-act="stateInfo"><small>Стан /);
   assert.match(app, /H\.stateInfo = \(\) => toast\(`Стан — наскільки машина чиста\./);
 });
+
+test('«Майстерня» on the city map sits in the middle, above «Трейд-ін» (it was 4 swipes to the left)', () => {
+  assert.match(s2, /\{ k: 'workshop', x: 850, y: 478, t: 'Майстерня'/);
+});

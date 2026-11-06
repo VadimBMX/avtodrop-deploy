@@ -241,7 +241,9 @@ const SPOTS = [
   { k: 'salon', x: 1322, y: 360, t: 'Автосалон', c: '#5ee7f0', i: 'building-arch', biz: 'salon' },
   { k: 'dealer', x: 876, y: 580, t: 'Трейд-ін', c: '#a2a3a6', i: 'refresh' },
   // r4-ux (owner 06.11: «Де майстерня?» — hints sent players to «Майстерня», the map had none): its own building.
-  { k: 'workshop', x: 168, y: 372, t: 'Майстерня', c: '#ff8a1f', i: 'tool' },
+  // r7-ux (playtest 06.11: 4 swipes to the left, over an empty lot — nobody found it): the lot with the yellow car and
+  // the charger in the middle of the city, just above «Трейд-ін».
+  { k: 'workshop', x: 850, y: 478, t: 'Майстерня', c: '#ff8a1f', i: 'tool' },
   { k: 'free2', x: 1580, y: 352, t: 'Вільна ділянка', c: '#39ff88', i: 'plus', free: true },
 ];
 // Businesses (another part of Season 2 adds me.biz): accept a list or a map of { type|id, name, income|rate, pending, level }.
