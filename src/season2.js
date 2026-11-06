@@ -383,6 +383,8 @@ export function createSeason2(ctx) {
     } else {
       const id = String(item ?? '');
       if (!Object.hasOwn(S.SHOP_BY_ID, id)) fail('Невідомий товар');
+      // r11: the «Зірковий кейс» gives star credit — bought with credit it would be a stars → credit → case loop.
+      if (S.SHOP_BY_ID[id].realOnly) fail('Зірковий кейс купується лише за справжні Telegram Stars');
       price = itemPrice(uid, id);
       [what, label] = ['item:' + id, S.SHOP_BY_ID[id].name];
       give = () => applyItem(uid, id);

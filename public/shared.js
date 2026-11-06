@@ -2922,7 +2922,11 @@ export function styleWorn(claims, style) {
 }
 // The look of a worn cosmetic for CSS classes: 'season' for a season one, else the item's look (neon, carbon…).
 export const styleLook = (id) => { const c = cosmeticOf(id); return c ? (c.season ? SEASON_THEMES[c.season]?.look || 'season' : c.look) : null; };
-export const SHOP_BY_ID = Object.fromEntries([...SHOP_ITEMS, ...STYLE_ITEMS, ...DAY_DEALS, ...BIZ_SHOP_ITEMS /* s2-biz */, ...FRAME_SHOP_ITEMS /* r5-frames */].map((i) => [i.id, i]));
+// «Зірковий кейс» (ECON.starCase): a Stars-only item — `realOnly`: the star credit and the stars on the account can't
+// buy it (src/season2.js creditBuy, src/game.js buyWithStars); a paid charge rolls once (src/game.js creditItem).
+export const STAR_CASE = { ...ECON.starCase, ev: ECON.starCase.prizes.reduce((s, [n, c]) => s + (n * c) / 100, 0), min: Math.min(...ECON.starCase.prizes.map(([n]) => n)), max: Math.max(...ECON.starCase.prizes.map(([n]) => n)) };
+export const STAR_CASE_ITEM = { id: 'starcase', name: 'Зірковий кейс', stars: STAR_CASE.stars, starcase: true, realOnly: true };
+export const SHOP_BY_ID = Object.fromEntries([...SHOP_ITEMS, STAR_CASE_ITEM, ...STYLE_ITEMS, ...DAY_DEALS, ...BIZ_SHOP_ITEMS /* s2-biz */, ...FRAME_SHOP_ITEMS /* r5-frames */].map((i) => [i.id, i]));
 export const shopPrice = (item, starSlots = 0) => (item.id === 'slot' ? item.stars * Math.pow(2, starSlots) : item.stars);
 // Home-screen shortcut (WebApp.addToHomeScreen): offered from the 3rd day in the game, one key once it's added.
 export const HOME_SCREEN = { day: 3, caseId: 'city', count: 1 };
