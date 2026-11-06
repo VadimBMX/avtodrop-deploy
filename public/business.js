@@ -34,7 +34,7 @@ export const BIZ = {
     { mult: 1.25, need: 2, cost: 0.6 },
     { mult: 1.6, need: 4, cost: 1.5 },
   ],
-  manager: { stars: 49, days: 30 },
+  manager: { stars: 80, days: 30 },
   // The passive perks of owning a business (only while owned).
   perks: {
     washShine: 0.5, // +50% length of a wash's shine (S.WASH.shineHours)
