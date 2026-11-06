@@ -7012,6 +7012,56 @@ body > .reel.cine { z-index: 140; display: block; padding: 0; background: #05060
 .tk-card .tk-nb { margin-top: 8px; }
 .tk-card .tk-nb .refuel-btn.nb-fuel { width: 100%; justify-content: center; min-height: 44px; margin: 0; }
 
+/* r4-ux 06.11: the «Перші кроки» card makes room for itself instead of covering the page top (app.js coachPush) */
+#view::before { content: ''; display: block; height: 0; transition: height .28s ease; }
+body.coach-push #view::before { height: var(--coach-h, 0px); }
+@media (prefers-reduced-motion: reduce) { #view::before { transition: none; } }
+
+/* r4-ux 06.11: «Війна районів» before the launch — every district free (grey outline), a banner instead of the club bar */
+.s2-war-soon { flex: none; display: flex; align-items: center; gap: 10px; margin: 0 0 8px; padding: 10px 12px; border-radius: 14px;
+  background: linear-gradient(90deg, #ffd4001f, #ffd40008); box-shadow: inset 0 0 0 1px #ffd40055; }
+.s2-war-soon-ic { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: #ffd40026; color: var(--accent); font-size: 18px; }
+.s2-war-soon > span:last-child { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.s2-war-soon b { font: 800 15px/1.15 var(--f-disp); text-transform: uppercase; letter-spacing: .2px; color: #fff; }
+.s2-war-soon small { font: 600 12px/1.35 var(--f-body); color: #d6d7da; }
+.s2-ov .s2-free polygon { fill: #8a8b9014; stroke: #a5a7ad; stroke-width: 3; stroke-dasharray: 10 7; stroke-linejoin: round; }
+@media (max-height: 640px) { .s2-war-soon { padding: 7px 10px; margin-bottom: 6px; } .s2-war-soon small { font-size: 11px; } .s2-war-soon-ic { width: 28px; height: 28px; }
+  body.s2 .s2-city:has(.s2-war-soon) .s2-war .s2-war-t { display: none; } /* the banner already says it; «Знайти автоклуб» must stay on a short screen */ }
+
+/* r4-ux 06.11 (owner: the DROP dock covered a big part of the screen): ×1 ×3 ×6, «Швидко» (icon only) and the open
+   button in ONE row — on the case list, the case page (.s2-dock2) and the drop result (.dd-one). Under 375 px the open
+   button stacks its label over the price. */
+body.s2 .s2-dock.s2-dock2 { flex-direction: row; align-items: center; gap: 6px; padding-top: 8px; padding-bottom: 8px; }
+body.s2 .s2-dock2 .s2-dock-r, body.s2 .dd-one .s2-dock-r { flex: none; gap: 6px; justify-content: flex-start; }
+body.s2 .s2-dock2 .s2-open { flex: 1 1 auto; width: auto; min-width: 0; height: 48px; padding: 0 10px; gap: 6px; }
+body.s2 .s2-dock2 .s2-cnt button, body.s2 .dd-one .s2-cnt button { width: 33px; height: 42px; }
+body.s2 .s2-dock2 .s2-fast, body.s2 .dd-one .s2-fast { width: 42px; height: 42px; padding: 0; justify-content: center; gap: 0; }
+body.s2 .s2-dock2 .s2-fast > span, body.s2 .s2-dock2 .s2-fast > i, body.s2 .dd-one .s2-fast > span, body.s2 .dd-one .s2-fast > i { display: none; }
+body.s2 .s2-dock2 .s2-fast > .i, body.s2 .dd-one .s2-fast > .i { width: 19px; height: 19px; }
+body.s2 .s2-dock2 .s2-fast.on, body.s2 .dd-one .s2-fast.on { background: #ffd4001f; box-shadow: inset 0 0 0 1.5px #ffd400aa; }
+body.s2 .s2-dock2 .s2-open[disabled] { white-space: normal; line-height: 1.15; font-size: 12.5px; text-align: center; }
+body.s2 #view .drop-dock .dd-one { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+body.s2 #view .drop-dock .dd-one .opencase { flex: 1 1 auto; width: auto; min-width: 0; margin: 0; min-height: 42px; flex-direction: column; gap: 1px; line-height: 1.05; padding: 4px 8px; }
+body.s2 #view .drop-dock .dd-one .opencase .oc-l { font-size: 13.5px; max-width: 100%; }
+body.s2 #view .drop-dock .dd-one .opencase .oc-p { font-size: 13.5px; }
+body.s2 #view .drop-dock .dd-one .opencase .oc-p::before { content: none; }
+body.s2 #view .drop-dock.dd-sold .dd-one .opencase { min-height: 48px; }
+@media (max-width: 374px) {
+  body.s2 .s2-dock2 .s2-open:not([disabled]) .i { display: none; }
+  body.s2 .s2-dock2 .s2-open:not([disabled]) { flex-direction: column; gap: 1px; line-height: 1.05; }
+  body.s2 .s2-dock2 .s2-open:not([disabled]) .p { border-left: 0; padding-left: 0; margin: 0; font-size: 13px; }
+  body.s2 .s2-dock2 .s2-open:not([disabled]) .l { font-size: 14px; }
+  body.s2 #view .drop-dock .dd-one .opencase .oc-l { font-size: 12.5px; }
+  body.s2 .s2-dock2 .s2-cnt button, body.s2 .dd-one .s2-cnt button { width: 31px; }
+}
+/* r4-ux: the no-room block's two buttons fit at 320–430 px (label may wrap to two lines, the icon stays inside) */
+body.s2 #view .noroom-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+body.s2 #view .noroom-btns .btn { min-width: 0; width: auto; margin: 0; min-height: 48px; padding: 6px 8px; gap: 6px; font-size: 14px; line-height: 1.1; white-space: normal; text-align: center; }
+body.s2 #view .noroom-btns .btn .i { flex: none; }
+body.s2 #view .noroom-btns .btn > span { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+body.s2 #view .drop-dock .dd-note { margin-top: 6px; }
+body.s2 #view .btn.noroom { white-space: normal; line-height: 1.2; }
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */

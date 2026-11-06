@@ -2979,7 +2979,7 @@ export const GUIDE_STEPS = [
   // 'level2' is the key of the «install» step while parts are still locked (its name stays for players and tests);
   // its title names the install step (playtest 05.11: «Досягни 3-го рівня» here and on the last step read as one step twice);
   // the level itself comes from UNLOCKS (parts: level 3 since 03.11).
-  { key: 'level2', tab: 'race', target: '.rival', title: `Встанови деталь · з ${UNLOCK_BY_KEY.parts.level}-го рівня`, text: `Рівень ${UNLOCK_BY_KEY.parts.level} відкриє деталі в Майстерні. Досвід дають заїзди, нові машини й завдання.` },
+  { key: 'level2', tab: 'race', target: '.rival', title: `Встанови деталь · з ${UNLOCK_BY_KEY.parts.level}-го рівня`, text: `Рівень ${UNLOCK_BY_KEY.parts.level} відкриє деталі в Майстерні (будівля «Майстерня» в Місті). Досвід дають заїзди на Трасі, нові машини й завдання.` },
   { key: 'level3', tab: 'race', target: '.rival', title: 'Досягни 3-го рівня', text: 'Досвід дають заїзди (перемога — більше), нові машини в колекції й завдання.' },
 ];
 // p: { introSeen (the player came through the intro stories), off (hints turned off), keys, garage (cars in the garage),

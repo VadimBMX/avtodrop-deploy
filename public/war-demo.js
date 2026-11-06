@@ -20,9 +20,14 @@ export const DISTRICTS = [
   { n: 'Дарниця', club: 'turbo', g: [[1172, 320], [1369, 180], [1569, 290], [1372, 430]] },
   { n: 'Позняки', club: 'dk', g: [[955, 525], [1147, 415], [1367, 535], [1175, 645]] },
 ];
-// The demo as drawn for this player: { districts: [{ n, g, c, c2, fight, club: {name, e} | null }], legend: [[club, count]] }.
+// r4-ux (owner playtest 06.11: made-up clubs owning districts confused a new player — the war hasn't started): until the
+// war launches (WAR_LIVE) every district is drawn free — grey outline, «вільний», no club, no legend. The demo clubs
+// stay for a preview with { live: true }.
+export const WAR_LIVE = false;
+// The map as drawn for this player: { districts: [{ n, g, c, c2, fight, free, club: {name, e} | null }], legend: [[club, count]] }.
 // `myClub` (me().club: { tag, name }) only ever takes districts away (to neutral), never gets one.
-export function warDemo(myClub) {
+export function warDemo(myClub, { live = WAR_LIVE } = {}) {
+  if (!live) return { districts: DISTRICTS.map((d) => ({ n: d.n, g: d.g, fight: false, free: true, c: NEUTRAL, club: null })), legend: [] };
   const low = (x) => String(x || '').trim().toLowerCase();
   const mine = [low(myClub?.name), low(myClub?.tag)].filter(Boolean);
   const clash = (k) => !!myClub && [DEMO_CLUBS[k].name, DEMO_CLUBS[k].short, DEMO_CLUBS[k].tag].some((x) => mine.includes(low(x)));

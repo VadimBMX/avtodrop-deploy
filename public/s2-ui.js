@@ -127,10 +127,11 @@ export function installS2(x) {
   UI2.ava = (id, size, lvl) => avatar(lookOf(id), size, lvl);
   UI2.achRow = achRow;
   document.getElementById('s2back')?.addEventListener('click', () => X.back());
-  // DROP pressed again on the DROP tab → back to the market (capture: before app.js switches the tab).
+  // DROP pressed again on the DROP tab → back to the market (capture: before app.js switches the tab). r4-ux (owner
+  // 06.11): from a drop result too — the cars are already in the garage, the result screen just closes (like «У гараж»).
   document.getElementById('tabs')?.addEventListener('click', (e) => {
     const b = e.target.closest('button[data-tab]');
-    if (b?.dataset.tab === 'cases' && st().tab === 'cases' && !st().page) st().s2case = false;
+    if (b?.dataset.tab === 'cases' && st().tab === 'cases' && !st().page && !st().opening) (st().s2case = false, st().drop = null);
     // s2-ui2: a full-page sheet (car card, СТО) sits under the bar — a tab closes it like a page.
     const md = document.getElementById('modal');
     if (b && md && !md.hidden && md.classList.contains('s2-pm')) X.closeModal();
@@ -231,7 +232,8 @@ const SPOTS = [
   { k: 'club', x: 1032, y: 470, t: 'Автоклуб', c: '#c084fc', i: 'users' },
   { k: 'salon', x: 1322, y: 360, t: 'Автосалон', c: '#5ee7f0', i: 'building-arch', biz: 'salon' },
   { k: 'dealer', x: 876, y: 580, t: 'Трейд-ін', c: '#a2a3a6', i: 'refresh' },
-  { k: 'free1', x: 168, y: 372, t: 'Вільна ділянка', c: '#39ff88', i: 'plus', free: true },
+  // r4-ux (owner 06.11: «Де майстерня?» — hints sent players to «Майстерня», the map had none): its own building.
+  { k: 'workshop', x: 168, y: 372, t: 'Майстерня', c: '#ff8a1f', i: 'tool' },
   { k: 'free2', x: 1580, y: 352, t: 'Вільна ділянка', c: '#39ff88', i: 'plus', free: true },
 ];
 // Businesses (another part of Season 2 adds me.biz): accept a list or a map of { type|id, name, income|rate, pending, level }.
@@ -252,6 +254,7 @@ function spotText(sp) {
     case 'garage': return `<em>+${shortN(m.income?.rate || 0)}</em><small>${used}/${m.slots}</small>`;
     case 'club': return m.club?.tag ? `<small>${esc(m.club.tag)}</small>` : '';
     case 'dealer': return X.isOpen('tradein') ? '' : `<small>рів.${S.unlockLevel('tradein')}</small>`;
+    case 'workshop': return X.isOpen('parts') ? '' : `<small>рів.${S.unlockLevel('parts')}</small>`;
     case 'free1': case 'free2': return '';
     default:
       if (sp.biz) {
@@ -331,21 +334,26 @@ function warMap() {
     const head = d.fight
       ? `<span class="s2-pin-ic x">${SWORDS}</span><span class="s2-pin-t"><b>${d.n}</b><small>Спірний</small></span>`
       : d.club ? `<img class="s2-pin-ic" src="s2/em/e${d.club.e}.webp" alt=""><span class="s2-pin-t"><b>${d.n}</b><small>${esc(d.club.name)}</small></span>`
-        : `<span class="s2-pin-ic x n">${X.ic('flag-3')}</span><span class="s2-pin-t"><b>${d.n}</b><small>Нічий</small></span>`;
+        : `<span class="s2-pin-ic x n">${X.ic('flag-3')}</span><span class="s2-pin-t"><b>${d.n}</b><small>${d.free ? 'вільний' : 'Нічий'}</small></span>`;
     return `<div class="s2-dl${d.fight ? ' fight' : ''}" style="left:${((cx / WORLD_W) * 100).toFixed(2)}%;top:${((cy / WORLD_H) * 100).toFixed(2)}%;--c:${d.c};--c2:${d.c2 || d.c}"><div class="s2-pin">${head}</div><i class="s2-pin-stem"></i><i class="s2-pin-dot"></i></div>`;
   };
   const labels = DISTRICTS.map(pin).join('');
   const leg = legend.map(([cl, k]) => `<span style="--c:${cl.c}"><img src="s2/em/e${cl.e}.webp" alt="">${esc(cl.short)} <b>${k}</b></span>`).join('');
-  return `<div class="s2-leg" aria-label="Демо-клуби">${leg}</div>
+  // r4-ux: before the war every district is free (war-demo.js WAR_LIVE) — a grey outline on each block and a banner
+  // instead of the club score bar.
+  const free = DISTRICTS.filter((d) => d.free).map((d) => `<polygon points="${ptsOf(d.g)}"/>`).join('');
+  const top = leg ? `<div class="s2-leg" aria-label="Клуби">${leg}</div>`
+    : `<div class="s2-war-soon" role="note"><span class="s2-war-soon-ic">${X.ic('flag-3')}</span><span><b>Війна районів стартує скоро</b><small>Збери або знайди автоклуб, щоб першим захопити район</small></span></div>`;
+  return `${top}
     <div class="s2-map war" id="s2Map"><div class="s2-pan" id="s2Pan" data-w="${WORLD_W}" data-h="${WORLD_H}" data-x="420"><img src="s2/world.webp" alt="" draggable="false">
       <svg class="s2-ov s2-dg" viewBox="0 0 ${WORLD_W} ${WORLD_H}" preserveAspectRatio="none" aria-hidden="true"><defs>
         <filter id="s2gb" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="16"/></filter>
         <filter id="s2lb" x="-10%" y="-50%" width="120%" height="200%"><feGaussianBlur stdDeviation="3.5"/></filter>
         <mask id="s2gm" maskUnits="userSpaceOnUse" x="0" y="0" width="${WORLD_W}" height="${WORLD_H}"><rect width="${WORLD_W}" height="${WORLD_H}" fill="#fff"/><g fill="#000" filter="url(#s2lb)">${tiles}</g></mask>${defs}</defs>
-        <g mask="url(#s2gm)" filter="url(#s2gb)">${base}</g><g class="s2-led">${leds}</g></svg>${fights}${labels}</div>
+        <g mask="url(#s2gm)" filter="url(#s2gb)">${base}</g><g class="s2-led">${leds}</g>${free ? `<g class="s2-free">${free}</g>` : ''}</svg>${fights}${labels}</div>
       <div class="s2-ef l"></div><div class="s2-ef r"></div><div class="s2-hint">${X.ic('arrows-exchange')}Гортай карту</div></div>
     <div class="s2-sheet s2-war"><div class="s2-war-h"><b>Війна районів</b><span class="s2-soon">Скоро</span></div>
-      <div class="s2-war-t">Поки це демо: клуби на карті вигадані, твій клуб з’явиться тут, коли стартує війна. Автоклуби битимуться за райони міста: гонки за район, бонус до доходу всім учасникам клубу-переможця.</div>
+      <div class="s2-war-t">${legend.length ? 'Поки це демо: клуби на карті вигадані, твій клуб з’явиться тут, коли стартує війна. ' : 'Усі райони поки вільні. '}Автоклуби битимуться за райони міста: гонки за район, бонус до доходу всім учасникам клубу-переможця.</div>
       <button class="s2-btn wide" data-act="go" data-page="club">${X.ic('users')}${me().club ? 'Мій автоклуб' : 'Знайти автоклуб'}</button></div>`;
 }
 let pendTimer = 0;
@@ -456,7 +464,7 @@ function clampLabels(x) {
     if (!hid) kept.push(r);
   }
 }
-const LB_ORDER = ['garage', 'track', 'auction', 'gas', 'wash', 'sto', 'club', 'dealer', 'shop', 'drift', 'salon', 'tire', 'free1', 'free2'];
+const LB_ORDER = ['garage', 'track', 'auction', 'gas', 'wash', 'sto', 'workshop', 'club', 'dealer', 'shop', 'drift', 'salon', 'tire', 'free1', 'free2'];
 const lbRank = (lb) => (LB_ORDER.indexOf(lb.dataset.k) + 1 || 99);
 // Drag the picture sideways (pointer events; a drag never counts as a tap on a label).
 function mountPan() {
@@ -550,19 +558,19 @@ function openBtn(cs, n) {
   const paid = Math.max(0, n - keys), free = m.slots - m.used, price = deal.price;
   if (free < 1) return `<button class="s2-open s2-full-g" data-act="toGarage">${X.ic('building-warehouse')}Гараж повний · звільнити місце</button>`; // s2-audit
   // «Вільно 4 з 6» in the caps font read as «ВІЛЬНО 4 3 6» and didn't say what to do (persona playtest 05.11).
-  if (free < n) return `<button class="s2-open" disabled>У гаражі лише ${free} ${X.plural(free, ['вільне місце', 'вільні місця', 'вільних місць'])} · вибери менше</button>`;
+  if (free < n) return `<button class="s2-open" disabled>Лише ${free} ${X.plural(free, ['вільне місце', 'вільні місця', 'вільних місць'])} · вибери менше</button>`;
   if (paid && price * paid > m.balance) return `<button class="s2-open" disabled>Бракує ${S.short(price * paid - m.balance)}</button>`;
   return `<button class="s2-open opencase" data-act="openCase" data-expect="${price * paid}">${X.ic('box')}<span class="l">${cs.starter ? 'Відкрити' : 'Відкрити'}</span><span class="p">${cs.starter ? 'безкоштовно' : paid ? shortN(price * paid) + ' ₴' : `${X.ic('key')} ${n}`}</span></button>`;
 }
 const fastPill = (on) => `<button class="s2-fast${on ? ' on' : ''}" data-act="toggleFast" aria-pressed="${on ? 'true' : 'false'}" aria-label="Швидке відкриття — без анімації">${X.ic('player-track-next')}<span>Швидко</span><i></i></button>`;
 function dock(cs) {
-  const s = st(), n = cs.starter ? 1 : s.count || 1;
+  const s = st(), n = cs.starter ? 1 : s.countWant || s.count || 1;
   const free = me().slots - me().used;
   const counts = cs.starter ? '' : `<div class="s2-cnt">${[1, 3, 6].map((k) => `<button class="${k === n ? 'on' : ''}" data-act="pickCount" data-n="${k}">×${k}</button>`).join('')}</div>`;
   // s2-screens (owner 03.11): «Швидко» lives right here, next to ×1/×3/×6 and the open button (it was a footer row under
   // the bar nobody saw); the same pill sits on the opening overlay and skips the animation mid-way.
   const fast = cs.starter ? '' : fastPill(st().fast);
-  return `<div class="s2-dock${cs.starter ? '' : ' s2-dock2'}">${counts || fast ? `<div class="s2-dock-r">${counts}${fast}</div>` : ''}${openBtn(cs, n)}</div>${free < n && free >= 0 && !cs.starter ? `<div class="s2-note">${free > 0 ? `Не вистачає місця для ×${n} — обери ×1 або продай машину` : 'Гараж заповнений — продай машину або купи місце в гаражі'} · <a class="txtlink" data-act="sellCheap" data-n="${Math.max(1, n - free)}">продати найдешевші</a></div>` : ''}`;
+  return `<div class="s2-dock${cs.starter ? '' : ' s2-dock2'}">${counts || fast ? `<div class="s2-dock-r">${counts}${fast}</div>` : ''}${openBtn(cs, n)}</div>${free < n && free >= 0 && !cs.starter ? `<div class="s2-note">${free > 0 ? `Не вистачає місця для ×${n} — обери ×1 або продай машину` : 'Гараж заповнений — продай машину або купи місце в гаражі'} · <a class="txtlink" data-act="sellCheap" data-n="${Math.max(1, n - free)}">продати дешевші</a></div>` : ''}`;
 }
 function oddsTiles(cs, weights) {
   const tw = Object.values(weights).reduce((a, b) => a + b, 0);
@@ -597,9 +605,9 @@ function marketView(base) {
 // no button on the S2 bar — a visible way in from the Drop-market (locked card before the parts level).
 function partsEntry() {
   const open = X.isOpen('parts'), lvl = S.unlockLevel('parts');
-  return `<div class="s2-h"><b>Деталі</b><span>кейси · склад · злиття</span></div>
+  return `<div class="s2-h"><b>Майстерня</b><span>кейси з деталями · склад · злиття</span></div>
     <button class="s2-parts${open ? '' : ' locked'}" data-act="s2Parts"><span class="s2-parts-ic">${X.ic(open ? 'tool' : 'lock')}</span>
-      <span class="grow"><b>Кейси з деталями</b><small>${open ? 'Деталі для твоїх машин · 3 однакові зливаються в кращу' : `Відкриються з ${lvl}-го рівня`}</small></span>
+      <span class="grow"><b>Кейси з деталями</b><small>${open ? 'Деталі для твоїх машин · 3 однакові зливаються в кращу' : `Деталі в Майстерні — з ${lvl}-го рівня`}</small></span>
       <span class="s2-parts-go">${X.ic('chevron-right')}</span></button>`;
 }
 function caseView(base) {
@@ -980,11 +988,12 @@ const handlers = {
       case 'shop': return X.go('store');
       case 'club': return X.go('club');
       case 'dealer': return X.isOpen('tradein') ? X.go('tradein') : X.H.locked({ k: 'tradein' });
+      case 'workshop': return X.H.workshopGo();
       case 'tire': return X.toast('Шиномонтаж — бізнес Сезону 2, відкриється незабаром');
       default: return X.toast('Вільна ділянка: тут можна буде збудувати свій бізнес');
     }
   },
-  s2Parts: () => (X.isOpen('parts') ? X.H.toPartCases({}) : X.H.locked({ k: 'parts' })),
+  s2Parts: () => X.H.workshopGo(),
   s2Quick: (d) => (d.k === 'events' ? X.H.eventsOpen() : X.go(d.k)),
   s2Pick: (d) => {
     const s = st();

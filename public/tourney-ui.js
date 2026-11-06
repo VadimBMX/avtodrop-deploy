@@ -170,7 +170,7 @@ export function installTourney(x) {
     const laneTxt = lane.kind === 'bot' ? `${esc(lane.driver || '')} водій · час зафіксовано` : lane.kind === 'ghost' ? 'привид його найкращого заїзду' : 'ще не їхав — його звичний час';
     const vs = `<div class="chg-vs tnm-vs"><div><small>Ти</small><b class="ellipsis">${esc(M(mine.model)?.name || '')}</b><span>${mine.time != null ? `найкращий ${tm(mine.time)}` : 'ще без часу'}</span></div>
       <i>VS</i><div><small>${lane.kind === 'ghost' ? ic('ghost') : lane.kind === 'bot' ? ic('settings') : ic('users')} ${esc(opp?.name || '')}</small><b class="ellipsis">${esc(M(lane.model)?.name || '')}</b><span>${tm(lane.time)} · ${laneTxt}</span></div></div>`;
-    const btn = my.canRun ? `<button class="btn yellow btn2" data-act="tnmStart"><span>${ic('flag-3')} Їхати</span><small>спроба ${my.tries.used + 1} з ${my.tries.max} · без пального</small></button>`
+    const btn = my.canRun ? `<button class="btn yellow btn2" data-act="tnmStart"><span>${ic('flag-3')} Їхати</span><small>спроба ${my.tries.used + 1}/${my.tries.max} · без пального</small></button>`
       : `<button class="btn" disabled>Спроби використано — чекаємо на суперника до ${hhmm(m.deadline)}</button>`;
     return `<div class="card tnm-my">${head}${vs}
       <div class="row between tnm-dl"><span class="small muted">${ic('clock')} до ${hhmm(m.deadline)} · лишилось ${untilSpan(m.deadline)}</span>${pips(my.tries.left, my.tries.max)}</div>
@@ -277,7 +277,7 @@ export function installTourney(x) {
     else if (tr.decided) ((amount = 'Матч програно'), (note = 'дякуємо за гру — побачимось у п’ятницю'));
     else ((amount = tr.newBest ? 'Новий найкращий час' : 'Без покращення'), (note = tr.tries?.left ? `ще ${tr.tries.left} ${plural(tr.tries.left, ['спроба', 'спроби', 'спроб'])} до ${hhmm(tr.deadline)}` : 'чекаємо на суперника'));
     const who = tr.kind === 'ghost' ? `Привид · ${R.rival.name}` : tr.kind === 'bot' ? `${R.rival.name} · бот` : `${R.rival.name} · звичний час`;
-    const again = !tr.decided && tr.counted !== false && tr.tries?.left ? `<button class="btn yellow btn2" data-act="tnmAgain"><span>${ic('refresh')} Ще спроба</span><small>${tr.tries.left} з ${tr.tries.max} · без пального</small></button>` : '';
+    const again = !tr.decided && tr.counted !== false && tr.tries?.left ? `<button class="btn yellow btn2" data-act="tnmAgain"><span>${ic('refresh')} Ще спроба</span><small>${tr.tries.left}/${tr.tries.max} · без пального</small></button>` : '';
     return raceSheetHtml({ tag: `${ic('trophy')} Турнір · ${esc(tr.round || '')} · клас ${esc(tr.cls || '')}`, win: r.win, diff: r.diff, amount, note,
       rows: [{ who: 'Ти', model: R.car.model, look: R.car.look, time: r.time, won: r.win, sub: tr.best != null ? `найкращий ${tm(tr.best)}` : `${R.car.hp} к.с.` },
         { who, model: R.rival.model, look: R.rival.look, time: r.rivalTime, won: !r.win, sub: `${R.rival.hp} к.с.` }], start: startTxt, shifts: r.shifts })
