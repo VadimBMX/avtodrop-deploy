@@ -54,6 +54,7 @@ import { installBusiness, bizHubRow } from './business-ui.js';
 import { BIZ } from './business.js'; // the level-up window lists the businesses a level opens // s2-biz: «Мої бізнеси»
 // «АВТОДРОП: Місто» (Season 02): the bottom bar, the city home, Drop-market, parking, profile hero (public/s2-ui.js).
 import { installS2, UI2 } from './s2-ui.js';
+import { installDropFx, styleSection as dropFxSection } from './dropfx-ui.js'; // r5-shop: «Ефект дропу»
 
 const tg = window.Telegram?.WebApp;
 const $ = (s, el = document) => el.querySelector(s);
@@ -7337,14 +7338,14 @@ function styleView(sh) {
     return `<div class="sty-item own ${on ? 'on' : ''}">${kind === 'frame' ? `<span class="sty-pv">${plate(sample?.plate?.text || 'AA 7777 AA', 'sm', c.id)}</span>` : kind === 'glow' ? `<span class="sty-pv sty-glow gl-${S.styleLook(c.id)}"><span class="art">${sample ? carArt(sample.model) : ''}</span></span>` : `<span class="sty-pv sty-bg sc-season" data-season="${c.season}"></span>`}<div class="sty-tx"><b>${esc(c.name)}</b><small>${ic('trophy')} ${c.event ? esc(c.hint) : 'нагорода сезону'}</small></div>
       ${on ? `<button class="btn sm ghost on" data-act="styleEquip" data-slot="${kind}" data-id="">${ic('check')} Надіто · зняти</button>` : `<button class="btn sm" data-act="styleEquip" data-slot="${kind}" data-id="${c.id}">Надіти</button>`}</div>`;
   }).join('');
-  const sections = Object.entries(S.STYLE_KINDS).map(([kind, k]) => `<div class="h2"><span>${ic(k.icon)} ${k.title}</span><span>${ic('star')} ${S.STYLE_ITEMS.find((x) => x.kind === kind).stars}</span></div>
+  const sections = Object.entries(S.STYLE_KINDS).filter(([, k]) => !k.own).map(([kind, k]) => `<div class="h2"><span>${ic(k.icon)} ${k.title}</span><span>${ic('star')} ${S.STYLE_ITEMS.find((x) => x.kind === kind).stars}</span></div>
     <div class="tiny muted sty-where">${esc(k.where)}</div>
     <div class="sty-list">${seasonRow(kind)}${S.STYLE_ITEMS.filter((x) => x.kind === kind).map(tile).join('')}</div>`).join('');
   // «Як тебе бачать»: the name, a plate with the frame and the showcase backdrop with the underglow, as others see them.
   const preview = `<div class="card sty-me"><div class="row between"><b>Як тебе бачать інші</b><span class="tiny muted">рейтинг · картка · ринок</span></div>
     <div class="sty-me-row"><span class="lb-ava">${esc(initialOf(myName))}</span><b class="grow ellipsis">${nameHtml(myName, worn)}</b>${sample?.plate ? plate(sample.plate.text, 'sm') : plate('AA 7777 AA', 'sm', worn.frame || null)}</div>
     ${sample ? `<div class="grid sty-me-sc${showcaseBackdrop(worn)}">${carTile(sample, { act: 'noop' })}</div>` : ''}</div>`;
-  return `<div class="notice sty-note">${ic('sparkles')}<span>Лише вигляд — жодних характеристик і переваг у гонках. Куплене лишається назавжди, надягати й знімати можна будь-коли.</span></div>${preview}${sections}`;
+  return `<div class="notice sty-note">${ic('sparkles')}<span>Лише вигляд — жодних характеристик і переваг у гонках. Куплене лишається назавжди, надягати й знімати можна будь-коли.</span></div>${preview}${dropFxSection(sh, storeBuyBtns) /* r5-shop */}${sections}`;
 }
 H.goStyle = () => {
   state.storeView = 'style';
@@ -9628,3 +9629,5 @@ installS2({ countFix, me: () => me, refresh: () => refresh(false), state: () => 
   dropAlive: (r) => dropAlive(r), sellPrice: (c) => sellPrice(c), sellTotal: (c) => sellTotal(c), carInc: (c) => carInc(c), pendingNow: () => pendingNow(), serverNow: () => serverNow(),
   untilSpan: (t) => untilSpan(t), tickUntil: () => tickUntil(), fmax: () => fmax(), hubTile: (o) => hubTile(o), brokeCard: () => brokeCard(), vipSaleBanner: () => vipSaleBanner(),
   paBanner: () => paBanner(), originText: (m) => originText(m), prefSet: (k, v) => prefSet(k, v), setFast: (on) => setFast(on), weightedModel: (cs) => weightedModel(cs) });
+// r5-shop: «Ефект дропу» (public/dropfx-ui.js) wraps the s2 result / store / look-picker hooks, so it goes after installS2.
+installDropFx({ me: () => me, state: () => state, H, AFTER, api, act, toast, go, closeModal, ic, esc, carArt, haptic: (k) => haptic(k) });
