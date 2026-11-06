@@ -234,7 +234,7 @@ const SPOTS = [
   { k: 'track', x: 1030, y: 178, t: 'Траса', c: '#ff8a1f', i: 'flag-3' },
   { k: 'drift', x: 1270, y: 212, t: 'Дрифт', c: '#ff3df0', i: 'tornado' },
   { k: 'garage', x: 875, y: 222, t: 'Мій гараж', c: '#ffd400', i: 'building-warehouse' },
-  { k: 'wash', x: 716, y: 322, t: 'Мийка', c: '#22e3ff', i: 'droplet', biz: 'wash' },
+  { k: 'wash', x: 716, y: 322, t: 'Автомийка', c: '#22e3ff', i: 'droplet', biz: 'wash' },
   { k: 'gas', x: 1040, y: 316, t: 'Заправка', c: '#ffd400', i: 'gas-station', biz: 'gas' },
   { k: 'shop', x: 415, y: 386, t: 'Магазин', c: '#39ff88', i: 'star' },
   { k: 'club', x: 1032, y: 470, t: 'Автоклуб', c: '#c084fc', i: 'users' },
@@ -262,7 +262,8 @@ function spotText(sp) {
     case 'garage': return `<em>+${shortN(m.income?.rate || 0)}</em><small>${used}/${m.slots}</small>`;
     case 'club': return m.club?.tag ? `<small>${esc(m.club.tag)}</small>` : '';
     case 'dealer': return X.isOpen('tradein') ? '' : `<small>рів.${S.unlockLevel('tradein')}</small>`;
-    case 'workshop': return X.isOpen('parts') ? '' : `<small>рів.${S.unlockLevel('parts')}</small>`;
+    // r6: the workshop opens with its first view (wash, L2) — the badge said «рів.3» (parts) while a tap said «з 2-го рівня»
+    case 'workshop': { const ks = ['wash', 'parts', 'paint']; return ks.some((k) => X.isOpen(k)) ? '' : `<small>рів.${Math.min(...ks.map((k) => S.unlockLevel(k)))}</small>`; }
     case 'free1': case 'free2': return '';
     default:
       if (sp.biz) {
@@ -588,7 +589,7 @@ function marketView(base) {
   const s = st(), m = me();
   const cs = S.CASE_BY_ID[s.caseId] || S.CASE_BY_ID.rust;
   const deal = X.caseNow(cs), keys = m.keys[cs.id] || 0;
-  const tag = deal.why === 'day' ? `${X.ic('flame')} Кейс дня −${S.CASE_OF_DAY.off * 100}%` : deal.off ? `${X.ic('flame')} −${Math.round((1 - deal.price / cs.price) * 100)}%` : cs.starter ? `${X.ic('gift')} Подарунок новачку` : cs.country ? `${X.ic('world')} Країна` : `${X.ic('box')} За рідкістю`;
+  const tag = deal.why === 'day' ? `${X.ic('flame')} Кейс дня −${S.CASE_OF_DAY.off * 100}%` : deal.off ? `${X.ic('flame')} −${Math.round((1 - deal.price / cs.price) * 100)}%` : cs.starter ? `${X.ic('gift')} Подарунок на старт` : cs.country ? `${X.ic('world')} Країна` : `${X.ic('box')} За рідкістю`;
   const feat = `<div class="s2-feat" style="--cc:${caseCol(cs)}" data-act="s2Case" data-id="${cs.id}" role="button">
     <div class="s2-feat-tx"><span class="s2-tag">${tag}</span><h3>${esc(cs.name)}</h3>
       <div class="s2-price">${cs.starter ? 'Безкоштовно' : S.fmt(deal.price)}${deal.off ? ` <s>${shortN(cs.price)}</s>` : ''}</div>
