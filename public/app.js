@@ -7333,9 +7333,11 @@ function frameShop(sh) {
 }
 H.frameWear = (d) => act('frames/equip', { id: d.id }, 'Рамку надіто');
 // ---- «Стиль»: classes of what a player wears (S.styleWorn ids → CSS), used on every screen that shows a player ----
+const STYLE_PV_CAR = 'bmw-m3-e46'; // r9-names: the shop's preview car when the garage has none
 const styleCls = (prefix, id) => { const l = id && S.styleLook(id); return l ? ` ${prefix}-${l}` : ''; };
 const nameCls = (style) => styleCls('nm', style?.name).trim();
-const nameHtml = (name, style) => (style?.name ? `<span class="${nameCls(style)}">${esc(name)}</span>` : esc(name));
+// (data-n: the name again for the «Глітч» look, whose glitch slices are drawn from it)
+const nameHtml = (name, style) => (style?.name ? `<span class="${nameCls(style)}" data-n="${esc(name)}">${esc(name)}</span>` : esc(name));
 // The car a player is shown with: carries the owner's plate frame (null = none) for plate().
 const withFrame = (c, style) => (c ? { ...c, pf: style?.frame || null } : c);
 function styleView(sh) {
@@ -7343,14 +7345,17 @@ function styleView(sh) {
   const worn = me.style || {};
   const sample = me.cars.filter((c) => c.status !== 'auction').sort((a, b) => b.value - a.value)[0];
   const lvCar = me.cars.filter((c) => PAINT.canPaint(c.model)).sort((a, b) => b.value - a.value)[0];
+  // r9-names: the glow / livery previews always show a car (a sports car when the garage has none that fits).
+  const pvModel = (c) => c?.model || (S.MODELS[STYLE_PV_CAR] ? STYLE_PV_CAR : Object.keys(S.MODELS).find((id) => PAINT.canPaint(id)));
+  const studio = (cls, art) => `<span class="sty-pv sty-car ${cls}"><span class="sty-stage"><span class="art">${art}</span><span class="art sty-refl" aria-hidden="true">${art}</span></span></span>`;
   const myName = me.username ? '@' + me.username : me.firstName || 'Гравець';
   const tile = (it) => {
     const own = owned.has(it.cos), on = worn[it.kind] === it.cos;
     const pv = it.kind === 'frame' ? `<span class="sty-pv">${plate(sample?.plate?.text || 'AA 7777 AA', 'sm', it.cos)}</span>`
       : it.kind === 'showcase' ? `<span class="sty-pv sty-bg sc-${it.look}"></span>`
-      : it.kind === 'name' ? `<span class="sty-pv"><b class="nm-${it.look}">${esc(myName.replace(/^@/, '').slice(0, 9))}</b></span>`
-      : it.kind === 'glow' ? `<span class="sty-pv sty-glow gl-${it.look}"><span class="art">${sample ? carArt(sample.model) : ''}</span></span>`
-      : `<span class="sty-pv sty-lv"><span class="art">${lvCar ? carArt(lvCar.model, { look: { paint: null, livery: it.look, n: 7 } }) : ''}</span></span>`;
+      : it.kind === 'name' ? `<span class="sty-pv sty-nm"><b class="nm-${it.look}" data-n="${esc(myName.replace(/^@/, '').slice(0, 9))}">${esc(myName.replace(/^@/, '').slice(0, 9))}</b></span>`
+      : it.kind === 'glow' ? studio(`sty-glow gl-${it.look}`, carArt(pvModel(sample)))
+      : studio('sty-lv', carArt(pvModel(lvCar), { look: { paint: null, livery: it.look, n: 7 } }));
     const btn = !own ? storeBuyBtns({ id: it.id, price: it.stars }, sh, 'yellow')
       : it.kind === 'livery' ? `<button class="btn sm ghost" data-act="styleLivery" data-id="${it.look}">${ic('brush')} Нанести</button>`
       : on ? `<button class="btn sm ghost on" data-act="styleEquip" data-slot="${it.kind}" data-id="">${ic('check')} Надіто · зняти</button>`
@@ -7361,10 +7366,12 @@ function styleView(sh) {
   const season = S.ownedCosmetics(me.claims).filter((c) => (c.season || c.event) && (c.kind === 'frame' || c.kind === 'showcase' || c.kind === 'glow'));
   const seasonRow = (kind) => season.filter((c) => c.kind === kind).map((c) => {
     const on = worn[kind] === c.id;
-    return `<div class="sty-item own ${on ? 'on' : ''}">${kind === 'frame' ? `<span class="sty-pv">${plate(sample?.plate?.text || 'AA 7777 AA', 'sm', c.id)}</span>` : kind === 'glow' ? `<span class="sty-pv sty-glow gl-${S.styleLook(c.id)}"><span class="art">${sample ? carArt(sample.model) : ''}</span></span>` : `<span class="sty-pv sty-bg sc-season" data-season="${c.season}"></span>`}<div class="sty-tx"><b>${esc(c.name)}</b><small>${ic('trophy')} ${c.event ? esc(c.hint) : 'нагорода сезону'}</small></div>
+    return `<div class="sty-item own ${on ? 'on' : ''}">${kind === 'frame' ? `<span class="sty-pv">${plate(sample?.plate?.text || 'AA 7777 AA', 'sm', c.id)}</span>` : kind === 'glow' ? studio(`sty-glow gl-${S.styleLook(c.id)}`, carArt(pvModel(sample))) : `<span class="sty-pv sty-bg sc-season" data-season="${c.season}"></span>`}<div class="sty-tx"><b>${esc(c.name)}</b><small>${ic('trophy')} ${c.event ? esc(c.hint) : 'нагорода сезону'}</small></div>
       ${on ? `<button class="btn sm ghost on" data-act="styleEquip" data-slot="${kind}" data-id="">${ic('check')} Надіто · зняти</button>` : `<button class="btn sm" data-act="styleEquip" data-slot="${kind}" data-id="${c.id}">Надіти</button>`}</div>`;
   }).join('');
-  const sections = Object.entries(S.STYLE_KINDS).filter(([, k]) => !k.own).map(([kind, k]) => `<div class="h2"><span>${ic(k.icon)} ${k.title}</span><span>${ic('star')} ${S.STYLE_ITEMS.find((x) => x.kind === kind).stars}</span></div>
+  // the section's price: «від ⭐ 75» when its items cost different amounts (r9-names: 100 ⭐ animated ones)
+  const fromPrice = (kind) => { const p = S.STYLE_ITEMS.filter((x) => x.kind === kind).map((x) => x.stars), lo = Math.min(...p); return `${lo < Math.max(...p) ? 'від ' : ''}${ic('star')} ${lo}`; };
+  const sections = Object.entries(S.STYLE_KINDS).filter(([, k]) => !k.own).map(([kind, k]) => `<div class="h2"><span>${ic(k.icon)} ${k.title}</span><span>${fromPrice(kind)}</span></div>
     <div class="tiny muted sty-where">${esc(k.where)}</div>
     <div class="sty-list">${seasonRow(kind)}${S.STYLE_ITEMS.filter((x) => x.kind === kind).map(tile).join('')}</div>`).join('');
   // «Як тебе бачать»: the name, a plate with the frame and the showcase backdrop with the underglow, as others see them.

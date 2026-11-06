@@ -7946,3 +7946,108 @@ body.s2 .s2-ct small.s2-ct-k .i { width: 11px; height: 11px; }
 @keyframes plf-twinkle { 0%, 38% { transform: scale(0) rotate(0); opacity: 0; } 48% { transform: scale(1.05) rotate(45deg); opacity: 1; } 64%, 100% { transform: scale(0) rotate(90deg); opacity: 0; } }
 @keyframes plf-twinkle2 { 0%, 6% { transform: scale(0) rotate(0); opacity: 0; } 14% { transform: scale(.75) rotate(45deg); opacity: 1; } 28%, 100% { transform: scale(0) rotate(90deg); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .plf *, .plf *::before, .plf *::after { animation: none !important; } }
+/* r9-names */
+/* ===== «Стиль»: name colours, underglow, the shop's car previews (r9-names, 06.11). Names are text painted in CSS
+   (background-clip), underglow is two soft layers under the car (tube + its light on the floor). The glows and the glitch
+   move by transform / opacity only; the sheen / flow / heat in the letters move the background-position of one small
+   text span. prefers-reduced-motion: all still. ===== */
+/* --- names --- */
+.nm-gold, .nm-flame, .nm-ua, .nm-rainbow { -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; background-repeat: no-repeat; }
+/* gold: polished metal (light top, dark waist, warm bottom edge) and a white sheen running across now and then */
+.nm-gold { background-image: linear-gradient(100deg, transparent 38%, #fff8dd99 45%, #fff 50%, #fff8dd99 55%, transparent 62%),
+    linear-gradient(180deg, #fff7d1 0%, #ffe07a 26%, #f0b42a 46%, #9a6206 54%, #c88a16 64%, #ffd25a 84%, #fff0b0 100%);
+  background-size: 260% 100%, 100% 100%; background-position: 100% 0, 0 0;
+  filter: drop-shadow(0 1px 0 #4a2c00) drop-shadow(0 0 5px #ffb40040); animation: r9nmSheen 4.2s ease-in-out infinite; }
+/* neon: a white-hot tube with a cyan halo; once in a while the tube dips (no flashing, never below 70%) */
+.nm-neon { color: #f2feff; -webkit-text-fill-color: #f2feff; text-shadow: 0 0 1px #fff, 0 0 3px #7ff6ff, 0 0 6px #00e1ff, 0 0 10px #00a8ff88; animation: r9nmTube 6s linear infinite; }
+/* flame: white-yellow core to red roots, heat rising through the letters */
+.nm-flame { background-image: linear-gradient(180deg, #ffffff00 0%, #fff6c055 30%, #ffffff00 50%, #fff6c044 75%, #ffffff00 100%),
+    linear-gradient(180deg, #fff3a8 0%, #ffd23f 30%, #ff8a00 58%, #ff3a00 82%, #c80d00 100%);
+  background-size: 100% 200%, 100% 100%; background-repeat: repeat-y, no-repeat; background-position: 0 0, 0 0;
+  filter: drop-shadow(0 0 4px #ff4d00aa) drop-shadow(0 1px 0 #5a0d00); animation: r9nmHeat 1.8s linear infinite; }
+/* blue-yellow: the flag split with depth in each half and a slow pale sheen */
+.nm-ua { background-image: linear-gradient(100deg, transparent 40%, #ffffff88 50%, transparent 60%),
+    linear-gradient(180deg, #7cc0ff 0%, #2f86f0 28%, #0b57c9 53%, #ffe45c 53%, #ffd000 74%, #f0a800 100%);
+  background-size: 260% 100%, 100% 100%; background-position: 100% 0, 0 0;
+  filter: drop-shadow(0 1px 0 #00153d) drop-shadow(0 0 5px #3d8bff33); animation: r9nmSheen 6s ease-in-out infinite; }
+/* 100 ⭐ «Райдужне»: the spectrum flows through the letters */
+.nm-rainbow { background-image: linear-gradient(90deg, #ff4d6d, #ff9f43, #ffe156, #4dff9a, #3ed8ff, #7b6bff, #e84dff, #ff4d6d);
+  background-size: 200% 100%; background-repeat: repeat-x; filter: drop-shadow(0 1px 0 #0009) drop-shadow(0 0 4px #ffffff30); animation: r9nmFlow 3.6s linear infinite; }
+/* 100 ⭐ «Глітч»: crisp white letters with a hint of RGB split; every ~3 s two slices jump sideways for a blink */
+.nm-glitch { position: relative; color: #f4f7ff; -webkit-text-fill-color: #f4f7ff; text-shadow: -1px 0 #ff2bd6bb, 1px 0 #00e5ffbb, 0 0 6px #7b6bff66; }
+.nm-glitch::before, .nm-glitch::after { content: attr(data-n); position: absolute; left: 0; top: 0; white-space: nowrap; pointer-events: none; opacity: 0;
+  -webkit-text-fill-color: currentColor; text-shadow: none; animation: r9nmGlitchA 3.4s steps(1, end) infinite; }
+.nm-glitch::before { color: #3ef0ff; clip-path: inset(8% 0 52% 0); }
+.nm-glitch::after { color: #ff4fe0; clip-path: inset(58% 0 6% 0); animation-name: r9nmGlitchB; }
+/* a glowing name inside a clipped one-line box (podium, rating rows): room for the glow without moving the text */
+.ellipsis:has(> .nm-neon, > .nm-gold, > .nm-flame, > .nm-glitch, > .nm-rainbow, > .nm-ua) { padding: 3px 6px; margin: -3px -6px; }
+/* the name tile in the shop: a dark plate with a soft light from below */
+.sty-pv.sty-nm { width: 118px; background: radial-gradient(ellipse 85% 80% at 50% 115%, #2a2e38, #101115 70%); box-shadow: inset 0 0 0 1px #ffffff12; }
+.sty-pv.sty-nm b { font: 800 17px var(--f-disp); letter-spacing: .2px; }
+@media (max-width: 370px) { .sty-pv.sty-nm { width: 96px; } .sty-pv.sty-nm b { font-size: 15px; } }
+
+/* --- underglow: a bright tube under the sills (::after) and its light spreading on the floor (::before) --- */
+.gl-cyan { --gl: #00e5ff; --gl2: #c8fdff; }
+.gl-magenta { --gl: #ff2bd6; --gl2: #ffd0f5; }
+.gl-amber { --gl: #ffa000; --gl2: #ffe7b0; }
+.gl-rainbow { --gl: #00e5ff; --gl2: #c8fdff; }
+:is(.grid, .licence, .sty-glow):is(.gl-cyan, .gl-magenta, .gl-amber, .gl-rainbow) :is(.car .art, .lbay .art, .sty-stage > .art:not(.sty-refl)) { position: relative; isolation: isolate; }
+:is(.grid, .licence, .sty-glow):is(.gl-cyan, .gl-magenta, .gl-amber, .gl-rainbow) :is(.car .art, .lbay .art, .sty-stage > .art:not(.sty-refl))::before {
+  content: ''; position: absolute; z-index: -1; left: -8%; right: -8%; bottom: -16%; height: 44%; border-radius: 50%; pointer-events: none; opacity: .9; filter: none;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--gl) 78%, transparent), color-mix(in srgb, var(--gl) 38%, transparent) 42%, color-mix(in srgb, var(--gl) 12%, transparent) 72%, transparent);
+  animation: r9glPool 3.4s ease-in-out infinite; }
+:is(.grid, .licence, .sty-glow):is(.gl-cyan, .gl-magenta, .gl-amber, .gl-rainbow) :is(.car .art, .lbay .art, .sty-stage > .art:not(.sty-refl))::after {
+  content: ''; position: absolute; z-index: -1; left: 14%; right: 14%; bottom: 3%; height: 11%; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, var(--gl2), var(--gl) 45%, color-mix(in srgb, var(--gl) 35%, transparent) 72%, transparent);
+  animation: r9glTube 3.4s ease-in-out infinite; }
+
+/* 100 ⭐ «Райдуга»: tube and floor light in one layer, two such layers cross-fading through cyan → magenta → amber →
+   green; each layer changes its colour only while it is fully faded out (so it moves by opacity alone) */
+:is(.grid, .licence, .sty-glow).gl-rainbow :is(.car .art, .lbay .art, .sty-stage > .art:not(.sty-refl))::before, :is(.grid, .licence, .sty-glow).gl-rainbow :is(.car .art, .lbay .art, .sty-stage > .art:not(.sty-refl))::after { left: -8%; right: -8%; bottom: -16%; height: 44%; border-radius: 50%;
+  background: radial-gradient(31% 12.5% at 50% 44%, #c8fdff, #00e5ff 45%, color-mix(in srgb, #00e5ff 35%, transparent) 72%, transparent), radial-gradient(closest-side, color-mix(in srgb, #00e5ff 78%, transparent), color-mix(in srgb, #00e5ff 38%, transparent) 42%, color-mix(in srgb, #00e5ff 12%, transparent) 72%, transparent); animation: r9rbA 12s linear infinite, r9glBreath 3.4s ease-in-out infinite; }
+:is(.grid, .licence, .sty-glow).gl-rainbow :is(.car .art, .lbay .art, .sty-stage > .art:not(.sty-refl))::after { background: radial-gradient(31% 12.5% at 50% 44%, #ffd0f5, #ff2bd6 45%, color-mix(in srgb, #ff2bd6 35%, transparent) 72%, transparent), radial-gradient(closest-side, color-mix(in srgb, #ff2bd6 78%, transparent), color-mix(in srgb, #ff2bd6 38%, transparent) 42%, color-mix(in srgb, #ff2bd6 12%, transparent) 72%, transparent); animation: r9rbB 12s linear infinite, r9glBreath 3.4s ease-in-out infinite; }
+
+/* --- the shop's car previews (glow, livery): a small studio — wall, lit floor, the car and its reflection --- */
+.sty-list:has(> .sty-item > .sty-car) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sty-item:has(> .sty-car) { grid-template-columns: minmax(0, 1fr); align-content: start; gap: 7px; padding: 6px 6px 10px; }
+.sty-item:has(> .sty-car) > .sty-tx { align-self: start; padding: 0 4px; }
+.sty-item:has(> .sty-car) > .row, .sty-item:has(> .sty-car) > .btn { margin: 0 4px; flex-wrap: wrap; }
+.sty-item > .sty-pv.sty-car { grid-row: auto; }
+/* an odd last card (3 liveries) takes the whole row: a bigger car */
+.sty-list > .sty-item:has(> .sty-car):last-child:nth-child(odd) { grid-column: 1 / -1; }
+.sty-list > .sty-item:has(> .sty-car):last-child:nth-child(odd) > .sty-car { aspect-ratio: 2.2 / 1; }
+.sty-list > .sty-item:has(> .sty-car):last-child:nth-child(odd) .sty-stage { left: 22%; right: 22%; }
+.sty-pv.sty-car { width: 100%; height: auto; aspect-ratio: 16 / 10; display: block; border-radius: 9px; isolation: isolate;
+  background: radial-gradient(ellipse 60% 70% at 50% 8%, #3a3f4b, transparent 70%), linear-gradient(180deg, #1b1d23, #121318 70%, #0d0e12 70%, #191b21); box-shadow: inset 0 0 0 1px #ffffff14; }
+.sty-pv.sty-car::before { content: ''; position: absolute; left: 0; right: 0; top: 70%; bottom: 0; z-index: -1;
+  background: radial-gradient(ellipse 55% 60% at 50% 0%, #4a4f5c66, transparent 75%), linear-gradient(90deg, #0008, transparent 22% 78%, #0008); box-shadow: 0 -1px 0 #ffffff12; }
+.sty-pv.sty-car::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 80% 70% at 50% 45%, transparent 55%, #0009); border-radius: inherit; }
+.sty-stage { position: absolute; left: 7%; right: 7%; bottom: 30%; transform: translateY(4.5%); }
+.sty-pv.sty-car .art { display: block; width: 100%; height: auto; aspect-ratio: 2.5 / 1; }
+.sty-pv.sty-car .art img, .sty-pv.sty-car .art svg { width: 100%; height: 100%; object-fit: contain; object-position: 50% 100%; filter: drop-shadow(0 3px 2px #000c); }
+.sty-pv.sty-car .sty-refl { position: absolute; left: 0; top: 100%; transform: translateY(-9%) scaleY(-1); opacity: .3;
+  -webkit-mask-image: linear-gradient(to top, #000, transparent 48%); mask-image: linear-gradient(to top, #000, transparent 48%); }
+.sty-pv.sty-car .sty-refl img { filter: none; }
+.sty-pv.sty-car .sty-refl::before, .sty-pv.sty-car .sty-refl::after { display: none; }
+.sty-glow.sty-car { background: radial-gradient(ellipse 60% 70% at 50% 8%, #262a33, transparent 70%), linear-gradient(180deg, #121318, #0b0c10 70%, #060709 70%, #0e0f12); }
+.sty-glow.sty-car .sty-stage > .art:not(.sty-refl)::before, .sty-glow.sty-car.gl-rainbow .sty-stage > .art:not(.sty-refl)::after { bottom: -30%; height: 70%; left: -14%; right: -14%; }
+
+/* motion (kept together: transform / opacity, the sheen and flow move background-position of one text span) */
+@keyframes r9nmSheen { 0% { background-position: 100% 0, 0 0; } 34%, 100% { background-position: 0% 0, 0 0; } }
+@keyframes r9nmTube { 0%, 90%, 100% { opacity: 1; } 91% { opacity: .72; } 92% { opacity: .95; } 93.5% { opacity: .78; } 95% { opacity: 1; } }
+@keyframes r9nmHeat { from { background-position: 0 0, 0 0; } to { background-position: 0 -200%, 0 0; } }
+@keyframes r9nmFlow { from { background-position: 0 0; } to { background-position: -200% 0; } }
+@keyframes r9nmGlitchA { 0%, 84% { opacity: 0; transform: none; } 85% { opacity: .85; transform: translateX(-2px); } 87% { transform: translateX(1.5px); } 89% { transform: translateX(-1px); } 91%, 100% { opacity: 0; transform: none; } }
+@keyframes r9nmGlitchB { 0%, 85% { opacity: 0; transform: none; } 86% { opacity: .85; transform: translateX(2px); } 88% { transform: translateX(-1.5px); } 90% { transform: translateX(1px); } 92%, 100% { opacity: 0; transform: none; } }
+@keyframes r9glPool { 0%, 100% { opacity: .72; transform: scaleX(.95); } 50% { opacity: 1; transform: scaleX(1.05); } }
+@keyframes r9glTube { 0%, 100% { opacity: .85; } 50% { opacity: 1; } }
+@keyframes r9glBreath { 0%, 100% { transform: scaleX(.95); } 50% { transform: scaleX(1.05); } }
+@keyframes r9rbA { 0% { opacity: 1; background: radial-gradient(31% 12.5% at 50% 44%, #c8fdff, #00e5ff 45%, color-mix(in srgb, #00e5ff 35%, transparent) 72%, transparent), radial-gradient(closest-side, color-mix(in srgb, #00e5ff 78%, transparent), color-mix(in srgb, #00e5ff 38%, transparent) 42%, color-mix(in srgb, #00e5ff 12%, transparent) 72%, transparent); } 25% { opacity: 0; background: radial-gradient(31% 12.5% at 50% 44%, #c8fdff, #00e5ff 45%, color-mix(in srgb, #00e5ff 35%, transparent) 72%, transparent), radial-gradient(closest-side, color-mix(in srgb, #00e5ff 78%, transparent), color-mix(in srgb, #00e5ff 38%, transparent) 42%, color-mix(in srgb, #00e5ff 12%, transparent) 72%, transparent); } 25.5% { opacity: 0; background: radial-gradient(31% 12.5% at 50% 44%, #ffe7b0, #ffa000 45%, color-mix(in srgb, #ffa000 35%, transparent) 72%, transparent), radial-gradient(closest-side, color-mix(in srgb, #ffa000 78%, transparent), color-mix(in srgb, #ffa000 38%, transparent) 42%, color-mix(in srgb, #ffa000 12%, transparent) 72%, transparent); } 50% { opacity: 1; background: radial-gradient(31% 12.5% at 50% 44%, #ffe7b0, #ffa000 45%, color-mix(in srgb, #ffa000 35%, transparent) 72%, transparent), radial-gradient(closest-side, color-mix(in srgb, #ffa000 78%, transparent), color-mix(in srgb, #ffa000 38%, transparent) 42%, color-mix(in srgb, #ffa000 12%, transparent) 72%, transparent); } 75% { opacity: 0; background: radial-gradient(31% 12.5% at 50% 44%, #ffe7b0, #ffa000 45%, color-mix(in srgb, #ffa000 35%, transparent) 72%, transparent), radial-gradient(closest-side, color-mix(in srgb, #ffa000 78%, transparent), color-mix(in srgb, #ffa000 38%, transparent) 42%, color-mix(in srgb, #ffa000 12%, transparent) 72%, transparent); } 75.5% { opacity: 0; background: radial-gradient(31% 12.5% at 50% 44%, #c8fdff, #00e5ff 45%, color-mix(in srgb, #00e5ff 35%, transparent) 72%, transparent), radial-gradient(closest-side, color-mix(in srgb, #00e5ff 78%, transparent), color-mix(in srgb, #00e5ff 38%, transparent) 42%, color-mix(in srgb, #00e5ff 12%, transparent) 72%, transparent); } 100% { opacity: 1; background: radial-gradient(31% 12.5% at 50% 44%, #c8fdff, #00e5ff 45%, color-mix(in srgb, #00e5ff 35%, transparent) 72%, transparent), radial-gradient(closest-side, color-mix(in srgb, #00e5ff 78%, transparent), color-mix(in srgb, #00e5ff 38%, transparent) 42%, color-mix(in srgb, #00e5ff 12%, transparent) 72%, transparent); } }
+@keyframes r9rbB { 0% { opacity: 0; background: radial-gradient(31% 12.5% at 50% 44%, #ffd0f5, #ff2bd6 45%, color-mix(in srgb, #ff2bd6 35%, transparent) 72%, transparent), radial-gradient(closest-side, color-mix(in srgb, #ff2bd6 78%, transparent), color-mix(in srgb, #ff2bd6 38%, transparent) 42%, color-mix(in srgb, #ff2bd6 12%, transparent) 72%, transparent); } 25% { opacity: 1; background: radial-gradient(31% 12.5% at 50% 44%, #ffd0f5, #ff2bd6 45%, color-mix(in srgb, #ff2bd6 35%, transparent) 72%, transparent), radial-gradient(closest-side, color-mix(in srgb, #ff2bd6 78%, transparent), color-mix(in srgb, #ff2bd6 38%, transparent) 42%, color-mix(in srgb, #ff2bd6 12%, transparent) 72%, transparent); } 50% { opacity: 0; background: radial-gradient(31% 12.5% at 50% 44%, #ffd0f5, #ff2bd6 45%, color-mix(in srgb, #ff2bd6 35%, transparent) 72%, transparent), radial-gradient(closest-side, color-mix(in srgb, #ff2bd6 78%, transparent), color-mix(in srgb, #ff2bd6 38%, transparent) 42%, color-mix(in srgb, #ff2bd6 12%, transparent) 72%, transparent); } 50.5% { opacity: 0; background: radial-gradient(31% 12.5% at 50% 44%, #d4ffe6, #2bff88 45%, color-mix(in srgb, #2bff88 35%, transparent) 72%, transparent), radial-gradient(closest-side, color-mix(in srgb, #2bff88 78%, transparent), color-mix(in srgb, #2bff88 38%, transparent) 42%, color-mix(in srgb, #2bff88 12%, transparent) 72%, transparent); } 75% { opacity: 1; background: radial-gradient(31% 12.5% at 50% 44%, #d4ffe6, #2bff88 45%, color-mix(in srgb, #2bff88 35%, transparent) 72%, transparent), radial-gradient(closest-side, color-mix(in srgb, #2bff88 78%, transparent), color-mix(in srgb, #2bff88 38%, transparent) 42%, color-mix(in srgb, #2bff88 12%, transparent) 72%, transparent); } 99.5% { opacity: 0; background: radial-gradient(31% 12.5% at 50% 44%, #d4ffe6, #2bff88 45%, color-mix(in srgb, #2bff88 35%, transparent) 72%, transparent), radial-gradient(closest-side, color-mix(in srgb, #2bff88 78%, transparent), color-mix(in srgb, #2bff88 38%, transparent) 42%, color-mix(in srgb, #2bff88 12%, transparent) 72%, transparent); } 100% { opacity: 0; background: radial-gradient(31% 12.5% at 50% 44%, #ffd0f5, #ff2bd6 45%, color-mix(in srgb, #ff2bd6 35%, transparent) 72%, transparent), radial-gradient(closest-side, color-mix(in srgb, #ff2bd6 78%, transparent), color-mix(in srgb, #ff2bd6 38%, transparent) 42%, color-mix(in srgb, #ff2bd6 12%, transparent) 72%, transparent); } }
+@media (prefers-reduced-motion: reduce) {
+  .nm-gold, .nm-neon, .nm-flame, .nm-ua, .nm-rainbow, .nm-glitch::before, .nm-glitch::after { animation: none !important; }
+  :is(.grid, .licence, .sty-glow):is(.gl-cyan, .gl-magenta, .gl-amber, .gl-rainbow) :is(.car .art, .lbay .art, .sty-stage > .art)::before,
+  :is(.grid, .licence, .sty-glow):is(.gl-cyan, .gl-magenta, .gl-amber, .gl-rainbow) :is(.car .art, .lbay .art, .sty-stage > .art)::after { animation: none !important; }
+  .nm-gold, .nm-ua { background-position: 0% 0, 0 0; }
+}
+/* /r9-names */
