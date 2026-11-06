@@ -535,19 +535,35 @@ async function r6Checks(browser, out) {
         await new Promise((ok) => setTimeout(ok, 350));
         const dock = document.querySelector('#view .s2-dock, #view .drop-dock');
         if (!dock) return { none: true };
-        const d = dock.getBoundingClientRect(), tabs = document.getElementById('tabs').getBoundingClientRect();
+        // the dock paints a solid strip under itself (::after, top 100%) over whatever follows it: that covers too
+        const d0 = dock.getBoundingClientRect(), af = getComputedStyle(dock, '::after');
+        const ds = getComputedStyle(dock);
+        const strip = af.content && af.content !== 'none' && af.display !== 'none' && af.position === 'absolute' && ds.position !== 'static' && ds.overflow === 'visible' && ds.overflowY === 'visible' && !/paint|strict|content/.test(ds.contain) ? parseFloat(af.height) || 0 : 0;
+        const d = { top: d0.top, bottom: d0.bottom + strip, left: d0.left, right: d0.right, height: d0.height };
+        const tabs = document.getElementById('tabs').getBoundingClientRect();
         const bad = [];
-        for (const e of document.querySelectorAll('#view button, #view .s2-cc, #view .card, #view .s2-cl-row, #view a, #view .tiny, #view .s2-note, #view h2, #view h3, #view b')) {
+        for (const e of document.querySelectorAll('#view button, #view .s2-cc, #view .card, #view .s2-cl-row, #view a, #view .tiny, #view .s2-note, #view .s2-card, #view h2, #view h3, #view b')) {
           if (dock.contains(e) || e.contains(dock) || !e.offsetParent) continue;
           const r = e.getBoundingClientRect();
           if (r.height < 4 || r.bottom <= 0) continue;
-          if (r.bottom > d.top + 2 && r.top < d.bottom - 2 && r.right > d.left && r.left < d.right) bad.push(`${e.tagName}.${e.className} «${(e.textContent || '').trim().slice(0, 30)}» ${Math.round(r.top)}–${Math.round(r.bottom)} under the dock ${Math.round(d.top)}–${Math.round(d.bottom)}`);
+          // the strip (z −1 in the dock) is painted under a later box that is its own stacking context (the glass cards:
+          // backdrop-filter, a transform…) — only plain content right after the dock is covered by it
+          const ownLayer = (x) => {
+            for (; x && x.id !== 'view'; x = x.parentElement) {
+              const c = getComputedStyle(x);
+              if (c.backdropFilter !== 'none' || c.transform !== 'none' || c.filter !== 'none' || c.isolation === 'isolate' || Number(c.opacity) < 1 || (c.position !== 'static' && c.zIndex !== 'auto')) return true;
+            }
+            return false;
+          };
+          const under = r.top < d0.bottom - 2 || !ownLayer(e);
+          if (under && r.bottom > d.top + 2 && r.top < d.bottom - 2 && r.right > d.left && r.left < d.right) bad.push(`${e.tagName}.${e.className} «${(e.textContent || '').trim().slice(0, 30)}» ${Math.round(r.top)}–${Math.round(r.bottom)} under the dock ${Math.round(d.top)}–${Math.round(d.bottom)}`);
           else if (r.bottom > tabs.top + 2 && r.top < tabs.top) bad.push(`${e.tagName}.${e.className} «${(e.textContent || '').trim().slice(0, 30)}» under the bar`);
         }
-        return { bad: bad.slice(0, 4), dockH: Math.round(d.height) };
+        return { bad: bad.slice(0, 4), dockH: Math.round(d.height), dbg: [dock.className, ds.position, ds.zIndex, ds.overflow, ds.contain, af.content, af.display, af.height, af.top, af.zIndex].join(' ') };
       });
       if (r.none) return out.push({ kind: 'dock', where: `${where} ${label}`, msg: 'no dock' });
       for (const b of r.bad) out.push({ kind: 'dock', where: `${where} ${label}`, msg: b });
+      if (process.env.R6_DEBUG) console.log('dock', label, r.dbg);
       return r;
     };
     await dockCheck('case list');
@@ -574,6 +590,7 @@ async function r6Checks(browser, out) {
       if (on.length && !on.every((n) => n === '3')) out.push({ kind: 'count', where, msg: `×3 not kept on the drop screen (on: ${on})` });
       await dockCheck('drop');
       if (vp[0] === 390 || vp[0] === 320) await shot(pg, `${tag}-drop3`);
+      if (process.env.R6_STRIP) (await pg.addStyleTag({ content: '#view .drop-dock::after, #view .s2-dock::after { background: #f0f !important; }' }), await shot(pg, `${tag}-drop3-strip`));
       await pg.locator('#tabs button[data-tab="cases"]').click({ timeout: 3000 });
       await pg.waitForTimeout(500);
       const s = await pg.evaluate(() => ({ drop: window.__qa.state.drop, s2case: window.__qa.state.s2case, count: window.__qa.state.count, list: !!document.querySelector('#view [data-act="s2Pick"], #view .s2-cc, #view [data-act="s2Case"]') }));
