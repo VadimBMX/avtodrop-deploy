@@ -1392,12 +1392,12 @@ export const CANISTER = { daily: 3, quest: 1, spare: 3 };
 // The drift «Складний» keeps the formula (`ev`/`entry`, raceMoney(…, true)): its target is beaten by ~20% of
 // average drivers and is not a farm.
 export const OPPONENTS = [
-  { id: 'easy', name: 'Легкий', chance: 0.94, spread: 0.03, ev: 0.8, entry: 0.35 },
+  { id: 'easy', name: 'Легкий', chance: 0.94, spread: 0.03, ev: 0.65, entry: 0.35 }, // owner 06.11: easy B-class races were a money printer (+134k a win) — trimmed ~19% (was ev 0.8)
   { id: 'mid', name: 'Середній', chance: 0.55, spread: 0.04, ev: 1, entry: 0.3 },
   { id: 'hard', name: 'Складний', chance: 0.22, spread: 0.04, ev: 0.9, entry: 0.1, pay: 3.6, fee: 1.4 },
 ];
-// Training: no entry fee, a slow rival and a third of the easy prize — for learning the shifts without risk.
-export const TRAINING = { id: 'train', name: 'Тренування', chance: 0.985, spread: 0.01, share: 1 / 3 };
+// Training: no entry fee, a slow rival and ~0.41 of the easy prize (a third of the old one) — for learning the shifts without risk.
+export const TRAINING = { id: 'train', name: 'Тренування', chance: 0.985, spread: 0.01, share: 0.41 }; // 06.11: share up so training pays as before the easy trim (0.8/0.65 × 1/3)
 export const PARTS_SHARE = 0.9, PARTS_KEEP_MAX = 0.008;
 // The AI behind every solo rival drives like a human (DRIVERS below): quick but uneven at the light (sometimes a
 // perfect start, sometimes a false one) and less exact with the shifts than a good player. So a rival in the same
@@ -3573,7 +3573,8 @@ export const bossFits = (b, model) => {
 // sure win pays about an easy race and a long shot about a hard one). `p` never depends on the player's history.
 export function bossRematch(p, price) {
   const c = Math.max(0.2, Math.min(0.95, p));
-  return raceMoney({ ev: 0.9, chance: c, entry: c >= 0.7 ? 0.35 : c >= 0.4 ? 0.3 : 0.1 }, price);
+  return raceMoney({ ev: 0.66, chance: c, // 06.11: follows the easy-race trim (was 0.9)
+    entry: c >= 0.7 ? 0.35 : c >= 0.4 ? 0.3 : 0.1 }, price);
 }
 // Text of a boss reward: "200 тис ₴ + 2 × ключ «Україна/СРСР» + номер класу C + значок «…»".
 export function bossRewardText(rw) {
