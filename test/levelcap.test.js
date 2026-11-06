@@ -10,6 +10,11 @@ const H = 3600e3, D = 24 * H;
 // 10:00 Kyiv (UTC+2 in November) on a Monday.
 const T0 = Date.parse('2026-11-09T08:00:00Z');
 const xpTo = (lvl) => Array.from({ length: lvl - 1 }, (_, i) => S.xpForLevel(i + 1)).reduce((a, b) => a + b, 0);
+// 06.11: the cap is off in production (ECON.levelCap.perDay = 0); the mechanism is kept and tested at 3 a day.
+const CAP_OFF = S.LEVEL_CAP.perDay;
+S.LEVEL_CAP.perDay = 3;
+test.after(() => { S.LEVEL_CAP.perDay = CAP_OFF; });
+
 function setup(t = T0) {
   const clock = { t };
   const db = openDb(':memory:');
@@ -22,6 +27,7 @@ function setup(t = T0) {
 }
 
 test('level cap: the numbers live in ECON and the day counts from the anchor (day 1 → 3, day 2 → 6)', () => {
+  assert.equal(CAP_OFF, 0, 'off in production (owner 06.11)');
   assert.equal(S.LEVEL_CAP.perDay, 3);
   assert.equal(S.levelCapOf(T0, T0), 3);
   assert.equal(S.levelCapOf(T0, T0 + 13 * H), 3, '23:59 Kyiv of the same day');
