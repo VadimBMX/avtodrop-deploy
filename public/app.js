@@ -1355,6 +1355,19 @@ H.install = async (d) => {
 H.uninstall = async (d) => {
   if (await act('parts/uninstall', { carId: Number(d.id), type: d.type }, 'Деталь знято', { rerender: false })) carSheet(d.id), render();
 };
+// r4-ux (owner 06.11: «Де майстерня?»): the one way into «Майстерня» for the hints, the city map and the Drop-market
+// card. Locked: a toast with the level instead of a screen; open without parts yet (the wash comes a level earlier): its
+// first open view and a word about when the parts come.
+H.workshopGo = () => {
+  if (!shopOpenViews().length) return toast(`Майстерня відкриється з ${S.unlockLevel(shopLockKey())}-го рівня`);
+  closeModal();
+  state.tab = 'shop';
+  state.page = null;
+  state.shopView = isOpen('parts') ? 'cases' : shopOpenViews()[0];
+  window.scrollTo(0, 0);
+  render();
+  if (!isOpen('parts')) toast(`Деталі в Майстерні — з ${S.unlockLevel('parts')}-го рівня`);
+};
 H.toPartCases = (d) => {
   state.tab = 'shop';
   state.page = null;
@@ -1664,15 +1677,10 @@ TABS.cases = () => {
   // that no longer fits steps down by itself (×3 → ×1 with 2 free places); «Не вистачає місця для ×N» shows only once
   // the player picks that count after the drop (audit №13).
   const onDrop = !!state.drop?.some(dropAlive);
-  // 28.10 (players: «після кожного прокруту перекидає на меншу кількість»): the step-down is only for this drop screen —
-  // the player's own pick (state.countWant) comes back by itself once the places are free again.
-  if (!cs.starter && !state.countPicked) {
-    const want = state.countWant || state.count, free = me.slots - me.used;
-    if (onDrop && free < want) {
-      const fit = [6, 3, 1].find((k) => k <= free);
-      if (fit) state.count = fit;
-    } else state.count = want;
-  }
+  // r4-ux (owner 06.11: «×1/×3/×6 скидається після кожного відкриття»): the player's pick (state.countWant) is kept
+  // for the whole session — no step-down any more. Short of room, the open block says so and offers the count that
+  // fits as a one-off (noRoomHtml «Відкрити ×K»), without touching the pick.
+  if (!cs.starter) state.count = state.countWant || state.count;
   const n = cs.starter ? 1 : state.count;
   const deal = caseNow(cs); // case of the day / game events (S.caseDeal, the same rules as the server)
   const dayCase = deal.why === 'day';
@@ -1685,6 +1693,14 @@ TABS.cases = () => {
     const short = price * paid - me.balance;
     // On the drop screen a full garage is one quiet line: the drop's own «Продати» is right below.
     if (onDrop && free < 1) return `<div class="tiny muted center mt">Гараж заповнений · ${me.used}/${me.slots} — продай машину або купи місце, щоб відкрити ще</div>`;
+    // r4-ux: right after a drop, short of room for the picked ×N, the button opens what fits (×3 / ×1) once — the pick
+    // stays; the no-room block with its two buttons is for a count the player taps on this screen.
+    const fit = [3, 1].find((k) => k <= free);
+    if (free < n && onDrop && !state.countPicked && fit) {
+      const fp = Math.max(0, fit - keys);
+      if (fp && price * fp > me.balance) return `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(price * fp - me.balance)}</button>`;
+      return `<button class="btn opencase second" data-act="openCase" data-n="${fit}" data-expect="${price * fp}"><span class="oc-l">Відкрити ×${fit}</span><span class="oc-p">${fp ? S.fmt(price * fp) : `${ic('key')}${fit}`}</span></button>`;
+    }
     if (free < n) return noRoomHtml(n, free);
     // Not enough money: say so on the button, with how much is missing.
     if (paid && short > 0) return `<button class="btn" disabled>Недостатньо коштів · бракує ${S.fmt(short)}</button>`;
@@ -1754,8 +1770,13 @@ TABS.cases = () => {
       // Everything sold: «Відкрити ще» becomes the big main button and «У гараж» a quiet line under it (owner 27.10).
       // 03.11 (owner): the count and «Швидко» stay changeable right on the drop screen — «Відкрити ще» opens the picked ×N.
       const ddRow = cs.starter || (onDrop && free < 1) ? '' : `<div class="s2-dock-r dd-cnt"><div class="s2-cnt">${[1, 3, 6].map((k) => `<button class="${k === n ? 'on' : ''}" data-act="pickCount" data-n="${k}">×${k}</button>`).join('')}</div><button class="s2-fast${state.fast ? ' on' : ''}" data-act="toggleFast" aria-pressed="${state.fast ? 'true' : 'false'}" aria-label="Швидке відкриття — без анімації">${ic('player-track-next')}<span>Швидко</span><i></i></button></div>`;
-      if (!alive.length) return `<div class="drop-dock dd-sold">${ddRow}${openBlock()}<button class="btn outline dd-back" data-act="toGarage">До гаража</button></div>${wowShareRow(d)}`;
-      return `<div class="drop-dock"><div class="btns"><button class="btn" data-act="toGarage">У гараж</button>${sellBtn}</div>${last ? '<div class="tiny muted center mt dd-last">Перша машина — її не можна продати</div>' : ''}${ddRow}${openBlock()}</div>${wowShareRow(d)}`;
+      // r4-ux (owner 06.11: the dock was too tall): ×N, «Швидко» and «Відкрити ще» share one row (.dd-one) when the open
+      // block is a single button; a no-room block keeps its own lines under the row.
+      const ob = openBlock(), oneBtn = ddRow && /^<button class="btn opencase/.test(ob);
+      const short = oneBtn && free < n && !cs.starter ? `<div class="tiny muted center dd-note">Для ×${n} мало місця — ${free} ${plural(free, ['вільне місце', 'вільні місця', 'вільних місць'])} · <a class="txtlink" data-act="sellCheap" data-n="${n - free}">продати ${n - free === 1 ? 'дешевшу' : `${n - free} дешевші`}</a></div>` : '';
+      const openRow = oneBtn ? `<div class="dd-one">${ddRow}${ob}</div>${short}` : ddRow + ob;
+      if (!alive.length) return `<div class="drop-dock dd-sold">${openRow}<button class="btn outline dd-back" data-act="toGarage">До гаража</button></div>${wowShareRow(d)}`;
+      return `<div class="drop-dock"><div class="btns"><button class="btn" data-act="toGarage">У гараж</button>${sellBtn}</div>${last ? '<div class="tiny muted center mt dd-last">Перша машина — її не можна продати</div>' : ''}${openRow}</div>${wowShareRow(d)}`;
     })() : ''}
     ${cs.starter ? '' : (() => {
       const fr = me.fragments?.[cs.id] || 0, need = S.FRAGMENTS_PER_KEY;
@@ -1775,10 +1796,15 @@ function pityHook(st) {
 }
 // Not enough garage slots for this opening: how many are free, plus a way out right here — ×1 (if one fits) or the
 // garage with the cheapest cars already picked for sale.
+// r4-ux: no «вільно 4 з 6» — in the caps display font «З» reads as «3» («4 3 6»); «Відкрити ×K» opens the count that
+// fits once (data-n) and keeps the player's ×N pick; «Продати N дешевші» fits next to it at 320 px.
 function noRoomHtml(n, free) {
   const need = n - free; // over the limit (a battle prize) free is negative: sell enough to open again
-  return `<button class="btn" disabled>${free > 0 ? `Не вистачає місця для ×${n} · вільно ${free} з ${me.slots}` : `Гараж заповнений · ${me.used}/${me.slots}`}</button>
-    <div class="btns mt">${free > 0 ? '<button class="btn outline" data-act="pickCount" data-n="1">Відкрити ×1</button>' : ''}<button class="btn ghost" data-act="sellCheap" data-n="${need}">${ic('cash')} Продати ${need === 1 ? 'найдешевшу' : `${need} ${plural(need, ['найдешевшу', 'найдешевші', 'найдешевших'])}`}</button></div>
+  const fit = [3, 1].find((k) => k <= free);
+  const cs = S.CASE_BY_ID[state.caseId], keys = me.keys[cs?.id] || 0;
+  const expect = fit && cs ? caseNow(cs).price * Math.max(0, fit - keys) : '';
+  return `<button class="btn noroom" disabled>${free > 0 ? `Для ×${n} мало місця · вільно ${free} ${plural(free, ['місце', 'місця', 'місць'])}` : `Гараж заповнений · ${me.used}/${me.slots}`}</button>
+    <div class="btns noroom-btns mt">${fit ? `<button class="btn outline" data-act="openCase" data-n="${fit}" data-expect="${expect}">Відкрити ×${fit}</button>` : ''}<button class="btn ghost" data-act="sellCheap" data-n="${need}">${ic('cash')}<span>Продати ${need === 1 ? 'дешевшу' : `${need} дешевші`}</span></button></div>
     <div class="tiny muted center mt">або купи місце в гаражі</div>`;
 }
 H.sellCheap = (d) => {
@@ -1889,9 +1915,9 @@ function countryGoal(cs, owned) {
 H.openCase = async (d, el) => {
   if (state.opening) return;
   const cs = S.CASE_BY_ID[state.caseId];
-  const n = cs.starter ? 1 : state.count;
+  const n = cs.starter ? 1 : Number(d?.n) || state.count; // d.n: a one-off count that fits («Відкрити ×K»)
   state.opening = true;
-  state.countPicked = false; // the next drop screen may step the count down again (TABS.cases)
+  state.countPicked = false; // the next drop screen offers what fits again (TABS.cases openBlock)
   hideClaimBanners();
   el.disabled = true;
   let r;
@@ -5861,8 +5887,29 @@ const PAGE_CLAIMS = { quests: ['quest', 'weekly', 'wchest', 'newbie'], season: [
 const REWARD_IC = { daily: 'gift', rcase: 'box', newbie: 'sparkles', quest: 'target-arrow', weekly: 'calendar', wchest: 'gift', coll: 'books', set: 'books', ach: 'diamond', achAll: 'diamond', pass: 'ticket' };
 CELEBRATE.add('rewards/all');
 let rewardClaims = []; // reward claims of the last pulse: the rewards center lists them, the gift badge counts them
+// r4-ux (owner playtest 06.11: popups one after another in the first minutes): during a player's first ~15 min (or
+// until level 3 on his first day) achievements make no banner and no gift-badge count — one quiet toast «+N досягнень»
+// when new ones come, and the Профіль dot / «Досягнення» tile badge (me.achReady) say where to take them.
+const ACH_KINDS = new Set(['ach', 'achAll']);
+const ACH_QUIET_MS = 15 * 60e3;
+const achQuiet = () => {
+  if (!me?.createdAt) return false;
+  const age = serverNow() - me.createdAt;
+  return age < ACH_QUIET_MS || (me.level < 3 && age < 86400e3);
+};
+const achCut = (claims) => (achQuiet() ? (claims || []).filter((c) => !ACH_KINDS.has(c.kind)) : claims || []);
+let achToldN = null; // tiers ready the last quiet toast counted (null: nothing told yet this session)
+function achQuietToast(ready) {
+  if (!achQuiet()) return (achToldN = null);
+  if (!ready) return (achToldN = 0);
+  const add = ready - (achToldN || 0);
+  if (add <= 0) return (achToldN = ready);
+  if (busyForBanners()) return; // after the reel / the race
+  achToldN = ready;
+  toast(`+${add} ${plural(add, ['досягнення', 'досягнення', 'досягнень'])} · забери в Профілі`, false, 2200);
+}
 function setRewardClaims(claims) {
-  rewardClaims = (claims || []).filter((c) => REWARD_KINDS.has(c.kind));
+  rewardClaims = achCut(claims).filter((c) => REWARD_KINDS.has(c.kind));
   paintGiftBadge();
 }
 // Without the daily bonus / reward case once they are taken (the pulse may be a few seconds old).
@@ -5883,6 +5930,7 @@ const hashStr = (str) => {
 // Banners: one reward keeps its own «Забрати»; several fold into one «Нагороди» banner that opens the rewards center
 // (its single rewards are remembered as shown, so they don't come back one by one). Other claims stay as they were.
 function showClaimBanners(claims) {
+  claims = achCut(claims); // r4-ux: no achievement banners in the first minutes
   const one = (c) => showBanner({ ...c, claim: c, sub: esc(countFix(c.sub)) + (c.money ? ` · <b class="win">+${S.short(c.money)}</b>` : ''), ttl: 8000, buttons: [{ label: 'Забрати', act: 'bannerClaim', cls: 'ghost' }] });
   for (const c of claims) if (!REWARD_KINDS.has(c.kind) && !bannerSeen.has(c.key)) one(c);
   // First steps: the pill on top of the screen has its own «Забрати» — no second one in a banner (newbie is a reward kind).
@@ -6003,7 +6051,7 @@ async function rvlStep() {
   R.cur = null;
   const left = R.list.length - R.i - 1;
   R.el.innerHTML = `<div class="rvl-box">
-    <div class="rvl-top"><span class="rvl-n">${R.list.length > 1 ? `Нагорода ${R.i + 1} з ${R.list.length}` : ''}</span>${left && R.list.slice(R.i + 1).some((x) => x.kind === 'key') ? '<button class="rvl-skip" data-act="rvlSkip">Пропустити</button>' : ''}</div>
+    <div class="rvl-top"><span class="rvl-n">${R.list.length > 1 ? `Нагорода ${R.i + 1}/${R.list.length}` : ''}</span>${left && R.list.slice(R.i + 1).some((x) => x.kind === 'key') ? '<button class="rvl-skip" data-act="rvlSkip">Пропустити</button>' : ''}</div>
     <b class="rvl-t">${esc(rvlTitle(it))}</b>
     <div class="stage rvl-stage" id="rvlStage"><div class="reel-wrap" id="rvlWrap"><div class="reel" id="rvlReel"></div></div></div>
     <div class="rvl-res" id="rvlRes"></div><div class="rvl-btns" id="rvlBtns"></div></div>`;
@@ -6464,16 +6512,28 @@ function firstStepsCard(btnAct = 'newbieQuest') {
 // floats: the page is never pushed down, the bottom bar and the main buttons stay free. Tap the ring (or the card)
 // for the hint text and «Сховати підказки»; the button to press keeps its pulse ring (.guide-hi).
 const COACH_MS = 5200;
+const GUIDE_PLACE = { shop: 'Майстерня', race: 'Траса' };
 let coachSig = null, coachUntil = 0, coachOpen = false, coachT = null;
+// r4-ux (owner playtest 06.11: the card hid the Ринок title and the first row of tiles): while the card is down the
+// page makes room for it (#view::before grows to the card's height, body.coach-push), so it never covers content;
+// it shrinks back when the card folds into the ring.
+function coachPush(el) {
+  const b = document.body;
+  if (!el) return b.classList.remove('coach-push');
+  b.style.setProperty('--coach-h', `${Math.round(el.offsetHeight + 12)}px`); // offsetHeight: the drop-in animation scales the card
+  b.classList.add('coach-push');
+}
 function coachClear() {
   clearTimeout(coachT);
   $('#guide')?.remove();
   $('#coachRing')?.remove();
+  coachPush(null);
 }
 function coachFold() {
   const el = $('#guide');
   coachOpen = false;
   coachUntil = 0;
+  coachPush(null);
   if (!el) return;
   el.classList.add('out');
   setTimeout(() => el.isConnected && el.classList.contains('out') && el.remove(), 300);
@@ -6504,7 +6564,9 @@ function paintGuide() {
   const here = ready || !st.tab || st.tab === state.tab;
   const n = nb ? nb.step : 0, total = S.GUIDE_PATH.length;
   const money = nb ? S.short(nb.money).replace(' ₴', '') : '';
-  const tabName = st.tab && $(`#tabs button[data-tab="${UI2.tabBtn[st.tab] || st.tab}"] span`)?.textContent;
+  // r4-ux: a step leads to a place called what the player sees — «Майстерня» (not «Гараж», the tab it lives under),
+  // «Траса» for the races (not «Місто»).
+  const tabName = st.tab && (GUIDE_PLACE[st.tab] || $(`#tabs button[data-tab="${UI2.tabBtn[st.tab] || st.tab}"] span`)?.textContent);
   // the ring in the header row, left of the gift
   let ring = $('#coachRing');
   if (!ring) {
@@ -6526,12 +6588,20 @@ function paintGuide() {
     coachUntil = Date.now() + COACH_MS;
     coachOpen = false;
   }
+  // r4-ux: no card over a drop result (it lay on the turntable right where the car landed). The ring stays; the card
+  // waits and drops in, for its full time, once the player leaves the result.
+  const held = state.tab === 'cases' && !!state.drop?.length;
+  if (held) {
+    if (coachOpen || coachUntil - Date.now() > 0) coachUntil = Date.now() + COACH_MS;
+    coachOpen = false;
+    clearTimeout(coachT);
+  }
   const left = coachUntil - Date.now();
-  if (coachOpen || left > 0) {
+  if (!held && (coachOpen || left > 0)) {
     const title = ready ? esc(nb.text) : esc(st.title);
     const sub = ready ? 'Крок виконано' : `Перші кроки · ${n + 1}/${total}${here ? '' : ` · ${esc(tabName || TITLES[st.tab] || '')}`}`;
     const side = ready ? `<button class="coach-claim" data-act="newbieQuest">${ic('gift')}+${money}</button>` : money ? `<span class="coach-rw">+${money}</span>` : '';
-    const more = coachOpen && !ready ? `<div class="coach-more">${esc(st.text)}<div class="coach-foot">${!here ? `<button class="coach-go" data-act="guideGo">${esc(tabName || 'Перейти')} ${ic('arrow-right')}</button>` : ''}<button class="coach-off" data-act="guideOff">Сховати підказки</button></div></div>` : '';
+    const more = coachOpen && !ready ? `<div class="coach-more">${esc(st.text)}<div class="coach-foot">${!here ? `<button class="coach-go" data-act="guideGo">${esc(tabName || 'Перейти')} ${ic('arrow-right')}</button>` : ''}${key === 'level2' ? `<button class="coach-go" data-act="workshopGo">${ic('tool')} Майстерня</button>` : ''}<button class="coach-off" data-act="guideOff">Сховати підказки</button></div></div>` : '';
     const html = `<div class="coach-row" data-act="${ready ? 'newbieQuest' : here || coachOpen ? 'coachToggle' : 'guideGo'}" role="button" tabindex="0"><span class="coach-n">${ready ? ic('check') : n + 1}</span>
       <span class="coach-tx"><small>${sub}</small><b>${!here ? ic('arrow-right') : ''}${title}</b></span>${side}</div>${more}${coachOpen || ready ? '' : '<i class="coach-bar"></i>'}`;
     let el = $('#guide');
@@ -6549,9 +6619,10 @@ function paintGuide() {
       el.style.setProperty('--coach-ms', `${Math.max(400, left)}ms`);
     }
     coachPlace();
+    coachPush(el);
     clearTimeout(coachT);
     if (!coachOpen) coachT = setTimeout(coachFold, Math.max(400, left));
-  } else $('#guide')?.remove();
+  } else ($('#guide')?.remove(), coachPush(null));
   if (ready) return;
   const target = here ? $(st.target) : $(`#tabs button[data-tab="${UI2.tabBtn[st.tab] || st.tab}"]`);
   if (!target) return;
@@ -6616,6 +6687,7 @@ let guideScrolled = null;
 H.guideGo = () => {
   const st = S.GUIDE_STEPS.find((s) => s.key === guideKey());
   if (!st?.tab) return;
+  if (st.tab === 'shop') return (coachOpen = false, coachSig = null, H.workshopGo());
   state.tab = st.tab;
   state.page = null;
   if (st.tab === 'race') state.raceView = 'race';
@@ -7827,6 +7899,7 @@ async function pulse() {
     me.questReady = qReady;
     renderHeader();
   }
+  achQuietToast(p.achReady || 0);
   // Invites: show new ones, drop banners whose invite is gone (accepted elsewhere, expired, withdrawn).
   const live = new Set();
   for (const inv of p.invites) {
@@ -8691,7 +8764,7 @@ function drMeHtml(v) {
   const line = !mine ? `<span class="muted">Ще немає часу — ${a.left ? `перша спроба безкоштовна, як і всі ${a.max}` : 'спроби закінчились'}</span>`
     : mine.dq ? '<span class="muted">Результат знято адміністрацією</span>'
     : `<b class="drs-t">${drT(mine.time)}</b><span class="drs-pl"><b>${mine.place}-й</b> з ${drN(v.total)}</span>`;
-  const btn = a.left ? `<button class="btn yellow btn2" data-act="drStart"><span>${ic('flag-3')} ${mine ? 'Ще спроба' : 'Їхати'}</span><small>спроба ${a.used + 1} з ${a.max} · без пального</small></button>`
+  const btn = a.left ? `<button class="btn yellow btn2" data-act="drStart"><span>${ic('flag-3')} ${mine ? 'Ще спроба' : 'Їхати'}</span><small>спроба ${a.used + 1}/${a.max} · без пального</small></button>`
     : `<button class="btn" disabled>Спроби закінчились · нова машина через ${untilSpan(v.endsAt)}</button>`;
   const share = mine && !mine.dq ? `<button class="drs-share" data-act="drShare">${ic('share')} Поділитися часом</button>` : '';
   const gh = v.ghosts?.length && mine && !mine.dq ? `<div class="dr-ghline">👻 ${drGhostsText(DRS.ghostsBeaten(v.ghosts, mine.time), v.ghosts.length)}</div>` : '';
@@ -8806,7 +8879,7 @@ function drResult() {
     : dr.place === 1 ? `<div class="drres-gap lead">${ic('crown')}<span>Ти перший у таблиці дня</span></div>` : '';
   const a = dr.attempts, beat = r.time < r.rivalTime, tie = r.time === r.rivalTime;
   const gh = dr.ghosts ? `<div class="drres-gap dr-ghres"><span class="dr-ghic">👻</span><span><span>${drGhostsText(dr.ghosts.beaten, dr.ghosts.n)}${dr.ghosts.beaten > dr.ghosts.before ? ` <span class="up">+${dr.ghosts.beaten - dr.ghosts.before}</span>` : ''}</span><small>привиди — орієнтир, не гравці й не місця</small></span></div>` : '';
-  const again = a.left ? `<button class="btn yellow btn2" data-act="drAgain"><span>${ic('refresh')} Ще спроба</span><small>залишилось ${a.left} з ${a.max}</small></button>` : '';
+  const again = a.left ? `<button class="btn yellow btn2" data-act="drAgain"><span>${ic('refresh')} Ще спроба</span><small>залишилось ${a.left}/${a.max}</small></button>` : '';
   return `<div class="rhero drres ${best ? 'win' : 'flat'}"><div class="rhero-tag">${ic('flag-3')} Заїзд дня · ${esc(m.name)}</div><div class="rhero-t">${title}</div>
       <div class="rhero-sub">${sub}</div><div class="rhero-amt">${drT(r.time)}</div>${placeLine}</div>
     ${gap}${gh}

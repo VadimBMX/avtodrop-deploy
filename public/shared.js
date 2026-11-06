@@ -2029,7 +2029,9 @@ export const showcaseCost = (n) => niceRound(ECON.showcase.base * Math.pow(2, n 
 // curve has no jump (10 400 → 13 911); late levels need about 60% of the old curve (L13: 18 173 instead of 30 354).
 // d2-wall (05.11): L2 300 → 200 and L3 700 → 450 — nobody reached level 3 (parts, market, «Автомийка») on day 1 (sim-report,
 // persona report: 675/700 after ~60 races); with the newbie refills it now lands in the first long session.
-export const XP_TABLE = [200, 450, 1100, 1600, 2300, 3200, 4300, 5800, 7700, 10400];
+// r4-ux (06.11, owner playtest): 200/450 was too fast — level 3 and a pile of achievements after 3–4 cases and one race,
+// before the player understood anything. L2 250, L3 600: level 3 in ~10–15 min of normal play.
+export const XP_TABLE = [250, 600, 1100, 1600, 2300, 3200, 4300, 5800, 7700, 10400];
 export const xpForLevel = (lvl) => (lvl >= 1 && lvl <= XP_TABLE.length ? XP_TABLE[lvl - 1] : Math.round(300 * Math.pow(Math.max(lvl, 1), 1.6)));
 // The curve before the table (300·L^1.8). game.js migrateProgress rescales a player's xp within his level by it, once.
 export const xpForLevelV1 = (lvl) => Math.round(300 * Math.pow(lvl, 1.8));
@@ -2977,7 +2979,7 @@ export const GUIDE_STEPS = [
   // 'level2' is the key of the «install» step while parts are still locked (its name stays for players and tests);
   // its title names the install step (playtest 05.11: «Досягни 3-го рівня» here and on the last step read as one step twice);
   // the level itself comes from UNLOCKS (parts: level 3 since 03.11).
-  { key: 'level2', tab: 'race', target: '.rival', title: `Встанови деталь · з ${UNLOCK_BY_KEY.parts.level}-го рівня`, text: `Рівень ${UNLOCK_BY_KEY.parts.level} відкриє деталі в Майстерні. Досвід дають заїзди, нові машини й завдання.` },
+  { key: 'level2', tab: 'race', target: '.rival', title: `Встанови деталь · з ${UNLOCK_BY_KEY.parts.level}-го рівня`, text: `Рівень ${UNLOCK_BY_KEY.parts.level} відкриє деталі в Майстерні (будівля «Майстерня» в Місті). Досвід дають заїзди на Трасі, нові машини й завдання.` },
   { key: 'level3', tab: 'race', target: '.rival', title: 'Досягни 3-го рівня', text: 'Досвід дають заїзди (перемога — більше), нові машини в колекції й завдання.' },
 ];
 // p: { introSeen (the player came through the intro stories), off (hints turned off), keys, garage (cars in the garage),
