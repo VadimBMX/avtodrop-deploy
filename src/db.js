@@ -568,6 +568,8 @@ const MIGRATIONS = [
   // s2-fix: the helmet of the avatar (0…S.HELMETS-1; NULL = the default by id, S.helmetDefault).
   'ALTER TABLE users ADD COLUMN helmet INTEGER',
   'ALTER TABLE users ADD COLUMN newbie_fuel INTEGER NOT NULL DEFAULT 0', // d2-wall: free «Заправка новачка» used (S.newbieFuelLeft)
+  // Owner 06.11: a «Легенда S1» car (S.LEGEND_CAR) — never leaves its owner (game.js isLockedCar + the triggers below).
+  'ALTER TABLE cars ADD COLUMN legend INTEGER NOT NULL DEFAULT 0',
 ];
 
 export function openDb(file) {
@@ -614,6 +616,18 @@ export function openDb(file) {
       INSERT INTO car_log (car_id, model, from_uid, to_uid, status_from, status_to, kind, reason, actor, at)
       SELECT NEW.id, NEW.model, NEW.owner_id, NEW.owner_id, OLD.status, NEW.status, 'status', c.reason, c.actor,
         COALESCE(c.at, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)) FROM car_ctx c WHERE c.id = 1;
+    END;
+    -- Owner 06.11: the last line of defence for a «Легенда S1» car (game.js isLockedCar refuses first, with a clear
+    -- message): no code path may delete it, give it to someone else or put it on the market / an auction. The one
+    -- allowed exit, the admin player reset, clears cars.legend before it deletes the cars.
+    CREATE TRIGGER IF NOT EXISTS car_legend_no_delete BEFORE DELETE ON cars WHEN OLD.legend = 1 BEGIN
+      SELECT RAISE(ABORT, 'Легенда S1 — не продається і не передається');
+    END;
+    CREATE TRIGGER IF NOT EXISTS car_legend_no_move BEFORE UPDATE OF owner_id ON cars WHEN OLD.legend = 1 AND OLD.owner_id IS NOT NEW.owner_id BEGIN
+      SELECT RAISE(ABORT, 'Легенда S1 — не продається і не передається');
+    END;
+    CREATE TRIGGER IF NOT EXISTS car_legend_no_list BEFORE UPDATE OF status ON cars WHEN OLD.legend = 1 AND NEW.status IN ('market', 'auction') BEGIN
+      SELECT RAISE(ABORT, 'Легенда S1 — не продається і не передається');
     END;`);
   const cache = new Map();
   db.q = (sql) => {

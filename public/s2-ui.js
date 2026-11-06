@@ -783,7 +783,7 @@ function garageView(base) {
     return `<button class="s2-fl a-fl" data-act="car" data-id="${c.id}" style="--c:${clsCol(md.cls)}"><span class="a-pn">P${k}</span>
       <span class="s2-fl-car art">${X.carArt(c.model, { look: c.look, dirt: c.dirt })}</span>
       <span class="a-fl-tag"><span class="a-cls" style="--c:${clsCol(md.cls)}">${md.cls}</span><b class="ellipsis">${esc(md.name)}</b></span>
-      <span class="a-fl-val"><em>${S.short(X.sellPrice(c))}</em>${inc ? `<small>+${shortN(inc.rate ?? inc.income ?? inc)}/год</small>` : ''}</span></button>`;
+      <span class="a-fl-val">${c.legend /* owner 06.11: «Легенда S1» — not for sale, so no sale price */ ? `<span class="ed-no lg-no" title="${esc(S.LEGEND_CAR.lockText)}">${X.ic('trophy')}${esc(S.LEGEND_CAR.tag)}</span>` : `<em>${S.short(X.sellPrice(c))}</em>`}${inc ? `<small>+${shortN(inc.rate ?? inc.income ?? inc)}/год</small>` : ''}</span></button>`;
   };
   const build = m.slots < S.MAX_SLOTS ? `<div class="s2-fl a-fl build"><span class="a-pn">P${m.slots + 1}</span><div class="s2-tape"><span>БУДУЄТЬСЯ · ПОВЕРХ P${m.slots + 1}</span></div><span class="s2-fl-hint">+1 місце для машини</span><button class="s2-btn sm" data-act="buySlot">${X.ic('plus')}${S.short(S.slotCost(m.slots))}</button></div>` : '';
   const free = Math.max(0, m.slots - m.cars.filter((c) => c.status !== 'showcase').length);
@@ -802,7 +802,7 @@ function garageView(base) {
 function parkHead() {
   const m = me();
   const all = m.cars.filter((c) => c.status !== 'showcase');
-  return `<div class="s2-phead"><h2>Мій гараж</h2><div><b>${S.short(X.sellTotal(all.filter((c) => !M(c.model).secret)))}</b><small>+${shortN(m.income?.rate || 0)}/год · ${all.length}/${m.slots}</small></div></div>`;
+  return `<div class="s2-phead"><h2>Мій гараж</h2><div><b>${S.short(X.sellTotal(all.filter((c) => !M(c.model).secret && !c.legend)))}</b><small>+${shortN(m.income?.rate || 0)}/год · ${all.filter((c) => !c.legend).length}/${m.slots}</small></div></div>`;
 }
 
 // ---------- Профіль ----------

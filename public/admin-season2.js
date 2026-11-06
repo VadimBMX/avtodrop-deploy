@@ -1,7 +1,7 @@
 // Admin «Сезон 2»: the one-shot wipe with compensation. Before it runs: the dry-run numbers (players, who gets star
 // credit and how much, frames, veteran tiers, friend keys, VIP subscribers (credit only), the S1 top-10 «Легенда S1») and the guarded
 // run (owner only; the phrase S.S2_RESET.phrase, the confirm dialog). After: what was given and how much credit is spent.
-// Server: src/season2.js (admin 'season2', 'season2/reset').
+// Server: src/season2.js (admin 'season2', 'season2/reset'); the «Легенда S1» cars: src/game.js 'season2/legend-cars'.
 import * as S from './shared.js';
 
 const n = (v) => Math.round(v || 0).toLocaleString('uk-UA');
@@ -19,7 +19,10 @@ export async function season2Page({ api, esc, date, state }) {
       <div class="panel"><h2>Запущено <span class="sub">${date(v.at)}</span></h2>
         <p>Гравців в архіві S${R.prevSeason}: <b>${n(a.users)}</b> · кредит отримали: <b>${n(a.creditUsers)}</b> · видано кредиту: <b>${n(a.credit)} ⭐</b>${a.prizeStars ? ` · повернуто призових: <b>${n(a.prizeStars)} ⭐</b> (${n(a.prizeUsers)} гравц.)` : ''}
         · витрачено: <b>${n(a.creditSpent)} ⭐</b> · лишилось: <b>${n(a.creditLeft)} ⭐</b> · ключів за друзів: <b>${n(a.keys)}</b> · вікно компенсації побачили: <b>${n(a.seen)}</b></p></div>
-      <div class="panel"><h2>Легенда S${R.prevSeason}</h2>${legends}</div>`;
+      <div class="panel"><h2>Легенда S${R.prevSeason}</h2>${legends}</div>
+      <div class="panel"><h2>Машини «${esc(S.LEGEND_CAR.tag)}» <span class="sub">${esc(S.MODELS[S.LEGEND_CAR.model]?.name || S.LEGEND_CAR.model)} для топ-${S.SEASON_PRIZES.length} призових місць S${R.prevSeason}</span></h2>
+        ${v.legendCarsAt ? `<p>Видано ${date(v.legendCarsAt)} — повторно нічого не видається.</p>`
+          : state?.role === 'owner' ? `<p class="small muted">Назавжди: не продається і не передається. Видається один раз.</p><button class="btn" data-act="s2Legend">Видати машини «${esc(S.LEGEND_CAR.tag)}»</button>` : '<div class="empty">Видати може лише власник</div>'}</div>`;
   }
   const owner = state?.role === 'owner';
   return `<div class="head"><h1>Сезон ${R.season}</h1><button class="btn ghost sm" data-act="reload">Перерахувати</button></div>
@@ -38,6 +41,9 @@ export async function season2Page({ api, esc, date, state }) {
 
 export function season2Actions({ mutate, toast }) {
   return {
+    // Owner 06.11: the «Легенда S1» cars (src/game.js 'season2/legend-cars'), after the wipe, once.
+    s2Legend: () => mutate('season2/legend-cars', {}, { title: `Видати «${S.LEGEND_CAR.tag}»?`, button: 'Видати',
+      summary: `${S.MODELS[S.LEGEND_CAR.model]?.name || S.LEGEND_CAR.model} — кожному з топ-${S.SEASON_PRIZES.length} Сезону ${S.S2_RESET.prevSeason}. Один раз.` }, 'Машини видано'),
     s2Run: () => {
       const phrase = document.getElementById('s2Phrase')?.value || '';
       if (phrase.trim().toUpperCase() !== S.S2_RESET.phrase) return toast(`Введи фразу «${S.S2_RESET.phrase}»`, true);
