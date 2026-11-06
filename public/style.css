@@ -3436,6 +3436,10 @@ button.li:active { background-color: #ffffff08; }
 .ed-no { display: inline-block; padding: 0 5px; border-radius: 4px; background: #22d3ee22; color: #67e8f9; font: 700 11px/1.5 var(--f-disp); letter-spacing: .3px; white-space: nowrap; }
 .ed-chip { background: #22d3ee22; color: #67e8f9; }
 .ed-note .i { color: #67e8f9; }
+/* Owner 06.11: «Легенда S1» — the edition badge in gold (S.LEGEND_CAR). */
+.ed-no.lg-no, .ed-chip.lg-chip { background: #f5b30126; color: #ffd54a; box-shadow: inset 0 0 0 1px #f5b30155; }
+.lg-no .i, .lg-chip .i { width: 11px; height: 11px; margin-right: 2px; vertical-align: -1px; }
+.lg-note .i { color: #ffd54a; }
 .hub-grid.g2 > #hubPier { grid-column: 1 / -1; }
 /* the opening: seal snaps, doors swing open, light in the class colour */
 .ctr-reveal { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 24px;

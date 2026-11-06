@@ -2782,6 +2782,15 @@ export const S2_RESET = {
   season: 2, prevSeason: 1, phrase: 'СЕЗОН 2', creditPct: 100, friendKey: 'city', friendKeysMax: 20, legendTop: 10,
   framePriority: ['legend_s1', 'patron', 'veteran_s1'],
 };
+// Owner 06.11: the Season 1 top-10 (the places that got S.SEASON_PRIZES) each get a permanent «Легенда S1» car,
+// granted once after the wipe by the admin action 'season2/legend-cars' (meta `meta`). A legend car (cars.legend = 1)
+// never leaves its owner: no sale, market, auction, trade, trade-in, upgrade burn or admin removal — only an explicit
+// admin player reset deletes it. It races, gets painted and tuned like any car and takes no garage slot.
+export const LEGEND_CAR = {
+  model: 'vaz-2101-kopiika', tag: 'Легенда S1', meta: 's1_legend_cars_done',
+  lockText: 'Легенда S1 — не продається і не передається',
+  event: '🏆 Легенда S1: ВАЗ-2101 «Копійка» — назавжди твоя',
+};
 export function seasonBadge(place) {
   if (place === 1) return { title: 'Чемпіон', tier: 3 };
   if (place <= 3) return { title: 'Призер', tier: 2 };

@@ -419,8 +419,11 @@ const partSlots = (c) => S.partKeysOf(c.model).length;
 function tileMarks(c, m) {
   const no = m.restored ? `<span class="br-no">R${c.serial ? ' ' + S.serialText(c.serial) : ''}</span>` : c.serial ? `<span class="ed-no">${S.serialText(c.serial)}</span>` : '';
   const st = starsHtml(c, { cls: 'pr-t' });
-  return st || no ? `<div class="car-marks">${st}${no}</div>` : '';
+  const lg = c.legend ? legendTag() : ''; // owner 06.11: «Легенда S1» (S.LEGEND_CAR)
+  return st || no || lg ? `<div class="car-marks">${lg}${st}${no}</div>` : '';
 }
+// Owner 06.11: the gold «Легенда S1» tag (the edition № badge, in gold) on a legend car.
+const legendTag = (cls = 'ed-no lg-no') => `<span class="${cls}" title="${esc(S.LEGEND_CAR.lockText)}">${ic('trophy')}${esc(S.LEGEND_CAR.tag)}</span>`;
 function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false, sellLine = false, incLine = false, collLine = false } = {}) {
   const m = M(c.model);
   const sale = S.saleOf(c); // honest numbers: the sale is the main figure, the collection price the grey line
@@ -431,7 +434,7 @@ function carTile(c, { act = 'car', sel = false, isNew = false, showTank = false,
     ${c.plate ? `<div class="meta">${plate(c.plate.text, 'sm', c.pf)}</div>` : ''}
     <div class="meta row between" style="gap:4px"><span>${c.hp} к.с.</span><b class="disp hn-sale" style="color:var(--text);font-size:14px;font-weight:600" title="${sale == null ? 'Колекційна ціна' : 'Продаж'}">${sale == null ? S.short(c.value) : `${ic('cash')}${S.short(sale)}`}</b></div>${collLine ? `<div class="meta sellp">${sale == null ? 'не продається' : `${collLine === 'short' ? 'колекц.' : 'колекційна'} <span class="nw">${S.short(c.value)}</span>`}</div>` : ''}
     ${incLine && c.status === 'garage' ? tileInc(c) : ''}
-    ${sellLine && c.sell != null && !m.secret && c.status === 'garage' && act !== 'none' ? `<div class="meta sellp">продаж <span class="nw">${S.short(c.sell)}</span></div>` : ''}
+    ${sellLine && c.sell != null && !m.secret && !c.legend && c.status === 'garage' && act !== 'none' ? `<div class="meta sellp">продаж <span class="nw">${S.short(c.sell)}</span></div>` : ''}
     ${c.status === 'market' ? `<div class="status">${ic('building-store')}На ринку</div>` : c.status === 'auction' ? `<div class="status">${ic('hammer')}На аукціоні</div>` : ''}
   </button>`;
 }
@@ -742,7 +745,7 @@ function paintNextUnlock() {
 // ---------- trade-in (S.TRADE_IN) ----------
 PAGES.tradein = () => {
   const T = (state.tradein ||= { cars: new Set(), result: null });
-  const garage = me.cars.filter((c) => c.status === 'garage' && !M(c.model).secret && !S.isCollector(c.model) && !S.isEdition(c.model)).sort((a, b) => b.value - a.value || b.id - a.id);
+  const garage = me.cars.filter((c) => c.status === 'garage' && !M(c.model).secret && !c.legend && !S.isCollector(c.model) && !S.isEdition(c.model)).sort((a, b) => b.value - a.value || b.id - a.id);
   for (const id of [...T.cars]) if (!garage.some((c) => c.id === id)) T.cars.delete(id);
   const picked = [...T.cars].map((id) => garage.find((c) => c.id === id));
   const cls = picked[0] ? M(picked[0].model).cls : null;
@@ -1128,7 +1131,7 @@ TABS.garage = () => {
   <div class="card today" id="todayCard"></div>
   ${tankCard()}
   ${dreamCard()}
-  <div class="h2 garage-h"><span>Машини <b>${all.length}</b>/${me.slots}${washHint(all)}</span>${all.length ? `<button class="hn-gsum" data-act="honestHelp"><span>Продаж усього гаража: <b>${S.short(sellTotal(all.filter((c) => !M(c.model).secret)))}</b></span><small>колекційна ціна ${S.short(total)} ${ic('info-circle')}</small></button>` : ''}</div>
+  <div class="h2 garage-h"><span>Машини <b>${all.filter((c) => !c.legend).length}</b>/${me.slots}${washHint(all)}</span>${all.length ? `<button class="hn-gsum" data-act="honestHelp"><span>Продаж усього гаража: <b>${S.short(sellTotal(all.filter((c) => !M(c.model).secret && !c.legend)))}</b></span><small>колекційна ціна ${S.short(total)} ${ic('info-circle')}</small></button>` : ''}</div>
   ${all.length > 1 ? `${present.length > 1 ? `<div class="chips gfilter"><button class="${state.garageCls ? '' : 'on'}" data-act="gFilter" data-k="">Усі</button>${present.map((k) => `<button class="${state.garageCls === k ? 'on' : ''}" data-act="gFilter" data-k="${k}" style="--c:${S.CLASSES[k].color}"><i></i>${k}<small>${all.filter((c) => M(c.model).cls === k).length}</small></button>`).join('')}</div>` : ''}
     <div class="row between sellbar">${sel ? `<span class="small muted">${sel.size ? `Обрано ${sel.size} · ${S.fmt(selTotal)}` : `Обери машини. Продаж: ${(() => { const lo = Math.round(Math.min(...Object.values(S.SELL_RATES)) * 100), hi = Math.round(Math.max(...Object.values(S.SELL_RATES)) * 100); return lo === hi ? `${lo}%` : `${lo}–${hi}%`; })()} ціни моделі, деталі й номер повертаються`}</span>` : `<button class="gsort" data-act="gSort">${ic('adjustments')}${SORT_NAMES[sort]}</button>`}
     <span class="row">${sel ? `<button class="btn sm red" data-act="sellSel" ${sel.size ? '' : 'disabled'}>Продати</button>` : ''}<button class="btn sm ghost" data-act="sellMode">${sel ? 'Скасувати' : `${ic('cash')} Продати кілька`}</button></span></div>` : ''}
@@ -1155,6 +1158,7 @@ H.selToggle = (d) => {
   const c = me.cars.find((x) => x.id === id);
   if (c.status !== 'garage') return toast('Авто зараз на ринку', true);
   if (M(c.model).secret) return toast('Секретну машину продати не можна — це нагорода за колекцію', true);
+  if (c.legend) return toast(S.LEGEND_CAR.lockText, true);
   state.selling.has(id) ? state.selling.delete(id) : state.selling.add(id);
   selRepaint(id);
 };
@@ -1224,7 +1228,8 @@ function carSheet(id, best = null) {
   const notes = [incNote(c), honestNote(c), slipNote(c),
     m.restored ? `<div class="inc-note muted">${ic('sparkles')} <b>R-версія із «Сарайної знахідки».</b> Реставраційна ліврея (не перефарбувати), номер ${c.serial ? S.serialText(c.serial) : 'реставрації'}, ×${String(S.R_MULT).replace('.', ',')} вартості й доходу. Продаж на ринку й обмін — так; дилер платить як за звичайну; не йде в колекцію, сети, апгрейд і трейд-ін.</div>` : '',
     m.edition && !m.restored ? `<div class="inc-note muted">${ic('box')} <b>Тиражна машина з «Причалу».</b> Заводська ліврея (не перефарбувати), номер ${c.serial ? S.serialText(c.serial) : 'тиражу'}. Продаж на ринку й обмін — так; дилер викуповує за ${Math.round(S.EDITION_SELL * 100)}%; не йде в колекцію, сети, апгрейд і трейд-ін.</div>` : '',
-    m.secret ? '<div class="inc-note muted">Секретна машина — нагорода за колекцію. Її не можна продати, обміняти чи поставити в апгрейд.</div>' : ''].filter(Boolean).join('');
+    m.secret ? '<div class="inc-note muted">Секретна машина — нагорода за колекцію. Її не можна продати, обміняти чи поставити в апгрейд.</div>' : '',
+    c.legend ? `<div class="inc-note muted lg-note">${ic('trophy')} <b>${esc(S.LEGEND_CAR.lockText)}.</b> Нагорода топ-10 Сезону 1 — назавжди твоя. Гонки, фарбування й тюнінг — так; місця в гаражі не займає.</div>` : ''].filter(Boolean).join('');
   const price = m.secret ? c.value : sellPrice(c);
   const more = locked ? '' : `<div class="s2-h"><b>Ще</b></div><div class="list s2c-more">
       <button class="li" data-act="carPlate" data-id="${c.id}"><span class="ic">${ic('license')}</span><div class="grow"><b>Номер</b><div class="small muted">${c.plate ? `+${S.short(c.plate.value)} до колекційної ціни` : 'немає'}</div></div>${c.plate ? plate(c.plate.text, 'sm') : '<span class="chev">›</span>'}</button>
@@ -1237,11 +1242,11 @@ function carSheet(id, best = null) {
     <div class="s2c-top"><button class="s2-rb" data-act="closeModal" aria-label="Закрити">${ic('chevron-left')}</button><div class="s2c-ttl"><small>МОЯ МАШИНА · ${where.toUpperCase()}</small><h2 class="${m.name.length > 18 ? 'long' : ''}">${esc(m.name)}</h2></div></div>
     <div class="s2c-stage stg stg-a r${rank} ${shining(c) ? 'shining' : ''}"><i class="stg-cone"></i><i class="stg-sb"></i><i class="stg-sheen"></i>${c.plate ? `<div class="s2c-plate">${plate(c.plate.text)}</div>` : ''}
       ${stageLayers(carArt(c.model, { glow: rank >= 3, look: c.look, dirt: c.dirt }))}</div>
-    <div class="s2c-name"><span class="s2c-cls">${m.cls}</span><b class="ellipsis">${esc(S.CLASSES[m.cls].name)} · ${m.year}</b>${c.serial ? `<span class="chip ed-chip">${m.restored ? ic('sparkles') + 'R ' : ic('box')}${S.serialText(c.serial)}</span>` : ''}${c.stars ? starsHtml(c, { cls: 'pr-c' }) : ''}${dirtTag(c)}<span class="s2c-flag">${esc(originText(m))}</span></div>
+    <div class="s2c-name"><span class="s2c-cls">${m.cls}</span><b class="ellipsis">${esc(S.CLASSES[m.cls].name)} · ${m.year}</b>${c.legend ? legendTag('chip ed-chip lg-chip') : ''}${c.serial ? `<span class="chip ed-chip">${m.restored ? ic('sparkles') + 'R ' : ic('box')}${S.serialText(c.serial)}</span>` : ''}${c.stars ? starsHtml(c, { cls: 'pr-c' }) : ''}${dirtTag(c)}<span class="s2c-flag">${esc(originText(m))}</span></div>
     <div class="s2c-stats">${tile('Потужність', `${c.hp} к.с.`)}${tile('402 м', `${dec(c.et, 2)} с`)}${tile("Маса", `${Math.round(st.kg).toLocaleString("uk-UA")} кг`)}<button class="s2c-st s2c-st-q" data-act="stateInfo"><small>Стан ${ic('info-circle')}</small><b>${Math.max(0, 100 - (c.dirt || 0))}%</b></button></div>
     <div class="s2c-val"><div><small>${m.secret ? 'Колекційна ціна' : 'Ціна продажу'}</small><b>${S.short(price)}</b><span class="${inc && inc.earning !== false ? 'up' : ''}">${inc ? (inc.earning === false ? 'не заробляє — немає місця' : `+${S.short(inc.rate)} / год`) : c.status === 'showcase' ? 'на вітрині — без доходу' : 'без доходу'}${m.secret ? '' : ` · <span class="nw">колекційна ${S.short(c.value)}</span>`}</span></div>${s2Spark(c)}</div>
     ${locked ? `<div class="card mt center muted">Авто виставлено на ${c.status === 'market' ? 'ринок' : 'аукціон'} — керуй ним у «Ринок → Авторинок → Мої лоти».</div>` : `
-    <div class="s2c-acts">${act('s2CarMode', 'tool', 'Тюнінг', 'data-k="tune"')}${act('washCar', 'droplet', 'Помити', '', !washable(c))}${act('carShowcase', c.status === 'showcase' ? 'arrow-back-up' : 'star', c.status === 'showcase' ? 'У гараж' : 'Вітрина')}${act('carSellMenu', 'cash', 'Продати', '', !!m.secret || c.status !== 'garage')}</div>
+    <div class="s2c-acts">${act('s2CarMode', 'tool', 'Тюнінг', 'data-k="tune"')}${act('washCar', 'droplet', 'Помити', '', !washable(c))}${act('carShowcase', c.status === 'showcase' ? 'arrow-back-up' : 'star', c.status === 'showcase' ? 'У гараж' : 'Вітрина')}${act('carSellMenu', 'cash', c.legend ? 'Не продається' : 'Продати', c.legend ? `title="${esc(S.LEGEND_CAR.lockText)}"` : '', !!m.secret || !!c.legend || c.status !== 'garage')}</div>
     <div class="s2-h"><b>Встановлено · ${partCount(c)}/${partSlots(c)}</b>${isOpen('parts') ? '' : lockChip('parts')}</div>
     <div class="s2c-chips">${chips || '<span class="s2c-chip none">Заводська комплектація — постав деталі в «Тюнінгу»</span>'}</div>`}
     ${notes ? `<div class="s2c-notes">${notes}</div>` : ''}
@@ -1540,6 +1545,7 @@ H.plateDetach = async (d) => {
 };
 H.carSellMenu = (d) => {
   const c = me.cars.find((x) => x.id === Number(d.id));
+  if (c?.legend) return toast(S.LEGEND_CAR.lockText, true);
   const quick = sellPrice(c);
   sheet('Продаж', `<div class="list">
     <button class="li" data-act="sellOne" data-id="${c.id}"><span class="ic">${ic('bolt')}</span><div class="grow"><b>Продати одразу · ${S.short(quick)}</b><div class="small muted">${Math.round((quick / M(c.model).price) * 100)}% ціни моделі${S.originSellOf(c.origin, M(c.model).cls) !== 1 ? ` (з кейсу «${esc(S.CASE_BY_ID[c.origin]?.name || c.origin)}» — викуп ×${dec(S.originSellOf(c.origin, M(c.model).cls), 2)})` : ''}. Деталі й номер повернуться тобі</div></div></button>
@@ -1811,7 +1817,7 @@ function noRoomHtml(n, free) {
     <div class="tiny muted center mt">або купи місце в гаражі</div>`;
 }
 H.sellCheap = (d) => {
-  const ids = me.cars.filter((c) => c.status === 'garage' && !M(c.model).secret).sort((a, b) => a.value - b.value).slice(0, Number(d.n)).map((c) => c.id);
+  const ids = me.cars.filter((c) => c.status === 'garage' && !M(c.model).secret && !c.legend).sort((a, b) => a.value - b.value).slice(0, Number(d.n)).map((c) => c.id);
   state.drop = null;
   state.tab = 'garage';
   state.page = null;
@@ -4637,7 +4643,7 @@ TABS.menu = () => {
       <span class="hub-chips"><span class="hc career" id="hubCareer">${ic('crown')}${boss ? esc(boss.title) : C.career ? `Кар’єра ${C.career.beaten}/${C.career.total}` : "Кар’єра"}</span>${me.vip ? `<span class="hc vip">${ic('crown')}VIP</span>` : ''}</span>
       <span class="hub-xp"><i style="width:${Math.min(100, (me.xp / me.xpNeed) * 100)}%"></i></span>
       <span class="hub-next ellipsis">${hubNextText()}</span></span>
-    <span class="hub-val"><small class="hn-hub">продаж гаража</small><b>${S.short(sellTotal(me.cars.filter((c) => c.status !== 'showcase' && !M(c.model).secret)))}</b></span>
+    <span class="hub-val"><small class="hn-hub">продаж гаража</small><b>${S.short(sellTotal(me.cars.filter((c) => c.status !== 'showcase' && !M(c.model).secret && !c.legend)))}</b></span>
     <button class="hub-bell" data-act="go" data-page="events" aria-label="Сповіщення${me.unread ? `: ${me.unread} нових` : ''}">${ic('bell')}${hubCnt(me.unread)}</button></div>`;
   // ---- season pass: the widest tile
   const s = me.season;
@@ -5421,7 +5427,7 @@ function roomOfferHtml(s) {
   if (s.status !== 'open' && s.status !== 'active') return '';
   const p = s.partner;
   const inOffer = new Set(s.me.cars.map((c) => c.id));
-  const canAdd = me.cars.some((c) => c.status === 'garage' && !inOffer.has(c.id) && !M(c.model).secret);
+  const canAdd = me.cars.some((c) => c.status === 'garage' && !inOffer.has(c.id) && !M(c.model).secret && !c.legend);
   // s2-ui2 (mockup 24): two sides with an avatar and a ready tick, cars as tiles, «+» to add, the green swap between.
   const tiles = (side, mine) => side.cars.map((c) => (c.gone ? '<div class="s2-tr-car gone">авто більше недоступне</div>'
     : `<div class="s2-tr-car" style="--c:${S.CLASSES[M(c.model).cls].color}"><span class="s2-cl">${M(c.model).cls}</span>${mine && !side.ready ? `<button class="s2-tr-x" data-act="roomRemoveCar" data-id="${c.id}" aria-label="Прибрати">${ic('x')}</button>` : c.ok === false ? '<span class="chip">недоступне</span>' : ''}<div class="art">${carArt(c.model, { look: c.look, thumb: true })}</div><b class="ellipsis">${esc(M(c.model).name)}</b><small>${S.short(c.value || 0)}</small></div>`)).join('');
@@ -5510,7 +5516,7 @@ H.roomSend = async () => {
 };
 H.roomAddCar = () => {
   const inOffer = new Set(state.room.me.cars.map((c) => c.id));
-  pickCar('Яке авто додати в обмін?', (carId) => roomCall('room/offer', { add: carId }), (c) => c.status === 'garage' && !inOffer.has(c.id) && !M(c.model).secret);
+  pickCar('Яке авто додати в обмін?', (carId) => roomCall('room/offer', { add: carId }), (c) => c.status === 'garage' && !inOffer.has(c.id) && !M(c.model).secret && !c.legend);
 };
 H.roomRemoveCar = (d) => roomCall('room/offer', { remove: Number(d.id) });
 H.roomMoney = () => roomCall('room/offer', { money: num($('#roomMoney').value) || 0 });
@@ -5682,10 +5688,10 @@ function battleVerdict(b) {
 }
 // Garage over its limit (battle prize, auction, reward): say how many to sell and offer to sell the cheapest extras.
 function overfullHtml() {
-  const used = me.cars.filter((c) => c.status !== 'showcase').length;
+  const used = me.cars.filter((c) => c.status !== 'showcase' && !c.legend).length; // a legend car takes no slot
   const extra = used - me.slots;
   if (extra <= 0) return '';
-  const cheapest = me.cars.filter((c) => c.status === 'garage' && !M(c.model).secret).sort((a, b) => a.value - b.value).slice(0, extra);
+  const cheapest = me.cars.filter((c) => c.status === 'garage' && !M(c.model).secret && !c.legend).sort((a, b) => a.value - b.value).slice(0, extra);
   const sum = cheapest.reduce((s, c) => s + sellPrice(c), 0);
   return `<div class="card warnbox mt"><b>${ic('info-circle')} Гараж переповнений: ${used}/${me.slots}</b>
     <div class="small">Продай ${extra} ${plural(extra, ['машину', 'машини', 'машин'])} або купи місце. Поки що дохід приносять лише ${me.slots} найкращих, а нові кейси відкрити не можна.</div>
@@ -5777,7 +5783,7 @@ PAGES.tradeNew = () => {
   const t = state.trade || (state.trade = { partner: null, give: new Set(), get: new Set() });
   if (!t.partner) return `<div class="card"><b>З ким обмінюємось?</b><div class="small muted">ID гравця (свій — у Профіль → Налаштування) або @username</div><input id="partner" class="mt" placeholder="123456789 або @username" autocomplete="off"><button class="btn mt" data-act="findPartner">Знайти</button></div>`;
   const p = t.partner;
-  const mine = me.cars.filter((c) => c.status === 'garage' && !M(c.model).secret);
+  const mine = me.cars.filter((c) => c.status === 'garage' && !M(c.model).secret && !c.legend);
   const vg = mine.filter((c) => t.give.has(c.id)).reduce((s, c) => s + c.value, 0);
   const vr = p.cars.filter((c) => t.get.has(c.id)).reduce((s, c) => s + c.value, 0);
   return `<div class="card row between"><div><b>${esc(p.name)}</b><div class="small muted">рівень ${p.level} · гараж ${S.short(p.value)}</div></div><button class="btn sm ghost" data-act="resetPartner">Змінити</button></div>
@@ -5785,7 +5791,7 @@ PAGES.tradeNew = () => {
     <div class="grid">${mine.map((c) => carTile(c, { sel: t.give.has(c.id), act: 'tgGive' })).join('')}</div>
     <input id="giveMoney" class="mt" inputmode="numeric" placeholder="+ гривні від тебе" value="${num(t.giveMoney) ? grp(t.giveMoney) : ''}">
     <div class="h2"><span>Ти отримуєш</span><span>${S.short(vr)}</span></div>
-    ${p.cars.length ? `<div class="grid">${p.cars.map((c) => carTile(c, { sel: t.get.has(c.id), act: 'tgGet' })).join('')}</div>` : emptyBox('car', 'У гравця немає вільних авто', 'Можна запропонувати гроші за свої машини')}
+    ${p.cars.filter((c) => !c.legend).length ? `<div class="grid">${p.cars.filter((c) => !c.legend).map((c) => carTile(c, { sel: t.get.has(c.id), act: 'tgGet' })).join('')}</div>` : emptyBox('car', 'У гравця немає вільних авто', 'Можна запропонувати гроші за свої машини')}
     <input id="getMoney" class="mt" inputmode="numeric" placeholder="+ гривні від гравця" value="${num(t.getMoney) ? grp(t.getMoney) : ''}">
     <button class="btn yellow mt" data-act="sendTrade">Надіслати пропозицію</button>`;
 };
@@ -6829,7 +6835,7 @@ PAGES.upgrade = () => {
   const U = state.up;
   // Most expensive first, both for your cars and for the targets.
   // Sorted by the value shown on the card (model + parts + plate), so the order always matches what you see.
-  const garage = me.cars.filter((c) => c.status === 'garage' && !S.isCollector(c.model) && !S.isEdition(c.model)).sort((a, b) => b.value - a.value || b.id - a.id);
+  const garage = me.cars.filter((c) => c.status === 'garage' && !c.legend && !S.isCollector(c.model) && !S.isEdition(c.model)).sort((a, b) => b.value - a.value || b.id - a.id);
   for (const id of [...U.cars]) if (!garage.some((c) => c.id === id)) U.cars.delete(id);
   const stake = upStake();
   const list = upCandidates(stake);
@@ -6862,6 +6868,7 @@ PAGES.upgrade = () => {
 H.upCar = (d) => {
   const U = state.up, id = Number(d.id);
   if (M(me.cars.find((c) => c.id === id)?.model)?.secret) return toast('Секретну машину не можна ставити в апгрейд', true);
+  if (me.cars.find((c) => c.id === id)?.legend) return toast(S.LEGEND_CAR.lockText, true);
   U.result = null;
   if (U.cars.has(id)) U.cars.delete(id);
   else {

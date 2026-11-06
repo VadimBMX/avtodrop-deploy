@@ -237,7 +237,8 @@ export function createGame(db, opts = {}) {
     const t = tankState(c);
     return { id: c.id, model: c.model, status: c.status, parts, plate, look: lookOf(c), tank: t.tank, tankNext: t.next, sell: Math.floor(S.sellPriceOf(c.model, now() - c.created_at, c.origin) * (BIZ?.owns(c.owner_id, 'salon') ? 1 + BIZ_PERKS.salonSell : 1)) /* s2-biz */, origin: c.origin || null, ...st,
       dirt: Math.floor(S.dirtNow(c.dirt, c.dirt_at, now())), shineUntil: c.shine_until > now() ? c.shine_until : 0, ...(c.serial ? { serial: c.serial } : {}),
-      ...((r) => (r?.stars ? { stars: r.stars, starAt: r.at, starSpent: r.spent } : {}))(ex ? ex.restyle(c.id) : restyleOf(c.id)) };
+      ...((r) => (r?.stars ? { stars: r.stars, starAt: r.at, starSpent: r.spent } : {}))(ex ? ex.restyle(c.id) : restyleOf(c.id)),
+      ...(isLockedCar(c) ? { legend: true } : {}) };
   }
   // Paint and livery as the client draws them (n = the race livery's number); null for a factory car. Unknown ids
   // (an old colour that was dropped) count as factory.
@@ -253,8 +254,17 @@ export function createGame(db, opts = {}) {
     if (statuses && !statuses.includes(c.status)) fail(c.status === 'showcase' ? 'Авто на вітрині' : 'Авто зараз на ринку або аукціоні');
     return c;
   }
+  // Owner 06.11: a «Легенда S1» car (S.LEGEND_CAR, cars.legend = 1) never leaves its owner. isLockedCar is the one
+  // check every exit path goes through (noLocked below; noSecret calls it, so every sell / list / trade / burn gate
+  // that refuses a secret car refuses a legend car too); db.js triggers back it up at the database.
+  const isLockedCar = (c) => !!c && Number(c.legend) === 1;
+  function noLocked(c) {
+    if (isLockedCar(c)) fail(S.LEGEND_CAR.lockText);
+    return c;
+  }
   // Secret cars are trophies for finishing a collection: they can't be sold, listed, traded or burned in an upgrade.
   function noSecret(c) {
+    noLocked(c);
     if (S.MODELS[c.model]?.secret) fail('Секретну машину не можна продати, обміняти чи поставити в апгрейд — це нагорода за колекцію');
     return c;
   }
@@ -265,7 +275,8 @@ export function createGame(db, opts = {}) {
     if (S.isEdition(c.model)) fail(S.isRestored(c.model) ? 'R-версію з реставрації не можна поставити в апгрейд чи трейд-ін' : 'Тиражну машину не можна поставити в апгрейд чи трейд-ін');
     return c;
   }
-  const garageCount = (uid) => q("SELECT COUNT(*) n FROM cars WHERE owner_id = ? AND status <> 'showcase'").get(uid).n;
+  // A «Легенда S1» car takes no garage slot (owner 06.11).
+  const garageCount = (uid) => q("SELECT COUNT(*) n FROM cars WHERE owner_id = ? AND status <> 'showcase' AND legend = 0").get(uid).n;
   function needSlots(uid, n) {
     const u = q('SELECT slots FROM users WHERE id = ?').get(uid);
     const free = u.slots - garageCount(uid);
@@ -309,6 +320,8 @@ export function createGame(db, opts = {}) {
   // into a full-rate one that way.
   const worstOrigin = (cars) => cars.reduce((o, c) => (S.originSellOf(c.origin) < S.originSellOf(o) ? c.origin : o), null);
   function transferCar(carId, to) {
+    const cur = carRow(carId);
+    if (cur && cur.owner_id !== to) noLocked(cur); // market buy, auction win, trade, trade room: never a legend car
     q("UPDATE cars SET owner_id = ?, status = 'garage' WHERE id = ?").run(to, carId);
     q('UPDATE plates SET owner_id = ? WHERE car_id = ?').run(to, carId);
     q('DELETE FROM rivals WHERE car_id = ?').run(carId);
@@ -829,7 +842,7 @@ export function createGame(db, opts = {}) {
     });
     return {
       id: u.id, username: u.username, firstName: u.first_name, balance: u.balance, intro, guide,
-      slots: u.slots, used: cars.filter((c) => c.status !== 'showcase').length, showcaseSlots: u.showcase_slots, fragments,
+      slots: u.slots, used: cars.filter((c) => c.status !== 'showcase' && !c.legend).length /* a «Легенда S1» car takes no slot */, showcaseSlots: u.showcase_slots, fragments,
       income: { rate: Math.round(inc.rate), pending: inc.pending, capH: inc.capH, since: u.income_at, banked: u.banked, comebackUntil: u.comeback_cap_until > now() ? u.comeback_cap_until : 0 },
       fuel: Math.min(fuel.fuel, fuel.max), fuelSpare: Math.max(0, fuel.fuel - fuel.max), fuelNext: fuel.next, fuelFullAt: fuel.fillAt, createdAt: u.created_at, fuelMax: fuel.max, tankLvl: u.tank_lvl || 0, cars, keys, collection, pity, plates, parts: inventory(uid),
       partsAutosell: autoSellOf(u), partsNextAt: partNextAt(u) > now() ? partNextAt(u) : 0, // part cases: «Автопродаж», the pause
@@ -910,7 +923,7 @@ export function createGame(db, opts = {}) {
       q("UPDATE cars SET status = 'showcase' WHERE id = ?").run(c.id);
       invalidateTrades([c.id]);
     } else {
-      needSlots(uid, 1);
+      if (!isLockedCar(c)) needSlots(uid, 1); // a «Легенда S1» car takes no slot
       q("UPDATE cars SET status = 'garage' WHERE id = ?").run(c.id);
     }
     return {};
@@ -4669,6 +4682,7 @@ export function createGame(db, opts = {}) {
   function adminRemoveCar(who, { carId }) {
     const c = carRow(int(carId, 1, Number.MAX_SAFE_INTEGER, 'ID авто'));
     if (!c) fail('Авто не знайдено');
+    noLocked(c); // owner 06.11: a «Легенда S1» car goes only with an explicit player reset
     bank(c.owner_id);
     q('DELETE FROM listings WHERE car_id = ?').run(c.id);
     for (const a of q("SELECT * FROM auctions WHERE car_id = ? AND status = 'open'").all(c.id)) {
@@ -4855,6 +4869,9 @@ export function createGame(db, opts = {}) {
       q('DELETE FROM car_parts WHERE car_id = ?').run(cid);
       q('DELETE FROM rivals WHERE car_id = ?').run(cid);
     }
+    // Owner 06.11: the explicit admin player reset is the one way a «Легенда S1» car leaves (db.js triggers refuse it
+    // while cars.legend = 1).
+    q('UPDATE cars SET legend = 0 WHERE owner_id = ? AND legend = 1').run(uid);
     q('DELETE FROM cars WHERE owner_id = ?').run(uid);
     // Owner 29.10 (after a reset achievements, ratings, season points, VIP, season and Halloween tasks stayed): every
     // table of progress goes too — streaks, weekly goals, event tasks, boss wins, the showroom, trophies and badges.
@@ -5689,6 +5706,48 @@ export function createGame(db, opts = {}) {
     });
   }
   for (const k of S2.mutating) ADMIN_MUTATING.add(k);
+  // ---------- «Легенда S1» cars (owner 06.11, S.LEGEND_CAR) ----------
+  // Run by the owner AFTER the Season 2 wipe (src/season2.js stays untouched): every player of the Season 1 prize list —
+  // the places 1…S.SEASON_PRIZES.length that settleSeason paid prize stars to, archived by the wipe as
+  // s1_archive.season_place (the same rows restorePrizeStars reads) — gets one ВАЗ-2101 «Копійка» with cars.legend = 1
+  // and an event. Once per database (meta S.LEGEND_CAR.meta, in the same transaction); a player who already has a
+  // legend car is skipped, so even a lost flag can't give two. Before the wipe it refuses (the wipe would delete them).
+  function legendList() {
+    return q(`SELECT a.user_id, a.season_place FROM s1_archive a JOIN users u ON u.id = a.user_id
+      WHERE a.season_place BETWEEN 1 AND ? ORDER BY a.season_place, a.user_id`).all(S.SEASON_PRIZES.length);
+  }
+  function adminLegendCars(who, b = {}) {
+    if (actorRole(who) !== 'owner') fail('Видати «Легенду S1» може лише власник');
+    if (!S2.doneAt()) fail(`Спершу запусти Сезон ${S.S2_RESET.season} — машини видаються після обнулення`);
+    const done = metaGet(S.LEGEND_CAR.meta);
+    if (done) return { done: true, already: true, at: Number(done), granted: [] };
+    if (b.dryRun === true) return { dryRun: true, list: legendList().map((r) => ({ id: r.user_id, place: r.season_place, name: name(r.user_id) })) };
+    const list = legendList();
+    // An archive without Season 1 places would set the flag for nobody: refuse instead, so it can be run again.
+    if (!list.length) fail('В архіві Сезону 1 немає призових місць — нікому видавати');
+    const granted = [];
+    for (const r of list) {
+      if (q('SELECT 1 FROM cars WHERE owner_id = ? AND legend = 1').get(r.user_id)) continue;
+      const g = giveCar(r.user_id, S.LEGEND_CAR.model);
+      q('UPDATE cars SET legend = 1 WHERE id = ?').run(g.id);
+      recalc(r.user_id);
+      event(r.user_id, S.LEGEND_CAR.event);
+      granted.push({ id: r.user_id, place: r.season_place, carId: g.id });
+    }
+    const t = now();
+    metaSet(S.LEGEND_CAR.meta, t);
+    alog(who, 'season2-legend-cars', null, { users: granted.map((x) => x.id) });
+    return { done: true, already: false, at: t, granted };
+  }
+  admin['season2/legend-cars'] = (who, body = {}) => db.tx(() => {
+    if (!canDo(actorRole(who), 'season2/legend-cars')) fail('Немає прав на цю дію');
+    return adminLegendCars(who, body || {});
+  });
+  ADMIN_MUTATING.add('season2/legend-cars');
+  { // the admin «Сезон 2» page shows whether the legend cars were given (public/admin-season2.js)
+    const base = admin.season2;
+    admin.season2 = (who, body) => ({ ...base(who, body), legendCarsAt: Number(metaGet(S.LEGEND_CAR.meta)) || null });
+  }
   // Every call runs in one transaction, settles the weekly race and refreshes the caller's garage value — except the
   // frequent polls below (every few seconds, or several times a second in a live race), which change no cars.
   const LIGHT = new Set(['pulse', 'pvp/progress', 'pvp/state', 'containers/lot', 'plateAuction']);
