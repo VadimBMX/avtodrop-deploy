@@ -30,7 +30,7 @@ function setup() {
 
 test('rules: the four businesses, rate / cap / step costs from one config', () => {
   assert.deepEqual(B.BIZ.list.map((b) => [b.id, b.level, b.price, b.income]), [
-    ['wash', 3, 2e6, 60000], ['gas', 5, 6e6, 160000], ['sto', 7, 15e6, 360000], ['salon', 10, 50e6, 1000000]]); // 05.11: income ×2 (growth 1,75 → 1,5). S2: СТО 8 → 7, Автосалон 15 → 10 (S1 players reached L10 after ~18 h; L15 never in a 14-day season)
+    ['wash', 3, 4e6, 60000], ['gas', 5, 12e6, 160000], ['sto', 7, 30e6, 360000], ['salon', 10, 100e6, 1000000]]); // 06.11: prices ×2; // 05.11: income ×2 (growth 1,75 → 1,5). S2: СТО 8 → 7, Автосалон 15 → 10 (S1 players reached L10 after ~18 h; L15 never in a 14-day season)
   assert.equal(B.rateOf({ id: 'wash', level: 1 }), 60000);
   assert.equal(B.rateOf({ id: 'wash', level: 2, eq: 1, ads: 1 }), Math.round(60000 * 1.25 * 1.14));
   assert.equal(B.rateOf({ id: 'wash', level: 1 }, 0.15), 69000); // the district hook multiplies in
@@ -55,12 +55,12 @@ test('buy: level gate, money, once; the price leaves through biz/buy', () => {
   assert.throws(() => T.call(u, 'biz/buy', { id: 'nope' }), /Невідомий/);
   assert.throws(() => T.call(u, 'biz/buy', { id: 'sto' }), /7-го рівня/);
   const r = T.call(u, 'biz/buy', { id: 'wash' });
-  assert.equal(r.paid, 2e6);
-  assert.equal(T.bal(u), 8e6);
+  assert.equal(r.paid, 4e6);
+  assert.equal(T.bal(u), 6e6);
   assert.throws(() => T.call(u, 'biz/buy', { id: 'wash' }), /уже твій/);
-  assert.equal(T.src('biz/buy').d, 2e6);
+  assert.equal(T.src('biz/buy').d, 4e6);
   const list = T.call(u, 'biz').list;
-  assert.equal(list.find((b) => b.id === 'gas').canBuy, true);
+  assert.equal(list.find((b) => b.id === 'gas').canBuy, false); // 12 млн > 6 млн left
   assert.equal(list.find((b) => b.id === 'sto').unlocked, false);
 });
 

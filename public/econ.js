@@ -127,11 +127,12 @@ export const ECON = {
 
   // ---------- «Мої бізнеси» (public/business.js) ----------
   biz: {
+    // owner 06.11: prices ×2 (the first business felt too cheap); incomes unchanged
     list: [
-      { id: 'wash', level: 3, price: 2_000_000, income: 60_000 },
-      { id: 'gas', level: 5, price: 6_000_000, income: 160_000 },
-      { id: 'sto', level: 7, price: 15_000_000, income: 360_000 },
-      { id: 'salon', level: 10, price: 50_000_000, income: 1_000_000 },
+      { id: 'wash', level: 3, price: 4_000_000, income: 60_000 },
+      { id: 'gas', level: 5, price: 12_000_000, income: 160_000 },
+      { id: 'sto', level: 7, price: 30_000_000, income: 360_000 },
+      { id: 'salon', level: 10, price: 100_000_000, income: 1_000_000 },
     ],
     capHours: 4, vipCapHours: 8, growth: 1.5,
     salonSell: 0.02, stoParts: 0.15,
