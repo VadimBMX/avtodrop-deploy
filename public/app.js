@@ -1233,8 +1233,8 @@ function carSheet(id, best = null) {
     </div>`;
   sheet(esc(m.name), `<div class="s2c" style="--c:${color}">
     <div class="s2c-top"><button class="s2-rb" data-act="closeModal" aria-label="Закрити">${ic('chevron-left')}</button><div class="s2c-ttl"><small>МОЯ МАШИНА · ${where.toUpperCase()}</small><h2 class="${m.name.length > 18 ? 'long' : ''}">${esc(m.name)}</h2></div></div>
-    <div class="s2c-stage r${rank} ${shining(c) ? 'shining' : ''}"><i class="s2c-cone"></i><i class="s2c-disc"></i>${c.plate ? `<div class="s2c-plate">${plate(c.plate.text)}</div>` : ''}
-      <div class="art">${carArt(c.model, { glow: rank >= 3, look: c.look, dirt: c.dirt })}</div></div>
+    <div class="s2c-stage stg stg-a r${rank} ${shining(c) ? 'shining' : ''}"><i class="stg-cone"></i><i class="stg-sb"></i><i class="stg-sheen"></i>${c.plate ? `<div class="s2c-plate">${plate(c.plate.text)}</div>` : ''}
+      ${stageLayers(carArt(c.model, { glow: rank >= 3, look: c.look, dirt: c.dirt }))}</div>
     <div class="s2c-name"><span class="s2c-cls">${m.cls}</span><b class="ellipsis">${esc(S.CLASSES[m.cls].name)} · ${m.year}</b>${c.serial ? `<span class="chip ed-chip">${m.restored ? ic('sparkles') + 'R ' : ic('box')}${S.serialText(c.serial)}</span>` : ''}${c.stars ? starsHtml(c, { cls: 'pr-c' }) : ''}${dirtTag(c)}<span class="s2c-flag">${esc(originText(m))}</span></div>
     <div class="s2c-stats">${tile('Потужність', `${c.hp} к.с.`)}${tile('402 м', `${dec(c.et, 2)} с`)}${tile("Маса", `${Math.round(st.kg).toLocaleString("uk-UA")} кг`)}${tile('Стан', `${Math.max(0, 100 - (c.dirt || 0))}%`)}</div>
     <div class="s2c-val"><div><small>${m.secret ? 'Колекційна ціна' : 'Ціна продажу'}</small><b>${S.short(price)}</b><span class="${inc && inc.earning !== false ? 'up' : ''}">${inc ? (inc.earning === false ? 'не заробляє — немає місця' : `+${S.short(inc.rate)} / год`) : c.status === 'showcase' ? 'на вітрині — без доходу' : 'без доходу'}${m.secret ? '' : ` · <span class="nw">колекційна ${S.short(c.value)}</span>`}</span></div>${s2Spark(c)}</div>
@@ -6254,6 +6254,17 @@ const SHOWROOM_SVG = (() => {
 <ellipse class="sr-spin" cx="180" cy="150" rx="150" ry="24" fill="none" stroke="#fffbea" stroke-width="1.6" stroke-linecap="round" pathLength="100" stroke-dasharray="5 95"/>
 </svg>`;
 })();
+// Stages (06.11, owner's picks from the stage2 variants): one camera for every scene — box 360:200, horizon 57 %,
+// tyres on 74 %, the car 72.78 % wide. The scene is the box's background; the car, its reflection and a contact shadow
+// are live layers (style.css «STAGES»), so any car stands on any stage. Д «Шоурум» (the pass prize) and А «Студія»
+// (the car card). A car with a baked composite of its own (stage2/src/scenes.py showroom(), the current photo) shows
+// that picture over the live layers; the live car stays underneath for the drive-in and for every other car.
+const stageLayers = (art) => `<div class="stg-refl" aria-hidden="true">${art}</div><i class="stg-sh" aria-hidden="true"></i><div class="art stg-car">${art}</div>`;
+const STAGE_BAKED = { 'porsche-911-turbo-s-aurora': 's2/bg/pass-showroom-aurora.webp' };
+const stageBaked = (m) => {
+  const src = !m.filter && STAGE_BAKED[m.id] || (!m.filter && m.img && STAGE_BAKED[m.img]);
+  return src ? `<img class="stg-baked" src="${src}" alt="" draggable="false">` : '';
+};
 PAGES.season = async () => {
   const s = await api('season');
   const car = s.car && M(s.car);
@@ -6275,7 +6286,7 @@ PAGES.season = async () => {
       <div class="tiny muted mt">Досвід сезону — той самий, що й завжди: гонки (перемоги більше), кейси, завдання, бонуси. Нічого не скидається, крім пропуску.</div>
       <div class="tiny mt pass-rate">${ic('coin')} Гроші пропуску ростуть разом з гаражем: ${S.passHours(2).toFixed(1).replace('.', ',')}–${S.passHours(S.SEASON.levels).toFixed(1).replace('.', ',')} год його доходу за рівень${s.rate ? ` (зараз ${S.short(s.rate)}/год)` : ''}, мінімум ${S.short(S.passMoneyFor(2))}</div>
       ${s.ready ? `<button class="btn yellow mt" data-act="passClaim">${ic('gift')} Забрати нагороди · ${s.ready}</button>` : ''}</div>
-    ${car ? `<div class="card center season-car${srIntro ? ' sr-intro' : ''}"><div class="small muted">Рівень ${S.SEASON.levels} · преміум</div><div class="showroom">${SHOWROOM_SVG}${srIntro ? '<i class="st-streaks" aria-hidden="true"></i><i class="st-sweep" aria-hidden="true"></i>' : ''}<div class="sr-refl" aria-hidden="true">${carArt(car.id)}</div><div class="art">${carArt(car.id)}</div></div><b style="font-size:17px">${esc(car.name)}</b>
+    ${car ? `<div class="card center season-car${srIntro ? ' sr-intro' : ''}"><div class="small muted">Рівень ${S.SEASON.levels} · преміум</div><div class="showroom stg stg-d">${stageLayers(carArt(car.id))}${stageBaked(car)}</div><b style="font-size:17px">${esc(car.name)}</b>
       <div class="small muted">${car.hp} к.с. · колекційна ${S.short(car.price)} · лише в цьому сезоні</div>
       ${s.premium ? `<div class="mt" style="color:var(--accent)">${ic('crown')} Преміум активний</div>` : `<button class="btn ${s.ready ? 'soft' : 'yellow'} mt" data-act="buyItem" data-id="pass">${ic('crown')} Преміум · ${ic('star')} ${S.SEASON.premiumStars}</button><div class="tiny muted mt">Нагороди правої доріжки за вже пройдені рівні — одразу після покупки</div>`}</div>` : ''}
     ${seasonCosStrip(s)}

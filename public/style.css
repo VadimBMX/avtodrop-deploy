@@ -6198,6 +6198,64 @@ body.s2 .s2-sp-logo { font-family: var(--f-fc); letter-spacing: 1px; text-transf
 }
 /* ===== /ASPHALT */
 
+/* ===== STAGES 06.11 (the owner's picks from the stage2 variants): one camera for every scene — box 360:200, horizon
+   57 %, tyres on 74 %, the car 72.78 % wide. Car photos are 2.5:1 canvases with the tyres on the bottom row, so one box
+   (72.78 × 29.11 cqw, bottom on the 74 % line) stands any car on the floor: long ones fill the width, tall ones the
+   height. The scene is the box's background; the car, its reflection (flipped, darker, faded by a mask) and a contact
+   shadow (broad body shadow + tight AO under the sills) are live layers — app.js stageLayers(). All sizes in cqw.
+   · Д «Шоурум, жовта світлова рамка» — the season pass prize: s2/bg/pass-showroom.webp (stage2/src/scenes.py
+     showroom(), no car). A car with its own baked composite (STAGE_BAKED in app.js) shows it on top (.stg-baked);
+   · А «Студія, софтбокс» — the car card: pure CSS (stage2/a_studio.html), the grain a little lower.
+   The drop/case reveal keeps its asphalt turntable. ===== */
+body.s2 .stg { position: relative; aspect-ratio: 360 / 200; height: auto; container-type: inline-size; overflow: hidden; isolation: isolate; }
+body.s2 .stg .art.stg-car, body.s2 .stg .stg-refl { position: absolute; left: 50%; top: auto; bottom: auto; width: 72.78cqw; height: 29.11cqw; margin: 0; aspect-ratio: auto;
+  transform: translateX(-50%); }
+body.s2 .stg .art.stg-car { top: 12.08cqw; z-index: 3; filter: none; }
+body.s2 .stg .art.stg-car::after { display: none; }
+body.s2 .stg .stg-refl { top: 41.08cqw; z-index: 1; transform: translateX(-50%) scaleY(-1); pointer-events: none; }
+body.s2 .stg .art.stg-car img, body.s2 .stg .art.stg-car svg, body.s2 .stg .stg-refl img, body.s2 .stg .stg-refl svg {
+  position: static; display: block; width: 100%; height: 100%; max-width: none; max-height: none; border-radius: 0; transform: none; object-fit: contain; object-position: 50% 100%; }
+body.s2 .stg .stg-sh { position: absolute; z-index: 2; left: 16cqw; width: 68cqw; top: 39.5cqw; height: 3.3cqw; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, #000c, #0006 55%, transparent); filter: blur(.5cqw); }
+body.s2 .stg .stg-sh::after { content: ''; position: absolute; left: 8%; right: 8%; top: 30%; height: 36%; border-radius: 50%; background: radial-gradient(closest-side, #000, #000b 60%, transparent); }
+
+/* Д · the season pass prize */
+body.s2 .season-car .showroom.stg-d { background: url('s2/bg/pass-showroom.webp') center / 100% 100% no-repeat, #050506; }
+body.s2 .season-car .showroom.stg-d::after { z-index: 5; background: linear-gradient(90deg, #07080b, transparent 5%, transparent 95%, #07080b), linear-gradient(#07080b00 88%, #07080b); }
+body.s2 .stg-d .art.stg-car img { filter: brightness(.88) saturate(.95) sepia(.08)
+  drop-shadow(0 -.12cqw .1cqw #ffe56a80) drop-shadow(0 0 .3cqw #ffd40022); } /* the frame's light on the roof and both ends */
+body.s2 .stg-d .stg-refl img { opacity: .42; filter: brightness(.7) saturate(.9) blur(.15cqw);
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #0007 22%, transparent 55%); mask-image: linear-gradient(to top, #000 0%, #0007 22%, transparent 55%); }
+body.s2 .stg .stg-baked { position: absolute; inset: 0; z-index: 4; display: block; width: 100%; height: 100%; max-width: none; border-radius: 0; pointer-events: none; }
+
+/* А · the car card: the cyclorama (wall darkens upward, no hard line into the floor), the overhead softbox, its light */
+body.s2 .s2c-stage.stg-a { display: block; margin: 2px -16px 10px;
+  background: radial-gradient(46cqw 9cqw at 50% 74%, #b9c4d633, transparent 70%),
+    radial-gradient(70cqw 26cqw at 50% 60%, #2a2f3a 0%, #14161c 45%, transparent 75%),
+    linear-gradient(#030304 0%, #07080a 30%, #0f1116 52%, #15171d 58%, #0c0d11 72%, #050506 100%); }
+body.s2 .stg-a .stg-sb { position: absolute; left: 21%; width: 58%; top: 5%; height: 2.6%; border-radius: .3cqw;
+  background: linear-gradient(#ffffff, #dfe6f2); box-shadow: 0 0 1.6cqw .4cqw #ffffff66, 0 0 9cqw 2cqw #b8c8ff2e; }
+body.s2 .stg-a .stg-sb::after { content: ''; position: absolute; inset: 100% 0 auto; height: .5cqw; background: #0006; }
+body.s2 .stg-a .stg-cone { position: absolute; left: 14%; right: 14%; top: 7%; height: 70%; pointer-events: none; background: linear-gradient(#cfd9ff1c, #cfd9ff08 60%, transparent);
+  -webkit-mask-image: radial-gradient(60% 100% at 50% 0, #000 30%, transparent 100%); mask-image: radial-gradient(60% 100% at 50% 0, #000 30%, transparent 100%); }
+body.s2 .stg-a .stg-sheen { position: absolute; left: 10%; right: 10%; top: 78.5%; height: 1.2%; border-radius: 50%; background: radial-gradient(closest-side, #e6edff2e, transparent); filter: blur(.4cqw); }
+body.s2 .stg-a .art.stg-car img { filter: saturate(.92) brightness(.92) contrast(1.05) drop-shadow(0 -.12cqw 0 #eef3ff99); } /* rim: the strip catches every upward edge */
+body.s2 .stg-a.shining .art.stg-car img { filter: saturate(.92) brightness(.92) contrast(1.05) drop-shadow(0 -.12cqw 0 #eef3ff99) drop-shadow(0 0 2.6cqw #ffffff40); }
+body.s2 .stg-a .stg-refl img { opacity: .5; filter: brightness(.55) saturate(.8) blur(.12cqw);
+  -webkit-mask-image: linear-gradient(to top, #000a 0%, #0004 18%, transparent 38%); mask-image: linear-gradient(to top, #000a 0%, #0004 18%, transparent 38%); }
+/* film: vignette + fine grain (SVG turbulence; alpha .035, was .05 in the sketch) */
+body.s2 .s2c-stage.stg-a::after { z-index: 5; background: radial-gradient(75% 85% at 50% 52%, transparent 55%, #000a 100%),
+  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .035 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"); }
+body.s2 .stg-a .s2c-plate { z-index: 6; }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* the pass's first visit: the live car drives in, then its baked picture fades in over it */
+  .season-car.sr-intro .stg-refl { animation: stReflIn .64s .16s cubic-bezier(.2, .75, .25, 1) backwards; }
+  .season-car.sr-intro .stg-baked { animation: stgBaked .45s .85s ease-out backwards; }
+}
+@keyframes stgBaked { from { opacity: 0; } }
+/* ===== /STAGES */
+
 /* ===== S2-SCREENS 2026-11-03 (owner's phone feedback): the city without vertical scroll, ×3/×6 on one screen, the calm
    asphalt reveal (public/wow.css), «Швидко» in the case dock. ===== */
 /* --- Місто: one fixed 100dvh column — header · (guide) · toggle · map (takes the rest) · cash strip — above the bar.
