@@ -1,6 +1,6 @@
 // d2-wall (05.11, sim-report «стіна першої сесії»): a newcomer's first long session ran dry at ~8 min. Boosts only for a
 // young account (users.created_at, ECON.newbie): free full tanks in the first 24 h, a faster reward case in the first
-// hours, and levels 2–3 for 200 / 450 xp. A veteran (old account) never gets any of it.
+// hours, and levels 2–3 for 250 / 600 xp (r4-ux; d2-wall had 200 / 450). A veteran (old account) never gets any of it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { openDb } from '../src/db.js';
@@ -24,11 +24,11 @@ function setup() {
   return { db, g, clock, mk, call, empty, add: (ms) => (clock.t += ms) };
 }
 
-test('rules: the numbers the sim was run with (1 refill, reward case every 30 min for 1.5 h); L2 200 xp, L3 450 xp', () => {
+test('rules: the numbers the sim was run with (1 refill, reward case every 30 min for 1.5 h); L2 250 xp, L3 600 xp', () => {
   // Tuned on tools/sim-newbies.mjs (3 seeds): 2 refills + every 20 min for 2 h made the long-session personas 22–37%
   // richer in earned income by day 7 — over the 15% the owner allows.
   assert.deepEqual(NB, { fuelRefills: 1, fuelHours: 24, rcaseMin: 30, rcaseHours: 1.5 });
-  assert.deepEqual([1, 2, 3, 4].map(S.xpForLevel), [200, 450, 1100, 1600]);
+  assert.deepEqual([1, 2, 3, 4].map(S.xpForLevel), [250, 600, 1100, 1600]);
   const c = 1e12;
   assert.equal(S.newbieFuelLeft({ created_at: c, newbie_fuel: 0 }, c + 23 * H), NB.fuelRefills);
   assert.equal(S.newbieFuelLeft({ created_at: c, newbie_fuel: NB.fuelRefills }, c + H), 0);
