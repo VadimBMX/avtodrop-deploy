@@ -188,32 +188,32 @@ const BUILD = {
   // spark and a glint; a warm floor glow and a slow golden sheen across the car.
   gold(G, n, seed) {
     const R = rng(seed), H = Math.max(G.H, 190); // sizes: a small ×3 / ×6 tile still reads
-    const coins = Array.from({ length: Math.max(6, Math.round(32 * n)) }, () => {
+    const coins = Array.from({ length: Math.max(6, Math.round(54 * n)) }, () => {
       const land = G.gy + (R() - 0.45) * G.ry * 2.2;
       const x = G.cx + (R() * 2 - 1) * G.rx * 1.25;
       const t0 = -0.32 + R() * 0.95, g = H * (3.4 + R() * 1.2), v0 = H * (0.25 + R() * 0.35); // some already falling as the car lands
       const y0 = -H * (0.08 + R() * 0.12);
       const fall = (-v0 + Math.sqrt(v0 * v0 + 2 * g * (land - y0))) / g; // time to the floor
       const near = (land - G.gy) / (G.ry * 1.2); // nearer coins a touch bigger
-      return { x, land, t0, g, v0, y0, fall, s: H * (0.05 + R() * 0.03) * (1 + near * 0.18) * (n < 0.6 ? 1.15 : 1), w: 9 + R() * 8, p: R() * 6.3, tilt: (R() - 0.5) * 0.9, drift: (R() - 0.5) * G.rx * 0.25, front: land > G.gy };
+      return { x, land, t0, g, v0, y0, fall, s: H * (0.065 + R() * 0.035) * (1 + near * 0.18) * (n < 0.6 ? 1.15 : 1), w: 9 + R() * 8, p: R() * 6.3, tilt: (R() - 0.5) * 0.9, drift: (R() - 0.5) * G.rx * 0.25, front: land > G.gy };
     });
     const sparks = [];
     for (const c of coins) {
       const k = Math.round(2 + R() * 2);
       for (let i = 0; i < k; i++) sparks.push({ c, a: -Math.PI / 2 + (R() - 0.5) * 2.4, v: H * (0.35 + R() * 0.5), life: 0.28 + R() * 0.3 });
     }
-    const twinkles = Array.from({ length: Math.max(3, Math.round(9 * n)) }, () => ({ x: G.cx + (R() * 2 - 1) * G.rx * 1.2, y: G.gy - R() * G.car.h * 1.5, t: 0.35 + R() * 1.1, s: H * (0.06 + R() * 0.05) }));
+    const twinkles = Array.from({ length: Math.max(3, Math.round(16 * n)) }, () => ({ x: G.cx + (R() * 2 - 1) * G.rx * 1.2, y: G.gy - R() * G.car.h * 1.5, t: 0.35 + R() * 1.1, s: H * (0.06 + R() * 0.05) }));
     const gc = glow([255, 196, 64]), gw = glow([255, 236, 170]), gl = glint([255, 214, 110]);
     return {
       dur: DURATION.gold,
       draw(b, f, t, M) {
         // floor glow: blooms as the first coins land, fades slowly
-        const fl = env(t, 0, 0.3, 1.9) * 0.5;
+        const fl = env(t, 0, 0.3, 1.9) * 0.8;
         b.globalCompositeOperation = f.globalCompositeOperation = 'lighter';
         put(b, gc, G.cx, G.gy, G.rx * 2.8, G.ry * 5, fl);
         put(f, gc, G.cx, G.gy + G.ry * 0.6, G.rx * 2.2, G.ry * 2.2, fl * 0.5);
         // the landing beat: a warm bloom under the car and a thin gold ring running out over the turntable
-        put(b, gw, G.cx, G.gy, G.rx * 1.9, G.ry * 3.4, env(t, 0, 0.04, 0.45) * 0.75);
+        put(b, gw, G.cx, G.gy, G.rx * 1.9, G.ry * 3.4, env(t, 0, 0.04, 0.45) * 1);
         const rk = clamp01(t / 0.65), ra = (1 - rk) * (rk < 0.05 ? rk / 0.05 : 1);
         const gp = [[5, [255, 170, 40], 0.16 * ra], [1.8, [255, 205, 90], 0.5 * ra], [0.6, [255, 248, 215], 0.9 * ra]];
         ring(b, G, 0.4 + easeOut(rk) * 0.7, true, gp, H * 0.006);
@@ -272,7 +272,7 @@ const BUILD = {
         for (const w of twinkles) put(f, gl, w.x, w.y, w.s, w.s, env(t, w.t, w.t + 0.12, w.t + 0.4) * 0.85);
         // a slow golden sheen across the car
         const sw = clamp01((t - 0.15) / 0.75);
-        onCar(f, G, M, env(t, 0.15, 0.3, 0.9) * 0.7, (c, w, h) => band(c, w, h, lerp(-0.3, 1.3, sw) * w, 0.09, [255, 222, 140]));
+        onCar(f, G, M, env(t, 0.15, 0.3, 0.9) * 0.95, (c, w, h) => band(c, w, h, lerp(-0.3, 1.3, sw) * w, 0.09, [255, 222, 140]));
         b.globalAlpha = f.globalAlpha = 1;
       },
     };
