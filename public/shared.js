@@ -2067,7 +2067,7 @@ export function levelRewardsBetween(from, to) {
   }
   return r;
 }
-export const XP = { win: 25, race: 10, newCar: 20, daily: 30, task: 30, quest: 60, case: 5, partcase: 5, plate: 5, merge: 10, install: 5, pvp: 30, trade: 30, market: 20, upgrade: 10, casino: 2, backfill: 1 };
+export const XP = { win: 25, race: 10, newCar: 8, daily: 30, task: 30, quest: 60, case: 5, partcase: 5, plate: 5, merge: 10, install: 5, pvp: 30, trade: 30, market: 20, upgrade: 10, casino: 2, backfill: 1 }; // 06.11: newCar 20→8 — owner & David: level 3 came in minutes from opening ×6 cases
 // Gambling-like actions (cases, parts, plates; the upgrade and casino too) share the daily cap so levels can't be farmed
 // by spamming them. Races, bosses, the daily bonus, tasks and quests are never capped.
 export const CAPPED_XP = ['partcase', 'plate', 'merge', 'install', 'upgrade', 'casino'];

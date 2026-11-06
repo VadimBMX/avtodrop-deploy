@@ -230,7 +230,7 @@ const CITY_W = 1750, CITY_H = 775;
 const SPOTS = [
   { k: 'auction', x: 875, y: 58, t: 'Аукціон', c: '#ff4d6d', i: 'hammer' },
   { k: 'sto', x: 712, y: 150, t: 'СТО', c: '#ff8a1f', i: 'tool', biz: 'sto' },
-  { k: 'tire', x: 488, y: 212, t: 'Шиномонтаж', c: '#ffb020', i: 'disc', biz: 'tire' },
+  { k: 'tire', x: 488, y: 212, t: 'Шиномонтаж', c: '#ffb020', i: 'disc', biz: 'tire', soon: true }, // owner 06.11: closed for now — «скоро» tape over the building
   { k: 'track', x: 1030, y: 178, t: 'Траса', c: '#ff8a1f', i: 'flag-3' },
   { k: 'drift', x: 1270, y: 212, t: 'Дрифт', c: '#ff3df0', i: 'tornado' },
   { k: 'garage', x: 875, y: 222, t: 'Мій гараж', c: '#ffd400', i: 'building-warehouse' },
@@ -255,6 +255,7 @@ function bizList() {
 }
 const paOpen = () => (me().plateAuction?.open || []).filter((a) => a.endsAt > X.serverNow());
 function spotText(sp) {
+  if (sp.soon) return '<small>скоро</small>';
   const m = me(), biz = bizList();
   const used = m.cars.filter((c) => c.status !== 'showcase').length;
   switch (sp.k) {
@@ -289,7 +290,7 @@ function cityView() {
   return `<div class="s2-city" id="s2City">${seg}${war ? warMap() : cityMap()}</div>`;
 }
 function cityMap() {
-  const labels = SPOTS.map((sp) => `<button class="s2-lb${sp.free ? ' free' : ''}${sp.k === 'garage' ? ' main' : ''}${sp.k === 'track' ? ' top' : ''}" data-act="s2Spot" data-k="${sp.k}" style="left:${(sp.x / CITY_W) * 100}%;top:${(sp.y / CITY_H) * 100}%;--c:${sp.c}"><i>${X.ic(sp.i)}</i>${sp.t}${spotText(sp)}</button>`).join('');
+  const labels = SPOTS.filter((sp) => sp.soon).map((sp) => `<div class="s2-soon" aria-hidden="true" style="left:${(sp.x / CITY_W) * 100}%;top:${((sp.y + 70) / CITY_H) * 100}%"><span><b>СКОРО</b></span></div>`).join('') + SPOTS.map((sp) => `<button class="s2-lb${sp.free ? ' free' : ''}${sp.soon ? ' soon' : ''}${sp.k === 'garage' ? ' main' : ''}${sp.k === 'track' ? ' top' : ''}" data-act="s2Spot" data-k="${sp.k}" style="left:${(sp.x / CITY_W) * 100}%;top:${(sp.y / CITY_H) * 100}%;--c:${sp.c}"><i>${X.ic(sp.i)}</i>${sp.t}${spotText(sp)}</button>`).join('');
   const quick = [['quests', 'target-arrow', 'Цілі', me().questReady], ['events', 'calendar', 'Події', 0], ['season', 'ticket', 'Пропуск', me().season?.ready]]
     .map(([k, i, t, n]) => `<button class="s2-q" data-act="s2Quick" data-k="${k}">${X.ic(i)}<span>${t}</span>${n ? `<b>${n > 9 ? '9+' : n}</b>` : ''}</button>`).join('');
   return `<div class="s2-map" id="s2Map"><div class="s2-pan" id="s2Pan" data-w="${CITY_W}" data-h="${CITY_H}" data-x="952"><img src="s2/city.webp" alt="" draggable="false">${labels}</div>
@@ -1052,7 +1053,7 @@ const handlers = {
       case 'club': return X.go('club');
       case 'dealer': return X.isOpen('tradein') ? X.go('tradein') : X.H.locked({ k: 'tradein' });
       case 'workshop': return X.H.workshopGo();
-      case 'tire': return X.toast('Шиномонтаж — бізнес Сезону 2, відкриється незабаром');
+      case 'tire': return X.toast('🚧 Шиномонтаж — скоро відкриється. Слідкуй за новинами!');
       default: return X.toast('Вільна ділянка: тут можна буде збудувати свій бізнес');
     }
   },

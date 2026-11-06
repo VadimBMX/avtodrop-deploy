@@ -34,13 +34,14 @@ test('level cap: the numbers live in ECON and the day counts from the anchor (da
 });
 
 test('level cap: day 1 stops at 3 with real xp (cases), the rest is banked, /me says so', () => {
-  const { clock, g, db, row } = setup();
+  const { clock, g, db, row, giveXp } = setup();
   db.prepare('UPDATE users SET balance = 1e12, slots = 1000 WHERE id = 1').run();
-  for (let i = 0; i < 12; i++) g.api['case/open'](1, { caseId: 'elite', count: 6 }); // 1 500 xp (the case cap)
+  giveXp(300); // a few races (since 06.11 a new car gives 8 xp, so cases alone stop just short of level 4's xp)
+  for (let i = 0; i < 30; i++) g.api['case/open'](1, { caseId: 'elite', count: 6 }); // up to the case cap (newCar xp is 8 since 06.11)
   const r = row();
   assert.equal(r.level, 3);
   assert.ok(r.xp >= S.CASE_XP_CAP - xpTo(3), 'xp over the cap is kept (case xp + new cars)');
-  assert.ok(r.xp >= S.xpForLevel(3), 'more than level 3 needs');
+  assert.ok(r.xp >= S.xpForLevel(3), 'more than level 3 needs: ' + r.xp + ' / ' + S.xpForLevel(3));
   const me = g.api.me(1);
   assert.deepEqual({ ...me.levelCap, date: undefined }, { max: 3, next: 6, day: 1, date: undefined, capped: true, over: r.xp - S.xpForLevel(3) });
   clock.t += 13 * H; // 23:00 Kyiv: still day 1
