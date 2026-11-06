@@ -66,9 +66,12 @@ export async function s2PayCredit(body) {
   return true;
 }
 
+// r11: always shown (also at 0) — the «Зірковий кейс» drops onto this balance. It pays any shop purchase for stars
+// except the «Зірковий кейс» itself (real Telegram Stars only).
 export function s2CreditCard(sh) {
-  if (!(sh?.starCredit > 0)) return '';
-  return `<div class="card row stars-card"><span class="ic tint" style="--c:#38bdf8">${X.ic('star')}</span><div class="grow"><b>Кредит Сезону ${S.S2_RESET.prevSeason}</b><div class="tiny muted">компенсація — оплачує будь-яку покупку за зірки</div></div><b class="disp stars-n">${sh.starCredit}</b></div>`;
+  if (!sh) return '';
+  const n = Math.max(0, Number(sh.starCredit) || 0);
+  return `<div class="card row stars-card sc-bal" data-credit="${n}"><span class="ic tint" style="--c:#38bdf8">${X.ic('star')}</span><div class="grow"><b class="sc-bal-t">Баланс: ${n} ⭐ (віртуальні)</b><div class="tiny muted">оплачує будь-яку покупку в магазині, крім «Зіркового кейса» · компенсація Сезону ${S.S2_RESET.prevSeason} і виграші кейса</div></div><b class="disp stars-n">${n}</b></div>`;
 }
 
 const handlers = {

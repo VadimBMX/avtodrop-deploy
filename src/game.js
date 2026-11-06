@@ -4109,6 +4109,7 @@ export function createGame(db, opts = {}) {
       sub: subOut(subRow(uid)), // the VIP subscription: active, renewal cancelled, end of the paid period
       packs: packsFor(uid), offer: packOffer(uid), firstBuy: S.PACKS_ON_SALE && firstBuy(uid) ? S.FIRST_BUY_MULT : 0,
       dayDeal: dayDealOut(u),
+      starCase: { id: S.STAR_CASE_ITEM.id, price: S.STAR_CASE.stars, min: S.STAR_CASE.min, max: S.STAR_CASE.max, prizes: S.STAR_CASE.prizes },
     };
   }
   // Owner 28.10: every real Stars payment (a pack, VIP, the pass, «Стиль», deals — not refunds, not repeats of the same
@@ -4153,6 +4154,7 @@ export function createGame(db, opts = {}) {
   // Paid from the stars on the account (season prizes).
   function buyWithStars(uid, { item }) {
     if (S.SHOP_BY_ID[String(item)]?.sub) fail('Підписка оформлюється лише через Telegram Stars — з рахунку можна взяти VIP на 14 днів');
+    if (own(S.SHOP_BY_ID, String(item))?.realOnly) fail('Зірковий кейс купується лише за справжні Telegram Stars');
     const price = itemPrice(uid, String(item));
     if (!q('UPDATE users SET stars = stars - ? WHERE id = ? AND stars >= ?').run(price, uid, price).changes) fail('Недостатньо зірок на рахунку');
     return { ...applyItem(uid, String(item)), paid: price };
@@ -4179,6 +4181,8 @@ export function createGame(db, opts = {}) {
         return { refund: true, item: itemId, ...(twoSubs ? { cancelSub: true } : {}) };
       }
       q('INSERT INTO payments (charge_id, user_id, pack, stars, amount, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(chargeId, userId, (renewal ? 'renew:' : 'item:') + itemId, stars, 0, now());
+      // r11 «Зірковий кейс»: the roll is tied to this charge (the payments row above makes a repeat a duplicate).
+      if (it.starcase) return starCaseRoll(userId, chargeId, stars);
       const out = applyItem(userId, itemId);
       if (it.sub) {
         subPaid(userId, { chargeId, stars, renewal, expires });
@@ -4190,6 +4194,32 @@ export function createGame(db, opts = {}) {
     });
   }
   const itemPriceTx = (uid, itemId) => db.tx(() => itemPrice(uid, itemId));
+  // ---------- «Зірковий кейс» (r11, David 06.11; S.STAR_CASE = ECON.starCase) ----------
+  // One roll per paid charge (creditItem: the payments row with this charge_id is written in the same transaction, a
+  // repeat of the charge is a duplicate before it gets here; star_case_rolls.charge_id is the primary key as a second
+  // lock). The roll is the provably-fair roll of the cases (nextNonce: HMAC of the player's server seed). The prize
+  // goes onto users.star_credit (the virtual shop balance) with a star_credit_log row 'starcase'.
+  // NOT refundable: the game never refunds this item (no refund branch in creditItem matches it) and the invoice says
+  // so; if a refund is ever made by hand in Telegram, the credit is not taken back automatically.
+  function starCaseRoll(uid, chargeId, stars) {
+    const f = nextNonce(uid);
+    const won = Number(pickWeighted(S.STAR_CASE.prizes.map(([n, c]) => [n, c]), f.roll(0)));
+    q('UPDATE users SET star_credit = star_credit + ? WHERE id = ?').run(won, uid);
+    const bal = userRow(uid).star_credit;
+    q('INSERT INTO star_credit_log (user_id, delta, what, balance, at) VALUES (?, ?, ?, ?, ?)').run(uid, won, 'starcase', bal, now());
+    q('INSERT INTO star_case_rolls (charge_id, user_id, paid, won, seed_hash, client_seed, nonce, seen, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)')
+      .run(chargeId, uid, stars, won, sha256(f.server_seed), f.client_seed, f.nonce, now());
+    event(uid, `⭐ Зірковий кейс: +${won} ⭐ на баланс магазину (віртуальні, разом ${bal} ⭐)`);
+    payAlert(uid, 'відкрив «Зірковий кейс»', stars);
+    return { item: 'starcase', won, starCredit: bal };
+  }
+  // The app asks after a paid invoice (the bot's successful_payment may come a moment later): rolls not shown yet,
+  // marked shown. `peek: true` only looks.
+  function starCasePending(uid, { peek } = {}) {
+    const list = q('SELECT charge_id, won, created_at at FROM star_case_rolls WHERE user_id = ? AND seen = 0 ORDER BY created_at').all(uid);
+    if (list.length && peek !== true) q('UPDATE star_case_rolls SET seen = 1 WHERE user_id = ? AND seen = 0').run(uid);
+    return { list: list.map((r) => ({ won: r.won, at: r.at })), starCredit: userRow(uid).star_credit };
+  }
 
   // Live feed for the case screen: the latest purple-or-better drops of all players (names shortened); only drops after the Season 2 wipe.
   function dropFeed() {
@@ -4428,7 +4458,7 @@ export function createGame(db, opts = {}) {
         streak: u.streak, stats: { cases: u.cases_opened, races: u.races, wins: u.wins, merges: u.merges },
         banReason: u.ban_reason, lbHidden: !!u.lb_hidden, referrer: u.referrer_id ? { id: u.referrer_id, name: name(u.referrer_id) } : null,
         referrals: q('SELECT COUNT(*) n FROM users WHERE referrer_id = ?').get(uid).n,
-        luck: luckOf(uid), role: roleOf(uid),
+        luck: luckOf(uid), role: roleOf(uid), starCredit: u.star_credit, // r11: virtual shop stars
         achievements: (() => { const s = achievementState(uid); return { claimed: s.reduce((n, x) => n + x.claimed, 0), reached: s.reduce((n, x) => n + x.reached, 0), total: S.ACHIEVEMENTS.reduce((n, a) => n + a.goals.length, 0) }; })(),
         invited: q('SELECT id, level, total_value, created_at, last_seen, ref_paid FROM users WHERE referrer_id = ? ORDER BY created_at DESC LIMIT 200').all(uid)
           .map((f) => ({ id: f.id, name: name(f.id), level: f.level, value: f.total_value, createdAt: f.created_at, lastSeen: f.last_seen, paid: !!f.ref_paid })),
@@ -4640,6 +4670,23 @@ export function createGame(db, opts = {}) {
     if (n > 0 && !quiet) gift(uid, 'money', { amount: after - before }, note);
     alog(who, 'money', uid, { amount: after - before, note: note || null });
     return { balance: after };
+  }
+  // r11: grant (delta > 0) or take back (delta < 0) virtual stars — users.star_credit, never below 0. Body
+  // { userId (or id), delta, reason, confirm: true } through adminCall (role, confirm and reason checked there).
+  function adminStarCredit(who, b) {
+    const uid = int(b.userId ?? b.id, 1, Number.MAX_SAFE_INTEGER, 'ID');
+    const n = int(b.delta, -1e7, 1e7, 'Кількість');
+    if (!n) fail('Вкажи кількість зірок');
+    const before = userRow(uid).star_credit;
+    const real = Math.max(-before, n);
+    if (!real) fail('Віртуальних зірок у гравця вже 0');
+    q('UPDATE users SET star_credit = star_credit + ? WHERE id = ?').run(real, uid);
+    const after = userRow(uid).star_credit;
+    const reason = String(b.reason ?? '').trim().slice(0, 200);
+    q('INSERT INTO star_credit_log (user_id, delta, what, balance, at) VALUES (?, ?, ?, ?, ?)').run(uid, real, `admin${reason ? ': ' + reason : ''}`, after, now());
+    event(uid, real > 0 ? `⭐ +${real} віртуальних зірок від адміністрації` : `⭐ −${-real} віртуальних зірок списано адміністрацією`);
+    alog(who, 'star-credit', uid, { delta: real, balance: after });
+    return { starCredit: after, delta: real };
   }
   function adminGiveCar(who, { id, model, notify: tell }) {
     const uid = int(id, 1, Number.MAX_SAFE_INTEGER, 'ID');
@@ -5230,7 +5277,7 @@ export function createGame(db, opts = {}) {
   // Admin handlers get (who, body); read-only ones ignore `who`. Each runs in one transaction.
   const adminHandlers = {
     overview: () => adminOverview(), users: (w, b) => adminUsers(b), user: (w, b) => adminUser(b), 'lb-hide': adminLbHide,
-    money: adminMoney, 'give-car': adminGiveCar, 'grant-premium': adminGrantPremium, 'remove-car': adminRemoveCar, part: adminGivePart, keys: adminGiveKeys,
+    money: adminMoney, 'star-credit': adminStarCredit, 'give-car': adminGiveCar, 'grant-premium': adminGrantPremium, 'remove-car': adminRemoveCar, part: adminGivePart, keys: adminGiveKeys,
     'give-plate': adminGivePlate, 'remove-plate': adminRemovePlate, search: (w, b) => adminSearch(b), 'check-plate': (w, b) => checkPlate(b.text),
     set: adminSetUser, ban: adminBan, message: adminMessage, reset: adminResetUser,
     market: () => adminMarket(), 'market/remove': (w, b) => adminMarketRemove(w, b),
@@ -5254,16 +5301,17 @@ export function createGame(db, opts = {}) {
   // Actions that change a player or the economy. From the panel (adminCall, used by the HTTP endpoint) each needs
   // `confirm: true` (the confirm dialog) and a `reason` of 3+ characters, which goes into admin_log with the action.
   // message / support/reply are not here: their text is the whole action and is logged as it is.
-  const ADMIN_MUTATING = new Set(['lb-hide', 'money', 'give-car', 'grant-premium', 'remove-car', 'part', 'keys', 'give-plate', 'remove-plate', 'set', 'ban', 'reset',
+  const ADMIN_MUTATING = new Set(['lb-hide', 'money', 'star-credit', 'give-car', 'grant-premium', 'remove-car', 'part', 'keys', 'give-plate', 'remove-plate', 'set', 'ban', 'reset',
     'market/remove', 'dealer/refresh', 'promo/create', 'promo/delete', 'role', 'broadcast',
     'game-events/start', 'game-events/stop', 'casino-mode']);
   // Actions on one player's account. An admin (not the owner) can't use them on his own account (no self-dealing) or on
   // the owner / another admin; the target is body.id, or the owner of the car / plate.
-  const ADMIN_ON_PLAYER = new Set(['lb-hide', 'money', 'give-car', 'grant-premium', 'remove-car', 'part', 'keys', 'give-plate', 'remove-plate', 'set', 'ban', 'reset']);
+  const ADMIN_ON_PLAYER = new Set(['lb-hide', 'money', 'star-credit', 'give-car', 'grant-premium', 'remove-car', 'part', 'keys', 'give-plate', 'remove-plate', 'set', 'ban', 'reset']);
   function adminTargetOf(name, b) {
     if (name === 'remove-car') return q('SELECT owner_id FROM cars WHERE id = ?').get(Number(b.carId) || 0)?.owner_id ?? null;
     if (name === 'remove-plate') return q('SELECT owner_id FROM plates WHERE id = ?').get(Number(b.plateId) || 0)?.owner_id ?? null;
-    return Number.isSafeInteger(Number(b.id)) ? Number(b.id) : null;
+    const t = name === 'star-credit' ? b.userId ?? b.id : b.id;
+    return Number.isSafeInteger(Number(t)) ? Number(t) : null;
   }
   function adminCall(who, name, body) {
     if (!Object.hasOwn(admin, name)) return undefined;
@@ -5328,7 +5376,7 @@ export function createGame(db, opts = {}) {
     quests, 'quests/claim': questClaim, 'collection/claim': collectionClaim, sets, 'sets/claim': setClaim,
     weekly, 'weekly/claim': weeklyClaim, 'weekly/chest': weeklyChest,
     leaderboard, promo: redeemPromo, events,
-    season, 'season/claim': passClaim, shop, 'shop/stars': buyWithStars, feed: dropFeed,
+    season, 'season/claim': passClaim, shop, 'shop/stars': buyWithStars, 'starcase/pending': starCasePending, feed: dropFeed,
     'style/equip': styleEquip, 'home/added': homeAdded, 'emoji/set': emojiSet,
     'rewards/all': rewardsAll,
     'dream/set': dreamSet,

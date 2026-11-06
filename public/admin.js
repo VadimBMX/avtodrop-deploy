@@ -178,6 +178,7 @@ function details(a, d) {
 function detailsMain(a, d) {
   switch (a) {
     case 'broadcast': return `${esc(d.text)} <span class="muted small">· ${esc(AUDIENCE[d.audience] || d.audience)} · ${d.recipients} отрим.</span>`;
+    case 'star-credit': return `<span class="${d.delta >= 0 ? 'win' : 'bad'}">${d.delta >= 0 ? '+' : ''}${d.delta} ⭐ віртуальних</span> · баланс ${d.balance} ⭐`;
     case 'money': return `<span class="${d.amount >= 0 ? 'win' : 'bad'}">${d.amount >= 0 ? '+' : ''}${money(d.amount)}</span>${d.note ? ` · ${esc(d.note)}` : ''}`;
     case 'give-car': case 'remove-car': return esc(model(d.model).name);
     case 'part': return `${esc(partName(d.type, d.tier))} × ${d.count}`;
@@ -829,6 +830,9 @@ function controls(u) {
       <input id="mAmount" inputmode="decimal" placeholder="Сума: 100000, 250k, 1.5m">
       <input id="mNote" placeholder="Повідомлення гравцю (необов’язково)">
       <div class="row"><button class="btn green sm grow" data-act="money" data-sign="1">${ic('plus')} Нарахувати</button><button class="btn red sm grow" data-act="money" data-sign="-1">${ic('minus')} Списати</button></div></div>
+    <div class="act" id="act-scredit"><h3>${ic('star')} Віртуальні зірки <span class="muted small">баланс магазину: <b id="scBal">${u.starCredit ?? 0}</b> ⭐</span></h3>
+      <input id="scAmount" inputmode="numeric" placeholder="Кількість зірок, напр. 50">
+      <div class="row"><button class="btn green sm grow" data-act="starCredit" data-sign="1">${ic('plus')} Нарахувати</button><button class="btn red sm grow" data-act="starCredit" data-sign="-1">${ic('minus')} Списати</button></div></div>
     ${state.role === 'owner' ? `<div class="act" id="act-vip"><h3>${ic('crown')} Пропуск і VIP <span class="muted small">лише власник</span></h3>
       <div class="small muted">Пропуск: ${u.premiumSeason === S.seasonOf(Date.now()) ? '<b class="win">є в цьому сезоні</b>' : 'немає'} · VIP: ${u.vipUntil > Date.now() ? `до ${date(u.vipUntil)}` : 'немає'}</div>
       <div class="row"><button class="btn sm grow" data-act="grantPass" ${u.premiumSeason === S.seasonOf(Date.now()) ? 'disabled' : ''}>${ic('gift')} Преміум-пропуск</button></div>
@@ -876,7 +880,7 @@ function controls(u) {
 // typing is the point) instead of scrolling past the garage and the tabs. admin.css shows it on a narrow screen only.
 function quickActs(u) {
   const list = state.role === 'helper' ? [['msg', 'bell', 'Повідомлення']] : [
-    ['money', 'cash', 'Гривні'], ['keys', 'key', 'Ключі'], ['car', 'car', 'Машина'], ['msg', 'bell', 'Повідомлення'],
+    ['money', 'cash', 'Гривні'], ['scredit', 'star', 'Зірки'], ['keys', 'key', 'Ключі'], ['car', 'car', 'Машина'], ['msg', 'bell', 'Повідомлення'],
     ['plate', 'license', 'Номер'], ['parts', 'tool', 'Деталі'], ...(state.role === 'owner' ? [['vip', 'crown', 'VIP, пропуск']] : []), ['set', 'gauge', 'Параметри'],
     ['bug', 'bug', 'За баг'], ['lb', 'trophy', u.lbHidden ? 'У рейтинг' : 'З рейтингу'], ['role', 'shield-check', 'Права'],
     ['ban', 'lock', u.banned ? 'Розбан' : 'Бан', u.banned ? 'ok' : 'red'], ['reset', 'refresh', 'Обнулити', 'red']];
@@ -915,6 +919,16 @@ H.money = (d) => {
     title: take ? 'Списати гривні' : 'Нарахувати гривні', danger: take, button: take ? 'Списати' : 'Нарахувати',
     summary: `${who()}<div class="delta"><span>${money(bal)}</span> → <b class="${take ? 'bad' : 'win'}">${money(Math.max(0, bal + amount))}</b> <span class="${take ? 'bad' : 'win'}">(${take ? '−' : '+'}${money(Math.min(Math.abs(amount), take ? bal : Infinity))})</span></div>${take && -amount > bal ? '<div class="small muted">Більше, ніж є — баланс стане 0.</div>' : ''}`,
   }, (r) => `Баланс: ${money(r.balance)}`);
+};
+// r11: virtual stars on the shop balance (users.star_credit) — POST admin/star-credit { userId, delta, reason, confirm }.
+H.starCredit = (d) => {
+  const n = Math.round(Number(String($('#scAmount').value).trim()));
+  if (!(n > 0)) return toast('Вкажи додатну кількість зірок', true);
+  const delta = n * Number(d.sign), take = delta < 0, bal = cur.user.starCredit || 0;
+  mutate('star-credit', { userId: uid(), delta }, {
+    title: take ? 'Списати віртуальні зірки' : 'Нарахувати віртуальні зірки', danger: take, button: take ? 'Списати' : 'Нарахувати',
+    summary: `${who()}<div class="delta"><span>${bal} ⭐</span> → <b class="${take ? 'bad' : 'win'}">${Math.max(0, bal + delta)} ⭐</b></div>${take && -delta > bal ? '<div class="small muted">Більше, ніж є — баланс стане 0.</div>' : ''}`,
+  }, (r) => `Віртуальні зірки: ${r.starCredit} ⭐`);
 };
 H.grantPass = () => mutate('grant-premium', { id: uid(), what: 'pass' }, { title: 'Видати преміум-пропуск', summary: `Преміум-пропуск поточного сезону → ${who()}`, button: 'Видати' }, 'Пропуск видано');
 H.grantVip = () => {

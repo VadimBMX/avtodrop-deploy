@@ -1,4 +1,4 @@
-import { PACKS, PACKS_ON_SALE, SHOP_BY_ID, VIP_SUB, ALL_MODELS, MAIN_COUNTRIES, REF_FRIEND_BONUS, fmt, short } from '../public/shared.js';
+import { PACKS, PACKS_ON_SALE, SHOP_BY_ID, STAR_CASE, VIP_SUB, ALL_MODELS, MAIN_COUNTRIES, REF_FRIEND_BONUS, fmt, short } from '../public/shared.js';
 import { CH_PARAM, challengeLine } from '../public/ghost.js';
 import fs from 'node:fs';
 
@@ -308,7 +308,9 @@ export function createBot({ token, webappUrl, admins = [], game, inline = null, 
     const full = `${it.name} · АВТОДРОП`; // Telegram: title 1–32 characters
     return call('createInvoiceLink', {
       title: full.length <= 32 ? full : it.name.slice(0, 32),
-      description: it.sub
+      description: it.starcase // r11: virtual stars only, never refunded (src/game.js starCaseRoll)
+        ? `Випадає від ${STAR_CASE.min} до ${STAR_CASE.max} віртуальних ⭐ на баланс магазину гри (шанси — у магазині). Віртуальні зірки не виводяться й не обмінюються на гроші. Покупка не повертається.`
+        : it.sub
         ? `VIP на ${VIP_SUB.days} днів, продовжується сам кожні ${VIP_SUB.days} днів. Скасувати можна в магазині гри або в Telegram (Налаштування → Мої зірки).`
         : 'Зарахується одразу після оплати. Ігрові цінності не можна вивести чи обміняти на реальні гроші.',
       payload: `item:${it.id}:${uid}:${price}`,

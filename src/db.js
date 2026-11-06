@@ -145,6 +145,12 @@ CREATE TABLE IF NOT EXISTS vip_subs (
   user_id INTEGER PRIMARY KEY, charge_id TEXT NOT NULL, last_charge TEXT, stars INTEGER NOT NULL, started_at INTEGER NOT NULL,
   renewed_at INTEGER, expires_at INTEGER NOT NULL, renewals INTEGER NOT NULL DEFAULT 0, canceled INTEGER NOT NULL DEFAULT 0
 );
+-- r11 «Зірковий кейс»: one row per paid charge (the roll, its fair-seed proof, whether the app has shown the reveal).
+CREATE TABLE IF NOT EXISTS star_case_rolls (
+  charge_id TEXT PRIMARY KEY, user_id INTEGER NOT NULL, paid INTEGER NOT NULL, won INTEGER NOT NULL, seed_hash TEXT,
+  client_seed TEXT, nonce INTEGER, seen INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS star_case_rolls_user ON star_case_rolls(user_id, seen);
 CREATE TABLE IF NOT EXISTS events (
   id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, text TEXT NOT NULL,
   seen INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL

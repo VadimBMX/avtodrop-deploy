@@ -8131,3 +8131,19 @@ body.s2 .s2-ct .s2-ct-hot { top: auto; bottom: 6px; right: 6px; left: auto; font
 body.s2 .s2-ct small { padding-right: 0; }
 body.s2 .s2-ct .s2-ct-hot { top: 6px; bottom: auto; left: 6px; right: auto; }
 body.s2 .s2-ct:has(.s2-ct-hot) .s2-ct-cls { margin-top: 16px; }
+
+/* r11 «Зірковий кейс» (app.js starCaseCard / starCaseOdds / starCaseReveal) */
+.st-starcase { background: radial-gradient(120% 90% at 100% 0%, #ffd50026, transparent 60%), var(--card, #15171c); border: 1px solid #ffd50055; }
+.st-starcase .sc-odds { background: none; border: 0; padding: 4px 0; color: #ffd500; font: 600 13px/1 inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; display: inline-flex; gap: 4px; align-items: center; }
+.st-starcase .sc-line { margin-top: 6px; font-size: 14px; line-height: 1.35; }
+.sc-prizes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.sc-p { padding: 4px 9px; border-radius: 999px; background: #ffffff10; font: 700 13px/1 var(--f-disp, inherit); }
+.sc-p::after { content: ' ⭐'; }
+.sc-p.hi { background: #ffd50030; color: #ffd500; }
+.sc-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 15px; }
+.sc-table th, .sc-table td { padding: 8px 6px; border-bottom: 1px solid #ffffff14; text-align: left; }
+.sc-table td:last-child, .sc-table th:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.sc-reveal .sc-big { display: inline-flex; color: #ffd500; }
+.sc-reveal .sc-big .i { width: 84px; height: 84px; filter: drop-shadow(0 0 18px #ffd50088); }
+.sc-won { font-size: 26px; color: #ffd500; }
+.sc-bal .sc-bal-t { color: #7dd3fc; }

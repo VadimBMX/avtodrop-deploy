@@ -7315,12 +7315,68 @@ function storeMain(sh) {
   const day = dd ? `<div class="card offer st-daydeal"><div class="row between"><b class="disp" style="font-size:19px">${ic('flame')} Угода дня</b><span class="chip">${dd.taken ? 'нова через' : 'ще'} <span data-until="${dd.next - clockOffset}"></span></span></div>
     <div class="dd-name">${esc(dd.name)}</div>
     <div class="row between mt">${dd.taken ? '<span class="tiny muted">Сьогодні вже взято — завтра нова</span>' : `<span class="tiny muted">раз на день · лише сьогодні</span>${storeBuyBtns({ id: dd.id, price: dd.stars }, sh)}`}</div></div>` : '';
-  return `${day}${starter}${packs}${vip}${frameShop(sh)}
+  return `${day}${starCaseCard(sh)}${starter}${packs}${vip}${frameShop(sh)}
   <button class="card row st-style-promo" data-act="storeView" data-k="style"><span class="ic tint" style="--c:#b48cff">${ic('sparkles')}</span><div class="grow"><b>Стиль</b><div class="tiny muted">рамки номерів, фони вітрини, лівреї, колір імені — лише вигляд, без характеристик</div></div><span class="chev">${ic('chevron-right')}</span></button>
   <div class="card row"><span class="ic tint" style="--c:#ffc400">${ic('ticket')}</span><div class="grow"><b>Преміум-пропуск · Сезон ${me.season.id}</b><div class="tiny muted">Друга доріжка нагород і машина сезону</div></div>${sh.premium ? '<span class="chip">куплено</span>' : storeBuyBtns(it.pass, sh)}</div>
   <div class="h2"><span>Зручності</span></div>
   ${[['refuel', 'gas-station', `Пальне ${fmax()}/${fmax()} одразу`], ['cool', 'wind', 'Зняті деталі одразу готові'], ['slot', 'building-warehouse', `Зараз ${me.slots} місць · кожне наступне ×2`]].map(([id, icon, sub]) => `<div class="card row"><span class="ic tint" style="--c:#939497">${ic(icon)}</span><div class="grow"><b>${esc(it[id].name)}</b><div class="tiny muted">${sub}</div></div>${storeBuyBtns(it[id], sh, 'ghost')}</div>`).join('')}`;
 }
+// ---- r11 «Зірковий кейс» (S.STAR_CASE, David 06.11): 50 real Telegram Stars → 10…1000 VIRTUAL ⭐ on the shop balance
+// (me.starCredit). Only a Telegram invoice buys it (no credit, no stars on the account — the server refuses both). The odds
+// sheet («Шанси») is the table the server rolls with. After «paid» the app asks 'starcase/pending' for the roll (the
+// bot's successful_payment may land a moment later) and reveals it like a case drop.
+function starCaseCard(sh) {
+  const c = sh.starCase;
+  if (!c) return '';
+  return `<div class="card offer st-starcase"><div class="row between"><b class="disp" style="font-size:19px">${ic('star')} Зірковий кейс</b><button class="link sc-odds" data-act="starCaseOdds">${ic('info-circle')} Шанси</button></div>
+    <div class="sc-line">Зірковий кейс · ${c.price} ⭐ · випадає від ${c.min} до ${c.max} ⭐ на баланс магазину</div>
+    <div class="sc-prizes">${c.prizes.map(([n]) => `<span class="sc-p${n >= 500 ? ' hi' : ''}">${n}</span>`).join('')}</div>
+    <div class="row between mt"><span class="tiny muted">лише за Telegram Stars · зірки віртуальні</span><button class="btn sm yellow" data-act="buyStarCase" ${config.stars ? '' : 'disabled'}>${ic('star')} ${c.price}</button></div></div>`;
+}
+const starCaseRank = (n) => (n >= 1000 ? 5 : n >= 500 ? 4 : n >= 150 ? 3 : n >= 75 ? 2 : n >= 30 ? 1 : 0);
+H.starCaseOdds = () => {
+  const c = S.STAR_CASE;
+  sheet('Шанси · Зірковий кейс', `<div class="card"><div class="tiny muted">Ціна ${c.stars} ⭐ (справжні Telegram Stars). Випадають віртуальні зірки на баланс магазину — ними можна платити за товари магазину, але не за сам кейс. Не виводяться й не обмінюються на гроші. Покупка не повертається.</div>
+    <table class="sc-table"><thead><tr><th>Випадає</th><th>Шанс</th></tr></thead><tbody>${c.prizes.map(([n, p]) => `<tr><td>${ic('star')} ${n}</td><td>${decComma(p)}%</td></tr>`).join('')}</tbody></table>
+    <div class="tiny muted mt">Середній виграш — ${decComma(Math.round(c.ev * 100) / 100)} ⭐ за кейс. Результат визначає сервер чесним генератором (як у звичайних кейсах).</div></div>`);
+};
+function starCaseReveal(won, bal) {
+  const rk = starCaseRank(won), color = ['#9aa4b2', '#3b82f6', '#a855f7', '#ff8a3d', '#ef4444', '#ffd500'][rk];
+  sheet('Зірковий кейс', `<div class="card center reward-res pop sc-reveal"><div class="reveal-wrap r${Math.min(rk, 4)}" style="--c:${color};height:110px"><div class="art"><span class="sc-big">${ic('star')}</span></div></div>
+    <b class="disp rr-name sc-won">+${won} ⭐ на баланс</b><div class="small muted">віртуальні зірки · баланс магазину: ${bal} ⭐</div>
+    <div class="btns mt"><button class="btn yellow" data-act="closeModal">Супер</button></div></div>`);
+  const res = $('#sheet .reward-res');
+  setTimeout(() => (FX.dropShow(Math.min(rk, 4), color, { host: res?.querySelector('.reveal-wrap'), target: res?.querySelector('.art') }), SFX.pop(Math.min(rk, 4)), rk >= 3 && SFX.rare(Math.min(rk, 4))), 300);
+  haptic('success');
+}
+// Asks a few times (the bot gets successful_payment a moment after the app's «paid»), then reveals what came.
+async function starCaseAwait(tries = 12) {
+  for (let i = 0; i < tries; i++) {
+    const r = await api('starcase/pending', {}).catch(() => null);
+    if (r?.list?.length) {
+      for (const x of r.list.slice(0, -1)) toast(`Зірковий кейс: +${x.won} ⭐`);
+      starCaseReveal(r.list[r.list.length - 1].won, r.starCredit);
+      refresh();
+      return true;
+    }
+    await new Promise((res) => setTimeout(res, 1000));
+  }
+  toast('Оплата пройшла — зірки з’являться на балансі за мить');
+  refresh();
+  return false;
+}
+H.buyStarCase = async () => {
+  try {
+    const { link } = await api('shop/invoice', { item: S.STAR_CASE_ITEM.id }); // real Stars only — never s2PayCredit
+    if (!tg?.openInvoice) return toast('Відкрий гру в Telegram, щоб оплатити', true);
+    tg.openInvoice(link, (status) => {
+      if (status === 'paid') starCaseAwait();
+      else if (status === 'failed') toast('Оплата не пройшла', true);
+    });
+  } catch (e) {
+    toast(e.message, true);
+  }
+};
 // r5-frames: «Рамки профілю» — the premium animated frames (S.FRAME_SHOP_ITEMS, 100 ⭐, kept for good), each previewed
 // live round the player's own helmet (UI2.avatar; public/frames.js moves only the ones on screen). Bought → worn at once.
 function frameShop(sh) {
