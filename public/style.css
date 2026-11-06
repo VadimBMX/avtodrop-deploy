@@ -4704,7 +4704,7 @@ body.s2 .balance::before { content: ''; width: 28px; height: 28px; flex: none; b
 body.s2 #gift { width: 42px; height: 42px; border-radius: 50%; background: var(--glass); border: 1px solid var(--glass-b); font-size: 19px; }
 body.s2 #gift .badge { top: 3px; right: 3px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--red); color: #fff; font: 800 9.5px/16px var(--f-body); border: 2px solid #17181b; }
 .s2-hel { position: relative; display: inline-block; border-radius: 50%; background: radial-gradient(circle at 50% 35%, #303134, #16171a); overflow: hidden; flex: none; }
-.s2-hel img { position: absolute; left: 8%; top: 10%; width: 86%; height: 86%; object-fit: contain; }
+.s2-hel img { position: absolute; left: 7%; top: 7%; width: 86%; height: 86%; object-fit: contain; } /* the helmet's box centred (owner 06.11) */
 
 /* the bar */
 body.s2 .tabs.s2tabs { left: 0; right: 0; bottom: 0; transform: none; width: auto; max-width: none; height: calc(var(--s2-bar) + var(--safe-b)); padding: 0 max(4px, calc(50% - 256px)) var(--safe-b); gap: 0; display: flex; align-items: stretch;
@@ -5068,9 +5068,14 @@ body.s2 .hub > .hub-me { display: none; }
 .s2-prof-act { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; margin-top: 12px; }
 .s2-ava { position: relative; display: inline-block; flex: none; }
 .s2-ava .hb { position: absolute; border-radius: 50%; background: radial-gradient(circle at 50% 35%, #333437, #121316 80%); }
-.s2-ava .hm { position: absolute; height: auto; object-fit: contain; filter: drop-shadow(0 6px 8px #0009); }
+.s2-ava .hm { position: absolute; height: auto; object-fit: contain; filter: drop-shadow(0 2px 4px #0009); } /* a deep shadow made it read low */
 .s2-ava .fr { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
-.s2-ava .s2lv { position: absolute; right: 16%; bottom: 14%; min-width: 30px; height: 30px; padding: 0 6px; border-radius: 15px; background: #ffd400; color: #111; border: 3px solid #17181b; font: 800 13px/24px var(--f-disp); }
+/* The level: the digits in the middle of the box whatever the border / size overrides below (flex, not a line-height
+   tuned to one box — body.s2 drops the border, so 24 px lines in a 30 px box put the digit 3 px high), same-width
+   digits for 10, 42…; line-height 1 with the bundled Fira Sans Condensed puts the digits' ink within ⅓ px of the middle. */
+.s2-ava .s2lv { position: absolute; right: 16%; bottom: 14%; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
+  min-width: 30px; height: 30px; padding: 0 6px; border-radius: 15px; background: #ffd400; color: #111; border: 3px solid #17181b;
+  font: 800 13px/1 var(--f-disp); font-variant-numeric: tabular-nums; letter-spacing: 0; text-align: center; white-space: nowrap; }
 .s2-bd { object-fit: contain; filter: drop-shadow(0 4px 6px #0008); }
 .s2-bd.t-br { filter: sepia(.5) hue-rotate(-18deg) saturate(1.4) brightness(.78) drop-shadow(0 4px 6px #0008); }
 .s2-bd.t-sv { filter: grayscale(1) brightness(1.18) contrast(1.05) drop-shadow(0 4px 6px #0008); }
@@ -6607,7 +6612,7 @@ body.s2 #view .drop-dock:not(.dd-sold) .dd-cnt + .btn.opencase { margin-top: 0; 
 @keyframes lcHolo { to { transform: rotate(360deg); } }
 .lc-who { display: flex; align-items: center; gap: 12px; }
 .lc-ava { flex: none; position: relative; display: grid; place-items: center; }
-.lc-ava .s2-ava .s2lv { right: 10%; bottom: 8%; min-width: 26px; height: 26px; border-radius: 13px; font-size: 12px; line-height: 20px; }
+.lc-ava .s2-ava .s2lv { right: 10%; bottom: 8%; min-width: 26px; height: 26px; border-radius: 13px; font-size: 12px; }
 .lc-face { width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; background: #0f1013; font: 800 30px var(--f-fc); }
 .lc-id { flex: 1; min-width: 0; display: grid; gap: 7px; }
 .lc-name { font: 800 22px/1.05 var(--f-fc); letter-spacing: .2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
