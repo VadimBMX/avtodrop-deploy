@@ -58,3 +58,19 @@ test('DROP dock: «Відкрити ×N · price» with no case name; short of m
   assert.match(app, /return onDrop \? `<button class="btn opencase second" disabled><span class="oc-l">Відкрити ×\$\{n\}<\/span><span class="oc-p">бракує/);
   assert.match(app, /below > 0 && !held && !target\.closest\('\.drop-dock, \.s2-dock'\)/);
 });
+
+test('«Бета-тест»: not in the first session, never over the garage or Траса; «Нагороди чекають» waits while the coach card shows', async () => {
+  const { firstSession, bugAskTabOk, NEW_ENTRY_MS } = await import('../public/popups.js');
+  const t0 = Date.parse('2026-11-06T14:00:00+02:00');
+  assert.equal(firstSession(t0, t0 + 9 * 60e3), true, '9 minutes into the first session');
+  assert.equal(firstSession(t0, t0 + NEW_ENTRY_MS - 1), true);
+  assert.equal(firstSession(t0, t0 + 20 * 3600e3), false, 'the next day');
+  assert.equal(firstSession(undefined, t0), true, 'unknown age: wait');
+  for (const t of ['garage', 'race']) assert.equal(bugAskTabOk(t), false);
+  for (const t of ['city', 'cases', 'bazaar', 'menu']) assert.equal(bugAskTabOk(t), true);
+  const app = read('app.js');
+  assert.match(app, /if \(firstSession\(me\?\.createdAt, bugEntryAt\)\) return void \(bugAskOn = false\);/);
+  assert.match(app, /if \(!bugAskTabOk\(state\.tab\) \|\| state\.drift \|\| !\$\('#modal'\)\.hidden/);
+  assert.match(app, /localStorage\.setItem\(BUG_ASK_KEY, '1'\);/);
+  assert.match(css, /body\.coach-push #banners \.banner\.rwall \{ display: none; \}/);
+});

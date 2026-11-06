@@ -31,7 +31,7 @@ import { installBarn } from './barn-ui.js';
 import { installBuyer } from './buyer-ui.js';
 import { installTopStrip, raceCarChoice, garageSig, bossWall, sovietEra, coachShift } from './firsthour.js';
 // popups (crit4 №5): one self-opening window per app entry, by priority (public/popups.js).
-import { createPopups } from './popups.js';
+import { createPopups, firstSession, bugAskTabOk } from './popups.js';
 // «Автоклуби»: page «Клуб», [TAG] next to names, the menu row, club_<code> invite links (public/clubs-ui.js).
 import { installClubs, clubTag, clubHub, clubFromLink } from './clubs-ui.js';
 // D-race: the boss's fight-poster intro before the lights; «scene mode» (no tab bar) while a run is on screen.
@@ -9595,7 +9595,9 @@ function homeAskOnce(tries = 0) {
 // an odd price, write to support; useful finds get a bonus. The support page keeps the same line.
 const BUG_ASK_KEY = 'avtodrop.bugAsk1';
 const bugRewarded = () => !!me?.badges?.some((b) => b.key === 'tester'); // src/bugbounty.js: a rewarded find gives this badge
-let bugAskTimer = 0, bugAskOn = false;
+let bugAskTimer = 0, bugAskOn = false, bugEntryAt = 0;
+// r7-ux (playtest 06.11: it popped up ~9 min into the very first session, over the garage or a race): not in the first
+// session (popups.js firstSession) and never over the garage or Траса (bugAskTabOk). Still once per player (BUG_ASK_KEY).
 function bugAskOnce(tries = 0) {
   if (bugAskOn && !tries) return;
   bugAskOn = true;
@@ -9608,7 +9610,9 @@ function bugAskOnce(tries = 0) {
   bugAskTimer = setTimeout(() => {
     if ((me?.level || 1) < 2 || guideOn()) return void (bugAskOn = false); // asked again after a later refresh (after «Перші кроки»)
     if (bugRewarded()) return; // fix5 (qa4): he already found a bug and got its reward — no «Знайшов баг?» on top
-    if (!$('#modal').hidden || state.opening || state.race || state.page || document.querySelector('.story') || WOW.isOpen()) {
+    bugEntryAt ||= serverNow();
+    if (firstSession(me?.createdAt, bugEntryAt)) return void (bugAskOn = false); // asked again on a later entry
+    if (!bugAskTabOk(state.tab) || state.drift || !$('#modal').hidden || state.opening || state.race || state.page || document.querySelector('.story') || WOW.isOpen()) {
       if (tries < 45) bugAskOnce(tries + 1);
       else bugAskOn = false;
       return;

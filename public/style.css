@@ -7805,3 +7805,6 @@ body.s2 .s2-dock.s2-dock-note > .s2-open.s2-fit { flex: 1 0 100%; flex-direction
 body.s2 .s2-dock.s2-dock-note > .s2-open.s2-fit .p { border-left: 1px solid #00000033; padding-left: 8px; }
 /* r7-ux: on the drop dock «Відкрити ×N · бракує …» is the same one-row button, dimmed while it can't open */
 body.s2 #view .drop-dock .opencase[disabled] { opacity: .55; filter: saturate(.4); }
+/* r7-ux (playtest 06.11, shot 09): «Нагороди чекають» and the first-steps card lay one on the other — the strip waits
+   while the card is shown (body.coach-push) */
+body.coach-push #banners .banner.rwall { display: none; }
