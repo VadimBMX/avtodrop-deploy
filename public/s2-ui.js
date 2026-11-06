@@ -34,15 +34,23 @@ function caseArt(cs, open = false, cls = '') {
   if (cs.starter) return `<img class="s2-cimg ${cls}" src="s2/x-gift.webp" alt="" draggable="false">`;
   return `<span class="s2-cflag ${cls}">${X.caseIcon(cs)}</span>`;
 }
-// Frame holes (centre x, centre y, radius as a share of the width; the picture's own size), measured from the pictures
-// (the transparent hole's centroid and area) on 2026-11-03 — re-measure if a frame picture changes.
+// Frame holes (centre x, centre y, radius of the free circle — shares of the picture's width / height / width; the
+// picture's own size; the dark disc's radius), from tools/frame_holes.py (owner 06.11: the helmet sat low-right and too
+// big in «Іржа»). The radius is the largest circle that no part of the frame covers, so crowns / the neon skyline / the
+// smoke never sit on the helmet; the disc is wider so it fills the whole visible hole. Re-run the tool if a frame changes.
 const HOLES = {
-  f0: [0.5037, 0.5416, 0.2789, 216, 220], f1: [0.4971, 0.4613, 0.2654, 215, 220], f2: [0.4947, 0.4846, 0.2702, 213, 220], f3: [0.5000, 0.5332, 0.2756, 217, 220],
-  f4: [0.5149, 0.5082, 0.3058, 220, 219], f5: [0.4888, 0.5065, 0.2803, 217, 220], f6: [0.5003, 0.5235, 0.2890, 214, 220], f7: [0.4939, 0.5025, 0.2942, 218, 220],
-  f8: [0.4939, 0.5081, 0.2502, 220, 214], f9: [0.4985, 0.4972, 0.3065, 217, 220], f10: [0.4976, 0.4951, 0.3085, 217, 220], f11: [0.4984, 0.4944, 0.3081, 217, 220],
-  f12: [0.4979, 0.5414, 0.3029, 207, 220], f13: [0.4992, 0.4996, 0.3078, 210, 220], f14: [0.4972, 0.5003, 0.2771, 219, 220], f15: [0.4974, 0.4955, 0.3186, 218, 220],
-  f16: [0.4989, 0.4989, 0.2927, 215, 220], f17: [0.4973, 0.4962, 0.3167, 219, 220] };
-const holeOf = (f) => HOLES['f' + f] || [0.5, 0.5, 0.3, 1, 1];
+  f0: [0.4977, 0.5614, 0.2546, 216, 220, 0.3183], f1: [0.4907, 0.4205, 0.2326, 215, 220, 0.2907], f2: [0.4953, 0.4841, 0.2893, 213, 220, 0.3127],
+  f3: [0.5000, 0.5477, 0.2627, 217, 220, 0.3041], f4: [0.5159, 0.5046, 0.3022, 220, 219, 0.3250], f5: [0.4862, 0.4886, 0.2372, 217, 220, 0.2965],
+  f6: [0.5023, 0.5250, 0.2896, 214, 220, 0.2990], f7: [0.4977, 0.5023, 0.2937, 218, 220, 0.3052], f8: [0.5114, 0.4977, 0.2025, 220, 214, 0.2531],
+  f9: [0.5000, 0.4977, 0.3064, 217, 220, 0.3179], f10: [0.5000, 0.4977, 0.3081, 217, 220, 0.3542], f11: [0.5000, 0.4932, 0.3076, 217, 220, 0.3214],
+  f12: [0.4903, 0.5705, 0.2659, 207, 220, 0.3323], f13: [0.5024, 0.4977, 0.3038, 210, 220, 0.3204], f14: [0.4909, 0.5068, 0.2575, 219, 220, 0.3219],
+  f15: [0.4977, 0.4977, 0.3177, 218, 220, 0.3315], f16: [0.5000, 0.5023, 0.2801, 215, 220, 0.3080], f17: [0.5000, 0.4977, 0.3172, 219, 220, 0.3423] };
+// The helmets' outline (all nine alike, tools/frame_holes.py): the smallest circle round it — centre x, centre y,
+// radius as shares of the 160 px picture. The chin reaches further than the dome, so the picture's own middle is not
+// the helmet's: centring that circle in the hole leaves the same gap to the ring all round.
+const HELMET_FIT = [0.4712, 0.5304, 0.4713];
+const HELMET_FILL = 0.84; // the helmet's circle takes this share of the free hole
+const holeOf = (f) => HOLES['f' + f] || [0.5, 0.5, 0.3, 1, 1, 0.32];
 // Achievement → badge picture (public/s2/bd/b<N>.webp, all drawn gold; lower tiers are tinted in CSS).
 const ACH_BADGE = { cases: 1, wins: 2, pvp: 9, battles: 10, collection: 3, rarest: 11, secrets: 12, garage: 0, level: 13, play: 14, streak: 6, merges: 15, tuned: 16, plates: 17, friends: 5, dream: 18 };
 const TIER_CLS = ['br', 'sv', 'gd', 'dm'];
@@ -71,10 +79,12 @@ function myLook() {
 }
 const lookOf = (id) => (Number(id) === me()?.id ? myLook() : LOOKS.get(Number(id)) || { h: S.helmetDefault(id), f: FR_NONE, frame: null });
 function avatar({ h, f }, size, lvl = null, cls = '') {
-  const [cx, cy, r, w, hh] = holeOf(f);
-  const d = r * 2 * 0.98, k = w / hh; // r is a share of the width, cy of the height
-  return `<span class="s2-ava ${cls}" style="width:${size}px;height:${Math.round(size / k)}px"><i class="hb" style="left:${(cx - r) * 100}%;top:${(cy - r * k) * 100}%;width:${r * 200}%;height:${r * 200 * k}%"></i>
-    <img class="hm" src="s2/av/h${h}.webp" alt="" style="left:${(cx - d / 2) * 100}%;top:${(cy - (d / 2) * k) * 100}%;width:${d * 100}%">
+  const [cx, cy, r, w, hh, rb] = holeOf(f);
+  const k = w / hh; // shares of the width → of the height
+  const d = (HELMET_FILL * r) / HELMET_FIT[2]; // the helmet picture's width (share of the frame's width)
+  const pc = (v) => `${+(v * 100).toFixed(3)}%`;
+  return `<span class="s2-ava ${cls}" style="width:${size}px;height:${Math.round(size / k)}px"><i class="hb" style="left:${pc(cx - rb)};top:${pc(cy - rb * k)};width:${pc(rb * 2)};height:${pc(rb * 2 * k)}"></i>
+    <img class="hm" src="s2/av/h${h}.webp" alt="" style="left:${pc(cx - HELMET_FIT[0] * d)};top:${pc(cy - HELMET_FIT[1] * d * k)};width:${pc(d)}">
     <img class="fr" src="s2/fr/f${f}.webp" alt="">${lvl != null ? `<b class="s2lv">${lvl}</b>` : ''}</span>`;
 }
 // Small round helmet (header, tab bar): the helmet on a dark disc in a level ring.
