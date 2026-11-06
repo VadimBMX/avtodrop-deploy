@@ -7032,6 +7032,61 @@ body > .reel.cine { z-index: 140; display: block; padding: 0; background: #05060
 .tk-card .tk-nb { margin-top: 8px; }
 .tk-card .tk-nb .refuel-btn.nb-fuel { width: 100%; justify-content: center; min-height: 44px; margin: 0; }
 
+/* ===== r5-shop 2026-11-06: «Ефект дропу» (public/dropfx.js engine, public/dropfx-ui.js) =====
+   Two canvases per stage: .dfx-b behind the car (z 1, over the stage fade), .dfx-f in front (z 3). Previews are small
+   copies of the result turntable (same photo, the car box of a ×3 tile). */
+.dfx-c { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.dfx-c.dfx-b { z-index: 1; }
+.dfx-c.dfx-f { z-index: 3; }
+.dfx-c.dfx-still { animation: dfxIn .35s ease-out both; }
+.dfx-c.dfx-out { opacity: 0; transition: opacity .6s ease; }
+@keyframes dfxIn { from { opacity: 0; } }
+.fx-gold { --fx: #ffc93c; --fx2: #a8700f; }
+.fx-bolt { --fx: #8cc2ff; --fx2: #2a5cff; }
+.fx-fire { --fx: #ff8a2a; --fx2: #c2260a; }
+.fx-chrome { --fx: #eef2f7; --fx2: #7d8794; }
+.dfx-pv { position: relative; aspect-ratio: 1 / .62; overflow: hidden; border-radius: 12px; isolation: isolate;
+  background: url('s2/bg/stage-reveal.webp') center 55% / 104% auto no-repeat, #07080b; }
+.dfx-pv::after { content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none; background: linear-gradient(#07080b 0, transparent 18%, transparent 80%, #07080b 100%); }
+body.s2 .dfx-pv .a-car { left: 9%; width: 82%; bottom: 25%; }
+.dfx-pv.off .a-car { opacity: .55; filter: saturate(.4); }
+.dfx-h { scroll-margin-top: 70px; }
+.dfx-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 6px; }
+.dfx-card { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 7px 7px 9px; border-radius: 16px; background: var(--slab-dk); box-shadow: var(--slab-sh-sm); }
+.dfx-card.on { box-shadow: 0 0 0 1.5px var(--accent), var(--slab-sh-sm); }
+.dfx-tx { padding: 0 3px; min-width: 0; }
+.dfx-tx b { display: flex; align-items: center; gap: 6px; font: 800 13.5px/1.1 var(--f-fc); letter-spacing: .3px; text-transform: uppercase; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dfx-tx b::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff 0, var(--fx) 45%, var(--fx2) 100%); box-shadow: 0 0 6px var(--fx); }
+.dfx-tx small { display: block; margin-top: 3px; min-height: 2.5em; font: 600 11.5px/1.25 var(--f-body); color: var(--muted); }
+.dfx-tx small .i { width: 12px; height: 12px; color: var(--green); vertical-align: -2px; }
+.dfx-card > .btn, .dfx-card > .row { margin-top: auto; }
+.dfx-card > .btn { width: 100%; }
+.dfx-card > .row { flex-wrap: wrap; }
+.dfx-card > .row .btn { flex: 1 1 auto; }
+.dfx-promo { display: flex; align-items: center; gap: 12px; width: 100%; padding: 7px 12px 7px 7px; text-align: left; color: inherit; }
+.dfx-promo .dfx-pv { flex: 0 0 128px; border-radius: 10px; }
+.dfx-promo-tx { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.dfx-promo-tx b { font: 800 16px var(--f-fc); text-transform: uppercase; letter-spacing: .3px; color: #fff; }
+.dfx-promo-tx small { font: 600 11.5px/1.25 var(--f-body); color: var(--muted); }
+.dfx-new { align-self: flex-start; padding: 1px 6px; border-radius: 5px; background: var(--accent); color: #111; font: 800 10px var(--f-fc); letter-spacing: .6px; text-transform: uppercase; }
+.dfx-promo-p { display: flex; align-items: center; gap: 3px; margin-top: 3px; font: 700 13px var(--s2-mono); color: var(--accent); }
+.dfx-promo-p i { margin-left: auto; display: inline-flex; color: var(--muted); }
+.dfx-look { margin-top: 6px; }
+.dfx-look .dfx-pv { margin: 2px 0 10px; border-radius: 14px; aspect-ratio: 1 / .46; background-position: center 64%; background-size: 100% auto; }
+body.s2 .dfx-look .dfx-pv .a-car { left: 13%; width: 74%; bottom: 17%; }
+.dfx-look .s2-h span .i { width: 12px; height: 12px; vertical-align: -1px; }
+.dfx-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.dfx-chip { display: flex; align-items: center; gap: 8px; min-width: 0; height: 42px; padding: 0 12px; border-radius: 12px; background: var(--glass); border: 1px solid var(--glass-b); color: var(--text); font: 700 13px var(--f-body); text-align: left; }
+.dfx-chip span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dfx-chip.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.dfx-chip.lock { color: var(--muted); }
+.dfx-chip.lock .dfx-dot { opacity: .45; }
+.dfx-chip > .i { margin-left: auto; width: 16px; height: 16px; flex: none; color: var(--accent); }
+.dfx-chip em { margin-left: auto; display: inline-flex; flex: none; color: var(--muted); }
+.dfx-chip em .i { width: 14px; height: 14px; }
+.dfx-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff 0, var(--fx) 45%, var(--fx2) 100%); box-shadow: 0 0 8px var(--fx); }
+@media (prefers-reduced-motion: reduce) { .dfx-c.dfx-out { transition: opacity .3s linear; } }
+
 /* ===== wIntro 2026-10-29: animated intros (public/intro-fx.js). One staged entrance per screen, ≤ 0.9 s, transform and
    opacity only (no filters, no blur); loops are a slow light sweep and a glow pulse. Every keyframe ends on the element's
    own resting style (fill: backwards), so :active and later transforms still work. prefers-reduced-motion: all still. --- */
