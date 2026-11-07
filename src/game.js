@@ -23,6 +23,7 @@ import { createBugBounty } from './bugbounty.js';
 import { createShowroom } from './showroom.js';
 import { createGoals } from './goals.js';
 import { createPlateAuction } from './plate-auction.js';
+import { createCarAuction } from './car-auction.js';
 import { createSeason2 } from './season2.js';
 import { createBusiness } from './business.js'; // s2-biz
 import { bizOfItem, BIZ as BIZ_RULES } from '../public/business.js'; // s2-biz
@@ -238,7 +239,7 @@ export function createGame(db, opts = {}) {
     return { id: c.id, model: c.model, status: c.status, parts, plate, look: lookOf(c), tank: t.tank, tankNext: t.next, sell: Math.floor(S.sellPriceOf(c.model, now() - c.created_at, c.origin) * (BIZ?.owns(c.owner_id, 'salon') ? 1 + BIZ_PERKS.salonSell : 1)) /* s2-biz */, origin: c.origin || null, ...st,
       dirt: Math.floor(S.dirtNow(c.dirt, c.dirt_at, now())), shineUntil: c.shine_until > now() ? c.shine_until : 0, ...(c.serial ? { serial: c.serial } : {}),
       ...((r) => (r?.stars ? { stars: r.stars, starAt: r.at, starSpent: r.spent } : {}))(ex ? ex.restyle(c.id) : restyleOf(c.id)),
-      ...(isLockedCar(c) ? { legend: true } : {}) };
+      ...(isLockedCar(c) ? { legend: true } : {}), ...(isNoStateCar(c) ? { noState: true } : {}) };
   }
   // Paint and livery as the client draws them (n = the race livery's number); null for a factory car. Unknown ids
   // (an old colour that was dropped) count as factory.
@@ -262,10 +263,18 @@ export function createGame(db, opts = {}) {
     if (isLockedCar(c)) fail(S.LEGEND_CAR.lockText);
     return c;
   }
+  // Owner 07.11: a car won at «🔨 Аукціон машини» (cars.no_state_sale = 1, src/car-auction.js) goes between players —
+  // market, auction, trades (noSecret lets it through even when its model is a secret / season one) — but never to the
+  // state: every sell-to-state gate (instant sale, the buyer, trade-in, upgrade) calls noState instead of noSecret.
+  const isNoStateCar = (c) => !!c && Number(c.no_state_sale) === 1;
+  function noState(c) {
+    if (isNoStateCar(c)) fail(S.NO_STATE_SALE_TEXT);
+    return noSecret(c);
+  }
   // Secret cars are trophies for finishing a collection: they can't be sold, listed, traded or burned in an upgrade.
   function noSecret(c) {
     noLocked(c);
-    if (S.MODELS[c.model]?.secret) fail('Секретну машину не можна продати, обміняти чи поставити в апгрейд — це нагорода за колекцію');
+    if (S.MODELS[c.model]?.secret && !isNoStateCar(c)) fail('Секретну машину не можна продати, обміняти чи поставити в апгрейд — це нагорода за колекцію');
     return c;
   }
   // Collector cars (the UA gold rarities) sell for S.HOME_SELL_RATE only, so they can't be turned into money at the full
@@ -903,7 +912,7 @@ export function createGame(db, opts = {}) {
     bank(uid);
     let got = 0;
     for (const id of ids) {
-      const c = noSecret(ownCar(uid, id, ['garage', 'showcase']));
+      const c = noState(ownCar(uid, id, ['garage', 'showcase'])); // owner 07.11: never an auction car
       got += Math.floor(S.sellPriceOf(c.model, now() - c.created_at, c.origin) * (BIZ ? BIZ.perks(uid).sellMult : 1)); // s2-biz: «Автосалон» +5%
       stripCar(uid, c.id);
       q('DELETE FROM cars WHERE id = ?').run(c.id);
@@ -1867,7 +1876,7 @@ export function createGame(db, opts = {}) {
   function upgrade(uid, { carIds, target }) {
     const ids = idList(carIds, S.UPGRADE.maxCars);
     if (!ids.length) fail('Обери хоча б одну машину');
-    const cars = ids.map((id) => noCollector(noSecret(ownCar(uid, id))));
+    const cars = ids.map((id) => noCollector(noState(ownCar(uid, id))));
     if (q("SELECT COUNT(*) n FROM cars WHERE owner_id = ? AND status = 'garage'").get(uid).n - ids.length < 1) fail('У гаражі має залишитися хоча б одна машина');
     const t = own(S.MODELS, target); // 'toString' passed every check and burned the cars at a NaN chance (n5-bugs)
     if (!t || t.secret) fail('Обери машину-ціль');
@@ -1899,7 +1908,7 @@ export function createGame(db, opts = {}) {
   function tradeIn(uid, { carIds }) {
     const ids = idList(carIds, S.TRADE_IN.cars);
     if (ids.length !== S.TRADE_IN.cars) fail(`Потрібно рівно ${S.TRADE_IN.cars} машини`);
-    const cars = ids.map((id) => noCollector(noSecret(ownCar(uid, id))));
+    const cars = ids.map((id) => noCollector(noState(ownCar(uid, id))));
     const cls = S.MODELS[cars[0].model].cls;
     if (cars.some((c) => S.MODELS[c.model].cls !== cls)) fail('Усі три машини мають бути одного класу');
     const up = S.CLASS_ORDER[S.rankOf(cls) + 1];
@@ -2459,6 +2468,7 @@ export function createGame(db, opts = {}) {
   let CT = null; // the container auction («Причал», src/containers.js), created below with the game's helpers
   let CL = null; // «Автоклуби» (src/clubs.js), created below with the game's helpers
   let PA = null; // «Аукціон номера» (src/plate-auction.js), created below with the game's helpers
+  let CA = null; // «Аукціон машини» (src/car-auction.js), the same
   function sweepContainers() {
     return CT ? db.tx(() => CT.sweep()) : 0;
   }
@@ -2466,6 +2476,7 @@ export function createGame(db, opts = {}) {
     sweepContainers(); // lots of «Причал» with live bidding: the bots' answers and endings, even when nobody looks
     if (CL) db.tx(() => CL.settle()); // «Автоклуби»: the weekly league pays out at Monday 00:00 Kyiv, even when nobody looks
     if (PA) db.tx(() => PA.sweep()); // «Аукціон номера»: the winner gets the plate when the time is up, even when nobody looks
+    if (CA) db.tx(() => CA.sweep()); // «Аукціон машини»: the same for the car
     const due = q("SELECT * FROM auctions WHERE status = 'open' AND ends_at <= ?").all(now());
     for (const a of due) {
       db.tx(() => {
@@ -4864,6 +4875,7 @@ export function createGame(db, opts = {}) {
       for (const a of q("SELECT id FROM auctions WHERE seller_id = ? AND status = 'open'").all(uid)) adminMarketRemove(who, { kind: 'auction', id: a.id }, false);
       for (const l of q('SELECT * FROM item_listings WHERE seller_id = ?').all(uid)) closeItemLot(l);
       PA?.dropLeader(uid); // «Аукціон номера»: a frozen account can't win a plate (his bid comes back)
+      CA?.dropLeader(uid); // «Аукціон машини»: nor the car
       CT?.dropLeader(uid, { refund: true }); // «Причал»: nor a container
     }
     alog(who, banned ? 'ban' : 'unban', uid, r ? { reason: r } : null);
@@ -4896,6 +4908,7 @@ export function createGame(db, opts = {}) {
     // Their leading bids on other people's auctions are dropped; the money was already taken and the balance resets anyway.
     q("UPDATE auctions SET top_bid = NULL, top_bidder = NULL WHERE top_bidder = ? AND status = 'open'").run(uid);
     q("UPDATE plate_auctions SET top_bid = NULL, top_bidder = NULL WHERE top_bidder = ? AND status = 'open'").run(uid); // the same on «Аукціон номера»
+    CA?.dropLeader(uid, { refund: false }); // and on «Аукціон машини»
     CT?.dropLeader(uid, { refund: false }); // and on «Причал»: no old bid back on an outbid, no container won after the reset
     // His challenges go without a refund (the balance resets anyway); one somebody asked to race gives the asker's
     // bet back; a race he asked for goes back to the list without paying the reset account its old bet.
@@ -5618,7 +5631,7 @@ export function createGame(db, opts = {}) {
   }
   // «Таємний покупець» (src/buyer.js, public/buyer.js): the offer of the day in `me.buyer`, a sale to it through the
   // ordinary sell (never the last car, parts and plate back), the «покупець чекає ще 1 год» reminder, a read-only admin stat.
-  const BY = createBuyer({ q, now, dayOf, fail, int, isOpen, ownCar, noSecret, addMoney, metaGet, metaSet, sellCar: (uid, id) => sell(uid, { carIds: [id] }) });
+  const BY = createBuyer({ q, now, dayOf, fail, int, isOpen, ownCar, noSecret: noState /* owner 07.11: no auction car */, addMoney, metaGet, metaSet, sellCar: (uid, id) => sell(uid, { carIds: [id] }) });
   Object.assign(GATES, BY.gates);
   Object.assign(handlers, BY.api);
   {
@@ -5671,6 +5684,21 @@ export function createGame(db, opts = {}) {
     });
   }
   for (const k of PA.mutating) ADMIN_MUTATING.add(k);
+  // «🔨 Аукціон машини» (owner 07.11; src/car-auction.js, public/car-auction-ui.js, public/admin-car-auction.js): the
+  // same for a limited car; the prize gets cars.no_state_sale. `me.carAuction` drives the hub card and the strips.
+  CA = createCarAuction({ db, q, now, fail, int, name, addMoney, pay, event, gift, alog: (...a) => alog(...a), isBanned, giveCar, auctionRoom });
+  Object.assign(handlers, CA.api);
+  {
+    const meBase = handlers.me;
+    handlers.me = (uid, b) => ({ ...meBase(uid, b), carAuction: CA.brief(uid) });
+  }
+  for (const [k, fn] of Object.entries(CA.admin)) {
+    admin[k] = (who, body = {}) => db.tx(() => {
+      if (!canDo(actorRole(who), k)) fail('Немає прав на цю дію');
+      return fn(who, body || {});
+    });
+  }
+  for (const k of CA.mutating) ADMIN_MUTATING.add(k);
   // ===== s2-biz: «Мої бізнеси» (src/business.js, public/business.js, public/business-ui.js) =====
   // biz, biz/buy, biz/upgrade, biz/collect; `me.biz` / `me.bizTotalBox` / `me.bizPerks`; the «Менеджер» Stars items
   // (S.SHOP_BY_ID bizmgr-<id>) go through the usual itemPrice / applyItem; a VIP purchase banks the boxes first.
@@ -5798,7 +5826,7 @@ export function createGame(db, opts = {}) {
   }
   // Every call runs in one transaction, settles the weekly race and refreshes the caller's garage value — except the
   // frequent polls below (every few seconds, or several times a second in a live race), which change no cars.
-  const LIGHT = new Set(['pulse', 'pvp/progress', 'pvp/state', 'containers/lot', 'plateAuction']);
+  const LIGHT = new Set(['pulse', 'pvp/progress', 'pvp/state', 'containers/lot', 'plateAuction', 'carAuction']);
   const WEEKLY_AFTER = { 'drift/finish': 'drift' };
   // Players hidden from the ratings by an admin (users.lb_hidden): every board skips them, the places close up. The
   // lists take a few extra rows so a hidden top player doesn't leave the board one short.

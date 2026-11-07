@@ -212,7 +212,7 @@ function pageLabel(pg) {
   const have = () => m.collection.filter((id) => !M(id)?.secret).length, total = () => S.ALL_MODELS.filter((x) => !x.secret).length;
   const L = {
     market: ['РИНОК · ТОРГІВЛЯ', '#39e58c'], trades: ['ОБМІНИ · НАЖИВО', '#39e58c'], room: ['КІМНАТА ОБМІНУ · LIVE', '#39e58c'], tradeNew: ['НОВИЙ ОБМІН', '#39e58c'],
-    plates: [`МОЇ НОМЕРИ · ${m.plates?.length || 0}`, '#3d8bff'], plateAuction: ['АУКЦІОН · НОМЕРИ', '#ff3d5a'], lot: ['ПРИЧАЛ · КОНТЕЙНЕР', '#22c3e6'],
+    plates: [`МОЇ НОМЕРИ · ${m.plates?.length || 0}`, '#3d8bff'], plateAuction: ['АУКЦІОН · НОМЕРИ', '#ff3d5a'], carAuction: ['АУКЦІОН · МАШИНА', '#ff3df0'], lot: ['ПРИЧАЛ · КОНТЕЙНЕР', '#22c3e6'],
     collection: [`КОЛЕКЦІЯ · ${have()} / ${total()}`, '#a26bff'], quests: ['ЗАВДАННЯ · ЦІЛІ', '#39e58c'], season: [`СЕЗОН ${m.season?.id || ''} · ПРОПУСК`.replace('  ', ' '), '#ff3df0'],
     club: ['АВТОКЛУБ', '#c084fc'], friends: ['ЗАПРОСИ ДРУГА', '#39e58c'], events: ['ЩО ВІДБУВАЄТЬСЯ', '#ff3df0'], achievements: ['НАГОРОДИ', '#ffcc33'],
     support: ['ВІДПОВІДЬ ДО 24 ГОД', '#22e3ff'], leaderboard: ['ТОП ГРАВЦІВ', '#ffcc33'], store: ['ЗІРКИ TELEGRAM', '#ffcc33'], battles: ['КЕЙС-БАТЛИ', '#ff3d5a'], battle: ['КЕЙС-БАТЛ', '#ff3d5a'],
@@ -255,6 +255,7 @@ function bizList() {
   return list.map((v) => ({ type: v.type || v.kind || v.id, name: v.name, rate: v.rate ?? v.income ?? v.perHour ?? 0, pending: v.pending ?? v.cash ?? v.box ?? 0, level: v.level ?? v.lvl }));
 }
 const paOpen = () => (me().plateAuction?.open || []).filter((a) => a.endsAt > X.serverNow());
+const caOpen = () => (me().carAuction?.open || []).filter((a) => a.endsAt > X.serverNow()); // «Аукціон машини» (owner 07.11)
 function spotText(sp) {
   if (sp.soon) return '<small>скоро</small>';
   const m = me(), biz = bizList();
@@ -560,11 +561,12 @@ function mountPan() {
 
 // ---------- Ринок ----------
 function bazaarView() {
-  const m = me(), pa = paOpen();
+  const m = me(), pa = paOpen(), ca = caOpen();
   const Y = '#ffd400', GR = '#2fd27a', BL = '#3d8bff', CY = '#22c3e6', AM = '#ff8a3d', RD = '#ff3d5a', PU = '#a26bff';
   const tile = (o) => X.hubTile(o);
   const live = pa.length ? `<button class="s2-live" data-act="go" data-page="plateAuction"><span class="s2-live-l">LIVE</span><span class="grow"><b>Аукціон номера</b><small>${esc(pa[0].text)} · ставка ${S.short(pa[0].topBid || pa[0].minBid)} · ${X.untilSpan(pa[0].endsAt)}</small></span>${X.ic('chevron-right')}</button>` : '';
-  return `<div class="s2-page"><div class="s2-ttl"><small style="--c:${GR}">РИНОК · ТОРГІВЛЯ</small><h2>Ринок</h2></div>${live}
+  const liveCar = ca.length ? `<button class="s2-live" data-act="go" data-page="carAuction"><span class="s2-live-l">LIVE</span><span class="grow"><b>Аукціон машини</b><small>${esc(ca[0].name)} · ставка ${S.short(ca[0].topBid || ca[0].minBid)} · ${X.untilSpan(ca[0].endsAt)}</small></span>${X.ic('chevron-right')}</button>` : '';
+  return `<div class="s2-page"><div class="s2-ttl"><small style="--c:${GR}">РИНОК · ТОРГІВЛЯ</small><h2>Ринок</h2></div>${liveCar}${live}
     <div class="hub-grid g2">
       ${tile({ page: 'market', k: 'market', icon: 'building-store', c: GR, title: 'Авторинок', info: 'машини, деталі, номери' })}
       ${tile({ page: 'trades', k: 'trades', icon: 'arrows-exchange', c: BL, title: 'Обміни', badge: m.incomingTrades, info: 'кімнати обміну наживо' })}
@@ -785,7 +787,7 @@ function garageView(base) {
     return `<button class="s2-fl a-fl" data-act="car" data-id="${c.id}" style="--c:${clsCol(md.cls)}"><span class="a-pn">P${k}</span>
       <span class="s2-fl-car art">${X.carArt(c.model, { look: c.look, dirt: c.dirt })}</span>
       <span class="a-fl-tag"><span class="a-cls" style="--c:${clsCol(md.cls)}">${md.cls}</span><b class="ellipsis">${esc(md.name)}</b></span>
-      <span class="a-fl-val">${c.legend /* owner 06.11: «Легенда S1» — not for sale, so no sale price */ ? `<span class="ed-no lg-no" title="${esc(S.LEGEND_CAR.lockText)}">${X.ic('trophy')}${esc(S.LEGEND_CAR.tag)}</span>` : `<em>${S.short(X.sellPrice(c))}</em>`}${inc ? `<small>+${shortN(inc.rate ?? inc.income ?? inc)}/год</small>` : ''}</span></button>`;
+      <span class="a-fl-val">${c.legend /* owner 06.11: «Легенда S1» — not for sale, so no sale price */ ? `<span class="ed-no lg-no" title="${esc(S.LEGEND_CAR.lockText)}">${X.ic('trophy')}${esc(S.LEGEND_CAR.tag)}</span>` : c.noState /* owner 07.11: an auction car — players only, no state price */ ? `<span class="ed-no ns-no" title="${esc(S.NO_STATE_SALE_TEXT)}">${X.ic('hammer')}лімітована</span>` : `<em>${S.short(X.sellPrice(c))}</em>`}${inc ? `<small>+${shortN(inc.rate ?? inc.income ?? inc)}/год</small>` : ''}</span></button>`;
   };
   const build = m.slots < S.MAX_SLOTS ? `<div class="s2-fl a-fl build"><span class="a-pn">P${m.slots + 1}</span><div class="s2-tape"><span>БУДУЄТЬСЯ · ПОВЕРХ P${m.slots + 1}</span></div><span class="s2-fl-hint">+1 місце для машини</span><button class="s2-btn sm" data-act="buySlot">${X.ic('plus')}${S.short(S.slotCost(m.slots))}</button></div>` : '';
   const free = Math.max(0, m.slots - m.cars.filter((c) => c.status !== 'showcase').length);
@@ -804,7 +806,7 @@ function garageView(base) {
 function parkHead() {
   const m = me();
   const all = m.cars.filter((c) => c.status !== 'showcase');
-  return `<div class="s2-phead"><h2>Мій гараж</h2><div><b>${S.short(X.sellTotal(all.filter((c) => !M(c.model).secret && !c.legend)))}</b><small>+${shortN(m.income?.rate || 0)}/год · ${all.filter((c) => !c.legend).length}/${m.slots}</small></div></div>`;
+  return `<div class="s2-phead"><h2>Мій гараж</h2><div><b>${S.short(X.sellTotal(all.filter((c) => !M(c.model).secret && !c.legend && !c.noState)))}</b><small>+${shortN(m.income?.rate || 0)}/год · ${all.filter((c) => !c.legend).length}/${m.slots}</small></div></div>`;
 }
 
 // ---------- Профіль ----------
