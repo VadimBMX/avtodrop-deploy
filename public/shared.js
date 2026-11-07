@@ -600,7 +600,10 @@ const OLD_SEASON_CARS = [
 // «🔨 Аукціон машини» (src/car-auction.js, owner 07.11): limited cars the admin auctions off — never a pass prize. The
 // won car carries cars.no_state_sale: it goes between players (market, auction, trade) but never to the state.
 const AUCTION_CARS = [
-  SEASON2_CAR_OPTIONS[2], // Toyota Supra A80 «Neon Tokyo»: the first lot (07.11)
+  SEASON2_CAR_OPTIONS[2], // Toyota Supra A80 «Neon Tokyo» (kept valid; its pink filter photo looked bad — owner 07.11)
+  // owner 07.11: the first lot — a bright orange tuned Supra with lime flames (own photo, Gemini; original graphics)
+  { season: 2, name: 'Toyota Supra A80 «Orange Street»', hp: 620, kg: 1490, body: 'coupe', country: 'JP', year: 1994, price: ECON.seasonCar,
+    img: 'toyota-supra-a80-orange-street' },
 ];
 for (const c of [...SEASON_CARS, ...OLD_SEASON_CARS, ...AUCTION_CARS]) {
   const id = slug(c.name);
@@ -613,7 +616,7 @@ for (const c of [...SEASON_CARS, ...OLD_SEASON_CARS, ...AUCTION_CARS]) {
 // can't go into an upgrade or a trade-in — that is what pays for the gold guarantee of the case (see COUNTRY_CASES.UA).
 for (const n of ['ГАЗ-24-95 «Волга» 4x4', 'ВАЗ-2108 Group B', 'ГАЗ-13 «Чайка»', 'ЗІЛ-41047']) MODELS[slug(n)].homeOnly = true;
 for (const id of IMPORT_HOME_ONLY) for (const M of [MODELS, PENDING_MODELS]) if (M[id]) M[id].homeOnly = true;
-export const CAR_AUCTION_MODEL = SEASON2_CAR_OPTIONS[2].id; // the admin form's default lot
+export const CAR_AUCTION_MODEL = AUCTION_CARS[1].id; // the admin form's default lot
 export const NO_STATE_SALE_TEXT = 'Цю машину не можна продати державі — тільки гравцям';
 export const ALL_MODELS = Object.values(MODELS);
 export const SECRET_BY_COUNTRY = Object.fromEntries(ALL_MODELS.filter((m) => m.secret && !m.season).map((m) => [m.country, m.id]));

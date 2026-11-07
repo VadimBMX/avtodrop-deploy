@@ -1,4 +1,4 @@
-// «🔨 Аукціон машини» (owner 07.11, src/car-auction.js): admins launch it for a model (default the Supra «Neon Tokyo»),
+// «🔨 Аукціон машини» (owner 07.11, src/car-auction.js): admins launch it for a model (default the Supra «Orange Street»),
 // players bid with escrow, an outbid refund and the plate auction's anti-snipe; the winner gets a new car with
 // cars.no_state_sale = 1 — it goes on the market, the player auction and trades (and keeps the flag with every new
 // owner), but every sell-to-state path refuses it. Cancel refunds. The legend and secret rules of other cars stay.
@@ -13,7 +13,7 @@ import * as S from '../public/shared.js';
 const T0 = Date.parse('2026-11-07T10:00:00Z');
 const START = 1_000_000, STEP = 50_000;
 const NO_STATE = /Цю машину не можна продати державі — тільки гравцям/;
-const SUPRA = 'toyota-supra-a80-neon-tokyo';
+const SUPRA = 'toyota-supra-a80-orange-street';
 
 function setup() {
   let t = T0;
@@ -43,10 +43,10 @@ function won(s, winner) {
   return s.row(id).car_id;
 }
 
-test('car auction: the first lot is the Supra «Neon Tokyo» — a season-2 secret model, never a pass prize', () => {
+test('car auction: the first lot is the Supra «Orange Street» — a season-2 secret model, never a pass prize', () => {
   assert.equal(S.CAR_AUCTION_MODEL, SUPRA);
   const m = S.MODELS[SUPRA];
-  assert.equal(m.name, 'Toyota Supra A80 «Neon Tokyo»');
+  assert.equal(m.name, 'Toyota Supra A80 «Orange Street»');
   assert.equal(m.secret, true);
   assert.equal(m.season, 2);
   assert.ok(!S.SEASON_CARS.some((c) => c.id === SUPRA), 'not the season pass car');
@@ -232,8 +232,8 @@ test('car auction: the group gets the start and the result once each, with the c
   assert.equal((await ch.postCarAuctions()).sent, 0, 'no target yet');
   ch.setTarget({ chat: -1001234567, thread: 3 });
   assert.equal((await ch.postCarAuctions()).sent, 1);
-  assert.match(calls[0][1].text, /Аукціон машини: Toyota Supra A80 «Neon Tokyo»/);
-  assert.equal(calls[0][1].link_preview_options.url, 'https://x/toyota-supra-a80.webp');
+  assert.match(calls[0][1].text, /Аукціон машини: Toyota Supra A80 «Orange Street»/);
+  assert.equal(calls[0][1].link_preview_options.url, 'https://x/toyota-supra-a80-orange-street.webp');
   assert.equal((await ch.postCarAuctions()).sent, 0, 'once');
   s.call(a1, 'carAuction/bid', { id, amount: START });
   s.add(48 * 3600e3 + 1);
