@@ -176,6 +176,7 @@ export const CAR_PHOTOS = [
   'toyota-land-cruiser-80',
   'toyota-mark-ii-jzx100',
   'toyota-supra-a80',
+  'toyota-supra-a80-orange-street',
   'toyota-supra-mk3',
   'toyota-yaris',
   'vaz-2101-kopiika',

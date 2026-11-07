@@ -576,6 +576,9 @@ const MIGRATIONS = [
   'ALTER TABLE users ADD COLUMN newbie_fuel INTEGER NOT NULL DEFAULT 0', // d2-wall: free «Заправка новачка» used (S.newbieFuelLeft)
   // Owner 06.11: a «Легенда S1» car (S.LEGEND_CAR) — never leaves its owner (game.js isLockedCar + the triggers below).
   'ALTER TABLE cars ADD COLUMN legend INTEGER NOT NULL DEFAULT 0',
+  // Owner 07.11: a car won at «🔨 Аукціон машини» (src/car-auction.js) — tradable between players (market, auction,
+  // trades) but never sold to the state (instant sale, buyer, trade-in, upgrade). Stays with the car on every owner change.
+  'ALTER TABLE cars ADD COLUMN no_state_sale INTEGER NOT NULL DEFAULT 0',
 ];
 
 export function openDb(file) {

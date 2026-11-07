@@ -126,6 +126,15 @@ export function plateAuctionText(kind, a) {
   return `🔨 <b>Номер ${escHtml(a.text)} продано!</b>\n\n${who(a)} забирає ${plate} за ${S.short(a.top_bid)} — ${a.bids} ${a.bids % 10 === 1 && a.bids % 100 !== 11 ? 'ставка' : [2, 3, 4].includes(a.bids % 10) && ![12, 13, 14].includes(a.bids % 100) ? 'ставки' : 'ставок'} за весь аукціон.\n\nСлідкуй за групою — наступний номер може бути твоїм 🏁\n\n#аукціон`;
 }
 
+// «🔨 Аукціон машини» (src/car-auction.js): the start and the result with a winner.
+export function carAuctionText(kind, a) {
+  const car = `<b>${escHtml(S.MODELS[a.model]?.name || a.model)}</b>`;
+  if (kind === 'start') {
+    return `🔨 <b>Аукціон машини: ${escHtml(S.MODELS[a.model]?.name || a.model)}</b>\n\nАдміністрація виставила лімітовану ${car} — її немає в жодному кейсі.\n💰 Старт ${S.short(a.start_price)} · крок ${S.short(a.step)}\n⏱ До ${kyivHm(a.ends_at)} (Київ)\n\nХто дасть більше — забирає машину. Її можна перепродати чи обміняти іншим гравцям 👇\n\n#аукціон`;
+  }
+  return `🔨 <b>${escHtml(S.MODELS[a.model]?.name || a.model)} продано!</b>\n\n${who(a)} забирає ${car} за ${S.short(a.top_bid)} — ${a.bids} ${a.bids % 10 === 1 && a.bids % 100 !== 11 ? 'ставка' : [2, 3, 4].includes(a.bids % 10) && ![12, 13, 14].includes(a.bids % 100) ? 'ставки' : 'ставок'} за весь аукціон.\n\nСлідкуй за групою — наступний лот може бути твоїм 🏁\n\n#аукціон`;
+}
+
 export function digestText(events) {
   const lines = events.slice(0, DIGEST_LINES).map(eventLine);
   const more = events.length - lines.length;
@@ -330,11 +339,52 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
     return { sent };
   }
 
+  // «🔨 Аукціон машини»: the same as the plate auction's posts, with the car photo as the link preview.
+  async function postCarAuctions() {
+    if (!configured()) return { sent: 0 };
+    let rows;
+    try {
+      rows = [
+        ...q("SELECT * FROM car_auctions WHERE status = 'open' AND created_at > ? ORDER BY id").all(now() - STALE_MS).map((a) => ['start', a]),
+        ...q("SELECT * FROM car_auctions WHERE status = 'done' AND top_bidder IS NOT NULL AND settled_at > ? ORDER BY id").all(now() - STALE_MS).map((a) => ['end', a]),
+      ];
+    } catch {
+      return { sent: 0 }; // no such table
+    }
+    let sent = 0;
+    for (const [kind, a] of rows) {
+      const ref = `${kind}:${a.id}`;
+      if (q("SELECT 1 FROM channel_posts WHERE kind = 'car-auction' AND ref = ?").get(ref)) continue;
+      const name = kind === 'end' ? shownName(a.top_bidder) : null;
+      if (name === undefined) {
+        once('car-auction', ref); // a banned winner: no post
+        continue;
+      }
+      const text = carAuctionText(kind, { ...a, name });
+      const m = S.MODELS[a.model];
+      const preview = imageUrl(m?.img || m?.base || a.model);
+      const reply_markup = button();
+      try {
+        await api('sendMessage', { chat_id: chId(), ...thread(), text, parse_mode: 'HTML',
+          link_preview_options: preview ? { url: preview, prefer_large_media: true, show_above_text: true } : { is_disabled: true }, ...(reply_markup ? { reply_markup } : {}) });
+        once('car-auction', ref);
+        q('INSERT INTO channel_log (at, kind, n, ok, test, text) VALUES (?, ?, 1, 1, 0, ?)').run(now(), 'car-auction', text.slice(0, 1500));
+        sent++;
+      } catch (err) {
+        q('INSERT INTO channel_log (at, kind, n, ok, test, text, error) VALUES (?, ?, 1, 0, 0, ?, ?)').run(now(), 'car-auction', text.slice(0, 1500), String(err.message).slice(0, 300));
+        log('channel car auction:', err.message);
+        break;
+      }
+    }
+    return { sent };
+  }
+
   let busy = false, pauseUntil = 0;
   async function tick() {
     if (!configured() || busy || now() < pauseUntil) return;
     if (newsLog.length) await postNews().catch(() => {});
     await postPlateAuctions().catch(() => {});
+    await postCarAuctions().catch(() => {});
     const c = cfg();
     if (!c.on) return void (pending = []);
     busy = true;
@@ -418,7 +468,7 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
   }
 
   return {
-    configured, shows, setShow, scan, tick, postNews, postPlateAuctions, admin, status, planPosts, setTarget,
+    configured, shows, setShow, scan, tick, postNews, postPlateAuctions, postCarAuctions, admin, status, planPosts, setTarget,
     get pending() {
       return pending;
     },
