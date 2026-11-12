@@ -355,6 +355,7 @@ export function createClubs(ctx) {
     q('DELETE FROM club_wins WHERE week = ? AND club_id = ? AND user_id = ?').run(week(), cid, uid);
   }
   function disband(cid) {
+    ctx.onDisband?.(cid); // r13: its city districts are free again (src/war.js drop; members still listed)
     q('DELETE FROM club_points WHERE club_id = ?').run(cid);
     q('DELETE FROM club_perks WHERE club_id = ?').run(cid);
     q('DELETE FROM club_wins WHERE club_id = ?').run(cid);

@@ -47,7 +47,7 @@ export const BIZ = {
     tireGrip: 0.05, // r13: fresh tyres — ×1.05 drift grip of the owner's cars (S.carStats `tire`)
     tireLaunch: 0.05, // r13: …and −0.05 s off every drag run's base time (a flat launch bonus, every class)
   },
-  districtBonus: 0.15, // +15% income when the player's club holds a district — TODO: districts (src/business.js districtBonus)
+  districtBonus: 0.15, // +15% income when the player's club holds a district («Війна районів»: src/war.js, src/business.js districtBonus)
 };
 export const BRANCH_KEYS = ['eq', 'staff', 'ads'];
 export const BIZ_BY_ID = Object.fromEntries(BIZ.list.map((b) => [b.id, b]));

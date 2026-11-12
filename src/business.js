@@ -20,10 +20,9 @@ export function createBusiness(ctx) {
   db.exec(SCHEMA);
   const managerPay = srcWrap('biz/manager', addMoney);
 
-  // Clubs holding a city district give their members +B.BIZ.districtBonus income.
-  // TODO(districts): return B.BIZ.districtBonus when the player's club holds a district (clubs/districts come later).
-  // eslint-disable-next-line no-unused-vars
-  const districtBonus = (uid) => 0;
+  // Clubs holding a city district give their members +B.BIZ.districtBonus income (r13: src/war.js holds — one bonus
+  // however many districts, 24 h after joining; game.js banks the boxes whenever it switches).
+  const districtBonus = (uid) => (ctx.districtHeld?.(uid) ? B.BIZ.districtBonus : 0);
 
   const ORDER = Object.fromEntries(B.BIZ.list.map((b, i) => [b.id, i]));
   const rows = (uid) => q('SELECT * FROM user_business WHERE uid = ?').all(uid).sort((a, b) => (ORDER[a.biz_id] ?? 99) - (ORDER[b.biz_id] ?? 99));

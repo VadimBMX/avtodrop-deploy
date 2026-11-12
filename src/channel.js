@@ -9,6 +9,7 @@
 // Pictures: the player's own share card (src/share.js, uploaded when he shared that car — only for opted-in players),
 // otherwise the car photo as a large link preview above the text.
 import * as S from '../public/shared.js';
+import { DISTRICT_BY_ID, WAR } from '../public/war.js';
 
 export const CHANNEL_DEFAULTS = Object.freeze({
   on: false, maxPerHour: 4, digest: true, digestMin: 60, jackpotX: 2.5,
@@ -133,6 +134,17 @@ export function carAuctionText(kind, a) {
     return `🔨 <b>Аукціон машини: ${escHtml(S.MODELS[a.model]?.name || a.model)}</b>\n\nАдміністрація виставила лімітовану ${car} — її немає в жодному кейсі.\n💰 Старт ${S.short(a.start_price)} · крок ${S.short(a.step)}\n⏱ До ${kyivHm(a.ends_at)} (Київ)\n\nХто дасть більше — забирає машину. Її можна перепродати чи обміняти іншим гравцям 👇\n\n#аукціон`;
   }
   return `🔨 <b>${escHtml(S.MODELS[a.model]?.name || a.model)} продано!</b>\n\n${who(a)} забирає ${car} за ${S.short(a.top_bid)} — ${a.bids} ${a.bids % 10 === 1 && a.bids % 100 !== 11 ? 'ставка' : [2, 3, 4].includes(a.bids % 10) && ![12, 13, 14].includes(a.bids % 100) ? 'ставки' : 'ставок'} за весь аукціон.\n\nСлідкуй за групою — наступний лот може бути твоїм 🏁\n\n#аукціон`;
+}
+
+// «Війна районів» (src/war.js): the weekly round's result — who took which district (only rounds where someone attacked).
+export function warRoundText(r) {
+  const cl = (id) => (r.clubs?.[id] ? `<b>[${escHtml(r.clubs[id].tag)}] ${escHtml(r.clubs[id].name)}</b>` : 'клуб');
+  const lines = (r.districts || []).filter((d) => d.kind === 'captured' || d.kind === 'kept').map((d) => {
+    const n = escHtml(DISTRICT_BY_ID[d.id]?.n || d.id);
+    if (d.kind === 'kept') return `🛡 ${n} — ${cl(d.to)} відстояв район`;
+    return `🏴 ${n} — ${cl(d.to)} захопив${d.from ? ` у ${cl(d.from)}` : ''} (${d.attackers.find((a) => a.id === d.to)?.score ?? 0} очк.)`;
+  });
+  return `⚔️ <b>Війна районів: підсумки тижня</b>\n\n${lines.join('\n')}\n\nКлуби-власники: +${Math.round(WAR.bizBonus * 100)}% доходу бізнесів усім учасникам і ${S.short(WAR.treasuryPerDistrict)} у касу за кожен район. Новий тиждень — нові атаки 👇\n\n#війнарайонів`;
 }
 
 export function digestText(events) {
@@ -379,12 +391,46 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
     return { sent };
   }
 
+  // «Війна районів»: one summary per weekly round in which a district was attacked (forced test rounds never post).
+  async function postWarRounds() {
+    if (!configured()) return { sent: 0 };
+    let rows;
+    try {
+      rows = q('SELECT round, result FROM war_rounds WHERE forced = 0 AND result IS NOT NULL AND settled_at > ? ORDER BY settled_at').all(now() - STALE_MS);
+    } catch {
+      return { sent: 0 }; // no such table
+    }
+    let sent = 0;
+    for (const row of rows) {
+      if (q("SELECT 1 FROM channel_posts WHERE kind = 'war' AND ref = ?").get(row.round)) continue;
+      const r = JSON.parse(row.result);
+      if (!(r.districts || []).some((d) => d.kind === 'captured' || d.kind === 'kept')) {
+        once('war', row.round); // nobody attacked: nothing to tell
+        continue;
+      }
+      const text = warRoundText(r);
+      const reply_markup = button();
+      try {
+        await api('sendMessage', { chat_id: chId(), ...thread(), text, parse_mode: 'HTML', link_preview_options: { is_disabled: true }, ...(reply_markup ? { reply_markup } : {}) });
+        once('war', row.round);
+        q('INSERT INTO channel_log (at, kind, n, ok, test, text) VALUES (?, ?, 1, 1, 0, ?)').run(now(), 'war', text.slice(0, 1500));
+        sent++;
+      } catch (err) {
+        q('INSERT INTO channel_log (at, kind, n, ok, test, text, error) VALUES (?, ?, 1, 0, 0, ?, ?)').run(now(), 'war', text.slice(0, 1500), String(err.message).slice(0, 300));
+        log('channel war:', err.message);
+        break;
+      }
+    }
+    return { sent };
+  }
+
   let busy = false, pauseUntil = 0;
   async function tick() {
     if (!configured() || busy || now() < pauseUntil) return;
     if (newsLog.length) await postNews().catch(() => {});
     await postPlateAuctions().catch(() => {});
     await postCarAuctions().catch(() => {});
+    await postWarRounds().catch(() => {});
     const c = cfg();
     if (!c.on) return void (pending = []);
     busy = true;
@@ -468,7 +514,7 @@ export function createChannel({ db, channelId = '', api = null, imageUrl = () =>
   }
 
   return {
-    configured, shows, setShow, scan, tick, postNews, postPlateAuctions, postCarAuctions, admin, status, planPosts, setTarget,
+    configured, shows, setShow, scan, tick, postNews, postPlateAuctions, postCarAuctions, postWarRounds, admin, status, planPosts, setTarget,
     get pending() {
       return pending;
     },
