@@ -12,6 +12,7 @@ import { plateAuctionPanel, plateAuctionAfter, plateAuctionActions } from './adm
 import { carAuctionPanel, carAuctionActions } from './admin-car-auction.js';
 import { bugsPage, bugsActions, bugChooser, bugCardLine, bugRewardText } from './admin-bugs.js';
 import { logsPage, logsAfter, logsActions, logsFromHash } from './admin-logs.js';
+import { insightPage, insightActions } from './admin-insight.js';
 import { hideChartTip, liveSkeleton, livePanels, liveCharts, playerMoney, playerSuspicious, economyPage, economyCharts, dbPage, dbFilterRow, readFilters, setupInstall } from './admin-pc.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -205,6 +206,7 @@ function detailsMain(a, d) {
     case 'plan-add': case 'plan-edit': case 'plan-delete': return `${esc(d.title || S.EVENTS[d.kind]?.name || d.kind)} · ${esc(S.kyivLocal(d.start).replace('T', ' '))} – ${esc(S.kyivLocal(d.end).replace('T', ' '))}`;
     case 'plan-seed': return `додано ${d.added}, пропущено ${d.skipped}`;
     case 'logs-export': return `${esc(d.window)}${d.player ? ` · гравець ${esc(d.player)}` : ''}${d.types?.length ? ` · ${esc(d.types.join(', '))}` : ''}${d.q ? ` · «${esc(d.q)}»` : ''} · ${d.rows} подій${d.truncated ? ' (обрізано)' : ''}`;
+    case 'insight-issue': case 'insight-revoke': case 'insight-use': return `ключ #${d.id} «${esc(d.label || '')}»${d.endpoint ? ` · <code>${esc(d.endpoint)}</code>` : ''}`;
     case 'db-browse': case 'db-export': return `<code>${esc(d.table)}</code>${d.filters?.length ? ` · ${d.filters.map((f) => esc(`${f.col} ${f.op} ${f.value}`)).join(', ')}` : ''}${d.sort ? ` · сорт. ${esc(d.sort)}` : ''}${d.rows != null ? ` · ${d.rows} рядків${d.truncated ? ' (обрізано)' : ''}` : ''}`;
     default: return esc(JSON.stringify(d));
   }
@@ -625,6 +627,10 @@ Object.assign(ACTIONS, { 'clubs-reset': 'Клуб: скинуто', 'clubs-disba
 VIEWS.bugs = () => bugsPage({ api, esc, date, userLink });
 Object.assign(H, bugsActions({ mutate, toast, go, state, esc, $ }));
 Object.assign(ACTIONS, { 'bug-reward': 'Нагорода за баг' });
+// ---------- «Аналітика для Claude»: the read-only insight key (public/admin-insight.js, src/insight.js) ----------
+VIEWS.insight = () => insightPage({ api, esc, date, ic });
+Object.assign(H, insightActions({ mutate, toast, esc, $, render: () => render() }));
+Object.assign(ACTIONS, { 'insight-issue': 'Claude: видано ключ', 'insight-revoke': 'Claude: ключ вимкнено', 'insight-use': 'Claude: ключ використано' });
 Object.assign(ACTIONS, { 'dayrace-set': 'Заїзд дня: машина', 'dayrace-dq': 'Заїзд дня: результат' });
 function userTable(list, rich) {
   if (!list.length) return '<div class="empty">Гравців поки немає</div>';

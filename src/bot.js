@@ -105,7 +105,9 @@ export function settingsText({ off = false, mute = [], groups = [] } = {}) {
 
 // inline(query, from) → results for the bot's inline mode (server.js: a ghost challenge card or an invite), or null.
 // here({ chat, thread, title, topic, forum, by }) → the owner's /here in a group: store it as the auto-post target.
-export function createBot({ token, webappUrl, admins = [], game, inline = null, here = null, promoHere = null, hereCleanMs = HERE_CLEAN_MS, log = console.error }) {
+// onChatMessage(message, { edited }) → the players' chat log for Claude (src/insight.js): called for every group message
+// and edit before anything else; it decides itself whether the chat is the configured one. Never changes the replies.
+export function createBot({ token, webappUrl, admins = [], game, inline = null, here = null, promoHere = null, onChatMessage = null, hereCleanMs = HERE_CLEAN_MS, log = console.error }) {
   const base = `https://api.telegram.org/bot${token}/`;
   const canButton = /^https:\/\//.test(webappUrl || '');
   let username = null, inlineOn = false, meTimer = null;
@@ -159,7 +161,17 @@ export function createBot({ token, webappUrl, admins = [], game, inline = null, 
       await call('answerPreCheckoutQuery', ok ? { pre_checkout_query_id: pq.id, ok: true } : { pre_checkout_query_id: pq.id, ok: false, error_message: why });
       return;
     }
+    const chatLog = (msg, edited) => {
+      if (!onChatMessage || !msg?.chat || msg.chat.type === 'private') return;
+      try {
+        onChatMessage(msg, { edited });
+      } catch (e) {
+        log('chat log:', e.message);
+      }
+    };
+    if (u.edited_message) return chatLog(u.edited_message, true); // edits only update the chat log
     const m = u.message;
+    chatLog(m, false);
     if (!m || !m.from) return;
     if (m.successful_payment) {
       const sp = m.successful_payment;
@@ -288,7 +300,7 @@ export function createBot({ token, webappUrl, admins = [], game, inline = null, 
   async function loop() {
     while (!stopped) {
       try {
-        const ups = await call('getUpdates', { offset, timeout: 25, allowed_updates: ['message', 'pre_checkout_query', 'inline_query'] });
+        const ups = await call('getUpdates', { offset, timeout: 25, allowed_updates: ['message', 'edited_message', 'pre_checkout_query', 'inline_query'] });
         for (const u of ups) {
           offset = u.update_id + 1;
           await handle(u).catch((e) => log('bot update:', e.message));
