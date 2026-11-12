@@ -47,7 +47,7 @@ test('rules: the five businesses, rate / cap / step costs from one config', () =
   assert.deepEqual(B.BIZ_SHOP_ITEMS.map((i) => i.biz), ['wash', 'gas', 'sto', 'tire', 'salon']);
   assert.equal(S.SHOP_BY_ID['bizmgr-tire'].stars, B.BIZ.manager.stars);
   assert.equal(B.bizOfItem('bizmgr-tire'), 'tire');
-  assert.equal(B.PERK_TEXT.tire, 'свіжі шини: +5% зчеплення в драгу й дрифті');
+  assert.equal(B.PERK_TEXT.tire, 'свіжі шини: −0,05 с на старті драгу, +5% зчеплення в дрифті');
   assert.equal(B.BIZ_BY_ID.tire.name, 'Шиномонтаж «Протектор»');
 });
 
@@ -257,6 +257,7 @@ test('manager: a paid invoice for a business not owned is a refund', () => {
 
 // r13: «Шиномонтаж «Протектор»» — the 5th business: level 8, 50 млн, 550 тис/год; its manager; fresh tyres.
 const FAST = S.ALL_MODELS.find((m) => m.cls === 'S' && !m.secret && !m.edition && !m.homeOnly && !m.season && !m.restored && !S.isCollector(m.id) && S.carStats({ model: m.id }).slip > 0);
+const near = (a, b) => Math.abs(a - b) < 0.0015; // base is rounded to 0.001 s
 
 test('«Шиномонтаж»: level 8, buy, the box, collect, the manager', () => {
   const T = setup();
@@ -280,40 +281,61 @@ test('«Шиномонтаж»: level 8, buy, the box, collect, the manager', ()
   assert.ok(T.one(u, 'tire').manager > T.at());
 });
 
-test('perk «Шиномонтаж»: +5% grip and traction — the owner\'s drag and drift really use it, nobody else\'s', () => {
-  assert.ok(FAST, 'an S-class car that spins on factory tyres');
+test('perk «Шиномонтаж» in S.carStats: −0,05 s off the drag base for every class, +5% drift grip, traction / slip untouched', () => {
+  const pure = S.ALL_MODELS.filter((m) => !m.secret);
+  for (const cls of ['D', 'C', 'B', 'A', 'S']) {
+    const m = pure.find((x) => x.cls === cls);
+    for (const parts of [{}, { wheels: 'race', suspension: 'race' }]) {
+      if (!Object.keys(parts).every((k) => S.partKeysOf(m.id).includes(k))) continue;
+      const a = S.carStats({ model: m.id, parts }), b = S.carStats({ model: m.id, parts, tire: true });
+      assert.ok(near(a.base - b.base, B.BIZ.perks.tireLaunch), `${cls} ${a.base} → ${b.base}`);
+      assert.ok(near(a.et - b.et, B.BIZ.perks.tireLaunch));
+      assert.deepEqual([b.traction, b.slip, b.hp, b.kg], [a.traction, a.slip, a.hp, a.kg]);
+      assert.equal(b.grip, Math.round(a.grip * 1.05 * 1000) / 1000);
+    }
+  }
+  // The race-loss reasons count the launch on the owner's side only: a car that is 0,05 s quicker with the tyres says so.
+  const m = pure.find((x) => x.cls === 'B');
+  const why = S.raceWhy({ model: m.id, parts: {}, tire: true }, { model: m.id, parts: {} }, { time: 15, rivalTime: 14 });
+  assert.deepEqual(why, []); // same hp: nothing about power to explain — and nothing that claims the tyres slowed the car
+});
+
+test('perk «Шиномонтаж»: the owner\'s drag (every class) and drift really use it, nobody else\'s', () => {
   const T = setup();
   const u = T.mk(42), v = T.mk(43);
   T.call(u, 'biz/buy', { id: 'tire' });
-  const cu = T.g.giveCar(u, FAST.id).id, cv = T.g.giveCar(v, FAST.id).id;
-  const mine = T.call(u, 'me').cars.find((c) => c.id === cu), theirs = T.call(v, 'me').cars.find((c) => c.id === cv);
-  const stock = S.carStats({ model: FAST.id });
-  assert.equal(mine.tire, true);
-  assert.equal(theirs.tire, undefined);
-  assert.equal(theirs.traction, stock.traction);
-  assert.equal(mine.traction, Math.round(S.tyreGrip(FAST.id) * 1.05 * 100) / 100);
-  assert.deepEqual([mine.grip, theirs.grip], [Math.round(0.35 * 1.05 * 1000) / 1000, 0.35]);
-  assert.ok(mine.base < theirs.base, `${mine.base} < ${theirs.base}`); // the wheels spin less → quicker
-  // The client's own S.carStats on the car it got says the same (tune / spin hints).
-  assert.equal(S.carStats(mine).base, mine.base);
-  // Drag: the race fixes the faster base at the start; the rivals don't get the tyres.
-  const ru = T.call(u, 'race/rivals', { carId: cu }), rv = T.call(v, 'race/rivals', { carId: cv });
-  assert.equal(ru.car.base, mine.base);
-  T.call(u, 'race/start', { carId: cu, rival: 'easy' });
-  const rec = JSON.parse(T.db.prepare('SELECT rival FROM races WHERE user_id = ? ORDER BY id DESC').get(u).rival);
-  assert.equal(rec.me.base, mine.base);
-  assert.equal(rv.car.base, theirs.base);
-  // Drift: a wider green zone, a faster recovery; the rivals' targets (the par) stay the same as without the tyres.
-  const du = T.call(u, 'drift/rivals', { carId: cu }), dv = T.call(v, 'drift/rivals', { carId: cv });
-  assert.ok(du.model.half > dv.model.half && du.model.recover >= dv.model.recover && du.model.lat < dv.model.lat);
-  const parNo = S.driftPar(S.driftModel(S.carStats({ model: FAST.id })), S.driftTrack(du.track));
-  assert.equal(du.par, Math.round(parNo));
-  T.call(u, 'drift/start', { carId: cu, rival: 'train' });
-  const run = JSON.parse(T.db.prepare('SELECT rival FROM drift_runs WHERE user_id = ? ORDER BY id DESC').get(u).rival);
-  assert.deepEqual(run.model, du.model);
+  for (const model of [CAR.id, FAST.id]) {
+    const cu = T.g.giveCar(u, model).id, cv = T.g.giveCar(v, model).id;
+    const mine = T.call(u, 'me').cars.find((c) => c.id === cu), theirs = T.call(v, 'me').cars.find((c) => c.id === cv);
+    assert.equal(mine.tire, true);
+    assert.equal(theirs.tire, undefined);
+    assert.equal(theirs.base, S.carStats({ model }).base);
+    assert.ok(near(theirs.base - mine.base, 0.05), `${model}: ${mine.base} vs ${theirs.base}`);
+    assert.equal(mine.traction, theirs.traction);
+    // The client's own S.carStats on the car it got says the same (tune / race-loss reasons).
+    assert.equal(S.carStats(mine).base, mine.base);
+    // Drag: the race fixes the faster base at the start; the rivals don't get the tyres.
+    const ru = T.call(u, 'race/rivals', { carId: cu }), rv = T.call(v, 'race/rivals', { carId: cv });
+    assert.equal(ru.car.base, mine.base);
+    assert.equal(rv.car.base, theirs.base);
+    T.call(u, 'race/start', { carId: cu, rival: 'easy' });
+    const rec = JSON.parse(T.db.prepare('SELECT rival FROM races WHERE user_id = ? ORDER BY id DESC').get(u).rival);
+    assert.equal(rec.me.base, mine.base);
+    assert.ok(!('tire' in ru.list[0]));
+    // Drift: a wider green zone; the rivals' targets (the par) stay the same as without the tyres.
+    const du = T.call(u, 'drift/rivals', { carId: cu }), dv = T.call(v, 'drift/rivals', { carId: cv });
+    assert.ok(du.model.half > dv.model.half && du.model.recover >= dv.model.recover && du.model.lat <= dv.model.lat);
+    const parNo = S.driftPar(S.driftModel(S.carStats({ model })), S.driftTrack(du.track));
+    assert.equal(du.par, Math.round(parNo));
+    T.call(u, 'drift/start', { carId: cu, rival: 'train' });
+    const run = JSON.parse(T.db.prepare('SELECT rival FROM drift_runs WHERE user_id = ? ORDER BY id DESC').get(u).rival);
+    assert.deepEqual(run.model, du.model);
+    T.db.prepare("UPDATE drift_runs SET status = 'expired'").run();
+    T.db.prepare("UPDATE races SET status = 'expired'").run();
+  }
   // perks in `me`
-  assert.equal(T.call(u, 'me').bizPerks.grip, 1.05);
-  assert.equal(T.call(v, 'me').bizPerks.grip, 1);
+  assert.deepEqual([T.call(u, 'me').bizPerks.grip, T.call(u, 'me').bizPerks.launch], [1.05, 0.05]);
+  assert.deepEqual([T.call(v, 'me').bizPerks.grip, T.call(v, 'me').bizPerks.launch], [1, 0]);
 });
 
 test('perk «Шиномонтаж»: buying it refreshes the cached race rivals (their odds follow the faster car)', () => {

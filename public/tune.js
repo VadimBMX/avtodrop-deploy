@@ -67,7 +67,7 @@ export function bestTune(car, stock = []) {
   const m = S.MODELS[car.model];
   const cur = { ...(car.parts || {}) };
   const keys = m ? S.partKeysOf(car.model) : [];
-  const tire = car.tire ? { tire: true } : {}; // r13: «Шиномонтаж» tyres change where the wheels start to spin
+  const tire = car.tire ? { tire: true } : {}; // r13: «Шиномонтаж» launch bonus — the same on both sides of every comparison
   const before = m ? tuneTime({ model: car.model, parts: cur, ...tire }) : 0;
   if (!m) return { parts: cur, changes: [], before, after: before, dt: 0 };
   const free = new Set(stock.filter((p) => p.available > 0).map((p) => p.type + ':' + p.tier));

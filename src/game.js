@@ -1560,7 +1560,7 @@ export function createGame(db, opts = {}) {
     const h = sha256(`drift:${uid}:${c.id}:${dayOf(now())}`);
     const trackSeed = parseInt(h.slice(48, 56), 16);
     const tr = S.driftTrack(trackSeed);
-    // s2-biz r13: the par counts the car's parts, never the «Шиномонтаж» tyres (the perk must stay the owner's edge)
+    // s2-biz r13: the par counts the car's parts, never the «Шиномонтаж» grip (the perk must stay the owner's edge)
     const parStock = S.driftPar(S.driftModel(S.carStats({ model: c.model })), tr), parCar = S.driftPar(S.driftModel(S.carStats({ model: c.model, parts: o.parts })), tr);
     const par = Math.round(parStock + S.DRIFT_PARTS_EDGE * Math.max(0, parCar - parStock));
     const winsToday = q("SELECT COUNT(*) n FROM drift_runs WHERE user_id = ? AND status = 'done' AND created_at > ? AND json_extract(result, '$.win') = 1 AND json_extract(result, '$.training') IS NULL").get(uid, now() - 864e5).n;
@@ -5717,7 +5717,7 @@ export function createGame(db, opts = {}) {
     const meBase = handlers.me;
     handlers.me = (uid, b) => {
       const p = BIZ.perks(uid);
-      return { ...meBase(uid, b), ...BIZ.brief(uid), bizPerks: { fuel: p.fuelExtra, regen: p.regenMult, shine: p.shineMult, wash: p.washMult, parts: p.partsMult, sell: p.sellMult, grip: p.gripMult } };
+      return { ...meBase(uid, b), ...BIZ.brief(uid), bizPerks: { fuel: p.fuelExtra, regen: p.regenMult, shine: p.shineMult, wash: p.washMult, parts: p.partsMult, sell: p.sellMult, grip: p.gripMult, launch: p.launch } };
     };
     const priceBase = itemPrice, applyBase = applyItem;
     itemPrice = (uid, itemId) => (BIZ.itemCheck(uid, itemId), priceBase(uid, itemId));

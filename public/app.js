@@ -2999,7 +2999,7 @@ H.pvpExit = () => {
 };
 // Why you lost with more power (S.raceWhy, owner 22.10): one or two lines in plain words with the real numbers.
 function whyLines(car, rival, r) {
-  return r && !r.win && rival?.model ? S.raceWhy({ model: car.model, parts: car.parts || {} }, rival, { time: r.time, rivalTime: r.rivalTime, reaction: r.jump ? -1 : r.reaction, shifts: r.shifts }) : [];
+  return r && !r.win && rival?.model ? S.raceWhy({ model: car.model, parts: car.parts || {}, ...(car.tire ? { tire: true } : {}) /* r13: «Шиномонтаж» launch */ }, rival, { time: r.time, rivalTime: r.rivalTime, reaction: r.jump ? -1 : r.reaction, shifts: r.shifts }) : [];
 }
 const whyHtml = (lines) => (lines.length ? `<div class="card dr-why">${lines.map((t) => `<div class="dr-why-l">${ic('flame')}<span>${esc(t)}</span></div>`).join('')}</div>` : '');
 function raceResult() {
