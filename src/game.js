@@ -17,6 +17,7 @@ import { createBarn } from './barn.js';
 import { createTgGroups } from './tggroups.js';
 import { createContest } from './contest.js';
 import { createClubs } from './clubs.js';
+import { createWar } from './war.js'; // r13: «Війна районів»
 import { createTourney } from './tourney.js';
 import { createPrestige } from './prestige.js';
 import { createBugBounty } from './bugbounty.js';
@@ -2467,6 +2468,7 @@ export function createGame(db, opts = {}) {
   let HW = null; // «Ніч Хелловіну» (src/halloween.js), created below with the game's helpers
   let CT = null; // the container auction («Причал», src/containers.js), created below with the game's helpers
   let CL = null; // «Автоклуби» (src/clubs.js), created below with the game's helpers
+  let WAR = null; // «Війна районів» (src/war.js), created right after the clubs
   let PA = null; // «Аукціон номера» (src/plate-auction.js), created below with the game's helpers
   let CA = null; // «Аукціон машини» (src/car-auction.js), the same
   function sweepContainers() {
@@ -5530,8 +5532,33 @@ export function createGame(db, opts = {}) {
   // «Заїзд дня»), collected income gets the club's perk, and the rating / battles / day's board show members' tags.
   CL = createClubs({ db, q, now, fail, int, name, addMoney, pay, event, addKeys, userRow, weekOf, dayOf,
     alog: (...a) => alog(...a), asClub: (fn) => srcWrap('club', fn)(),
-    addFuel });
+    addFuel, onDisband: (cid) => WAR?.drop(cid) });
   Object.assign(handlers, CL.api);
+  // r13 «Війна районів» (src/war.js, public/war.js): war points = the clubs' league points; settled once at Monday
+  // 00:00 Kyiv right after the league (CL.settle runs on `me` and in the sweeper); holders' members get the business
+  // district bonus (BIZ districtHeld), their boxes banked whenever it switches.
+  WAR = createWar({ db, q, now, fail, name, event, weekOf, weekEnd: (w) => CL.weekEnd(w), bankAll: (uid) => BIZ?.bankAll(uid), alog: (...a) => alog(...a) });
+  Object.assign(handlers, WAR.api);
+  {
+    const clSettle = CL.settle;
+    CL.settle = () => (clSettle(), WAR.settle());
+    // Joining / leaving / a kick switches the district bonus: bank the business boxes at the old rate first.
+    for (const k of ['club/join', 'club/leave', 'club/create']) {
+      const fn = handlers[k];
+      handlers[k] = (uid, b) => (BIZ?.bankAll(uid), fn(uid, b));
+    }
+    const kick = handlers['club/kick'];
+    handlers['club/kick'] = (uid, b) => {
+      const t = Number(b?.userId);
+      if (Number.isSafeInteger(t) && t > 0 && q('SELECT 1 FROM users WHERE id = ?').get(t)) BIZ?.bankAll(t);
+      return kick(uid, b);
+    };
+  }
+  admin['war/settle'] = (who, body = {}) => db.tx(() => {
+    if (!canDo(actorRole(who), 'war/settle')) fail('Немає прав на цю дію');
+    return WAR.forceSettle(who, body || {});
+  });
+  ADMIN_MUTATING.add('war/settle');
   {
     const base = { ...handlers };
     const tagBattle = (b) => (b && CL.tagRows([b.creator, b.opponent].filter(Boolean)), b);
@@ -5702,7 +5729,7 @@ export function createGame(db, opts = {}) {
   // ===== s2-biz: «Мої бізнеси» (src/business.js, public/business.js, public/business-ui.js) =====
   // biz, biz/buy, biz/upgrade, biz/collect; `me.biz` / `me.bizTotalBox` / `me.bizPerks`; the «Менеджер» Stars items
   // (S.SHOP_BY_ID bizmgr-<id>) go through the usual itemPrice / applyItem; a VIP purchase banks the boxes first.
-  BIZ = createBusiness({ db, q, now, fail, addMoney, pay, userRow, vipOf, srcWrap: (src, fn) => (...a) => srcWrap(src, fn)(...a) });
+  BIZ = createBusiness({ db, q, now, fail, addMoney, pay, userRow, vipOf, districtHeld: (uid) => !!WAR?.holds(uid), srcWrap: (src, fn) => (...a) => srcWrap(src, fn)(...a) });
   Object.assign(handlers, BIZ.api);
   {
     // s2-fix: the «Автомийка» raises the shine's income bonus — bank the garage first so it isn't applied backwards.

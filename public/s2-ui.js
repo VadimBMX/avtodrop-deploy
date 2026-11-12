@@ -6,7 +6,8 @@ import * as S from './shared.js';
 import * as F from './frames.js';
 import * as B from './business.js';
 import { playOpen } from './s2-reel.js';
-import { warDemo } from './war-demo.js';
+import * as WR from './war.js';
+import { warView } from './war.js';
 
 let X = null;
 // Hooks app.js reads: the opening animation and the header painter; tabs that live inside another tab's button.
@@ -309,7 +310,7 @@ function collectSheet() {
     <span class="s2-st"><small>${n > 1 ? `Каса · ${n} ${X.plural(n, ['бізнес', 'бізнеси', 'бізнесів'])}` : full ? 'Каса гаража повна' : `Гараж накопичив · ${shortN(m.income?.rate || 0)}/год`}</small><b id="s2Pend">+${n0(pend)} ₴</b></span>
     <button class="s2-btn" data-act="s2CollectAll" ${pend < 1 ? 'disabled' : ''}>${X.ic('cash')}Зібрати</button></div>`;
 }
-// «Війна районів»: districts of the world map (public/s2/world.webp 1584×672). Static until clubs fight for them.
+// «Війна районів»: districts of the world map (public/s2/world.webp 1584×672), held and attacked by clubs (r13).
 // s2-districts (owner 03.11: «не подобається обводка оцих районів»): no more hard polygon strokes over the art. A club's
 // district now sits in its colour the way a tuned car does: a soft underglow on the dark ground around the block's plinth
 // (blurred, masked off every block, mix-blend screen), a thin LED strip along the plinth's two FRONT base edges, and one
@@ -317,7 +318,7 @@ function collectSheet() {
 // claimants' colours (opacity only) and the pin carries crossed swords. g: the block's top surface corners measured on the
 // art — left, back, right, front; T: the plinth's height there.
 const WORLD_W = 1584, WORLD_H = 672, PLINTH = 12;
-// The demo districts and their made-up clubs: public/war-demo.js (warDemo).
+// The districts and their clubs: public/war.js (DISTRICTS, warView); the state: the `war` API (src/war.js).
 const SWORDS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 17.5 3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2M14.5 6.5 18 3h3v3l-3.5 3.5M5 14l4 4M7 17l-3 3M3 19l2 2"/></svg>';
 const lerp = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
 const ptsOf = (q) => q.map((v) => v.map((n) => Math.round(n)).join(',')).join(' ');
@@ -332,8 +333,26 @@ function ledPath([L, , R, B]) {
   const P = (v) => `${Math.round(v[0] + d[0])},${Math.round(v[1] + d[1])}`;
   return `M${P(a)} L${P(b)} Q${P(B)} ${P(c)} L${P(e)}`;
 }
+// r13: the live war — the `war` API state (st().war, fetched by warLoad), drawn by warView (public/war.js).
+const WAR_TTL = 20e3;
+let warBusy = false;
+async function warLoad(force = false) {
+  const s = st();
+  if (warBusy || (!force && s.war && Date.now() - s.warAt < WAR_TTL)) return;
+  warBusy = true;
+  try {
+    s.war = await X.api('war', {});
+    s.warAt = Date.now();
+    if (s.tab === 'city' && s.cityView === 'war' && !s.page && document.getElementById('s2City')) X.render();
+  } catch {} finally {
+    warBusy = false;
+  }
+}
+const warTag = (c, cls = '') => `<span class="s2-wtag ${cls}" style="--c:${c.c}">${esc(c.tag)}</span>`;
+const WAR_RULES = () => `Перемоги учасників клубу — очки в бій за район. У понеділок о 00:00 район дістається клубу з найбільшим рахунком. Клуб-власник: +${Math.round(WR.WAR.bizBonus * 100)}% доходу бізнесів усім учасникам і ${S.short(WR.WAR.treasuryPerDistrict).replace(' ₴', '')} у касу за район.`;
 function warMap() {
-  const { districts: DISTRICTS, legend } = warDemo(me().club);
+  const W = st().war;
+  const { districts: DISTRICTS, legend } = warView(W);
   const tiles = DISTRICTS.map((d) => `<polygon points="${ptsOf(grow(d.g, 1.02, PLINTH / 2))}"/>`).join('');
   const glow = (d, c, cls = '') => `<polygon class="${cls}" points="${ptsOf(grow(d.g, 1.1, PLINTH + 6))}" fill="${c}"/>`;
   const defs = DISTRICTS.map((d, i) => {
@@ -341,27 +360,30 @@ function warMap() {
     const grad = (id, c) => `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${L[0]}" y1="0" x2="${R[0]}" y2="0"><stop offset="0" stop-color="${c}" stop-opacity="0"/><stop offset=".2" stop-color="${c}"/><stop offset=".8" stop-color="${c}"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient>`;
     return grad(`s2led${i}`, d.c) + (d.fight ? grad(`s2led${i}b`, d.c2) : '');
   }).join('');
-  // A neutral district (no demo club, see warDemo) has no glow and no LED: nobody holds it.
+  // A district nobody holds has no glow and no LED.
   const base = DISTRICTS.filter((d) => !d.fight && d.club).map((d) => glow(d, d.c)).join('');
   const leds = DISTRICTS.map((d, i) => d.fight || !d.club ? '' : `<path d="${ledPath(d.g)}" stroke="url(#s2led${i})" color="${d.c}"/>`).join('');
-  // Contested blocks: each claimant's glow and LED in its own <svg> layer, crossfaded by opacity (composited, no repaint).
+  // «Бій»: holder's and attacker's glow and LED in their own <svg> layers, crossfaded by opacity (composited, no repaint).
   const fightLayer = (d, i, c, k) => `<svg class="s2-ov s2-dg s2-fight${k}" viewBox="0 0 ${WORLD_W} ${WORLD_H}" preserveAspectRatio="none" aria-hidden="true"><g mask="url(#s2gm)" filter="url(#s2gb)">${glow(d, c)}</g><g class="s2-led"><path d="${ledPath(d.g)}" stroke="url(#s2led${i}${k === 2 ? 'b' : ''})" color="${c}"/></g></svg>`;
   const fights = DISTRICTS.map((d, i) => d.fight ? fightLayer(d, i, d.c, 1) + fightLayer(d, i, d.c2, 2) : '').join('');
+  const myId = W?.my?.club?.id, target = W?.my?.target;
   const pin = (d) => {
     const [cx, cy] = lerp(grow(d.g, 0)[0], d.g[3], 0.2); // the pin stands a little in front of the block's centre
-    const head = d.fight
-      ? `<span class="s2-pin-ic x">${SWORDS}</span><span class="s2-pin-t"><b>${d.n}</b><small>Спірний</small></span>`
-      : d.club ? `<img class="s2-pin-ic" src="s2/em/e${d.club.e}.webp" alt=""><span class="s2-pin-t"><b>${d.n}</b><small>${esc(d.club.name)}</small></span>`
-        : `<span class="s2-pin-ic x n">${X.ic('flag-3')}</span><span class="s2-pin-t"><b>${d.n}</b><small>${d.free ? 'вільний' : 'Нічий'}</small></span>`;
-    return `<div class="s2-dl${d.fight ? ' fight' : ''}" style="left:${((cx / WORLD_W) * 100).toFixed(2)}%;top:${((cy / WORLD_H) * 100).toFixed(2)}%;--c:${d.c};--c2:${d.c2 || d.c}"><div class="s2-pin">${head}</div><i class="s2-pin-stem"></i><i class="s2-pin-dot"></i></div>`;
+    const n = W?.districts?.find((x) => x.id === d.id)?.attackers?.length || 0;
+    const sub = d.fight ? (d.club ? `${esc(d.club.tag)} · бій` : `бій · ${n} ${X.plural(n, ['клуб', 'клуби', 'клубів'])}`) : d.club ? esc(d.club.name) : 'вільний';
+    const head = d.fight ? `<span class="s2-pin-ic x">${SWORDS}</span>`
+      : d.club ? warTag(d.club, 's2-pin-ic') : `<span class="s2-pin-ic x n">${X.ic('flag-3')}</span>`;
+    const mine = (d.club && d.club.id === myId) || target === d.id;
+    return `<div class="s2-dl${d.fight ? ' fight' : ''}${mine ? ' mine' : ''}" style="left:${((cx / WORLD_W) * 100).toFixed(2)}%;top:${((cy / WORLD_H) * 100).toFixed(2)}%;--c:${d.c};--c2:${d.c2 || d.c}"><button class="s2-pin" data-act="s2War" data-k="${d.id}">${head}<span class="s2-pin-t"><b>${d.n}</b><small>${sub}</small></span></button><i class="s2-pin-stem"></i><i class="s2-pin-dot"></i></div>`;
   };
   const labels = DISTRICTS.map(pin).join('');
-  const leg = legend.map(([cl, k]) => `<span style="--c:${cl.c}"><img src="s2/em/e${cl.e}.webp" alt="">${esc(cl.short)} <b>${k}</b></span>`).join('');
-  // r4-ux: before the war every district is free (war-demo.js WAR_LIVE) — a grey outline on each block and a banner
-  // instead of the club score bar.
+  const leg = legend.map(([cl, k]) => `<span style="--c:${cl.c}"><i></i>${esc(cl.tag)} <b>${k}</b></span>`).join('');
   const free = DISTRICTS.filter((d) => d.free).map((d) => `<polygon points="${ptsOf(d.g)}"/>`).join('');
-  const top = leg ? `<div class="s2-leg" aria-label="Клуби">${leg}</div>`
-    : `<div class="s2-war-soon" role="note"><span class="s2-war-soon-ic">${X.ic('flag-3')}</span><span><b>Війна районів стартує скоро</b><small>Збери або знайди автоклуб, щоб першим захопити район</small></span></div>`;
+  const top = leg ? `<div class="s2-leg s2-wleg" aria-label="Клуби, що тримають райони">${leg}</div>`
+    : `<div class="s2-war-soon" role="note"><span class="s2-war-soon-ic">${X.ic('flag-3')}</span><span><b>Усі райони вільні</b><small>Оголоси атаку — у понеділок район дістанеться клубу з найбільшим рахунком</small></span></div>`;
+  const my = W?.my;
+  const status = !W ? '' : !my ? '' : target ? `<div class="s2-war-me">${warTag(my.club)}<span>Атака на <b>${esc(WR.DISTRICT_BY_ID[target].n)}</b> · рахунок <b>${n0(my.club.pts)}</b></span></div>`
+    : `<div class="s2-war-me">${warTag(my.club)}<span>${my.holds.length ? `Тримає ${my.holds.length} ${X.plural(my.holds.length, ['район', 'райони', 'районів'])}` : 'Без району'} · очки тижня <b>${n0(my.club.pts)}</b>${my.staff && !my.cant ? ' · обери район для атаки' : ''}</span></div>`;
   return `${top}
     <div class="s2-map war" id="s2Map"><div class="s2-pan" id="s2Pan" data-w="${WORLD_W}" data-h="${WORLD_H}" data-x="420"><img src="s2/world.webp" alt="" draggable="false">
       <svg class="s2-ov s2-dg" viewBox="0 0 ${WORLD_W} ${WORLD_H}" preserveAspectRatio="none" aria-hidden="true"><defs>
@@ -370,12 +392,35 @@ function warMap() {
         <mask id="s2gm" maskUnits="userSpaceOnUse" x="0" y="0" width="${WORLD_W}" height="${WORLD_H}"><rect width="${WORLD_W}" height="${WORLD_H}" fill="#fff"/><g fill="#000" filter="url(#s2lb)">${tiles}</g></mask>${defs}</defs>
         <g mask="url(#s2gm)" filter="url(#s2gb)">${base}</g><g class="s2-led">${leds}</g>${free ? `<g class="s2-free">${free}</g>` : ''}</svg>${fights}${labels}</div>
       <div class="s2-ef l"></div><div class="s2-ef r"></div><div class="s2-hint">${X.ic('arrows-exchange')}Гортай карту</div></div>
-    <div class="s2-sheet s2-war"><div class="s2-war-h"><b>Війна районів</b><span class="s2-soon">Скоро</span></div>
-      <div class="s2-war-t">${legend.length ? 'Поки це демо: клуби на карті вигадані, твій клуб з’явиться тут, коли стартує війна. ' : 'Усі райони поки вільні. '}Автоклуби битимуться за райони міста: гонки за район, бонус до доходу всім учасникам клубу-переможця.</div>
-      <button class="s2-btn wide" data-act="go" data-page="club">${X.ic('users')}${me().club ? 'Мій автоклуб' : 'Знайти автоклуб'}</button></div>`;
+    <div class="s2-sheet s2-war"><div class="s2-war-h"><b>Війна районів</b>${W ? `<span class="s2-war-left">${X.ic('clock')}${X.untilSpan(W.endsAt)}</span>` : ''}</div>
+      ${status}<div class="s2-war-t">${WAR_RULES()}</div>
+      ${my ? `<button class="s2-btn wide ghost" data-act="go" data-page="club">${X.ic('users')}Мій автоклуб</button>` : `<button class="s2-btn wide" data-act="go" data-page="club">${X.ic('users')}Вступи в автоклуб, щоб воювати</button>`}</div>`;
+}
+// A district tapped on the map: holder and defence, attackers with scores, «Атакувати» for owner/officer.
+function warSheet(id) {
+  const W = st().war, D = WR.DISTRICT_BY_ID[id];
+  if (!D) return;
+  const d = W?.districts?.find((x) => x.id === id) || { holder: null, attackers: [] };
+  const my = W?.my, h = d.holder;
+  const row = (c, score, note, cls = '') => `<div class="s2-wrow${cls}${c.id === my?.club?.id ? ' me' : ''}">${warTag(c)}<span class="grow"><b>${esc(c.name)}</b>${note ? `<small>${note}</small>` : ''}</span><em>${n0(score)}</em></div>`;
+  const holder = h ? `<div class="s2-wh"><b>Власник</b><span>захист</span></div>${row(h, h.defence, h.held > 1 ? `очки тижня ÷ ${h.held} ${X.plural(h.held, ['район', 'райони', 'районів'])}` : 'очки тижня', ' hold')}`
+    : '<div class="s2-wfree">Район вільний — дістанеться клубу-атакувальнику з найбільшим рахунком (більше 0).</div>';
+  const att = d.attackers.length ? `<div class="s2-wh"><b>Атакують</b><span>рахунок</span></div>${d.attackers.map((a) => row(a, a.score, '')).join('')}`
+    : '<div class="s2-wh"><b>Атакують</b><span>поки ніхто</span></div>';
+  let act;
+  if (!my) act = `<div class="s2-wnote">Вступи в автоклуб, щоб воювати</div><button class="s2-btn wide" data-act="go" data-page="club">${X.ic('users')}Знайти автоклуб</button>`;
+  else if (my.target === id) act = `<div class="s2-wnote on">${X.ic('flag-3')}Твій клуб атакує цей район — кожна перемога учасників додає очко</div>`;
+  else if (h && h.id === my.club.id) act = `<div class="s2-wnote on">${X.ic('shield-check')}Район твого клубу — перемоги учасників тримають захист</div>`;
+  else if (my.cant || !my.staff) act = `<div class="s2-wnote">${esc(my.cant || 'Атаку оголошують власник або офіцери клубу')}</div>`;
+  else act = `<button class="s2-btn wide" data-act="s2WarAttack" data-k="${id}"><span class="s2-wsw">${SWORDS}</span>Атакувати ${esc(D.loc)}</button><div class="s2-wnote">Одна атака на тиждень — змінити ціль до понеділка не можна</div>`;
+  X.sheet(D.n, `<div class="s2-wsheet">
+    <div class="s2-wtime">${X.ic('clock')}До бою: ${W ? X.untilSpan(W.endsAt) : '…'} <small>понеділок 00:00</small></div>
+    ${holder}${att}${act}<div class="s2-war-t">${WAR_RULES()}</div></div>`);
+  X.tickUntil();
 }
 let pendTimer = 0;
 function cityAfter() {
+  if (st().cityView === 'war') warLoad();
   fitCity();
   mountPan();
   requestAnimationFrame(() => (fitCity(), mountPan(), fitLabels())); // s2-fix: once the frame has laid out
@@ -1026,6 +1071,28 @@ const handlers = {
   },
   s2City: (d) => {
     st().cityView = d.k === 'war' ? 'war' : 'city';
+    X.render();
+  },
+  s2War: async (d) => {
+    warSheet(d.k);
+    const s = st();
+    if (!s.war || Date.now() - s.warAt > 5e3) {
+      await warLoad(true);
+      if (!document.getElementById('modal').hidden) warSheet(d.k);
+    }
+  },
+  s2WarAttack: async (d) => {
+    const D = WR.DISTRICT_BY_ID[d.k];
+    if (!D || !(await X.confirmBox(`Атакувати ${D.loc}? Ціль не можна змінити до понеділка.`))) return;
+    try {
+      const r = await X.api('war/attack', { district: d.k });
+      st().war = r.war;
+      st().warAt = Date.now();
+    } catch (e) {
+      return X.toast(e.message, true);
+    }
+    X.toast(`⚔️ Атака на ${D.loc} оголошена!`);
+    warSheet(d.k);
     X.render();
   },
   // «Зібрати» on the city: the garage income and every business box in one tap.

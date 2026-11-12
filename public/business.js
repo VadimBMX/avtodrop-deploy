@@ -44,7 +44,7 @@ export const BIZ = {
     stoParts: ECON.biz.stoParts, // −15% on part cases (the only ₴ the game charges for parts / tuning)
     salonSell: ECON.biz.salonSell, // +5% to a car's sale price to the dealer
   },
-  districtBonus: 0.15, // +15% income when the player's club holds a district — TODO: districts (src/business.js districtBonus)
+  districtBonus: 0.15, // +15% income when the player's club holds a district («Війна районів»: src/war.js, src/business.js districtBonus)
 };
 export const BRANCH_KEYS = ['eq', 'staff', 'ads'];
 export const BIZ_BY_ID = Object.fromEntries(BIZ.list.map((b) => [b.id, b]));

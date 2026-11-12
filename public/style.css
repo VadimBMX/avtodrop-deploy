@@ -8183,3 +8183,37 @@ body.s2 .s2-ct:has(.s2-ct-hot) .s2-ct-cls { margin-top: 16px; }
 .ca-card .pa-b, .ca-sheet .pa-b { grid-template-columns: minmax(0, 1fr) auto 78px; }
 .ca-card .pa-row .pa-amt { flex: 1 1 auto; min-width: 0; }
 .ca-card .pa-row .pa-go { flex: none; white-space: nowrap; }
+
+/* r13 «Війна районів» live: tappable district pins, club tags in their map colour, the war strip and the district sheet */
+.s2-dl .s2-pin { pointer-events: auto; border: 0; font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.s2-dl .s2-pin:active { filter: brightness(1.25); }
+.s2-dl.mine .s2-pin { box-shadow: inset 0 0 0 1.5px #ffd400aa, inset 0 -2px 0 color-mix(in srgb, var(--c) 70%, transparent), 0 8px 18px -8px #000; }
+.s2-wtag { display: inline-flex; align-items: center; justify-content: center; flex: none; height: 20px; padding: 0 6px; border-radius: 6px; background: var(--c); color: #0b0c0f;
+  font: 800 10px/1 var(--f-disp); letter-spacing: .4px; box-shadow: 0 0 10px -2px var(--c); }
+.s2-pin .s2-wtag.s2-pin-ic { width: auto; height: 22px; }
+.s2-wleg { justify-content: flex-start; flex-wrap: wrap; gap: 6px 12px; }
+.s2-wleg span i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+.s2-war-left { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 10px; border-radius: 12px; background: #ffd4001f; color: var(--accent); font: 800 11.5px/1 var(--s2-mono, var(--f-body)); }
+.s2-war-left .i { font-size: 13px; }
+.s2-war-me { display: flex; align-items: center; gap: 8px; font: 600 12.5px/1.3 var(--f-body); color: #d6d7da; }
+.s2-war-me b { color: #fff; }
+.s2-wsheet { display: flex; flex-direction: column; gap: 8px; padding-bottom: 6px; }
+.s2-wh { display: flex; align-items: baseline; justify-content: space-between; margin: 6px 2px 0; }
+.s2-wh b { font: 800 14px var(--f-disp); text-transform: uppercase; letter-spacing: .3px; color: #fff; }
+.s2-wh span { font: 600 11px var(--f-body); color: var(--muted); }
+.s2-wtime { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-radius: 12px; background: #ffd40014; box-shadow: inset 0 0 0 1px #ffd40040; font: 800 14px var(--f-disp); color: #fff; }
+.s2-wtime .i { color: var(--accent); }
+.s2-wtime small { margin-left: auto; font: 600 11px var(--f-body); color: var(--muted); }
+.s2-wrow { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: #15161a; box-shadow: inset 0 0 0 1px #ffffff12; }
+.s2-wrow.me { box-shadow: inset 0 0 0 1.5px #ffd40088; }
+.s2-wrow.hold { background: linear-gradient(90deg, color-mix(in srgb, var(--c, #fff) 0%, #15161a), #15161a); }
+.s2-wrow .grow { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.s2-wrow b { font: 700 14px var(--f-body); color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.s2-wrow small { font: 600 11px var(--f-body); color: var(--muted); }
+.s2-wrow em { font: 800 18px var(--f-disp); font-style: normal; color: var(--accent); }
+.s2-wfree { padding: 10px 12px; border-radius: 12px; border: 1px dashed #a5a7ad66; font: 600 12.5px/1.4 var(--f-body); color: #cdced1; }
+.s2-wnote { display: flex; align-items: center; gap: 6px; font: 600 12px/1.4 var(--f-body); color: var(--muted); text-align: center; justify-content: center; }
+.s2-wnote.on { padding: 10px 12px; border-radius: 12px; background: #ffd40014; color: #fff; justify-content: flex-start; text-align: left; }
+.s2-wnote.on .i { color: var(--accent); flex: none; }
+.s2-wsw { display: inline-flex; width: 18px; height: 18px; }
+.s2-wsw svg { width: 18px; height: 18px; }
