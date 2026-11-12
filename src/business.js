@@ -165,6 +165,7 @@ export function createBusiness(ctx) {
       washMult: has.has('wash') ? 1 + P.washBonus : 1, // × the shine's income bonus (S.washFactor washBonus)
       partsMult: has.has('sto') ? 1 - P.stoParts : 1,
       sellMult: has.has('salon') ? 1 + P.salonSell : 1,
+      gripMult: has.has('tire') ? 1 + P.tireGrip : 1, // r13: the cars' grip / traction (applied in S.carStats via carOut `tire`)
     };
   }
 

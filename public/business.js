@@ -17,6 +17,7 @@ export const BIZ = {
     { id: 'wash', name: 'Автомийка «Блиск»', short: 'Автомийка', color: '#2ee6ff', icon: 'droplet' },
     { id: 'gas', name: 'Заправка «Турбо»', short: 'Заправка', color: '#ffd400', icon: 'gas-station' },
     { id: 'sto', name: 'СТО «Форсаж»', short: 'СТО', color: '#ff8a1f', icon: 'tool' },
+    { id: 'tire', name: 'Шиномонтаж «Протектор»', short: 'Шиномонтаж', color: '#ffb020', icon: 'disc' }, // r13: the map's «Шиномонтаж»
     { id: 'salon', name: 'Автосалон', short: 'Автосалон', color: '#b57bff', icon: 'building-store' },
   ].map((b) => ({ ...b, ...ECON.biz.list.find((x) => x.id === b.id) })),
   capHours: ECON.biz.capHours, // the box holds this many hours of income…
@@ -43,6 +44,7 @@ export const BIZ = {
     gasRegen: 0.25, // fuel comes back 25% faster
     stoParts: ECON.biz.stoParts, // −15% on part cases (the only ₴ the game charges for parts / tuning)
     salonSell: ECON.biz.salonSell, // +5% to a car's sale price to the dealer
+    tireGrip: 0.05, // r13: fresh tyres — ×1.05 grip (drift) and traction (drag) of the owner's cars (S.carStats `tire`)
   },
   districtBonus: 0.15, // +15% income when the player's club holds a district — TODO: districts (src/business.js districtBonus)
 };
@@ -56,6 +58,7 @@ export const PERK_TEXT = {
   gas: `+${BIZ.perks.gasTank} ⛽ до бака, пальне на ${Math.round(BIZ.perks.gasRegen * 100)}% швидше`,
   sto: `−${Math.round(BIZ.perks.stoParts * 100)}% на кейси деталей`,
   salon: `+${Math.round(BIZ.perks.salonSell * 100)}% до ціни продажу машин`,
+  tire: `свіжі шини: +${Math.round(BIZ.perks.tireGrip * 100)}% зчеплення в драгу й дрифті`,
 };
 
 // The «Менеджер» Stars items (one per business), merged into S.SHOP_BY_ID by public/shared.js.

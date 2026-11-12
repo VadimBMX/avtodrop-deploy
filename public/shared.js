@@ -1195,13 +1195,16 @@ export function carStats(car) {
   const gripParts = fx(car, 'suspension') + fx(car, 'wheels');
   // grip: the parts on top of the old common 0.35 — what the drift model reads (drift keeps its own balance);
   // tyre: the factory tyres of this model; traction: tyre + grip parts — what the drag race reads.
-  const grip = 0.35 + gripParts, tyre = tyreGrip(car.model), traction = tyre + gripParts;
+  // r13: `car.tire` (the owner has «Шиномонтаж», set by the server's carOut) — fresh tyres, × (1 + BIZ.perks.tireGrip)
+  // on both grip and traction. Rival / reference cars never carry it.
+  const tm = car.tire ? 1 + BIZ.perks.tireGrip : 1;
+  const grip = (0.35 + gripParts) * tm, tyre = tyreGrip(car.model), traction = (tyre + gripParts) * tm;
   const shift = m.ev ? fx(car, 'reducer') : fx(car, 'gearbox');
   const brakes = 1 - fx(car, 'brakes');
   const base = raceBaseTime(hp, kg, traction) * brakes;
   const value = carValue(car);
   return {
-    hp: Math.round(hp), kg: Math.round(kg), grip: Math.round(grip * 100) / 100, shift,
+    hp: Math.round(hp), kg: Math.round(kg), grip: Math.round(grip * 1000) / 1000, shift,
     tyre: Math.round(tyre * 100) / 100, traction: Math.round(traction * 100) / 100,
     base: Math.round(base * 1000) / 1000,
     // slip: what the wheelspin costs this car (s): its time against the same car on tyres that hold all its power.

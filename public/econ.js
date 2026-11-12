@@ -132,6 +132,7 @@ export const ECON = {
       { id: 'wash', level: 3, price: 4_000_000, income: 60_000 },
       { id: 'gas', level: 5, price: 12_000_000, income: 160_000 },
       { id: 'sto', level: 7, price: 30_000_000, income: 360_000 },
+      { id: 'tire', level: 8, price: 50_000_000, income: 550_000 }, // r13 (owner 12.11): «Шиномонтаж» opens as the 5th business
       { id: 'salon', level: 10, price: 100_000_000, income: 1_000_000 },
     ],
     capHours: 4, vipCapHours: 8, growth: 1.5,
