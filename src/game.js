@@ -234,12 +234,13 @@ export function createGame(db, opts = {}) {
     if (!c) return null;
     const parts = ex ? ex.parts(c.id) : carParts(c.id);
     const plate = ex ? ex.plate(c.id) : carPlate(c.id);
-    const st = S.carStats({ model: c.model, parts, plateValue: plate?.value || 0 });
+    const tire = !!BIZ?.owns(c.owner_id, 'tire'); // s2-biz r13: «Шиномонтаж» — fresh tyres on every car of the owner
+    const st = S.carStats({ model: c.model, parts, plateValue: plate?.value || 0, tire });
     const t = tankState(c);
     return { id: c.id, model: c.model, status: c.status, parts, plate, look: lookOf(c), tank: t.tank, tankNext: t.next, sell: Math.floor(S.sellPriceOf(c.model, now() - c.created_at, c.origin) * (BIZ?.owns(c.owner_id, 'salon') ? 1 + BIZ_PERKS.salonSell : 1)) /* s2-biz */, origin: c.origin || null, ...st,
       dirt: Math.floor(S.dirtNow(c.dirt, c.dirt_at, now())), shineUntil: c.shine_until > now() ? c.shine_until : 0, ...(c.serial ? { serial: c.serial } : {}),
       ...((r) => (r?.stars ? { stars: r.stars, starAt: r.at, starSpent: r.spent } : {}))(ex ? ex.restyle(c.id) : restyleOf(c.id)),
-      ...(isLockedCar(c) ? { legend: true } : {}), ...(isNoStateCar(c) ? { noState: true } : {}) };
+      ...(isLockedCar(c) ? { legend: true } : {}), ...(isNoStateCar(c) ? { noState: true } : {}), ...(tire ? { tire: true } : {}) };
   }
   // Paint and livery as the client draws them (n = the race livery's number); null for a factory car. Unknown ids
   // (an old colour that was dropped) count as factory.
@@ -1454,7 +1455,8 @@ export function createGame(db, opts = {}) {
 
   // ---------- racing ----------
   function rivalSig(c) {
-    return JSON.stringify([4, c.model, carParts(c.id), carPlate(c.id)?.id || 0]);
+    // s2-biz r13: buying «Шиномонтаж» changes the car's pace → fresh odds (the same sig as before for everyone else)
+    return JSON.stringify([4, c.model, carParts(c.id), carPlate(c.id)?.id || 0, ...(BIZ?.owns(c.owner_id, 'tire') ? ['tire'] : [])]);
   }
   // The player's form (S.RACE_FORM): the median of what their last solo runs with at least two own shifts took over
   // the car's base time. AFK runs and runs left to the limiter don't count; too few runs → null (an average driver).
@@ -1558,7 +1560,8 @@ export function createGame(db, opts = {}) {
     const h = sha256(`drift:${uid}:${c.id}:${dayOf(now())}`);
     const trackSeed = parseInt(h.slice(48, 56), 16);
     const tr = S.driftTrack(trackSeed);
-    const parStock = S.driftPar(S.driftModel(S.carStats({ model: c.model })), tr), parCar = S.driftPar(S.driftModel(o), tr);
+    // s2-biz r13: the par counts the car's parts, never the «Шиномонтаж» grip (the perk must stay the owner's edge)
+    const parStock = S.driftPar(S.driftModel(S.carStats({ model: c.model })), tr), parCar = S.driftPar(S.driftModel(S.carStats({ model: c.model, parts: o.parts })), tr);
     const par = Math.round(parStock + S.DRIFT_PARTS_EDGE * Math.max(0, parCar - parStock));
     const winsToday = q("SELECT COUNT(*) n FROM drift_runs WHERE user_id = ? AND status = 'done' AND created_at > ? AND json_extract(result, '$.win') = 1 AND json_extract(result, '$.training') IS NULL").get(uid, now() - 864e5).n;
     const repeat = winsToday >= S.DRIFT_FULL_WINS;
@@ -5714,7 +5717,7 @@ export function createGame(db, opts = {}) {
     const meBase = handlers.me;
     handlers.me = (uid, b) => {
       const p = BIZ.perks(uid);
-      return { ...meBase(uid, b), ...BIZ.brief(uid), bizPerks: { fuel: p.fuelExtra, regen: p.regenMult, shine: p.shineMult, wash: p.washMult, parts: p.partsMult, sell: p.sellMult } };
+      return { ...meBase(uid, b), ...BIZ.brief(uid), bizPerks: { fuel: p.fuelExtra, regen: p.regenMult, shine: p.shineMult, wash: p.washMult, parts: p.partsMult, sell: p.sellMult, grip: p.gripMult, launch: p.launch } };
     };
     const priceBase = itemPrice, applyBase = applyItem;
     itemPrice = (uid, itemId) => (BIZ.itemCheck(uid, itemId), priceBase(uid, itemId));

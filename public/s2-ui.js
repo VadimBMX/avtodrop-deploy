@@ -231,7 +231,7 @@ const CITY_W = 1750, CITY_H = 775;
 const SPOTS = [
   { k: 'auction', x: 875, y: 58, t: 'Аукціон', c: '#ff4d6d', i: 'hammer' },
   { k: 'sto', x: 712, y: 150, t: 'СТО', c: '#ff8a1f', i: 'tool', biz: 'sto' },
-  { k: 'tire', x: 488, y: 212, t: 'Шиномонтаж', c: '#ffb020', i: 'disc', biz: 'tire', soon: true }, // owner 06.11: closed for now — «скоро» tape over the building
+  { k: 'tire', x: 488, y: 212, t: 'Шиномонтаж', c: '#ffb020', i: 'disc', biz: 'tire' }, // r13 (owner 12.11): open — the 5th business (was «скоро» since 06.11)
   { k: 'track', x: 1030, y: 178, t: 'Траса', c: '#ff8a1f', i: 'flag-3' },
   { k: 'drift', x: 1270, y: 212, t: 'Дрифт', c: '#ff3df0', i: 'tornado' },
   { k: 'garage', x: 875, y: 222, t: 'Мій гараж', c: '#ffd400', i: 'building-warehouse' },
@@ -257,7 +257,6 @@ function bizList() {
 const paOpen = () => (me().plateAuction?.open || []).filter((a) => a.endsAt > X.serverNow());
 const caOpen = () => (me().carAuction?.open || []).filter((a) => a.endsAt > X.serverNow()); // «Аукціон машини» (owner 07.11)
 function spotText(sp) {
-  if (sp.soon) return '<small>скоро</small>';
   const m = me(), biz = bizList();
   const used = m.cars.filter((c) => c.status !== 'showcase').length;
   switch (sp.k) {
@@ -292,7 +291,7 @@ function cityView() {
   return `<div class="s2-city" id="s2City">${seg}${war ? warMap() : cityMap()}</div>`;
 }
 function cityMap() {
-  const labels = SPOTS.filter((sp) => sp.soon).map((sp) => `<div class="s2-soontape" aria-hidden="true" style="left:${(sp.x / CITY_W) * 100}%;top:${((sp.y + 70) / CITY_H) * 100}%"><span><b>СКОРО</b></span></div>`).join('') + SPOTS.map((sp) => `<button class="s2-lb${sp.free ? ' free' : ''}${sp.soon ? ' soon' : ''}${sp.k === 'garage' ? ' main' : ''}${sp.k === 'track' ? ' top' : ''}" data-act="s2Spot" data-k="${sp.k}" style="left:${(sp.x / CITY_W) * 100}%;top:${(sp.y / CITY_H) * 100}%;--c:${sp.c}"><i>${X.ic(sp.i)}</i>${sp.t}${spotText(sp)}</button>`).join('');
+  const labels = SPOTS.map((sp) => `<button class="s2-lb${sp.free ? ' free' : ''}${sp.k === 'garage' ? ' main' : ''}${sp.k === 'track' ? ' top' : ''}" data-act="s2Spot" data-k="${sp.k}" style="left:${(sp.x / CITY_W) * 100}%;top:${(sp.y / CITY_H) * 100}%;--c:${sp.c}"><i>${X.ic(sp.i)}</i>${sp.t}${spotText(sp)}</button>`).join('');
   const quick = [['quests', 'target-arrow', 'Цілі', me().questReady], ['events', 'calendar', 'Події', 0], ['season', 'ticket', 'Пропуск', me().season?.ready]]
     .map(([k, i, t, n]) => `<button class="s2-q" data-act="s2Quick" data-k="${k}">${X.ic(i)}<span>${t}</span>${n ? `<b>${n > 9 ? '9+' : n}</b>` : ''}</button>`).join('');
   return `<div class="s2-map" id="s2Map"><div class="s2-pan" id="s2Pan" data-w="${CITY_W}" data-h="${CITY_H}" data-x="952"><img src="s2/city.webp" alt="" draggable="false">${labels}</div>
@@ -1049,7 +1048,7 @@ const handlers = {
       // s2-polish: «Аукціон» opens the car auctions (Ринок → Аукціони), or the live plate auction while one runs. «Причал»
       // (containers) keeps its own ways in: the «Причал» tile on «Ринок» and the «Причал» tab next to «Аукціони».
       case 'auction': return paOpen().length ? X.go('plateAuction') : X.isOpen('auction') ? (s.marketKind = 'car', s.marketTab = 'auction', X.go('market')) : X.H.locked({ k: 'auction' });
-      case 'sto': case 'wash': case 'gas': case 'salon': return bizList()?.some((b) => b.type === d.k) ? X.H.bizOpen({ id: d.k }) : X.go('biz');
+      case 'sto': case 'wash': case 'gas': case 'tire': case 'salon': return bizList()?.some((b) => b.type === d.k) ? X.H.bizOpen({ id: d.k }) : X.go('biz');
       case 'track': return toTab('race', () => (s.raceView = 'race'));
       case 'drift': return toTab('race', () => (s.raceView = 'drift'));
       case 'garage': return toTab('garage', () => (s.garageView = 'park'));
@@ -1057,7 +1056,6 @@ const handlers = {
       case 'club': return X.go('club');
       case 'dealer': return X.isOpen('tradein') ? X.go('tradein') : X.H.locked({ k: 'tradein' });
       case 'workshop': return X.H.workshopGo();
-      case 'tire': return X.toast('🚧 Шиномонтаж — скоро відкриється. Слідкуй за новинами!');
       default: return X.toast('Вільна ділянка: тут можна буде збудувати свій бізнес');
     }
   },

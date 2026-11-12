@@ -1195,17 +1195,20 @@ export function carStats(car) {
   const gripParts = fx(car, 'suspension') + fx(car, 'wheels');
   // grip: the parts on top of the old common 0.35 — what the drift model reads (drift keeps its own balance);
   // tyre: the factory tyres of this model; traction: tyre + grip parts — what the drag race reads.
-  const grip = 0.35 + gripParts, tyre = tyreGrip(car.model), traction = tyre + gripParts;
+  // r13: `car.tire` (the owner has «Шиномонтаж», set by the server's carOut) — fresh tyres: grip × (1 + BIZ.perks.tireGrip)
+  // in drift, and in drag a flat launch bonus, BIZ.perks.tireLaunch s off the base time for every car (traction itself
+  // stays the factory figure, so the wheelspin numbers don't change). Rival / reference cars never carry it.
+  const grip = (0.35 + gripParts) * (car.tire ? 1 + BIZ.perks.tireGrip : 1), tyre = tyreGrip(car.model), traction = tyre + gripParts;
   const shift = m.ev ? fx(car, 'reducer') : fx(car, 'gearbox');
   const brakes = 1 - fx(car, 'brakes');
-  const base = raceBaseTime(hp, kg, traction) * brakes;
+  const raw = raceBaseTime(hp, kg, traction) * brakes, base = raw - (car.tire ? BIZ.perks.tireLaunch : 0);
   const value = carValue(car);
   return {
-    hp: Math.round(hp), kg: Math.round(kg), grip: Math.round(grip * 100) / 100, shift,
+    hp: Math.round(hp), kg: Math.round(kg), grip: Math.round(grip * 1000) / 1000, shift,
     tyre: Math.round(tyre * 100) / 100, traction: Math.round(traction * 100) / 100,
     base: Math.round(base * 1000) / 1000,
     // slip: what the wheelspin costs this car (s): its time against the same car on tyres that hold all its power.
-    slip: Math.round((base - raceBaseTime(hp, kg, Infinity) * brakes) * 1000) / 1000,
+    slip: Math.round((raw - raceBaseTime(hp, kg, Infinity) * brakes) * 1000) / 1000, // r13: the launch bonus is not grip
     et: Math.round((base + 0.2) * 100) / 100, // typical run: reaction 0.2 s, good shifts
     value, income: Math.round(carIncomeOf(car)), set: hasSet(car),
   };

@@ -20,7 +20,7 @@ const withPart = (car, type, tier) => {
   const parts = { ...(car.parts || {}) };
   if (tier) parts[type] = tier;
   else delete parts[type];
-  return { model: car.model, parts };
+  return { model: car.model, parts, ...(car.tire ? { tire: true } : {}) }; // r13: keep «Шиномонтаж» tyres on both sides of a comparison
 };
 const idx = (tier) => (tier ? S.TIER_BY_ID[tier].index : -1);
 // The wheels spin: more power per kilo than the tyres hold (factory tyres + grip parts: S.carStats traction). Since
@@ -67,7 +67,8 @@ export function bestTune(car, stock = []) {
   const m = S.MODELS[car.model];
   const cur = { ...(car.parts || {}) };
   const keys = m ? S.partKeysOf(car.model) : [];
-  const before = m ? tuneTime({ model: car.model, parts: cur }) : 0;
+  const tire = car.tire ? { tire: true } : {}; // r13: «Шиномонтаж» launch bonus — the same on both sides of every comparison
+  const before = m ? tuneTime({ model: car.model, parts: cur, ...tire }) : 0;
   if (!m) return { parts: cur, changes: [], before, after: before, dt: 0 };
   const free = new Set(stock.filter((p) => p.available > 0).map((p) => p.type + ':' + p.tier));
   // Options per slot: what is there now (null = empty), then every free tier the car can take, highest first.
@@ -81,7 +82,7 @@ export function bestTune(car, stock = []) {
   const ranked = Object.fromEntries(mono.map((k) => [k, opts[k].map((t, i) => ({ t, i })).sort((a, b) => fxOf(k, b.t) - fxOf(k, a.t) || a.i - b.i).map((x) => x.t)]));
   const value = (p) => keys.reduce((s, k) => s + (p[k] ? S.TIER_BY_ID[p[k]].price : 0), 0);
   const changed = (p) => keys.filter((k) => (p[k] || null) !== (cur[k] || null)).length;
-  const timeOf = (p) => tuneTime({ model: car.model, parts: p });
+  const timeOf = (p) => tuneTime({ model: car.model, parts: p, ...tire });
   const clean = (p) => Object.fromEntries(Object.entries(p).filter(([, t]) => t));
   const seen = [];
   const consider = (p) => {

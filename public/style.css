@@ -8143,13 +8143,6 @@ body.s2 .s2-ct small.s2-ct-k .i { width: 11px; height: 11px; }
 @keyframes scAurB { from { transform: translateX(4%) skewX(6deg); opacity: .9; } to { transform: translateX(-4%) skewX(-5deg); opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .sc-city::before, .sc-track::before, .sc-neon::before, .sc-mount::before, .sc-kyiv::before, .sc-aurora::before, .sc-city::after, .sc-track::after, .sc-neon::after, .sc-mount::after, .sc-kyiv::after, .sc-aurora::after { animation: none; } .sc-track::after, .sc-kyiv::after { opacity: 0; } }
 /* /r9-bg */
-/* owner 06.11: Шиномонтаж closed for now — dimmed label + «СКОРО» barrier tape over the building */
-body.s2 .s2-lb.soon { filter: saturate(.35); opacity: .85; }
-body.s2 .s2-lb.soon small { color: #ffd400; }
-body.s2 .s2-soontape { position: absolute; z-index: 2; transform: translate(-50%, -50%) rotate(-12deg); pointer-events: none; }
-body.s2 .s2-soontape span { display: block; padding: 5px 26px; border-radius: 3px; box-shadow: 0 4px 14px #000a;
-  background: repeating-linear-gradient(-45deg, #ffd400 0 10px, #15161a 10px 18px); }
-body.s2 .s2-soontape b { display: block; padding: 3px 10px; background: #15161a; color: #ffd400; font-weight: 800; font-size: 13px; letter-spacing: .18em; line-height: 1; border-radius: 2px; }
 /* owner/David 06.11: case list without crate pictures — coloured cards: the classes inside, the name, the price */
 body.s2 .s2-ct { justify-content: space-between; gap: 6px; min-height: 92px; padding: 12px 8px 11px; overflow: hidden;
   background: linear-gradient(160deg, color-mix(in srgb, var(--cc) 34%, #1b1c21) 0%, #17181c 70%); border: 1px solid color-mix(in srgb, var(--cc) 40%, transparent); }
