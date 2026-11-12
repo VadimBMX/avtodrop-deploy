@@ -5,7 +5,8 @@ import { execFile, spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb } from './src/db.js';
-import { createGame, GameError } from './src/game.js';
+import { createGame, GameError, dayOf } from './src/game.js';
+import { createInsight } from './src/insight.js';
 import { verifyInitData } from './src/auth.js';
 import { createBot } from './src/bot.js';
 import { createSender, createReminders } from './src/reminders.js';
@@ -38,8 +39,13 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     for (const id of ids) sender.enqueue(id, text, { urgent: false });
   };
   const game = createGame(db, { notify: (uid, text) => sender?.enqueue(uid, text, { urgent: true }), admins, broadcast, seedSchedule: true, serverLog: slog });
+  // «Ключ аналітики для Claude» (src/insight.js, docs/INSIGHT.md): read-only, anonymized /api/insight/* behind a key the
+  // owner issues in the admin panel; also keeps the players' chat log (bot.js → onChatMessage). Pseudonyms are keyed
+  // by the bot token (or ADMIN_KEY), so they stay the same across restarts.
+  const insight = createInsight({ db, dbFile, secret: token || adminKey, dayOf, groupsCfg: () => game.tgGroups.cfg(), log });
   if (token) {
-    bot = createBot({ token, webappUrl, admins, game, log, inline: (query, from) => inlineAnswer(query, from), here: (t) => channel.setTarget(t), promoHere: (t) => autoPromo.setTarget(t) });
+    bot = createBot({ token, webappUrl, admins, game, log, inline: (query, from) => inlineAnswer(query, from), here: (t) => channel.setTarget(t), promoHere: (t) => autoPromo.setTarget(t),
+      onChatMessage: (m, o) => insight.onChatMessage(m, o) });
     sender = createSender({ send: bot.sendMessage, onBlocked: game.push.block, isBlocked: game.push.isBlocked, log });
     game.flushStartupNotes(); // bot messages from start-up fixes (secret cars handed out by backfillSecrets)
     reminders = createReminders({ game, sender, markup: () => bot.playButton('🎁 Відкрити гру'), log });
@@ -181,6 +187,11 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     const body = await readBody(req);
     if (name === 'autopromo' || name.startsWith('autopromo/')) {
       const r = await autoPromo.admin(name, body, { who: id.who, role: id.who.startsWith('tg:') ? game.roleOf(Number(id.who.slice(3))) : 'owner' });
+      if (r === undefined) return send(res, 404, { error: 'Невідомий метод' });
+      return r.error ? send(res, r.code || 400, { error: r.error }) : send(res, 200, r);
+    }
+    if (name === 'insight' || name.startsWith('insight/')) {
+      const r = insight.admin(name, body, { who: id.who, role: id.who.startsWith('tg:') ? game.roleOf(Number(id.who.slice(3))) : 'owner' });
       if (r === undefined) return send(res, 404, { error: 'Невідомий метод' });
       return r.error ? send(res, r.code || 400, { error: r.error }) : send(res, 200, r);
     }
@@ -562,6 +573,8 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
       if ((pathname === '/api/dev/cars' || pathname === '/api/dev/normalize') && dev && isLocal(req) && req.method === 'POST') return devCars(res, pathname.endsWith('normalize') ? 'normalize_cars.py' : 'prepare_cars.py');
       if (pathname.startsWith('/api/dev/test-live/') && dev && isLocal(req) && req.method === 'POST') return devTestLive(res, pathname.slice(19));
       if (pathname.startsWith('/api/admin/')) return await handleAdmin(req, res, pathname.slice(11));
+      // Read-only analytics for Claude: only an insight key opens these, and an insight key opens nothing else.
+      if (pathname === '/api/insight' || pathname.startsWith('/api/insight/')) return await insight.handle(req, res, pathname.slice(13), searchParams, { send, readBody, ip: clientIp(req) });
       if (pathname.startsWith('/api/')) return await handleApi(req, res, pathname.slice(5));
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed', 'text/plain');
       const shareM = /^\/share\/([0-9a-f]{32})\.jpg$/.exec(pathname);
@@ -598,11 +611,17 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
     } catch (e) {
       log('logs prune:', e);
     }
+    // The players' chat log for Claude (src/insight.js): rows older than 30 days go, checked once an hour.
+    try {
+      insight.prune();
+    } catch (e) {
+      log('insight prune:', e);
+    }
   }, 15e3);
   sweeper.unref();
 
   return {
-    server, game, db, bot, serverLog: slog, sender, reminders, statics, shares, channel,
+    server, game, db, bot, serverLog: slog, sender, reminders, statics, shares, channel, insight,
     async start(port) {
       if (bot) {
         try {
@@ -628,6 +647,7 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
       autoPromo.stop();
       reminders?.stop();
       bot?.stop();
+      insight.close();
       server.close();
       db.close();
     },
