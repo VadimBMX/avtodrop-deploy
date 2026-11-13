@@ -2161,7 +2161,7 @@ TABS.race = async () => {
   if (state.race && state.race.phase !== 'idle') return raceScreen();
   if (state.drift) return driftScreen();
   if (!isOpen(state.raceView)) state.raceView = 'race';
-  const seg = s2RaceHead() + `<div class="seg">${[['race', 'Драг-заїзд'], ['career', "Кар’єра"], ['drift', 'Дрифт'], ['pvp', 'PvP']].map(([k, t]) => `<button class="${state.raceView === k ? 'on' : ''} ${isOpen(k) ? '' : 'locked'}" data-act="raceView" data-k="${k}">${isOpen(k) ? '' : ic('lock')}${t}</button>`).join('')}</div>${eventStrip(['race', 'fuel'])}`;
+  const seg = s2RaceHead() + `<div class="seg">${[['race', 'Драг-заїзд'], ['career', "Кар’єра"], ['drift', 'Дрифт'], ['pvp', 'PvP']].map(([k, t]) => `<button class="${state.raceView === k ? 'on' : ''} ${isOpen(k) ? '' : 'locked'}" data-act="raceView" data-k="${k}">${isOpen(k) ? '' : ic('lock')}${t}</button>`).join('')}</div>${eventStrip(['x2', 'race', 'fuel'])}`;
   const garage = me.cars.filter((c) => c.status === 'garage');
   if (!garage.length) return seg + emptyBox('flag-3', 'Немає на чому їхати', 'Для гонки потрібна хоча б одна машина в гаражі', '<button class="btn sm" data-act="toCases">Відкрити кейс</button>');
   syncRaceCar(garage);
@@ -7963,6 +7963,14 @@ function showGift() {
     color = '#ffd60a';
     art = `<div class="gift-ic" style="--c:${color}">${ic('star')}</div><div class="gift-sum" style="color:${color}">+${d.stars} ⭐</div>
       <div class="small muted">${d.place ? `${d.place}-е місце · ` : ''}кредит у Магазині${d.credit ? ` · усього ${d.credit} ⭐` : ''}</div>`;
+  } else if (g.kind === 's1comeback') {
+    // r15 «Ми вас почули» (src/comeback.js, S.S1_COMEBACK): nothing is paid yet — «Забрати» takes it (API 'comeback/s1').
+    title = `${S.S1_COMEBACK.title} 🧡`;
+    color = '#ff9f0a';
+    const kRow = (id, n) => `<div class="cb-key"><span class="gift-ic sm">${caseIcon(S.CASE_BY_ID[id])}</span><b>${n} ${S.keysWord(n)} «${esc(S.CASE_BY_ID[id]?.name || id)}»</b></div>`;
+    art = `<div class="gift-ic" style="--c:${color}">${ic('heart')}</div><div class="small muted">Компенсація за Сезон ${d.season || 1}</div><div class="gift-sum win">+${S.fmt(d.money)}</div>
+      <div class="cb-list mt">${kRow(d.caseId, d.keys)}${d.premium ? kRow(d.premiumCase, d.premium) : ''}</div>
+      <div class="small muted mt">Ти грав у Сезоні 1 — дякуємо, що ти з нами. Гроші й ключі — тобі.</div>`;
   } else if (g.kind === 'thanks') {
     title = 'Дякуємо! 💛';
     color = '#ffd60a';
@@ -7974,7 +7982,7 @@ function showGift() {
   }
   sheet(title, `<div class="center gift">${art}
     ${g.note ? `<div class="gift-note">${esc(g.note)}</div>` : ''}
-    ${g.kind === 'comeback' || g.kind === 'ref' || g.kind === 'secret' ? '' : '<div class="tiny muted mt">від адміністрації АВТОДРОП</div>'}
+    ${g.kind === 'comeback' || g.kind === 'ref' || g.kind === 'secret' ? '' : `<div class="tiny muted mt">${g.kind === 's1comeback' ? 'від команди АВТОДРОП' : 'від адміністрації АВТОДРОП'}</div>`}
     <button class="btn yellow mt2" data-act="giftOk">${g.kind === 'message' ? 'Зрозуміло' : g.kind === 'thanks' ? 'Дякую! 💛' : g.kind === 'comeback' ? 'Погнали!' : 'Забрати'}</button></div>`);
   haptic('success');
   if (g.kind !== 'message') setTimeout(() => {
@@ -7983,6 +7991,19 @@ function showGift() {
   }, 250);
 }
 H.giftOk = async () => {
+  // r15 «Ми вас почули»: the pack is paid by this tap (the server marks the window seen); on an error it stays.
+  if (giftQueue[0]?.kind === 's1comeback') {
+    try {
+      const r = await api('comeback/s1');
+      giftQueue.shift();
+      closeModal();
+      if (!r.already) toast(`+${S.fmt(r.money)} і ${r.keys.map((k) => `${k.count} ${S.keysWord(k.count)} «${S.CASE_BY_ID[k.caseId]?.name || k.caseId}»`).join(', ')} — твої!`);
+    } catch (e) {
+      return toast(e.message, true);
+    }
+    if (giftQueue.length) return setTimeout(showGift, 300);
+    return refresh();
+  }
   const g = giftQueue.shift();
   closeModal();
   if (g) {

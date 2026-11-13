@@ -26,6 +26,7 @@ import { createGoals } from './goals.js';
 import { createPlateAuction } from './plate-auction.js';
 import { createCarAuction } from './car-auction.js';
 import { createSeason2 } from './season2.js';
+import { createComeback } from './comeback.js'; // r15 «Ми вас почули»
 import { createBusiness } from './business.js'; // s2-biz
 import { bizOfItem, BIZ as BIZ_RULES } from '../public/business.js'; // s2-biz
 const BIZ_PERKS = BIZ_RULES.perks; // s2-biz
@@ -1777,7 +1778,8 @@ export function createGame(db, opts = {}) {
   function bossMoney(b, o, beaten, good = S.driverTimes({ base: o.base, shift: o.shift })) {
     if (!beaten) return { entry: 0, prize: 0 };
     const p = S.oddsVs(good, bossOffsetsOf(b), b.base);
-    return S.bossRematch(p, Math.min(S.MODELS[o.model].price, S.MODELS[b.model].price));
+    const m = S.bossRematch(p, Math.min(S.MODELS[o.model].price, S.MODELS[b.model].price));
+    return { ...m, prize: S.boostMoney(m.prize, evFx()) }; // r15 «×2 тиждень» (the hard rematch builds on this)
   }
   // «Реванш · складний» (S.bossHard): rematch money at the harder boss's odds, the prize × BOSS_HARD.prizeMult; one
   // win a Kyiv day per boss (a claim «bosshard:<boss>:<day>», written by the win).
@@ -1856,8 +1858,9 @@ export function createGame(db, opts = {}) {
     }
     if (!first) return out;
     const rw = b.reward;
-    const got = grant(uid, { money: rw.money, parts: rw.parts, tier: rw.tier, caseId: rw.caseId, count: rw.count });
-    out.reward = { money: rw.money, caseId: rw.caseId, count: rw.count, tier: rw.tier, parts: rw.parts, items: got.items || [] };
+    const rwMoney = rw.money ? S.boostMoney(rw.money, evFx()) : rw.money; // r15 «×2 тиждень»: the first win's money too
+    const got = grant(uid, { money: rwMoney, parts: rw.parts, tier: rw.tier, caseId: rw.caseId, count: rw.count });
+    out.reward = { money: rwMoney, caseId: rw.caseId, count: rw.count, tier: rw.tier, parts: rw.parts, items: got.items || [] };
     if (rw.plate) {
       const text = makePlate(rw.plate);
       const value = S.plateValueRoll(rw.plate, text, rnd());
@@ -5732,7 +5735,8 @@ export function createGame(db, opts = {}) {
   // ===== s2-biz: «Мої бізнеси» (src/business.js, public/business.js, public/business-ui.js) =====
   // biz, biz/buy, biz/upgrade, biz/collect; `me.biz` / `me.bizTotalBox` / `me.bizPerks`; the «Менеджер» Stars items
   // (S.SHOP_BY_ID bizmgr-<id>) go through the usual itemPrice / applyItem; a VIP purchase banks the boxes first.
-  BIZ = createBusiness({ db, q, now, fail, addMoney, pay, userRow, vipOf, districtHeld: (uid) => !!WAR?.holds(uid), srcWrap: (src, fn) => (...a) => srcWrap(src, fn)(...a) });
+  BIZ = createBusiness({ db, q, now, fail, addMoney, pay, userRow, vipOf, districtHeld: (uid) => !!WAR?.holds(uid), srcWrap: (src, fn) => (...a) => srcWrap(src, fn)(...a),
+    boosts: (a, b) => S.bizBoosts(a, b, evOv), bizMult: () => evFx().bizMult }); // r15 «×2 тиждень»
   Object.assign(handlers, BIZ.api);
   {
     // s2-fix: the «Автомийка» raises the shine's income bonus — bank the garage first so it isn't applied backwards.
@@ -5845,6 +5849,17 @@ export function createGame(db, opts = {}) {
     alog(who, 'season2-legend-cars', null, { users: granted.map((x) => x.id) });
     return { done: true, already: false, at: t, granted };
   }
+  // r15 «Ми вас почули» (src/comeback.js, S.S1_COMEBACK): the one-time comeback pack for Season 1 players.
+  const CB = createComeback({ db, q, now, fail, alog: (...a) => alog(...a), actorRole, addMoney, addKeys, gift: (...a) => gift(...a), name,
+    broadcast: (...a) => opts.broadcast?.(...a), s2Done: () => S2.doneAt() });
+  Object.assign(handlers, CB.api);
+  for (const [k, fn] of Object.entries(CB.admin)) {
+    admin[k] = (who, body = {}) => db.tx(() => {
+      if (!canDo(actorRole(who), k)) fail('Немає прав на цю дію');
+      return fn(who, body || {});
+    });
+  }
+  for (const k of CB.mutating) ADMIN_MUTATING.add(k);
   admin['season2/legend-cars'] = (who, body = {}) => db.tx(() => {
     if (!canDo(actorRole(who), 'season2/legend-cars')) fail('Немає прав на цю дію');
     return adminLegendCars(who, body || {});
@@ -5852,7 +5867,7 @@ export function createGame(db, opts = {}) {
   ADMIN_MUTATING.add('season2/legend-cars');
   { // the admin «Сезон 2» page shows whether the legend cars were given (public/admin-season2.js)
     const base = admin.season2;
-    admin.season2 = (who, body) => ({ ...base(who, body), legendCarsAt: Number(metaGet(S.LEGEND_CAR.meta)) || null });
+    admin.season2 = (who, body) => ({ ...base(who, body), legendCarsAt: Number(metaGet(S.LEGEND_CAR.meta)) || null, comeback: CB.status(), boost: SCH.boostStatus() });
   }
   // Every call runs in one transaction, settles the weekly race and refreshes the caller's garage value — except the
   // frequent polls below (every few seconds, or several times a second in a live race), which change no cars.

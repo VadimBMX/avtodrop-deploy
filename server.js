@@ -34,9 +34,11 @@ export function createApp({ dbFile, token = '', dev = false, webappUrl = '', adm
   let bot = null, sender = null, reminders = null;
   // Instant events (trades, PvP, auctions, support) go first in the same rate-limited queue as the reminders;
   // admin broadcasts use the same queue at normal priority.
-  const broadcast = (ids, text) => {
+  // o.play (r15 «Ми вас почули»): the message carries the Mini App button with this label (when the bot can show it).
+  const broadcast = (ids, text, o = {}) => {
     if (!sender) return;
-    for (const id of ids) sender.enqueue(id, text, { urgent: false });
+    const mk = o?.play && bot ? bot.playButton(o.play) : undefined;
+    for (const id of ids) sender.enqueue(id, text, { urgent: false, extra: mk ? { reply_markup: mk } : undefined });
   };
   const game = createGame(db, { notify: (uid, text) => sender?.enqueue(uid, text, { urgent: true }), admins, broadcast, seedSchedule: true, serverLog: slog });
   // «Ключ аналітики для Claude» (src/insight.js, docs/INSIGHT.md): read-only, anonymized /api/insight/* behind a key the

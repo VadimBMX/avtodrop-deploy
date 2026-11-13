@@ -75,8 +75,9 @@ export function createSchedule(ctx) {
     return { key: `plan:${r.id}`, id: r.kind, start: r.start, end: r.end, planId: r.id,
       ...(p.country ? { country: p.country } : {}), ...(p.caseId ? { caseId: p.caseId } : {}), ...(r.title ? { title: r.title } : {}) };
   };
-  // What the game runs: planned events that can still matter (the longest one is 7 days).
-  const planned = () => q('SELECT * FROM event_plan WHERE end > ? ORDER BY start, id').all(now() - 8 * DAY).map(toEvent);
+  // What the game runs: planned events that can still matter (the longest one is 7 days). r15: a «×2 тиждень» stays a
+  // month — a business box (or a manager) left alone for weeks still counts the boosted stretch at ×2.
+  const planned = () => q("SELECT * FROM event_plan WHERE end > ? OR (kind = 'x2' AND end > ?) ORDER BY start, id").all(now() - 8 * DAY, now() - 35 * DAY).map(toEvent);
 
   // A clean event from the admin's form (or a seed slot); fails with a reason the admin can act on.
   function check(b, exceptId = null) {
@@ -114,7 +115,8 @@ export function createSchedule(ctx) {
       if (S.EVENT_EXCLUSIVE.some((p) => p.includes(kind) && p.includes(o.id))) fail(`Не можна одночасно з «${name}» (${when})`);
       if ((kind === 'caseday' && o.id === 'luck') || (kind === 'luck' && o.id === 'caseday')) fail(`«Вихідні удачі» вимикають кейс дня — перетин з «${name}» (${when})`);
     }
-    if (others.length >= S.PLAN_CAPS.parallel) fail(`У цей час уже ${others.length} подій — не більше ${S.PLAN_CAPS.parallel} одночасно`);
+    // r15: «×2 тиждень» runs on top (S.EVENTS[…].overlay) — it neither counts towards nor is held back by the parallel cap.
+    if (!S.EVENTS[kind].overlay && others.filter((o) => !S.EVENTS[o.id]?.overlay).length >= S.PLAN_CAPS.parallel) fail(`У цей час уже ${others.length} подій — не більше ${S.PLAN_CAPS.parallel} одночасно`);
     return ev;
   }
   const changed = () => onChange?.(planned());
@@ -228,6 +230,51 @@ export function createSchedule(ctx) {
     changed();
     return {};
   }
+  // ---------- r15 «×2 тиждень» (admin «Сезон 2»): on / off and the end time ----------
+  // A planned event of kind 'x2' (S.EVENTS.x2): on → from now (or b.start) to b.end (default S.EVENTS.x2.days later);
+  // while it runs, a new end moves it; off → a running one ends now (its key keeps its real end), a future one is removed.
+  const boostRows = () => q("SELECT * FROM event_plan WHERE kind = 'x2' AND end > ? ORDER BY start, id").all(now());
+  function boostStatus() {
+    const t = now(), rows = boostRows();
+    const live = rows.find((r) => r.start <= t) || null, next = rows.find((r) => r.start > t) || null;
+    const last = q("SELECT * FROM event_plan WHERE kind = 'x2' AND end <= ? ORDER BY end DESC LIMIT 1").get(t) || null;
+    const out = (r) => (r ? { planId: r.id, start: r.start, end: r.end, startLocal: S.kyivLocal(r.start), endLocal: S.kyivLocal(r.end), title: r.title || S.EVENTS.x2.name } : null);
+    return { on: !!live, live: out(live), next: out(next), last: out(last), days: S.EVENTS.x2.days, moneyMult: S.EVENTS.x2.moneyMult, bizMult: S.EVENTS.x2.bizMult,
+      nowLocal: S.kyivLocal(t), defaultEndLocal: S.kyivLocal((live?.end) || t + S.EVENTS.x2.days * DAY) };
+  }
+  const when = (v) => (v == null || v === '' ? null : typeof v === 'number' ? v : S.kyivParse(v));
+  function boostSet(who, b) {
+    const t = now(), rows = boostRows(), live = rows.find((r) => r.start <= t);
+    if (b.on === false) {
+      if (!rows.length) fail('«×2 тиждень» зараз не йде');
+      for (const r of rows) {
+        if (r.start <= t) q('UPDATE event_plan SET end = ?, updated_at = ? WHERE id = ?').run(t, t, r.id);
+        else q('DELETE FROM event_plan WHERE id = ?').run(r.id);
+      }
+      alog(who, 'boost-off', null, { ids: rows.map((r) => r.id) });
+      changed();
+      return boostStatus();
+    }
+    const end = when(b.end);
+    if (b.end != null && b.end !== '' && end == null) fail('Некоректний час кінця (дата й час, Київ)');
+    if (live) {
+      if (end == null) fail('«×2 тиждень» уже йде — вкажи новий кінець або вимкни');
+      const ev = check({ kind: 'x2', start: live.start, end, title: live.title }, live.id);
+      q('UPDATE event_plan SET end = ?, updated_at = ? WHERE id = ?').run(ev.end, t, live.id);
+      alog(who, 'boost-edit', null, { id: live.id, end: ev.end, was: live.end });
+      changed();
+      return boostStatus();
+    }
+    if (rows.length) fail('«×2 тиждень» уже заплановано — спершу вимкни його');
+    const start = when(b.start) ?? t;
+    if (start < t - 60e3) fail('Початок — не в минулому');
+    const ev = check({ kind: 'x2', start: Math.max(start, t), end: end ?? Math.max(start, t) + S.EVENTS.x2.days * DAY, title: String(b.title ?? '').trim() || S.EVENTS.x2.name });
+    const id = insert(ev, who);
+    alog(who, 'boost-on', null, { id, start: ev.start, end: ev.end });
+    changed();
+    return boostStatus();
+  }
+
   function adminSeed(who) {
     const r = seed(who);
     alog(who, 'plan-seed', null, { added: r.added, skipped: r.skipped.length });
@@ -235,8 +282,8 @@ export function createSchedule(ctx) {
   }
 
   return {
-    planned, seed, seedOnce, check,
-    admin: { schedule: () => adminView(), 'schedule/save': adminSave, 'schedule/delete': adminDelete, 'schedule/seed': adminSeed },
-    mutating: ['schedule/save', 'schedule/delete', 'schedule/seed'],
+    planned, seed, seedOnce, check, boostStatus,
+    admin: { schedule: () => adminView(), 'schedule/save': adminSave, 'schedule/delete': adminDelete, 'schedule/seed': adminSeed, boost: () => boostStatus(), 'boost/set': boostSet },
+    mutating: ['schedule/save', 'schedule/delete', 'schedule/seed', 'boost/set'],
   };
 }

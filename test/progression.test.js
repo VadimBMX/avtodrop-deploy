@@ -25,14 +25,15 @@ function setup(db = openDb(':memory:'), extra = {}) {
 
 // ---------- XP thresholds ----------
 test('xp: the owner\'s table for levels 1–8, a smooth bridge to 300·L^1.6 from level 11, never more than before', () => {
-  assert.deepEqual([1, 2, 3, 4, 5, 6, 7].map(S.xpForLevel), [250, 600, 1100, 1600, 2300, 3200, 4300]); // r4-ux: L2/L3 250/600 (d2-wall 200/450, before 300/700)
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7].map(S.xpForLevel), [250, 600, 650, 800, 1100, 1500, 2000]); // r15: 3→4 … 7→8 cut (were 1100/1600/2300/3200/4300) // r4-ux: L2/L3 250/600 (d2-wall 200/450, before 300/700)
   for (let l = 11; l <= 60; l++) assert.equal(S.xpForLevel(l), Math.round(300 * Math.pow(l, 1.6)), `L${l}`);
   for (let l = 1; l < 80; l++) {
     assert.ok(S.xpForLevel(l + 1) > S.xpForLevel(l), `rises at L${l}`);
     assert.ok(S.xpForLevel(l) <= S.xpForLevelV1(l), `L${l} never needs more than the old curve`);
   }
-  // No jump where the table hands over: L7→L11 grow by the table's own last step (×1.34 ± 0.02).
-  for (let l = 7; l <= 10; l++) {
+  // No jump where the table hands over: L8→L11 grow by the table's own last step (×1.34 ± 0.02). r15: 7→8 (2000) → 8→9
+  // (5800) is a deliberate step — the owner kept 8→9 onwards as they were.
+  for (let l = 8; l <= 10; l++) {
     const k = S.xpForLevel(l + 1) / S.xpForLevel(l);
     assert.ok(k > 1.32 && k < 1.36, `L${l}→${l + 1} ×${k.toFixed(3)}`);
   }
@@ -41,8 +42,8 @@ test('xp: the owner\'s table for levels 1–8, a smooth bridge to 300·L^1.6 fro
   // were 2 100 / 3 700, before the table 3 512 and 7 150). Level 3 at 850 (d2-wall 650, was 1 000).
   const total = (to) => Array.from({ length: to - 1 }, (_, i) => S.xpForLevel(i + 1)).reduce((a, b) => a + b, 0);
   assert.equal(total(3), 850);
-  assert.equal(total(4), 1950);
-  assert.equal(total(5), 3550);
+  assert.equal(total(4), 1500); // r15 (was 1950)
+  assert.equal(total(5), 2300); // r15 (was 3550)
 });
 
 test('xp: the daily cap is only for cases, parts and plates (and the upgrade/casino); races, the daily bonus and tasks are uncapped', () => {

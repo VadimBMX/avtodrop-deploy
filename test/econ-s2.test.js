@@ -81,7 +81,7 @@ test('S2 secret cars: priced from the collection, not a fortune for a short UA r
 });
 
 test('S2 progression: a richer first session, businesses inside one season, paying capped', () => {
-  assert.equal(S.START_BALANCE, 500000);
+  assert.equal(S.START_BALANCE, 5000000); // r15 (owner 13.11): was 500 000
   assert.equal(S.NEWBIE_TASKS.reduce((a, t) => a + t.money, 0), 400000); // 04.11: cut from ~1 млн (too much in the first minutes)
   assert.equal(S.levelReward(5).money, 25000 * 25); // 04.11: 25 000 × L² (was 40 000)
   for (const b of B.BIZ.list) assert.ok(b.level <= 10, `${b.id} from level ${b.level}`);

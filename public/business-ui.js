@@ -56,13 +56,18 @@ export function bizHubRow() {
     <span class="grow"><b>Мої бізнеси</b><span class="hub-i">${info}</span></span>${full ? `<span class="bz-dot">${full}</span>` : ''}<span class="chev">${X.ic('chevron-right')}</span></button>`;
 }
 
+// r15 «×2 тиждень» (S.EVENTS.x2): a chip over the list while it runs (a tap opens «Події»).
+function boostChip() {
+  const e = (X.me().gameEvents?.active || []).find((x) => x.id === 'x2' && x.end > X.serverNow());
+  return e ? `<div class="ev-strip"><button class="ev-chip" data-act="eventsOpen" style="--c:${e.color}">${X.ic(e.icon)}<b>${X.esc(e.title)}</b><span class="ev-left">дохід бізнесів ×${S.EVENTS.x2.bizMult}</span></button></div>` : '';
+}
 // ---------- the list ----------
 function listView() {
   const { ic } = X, m = X.me();
   const own = data.list.filter((b) => b.owned);
   const total = own.reduce((s, b) => s + boxNow(b), 0);
   const capH = B.BIZ.capHours, vipH = B.BIZ.vipCapHours;
-  const head = `<div class="bz-sum">
+  const head = boostChip() + `<div class="bz-sum">
     <div class="bz-sum-l"><small>Дохід усіх бізнесів</small><b class="disp"><span>+${grp(data.totalRate)} ₴</span><i>/год</i></b>
       <span class="bz-sum-s">${data.district ? `+${Math.round(data.district * 100)}% бонус району` : `бізнесів ${own.length} з ${B.BIZ.list.length} · каса до ${data.vip ? vipH : capH} год${data.vip ? ' (VIP)' : ''}`}</span></div>
     ${own.length ? '' : '<span class="bz-sum-s muted">Купи перший бізнес — і він приноситиме гроші, навіть коли тебе немає</span>'}

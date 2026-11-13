@@ -90,7 +90,7 @@ test('first steps: newbie task rewards and the start money come from public/econ
   // first 10 minutes are a string of wins (tools/econ-sim.mjs).
   assert.deepEqual(S.NEWBIE_TASKS.slice(0, 2).map((t) => t.money), [15000, 20000]);
   assert.equal(S.NEWBIE_TASKS.reduce((a, t) => a + t.money, 0), 400000); // 04.11 (was 1 010 000)
-  assert.equal(S.START_BALANCE, 500000);
+  assert.equal(S.START_BALANCE, 5000000); // r15 (owner 13.11): was 500 000
   const { mk, call } = setup();
   mk(4);
   call(4, 'intro/seen');
