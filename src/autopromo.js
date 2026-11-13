@@ -33,6 +33,12 @@ export function createAutoPromo({ db, now = () => Date.now(), api = null, random
   const q = db.q;
   db.exec(`CREATE TABLE IF NOT EXISTS autopromo_log (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, code TEXT NOT NULL,
     amount INTEGER NOT NULL, uses INTEGER NOT NULL, ok INTEGER NOT NULL, error TEXT, by TEXT)`);
+  // Owner 13.11: only the latest promo post stays in the chat — each new post deletes the bot's earlier ones.
+  for (const col of ['chat TEXT', 'msg_id INTEGER', 'gone INTEGER NOT NULL DEFAULT 0']) {
+    try {
+      db.exec(`ALTER TABLE autopromo_log ADD COLUMN ${col}`);
+    } catch {} // already there
+  }
   const metaGet = (k) => {
     try {
       return JSON.parse(q('SELECT value FROM meta WHERE key = ?').get(k)?.value ?? 'null');
@@ -78,13 +84,28 @@ export function createAutoPromo({ db, now = () => Date.now(), api = null, random
     q('INSERT OR REPLACE INTO promos (code, amount, uses_left, expires_at) VALUES (?, ?, ?, ?)').run(code, amount, uses, now() + c.ttlMin * 60e3);
     const text = LINES[Math.floor(random() * LINES.length)](code, S.fmt(amount), uses) + '\nВводити: Профіль → Промокод';
     try {
-      await api('sendMessage', { chat_id: tg.chat, ...(tg.thread > 0 ? { message_thread_id: tg.thread } : {}), text, parse_mode: 'HTML' });
-      q('INSERT INTO autopromo_log (at, code, amount, uses, ok, by) VALUES (?, ?, ?, ?, 1, ?)').run(now(), code, amount, uses, by);
+      const sent = await api('sendMessage', { chat_id: tg.chat, ...(tg.thread > 0 ? { message_thread_id: tg.thread } : {}), text, parse_mode: 'HTML' });
+      const msgId = Number(sent?.message_id) || null;
+      const old = q('SELECT id, chat, msg_id FROM autopromo_log WHERE ok = 1 AND gone = 0 AND msg_id IS NOT NULL').all();
+      q('INSERT INTO autopromo_log (at, code, amount, uses, ok, by, chat, msg_id) VALUES (?, ?, ?, ?, 1, ?, ?, ?)').run(now(), code, amount, uses, by, String(tg.chat), msgId);
+      await clearOld(old);
       return { code, amount, uses };
     } catch (e) {
       q('DELETE FROM promos WHERE code = ?').run(code); // nobody saw it — no stray code
       q('INSERT INTO autopromo_log (at, code, amount, uses, ok, error, by) VALUES (?, ?, ?, ?, 0, ?, ?)').run(now(), code, amount, uses, String(e.message).slice(0, 300), by);
       throw e;
+    }
+  }
+  // Delete the earlier promo posts from the chat (Telegram lets a bot delete its own messages for 48 h; older ones or
+  // ones a moderator already removed just fail — they are marked gone either way so nothing is retried forever).
+  async function clearOld(rows) {
+    for (const r of rows) {
+      try {
+        await api('deleteMessage', { chat_id: r.chat, message_id: r.msg_id });
+      } catch (e) {
+        log('autopromo delete:', e.message);
+      }
+      q('UPDATE autopromo_log SET gone = 1 WHERE id = ?').run(r.id);
     }
   }
   let busy = false, timer = null;

@@ -69,3 +69,27 @@ test('autopromo: an overnight window (18 → 6) and round the clock', async () =
     assert.ok(inWindow(c, h), `${at} ${JSON.stringify(cfg)} → ${S.kyivLocal(next)}`);
   }
 });
+
+test('autopromo: a new post deletes the earlier promo posts from the chat (owner 13.11), once each', async () => {
+  const db = openDb(':memory:');
+  let t = S.kyivParse('2026-11-13T14:00');
+  let n = 100;
+  const calls = [];
+  const api = async (m, p) => {
+    calls.push([m, p]);
+    if (m === 'deleteMessage' && p.message_id === 101) throw new Error('message to delete not found');
+    return m === 'sendMessage' ? { message_id: ++n } : true;
+  };
+  const ap = createAutoPromo({ db, now: () => t, api, random: () => 0.5, log: () => {} });
+  ap.setTarget({ chat: -1001234567, thread: 9, title: 'Чат' });
+  await ap.admin('autopromo/now', {}, { role: 'owner' });
+  assert.deepEqual(calls.filter((c) => c[0] === 'deleteMessage'), [], 'nothing to delete before the first post');
+  t += 60e3;
+  await ap.admin('autopromo/now', {}, { role: 'owner' });
+  t += 60e3;
+  await ap.admin('autopromo/now', {}, { role: 'owner' });
+  const dels = calls.filter((c) => c[0] === 'deleteMessage').map((c) => c[1].message_id);
+  assert.deepEqual(dels, [101, 102], 'each earlier post deleted once (a failed delete is not retried)');
+  const left = db.prepare('SELECT msg_id FROM autopromo_log WHERE gone = 0').all().map((r) => r.msg_id);
+  assert.deepEqual(left, [103], 'only the newest post stays');
+});
