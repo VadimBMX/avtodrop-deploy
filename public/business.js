@@ -90,8 +90,32 @@ export function rateOf(row, district = 0) {
 export const capHoursOf = (row, vip) => (vip ? BIZ.vipCapHours : BIZ.capHours) + (row.staff || 0) * BIZ.branches.staff.capHours;
 // What is in the box at t: banked + rate × hours since cash_at, at most the cap (banked money is never lost).
 // A working manager (managerUntil > t) lifts the cap.
-export function boxAt({ banked = 0, cashAt, rate, capH, managerUntil = 0 }, t) {
-  const earned = t > cashAt ? (rate * (t - cashAt)) / 3600e3 : 0;
-  if (managerUntil > t) return Math.floor(banked + earned);
-  return Math.floor(Math.max(banked, Math.min(banked + earned, rate * capH)));
+// r15 «×2 тиждень»: `boosts` [{ start, end, mult }] (S.bizBoosts) — inside a window the rate and the cap are × mult. The
+// box is banked at every window edge (as on any other rate change), so money earned during the boost keeps its ×2 after
+// it ends (never cut down to the smaller cap), and nothing before or after it is doubled.
+export function boxAt({ banked = 0, cashAt, rate, capH, managerUntil = 0, boosts = null }, t) {
+  if (!boosts?.length || !(t > cashAt)) {
+    const earned = t > cashAt ? (rate * (t - cashAt)) / 3600e3 : 0;
+    if (managerUntil > t) return Math.floor(banked + earned);
+    return Math.floor(Math.max(banked, Math.min(banked + earned, rate * capH)));
+  }
+  let box = banked;
+  for (const s of boostSegments(cashAt, t, boosts)) {
+    const r = rate * s.mult, earned = (r * (s.b - s.a)) / 3600e3;
+    box = managerUntil > t ? box + earned : Math.max(box, Math.min(box + earned, r * capH));
+  }
+  return Math.floor(box);
 }
+// [a, b) cut at the boost windows' edges: [{ a, b, mult }] (mult 1 outside every window; overlapping windows: the higher).
+export function boostSegments(a, b, boosts = null) {
+  const list = (boosts || []).filter((w) => w.end > a && w.start < b);
+  const cuts = [...new Set([a, b, ...list.flatMap((w) => [w.start, w.end])])].filter((x) => x >= a && x <= b).sort((x, y) => x - y);
+  const out = [];
+  for (let i = 0; i + 1 < cuts.length; i++) {
+    const mid = (cuts[i] + cuts[i + 1]) / 2;
+    out.push({ a: cuts[i], b: cuts[i + 1], mult: list.reduce((m, w) => (w.start <= mid && mid < w.end ? Math.max(m, w.mult || 1) : m), 1) });
+  }
+  return out;
+}
+// ₴ earned at `rate` over [a, b) with the boosts, uncapped (the manager's take).
+export const earnedBetween = (rate, a, b, boosts = null) => (b > a ? boostSegments(a, b, boosts).reduce((s, x) => s + (rate * x.mult * (x.b - x.a)) / 3600e3, 0) : 0);

@@ -1218,6 +1218,9 @@ select { -webkit-appearance: none; appearance: none; width: 100%; font: inherit;
 .wk-chest.ready .wk-ic { background: var(--accent); color: #111; }
 .cb-list { display: grid; gap: 8px; text-align: left; max-width: 300px; margin-left: auto; margin-right: auto; }
 .cb-list > div { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 10px; background: var(--card2); font-size: 14px; }
+/* r15 «Ми вас почули»: a key row with its case icon */
+.cb-list .gift-ic.sm, body.s2 .cb-list .gift-ic.sm { width: 34px; height: 34px; margin: 0; border-radius: 10px; font-size: 20px; flex: none; }
+.cb-list .gift-ic.sm > .i, body.s2 .cb-list .gift-ic.sm > .i { width: 20px; height: 20px; }
 
 /* ============================================================================================================
    d1 «Світло класу»: premium pass over the core loop (cases → reel → drop → garage → car sheet).

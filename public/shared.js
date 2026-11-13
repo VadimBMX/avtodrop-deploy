@@ -2044,7 +2044,14 @@ export const showcaseCost = (n) => niceRound(ECON.showcase.base * Math.pow(2, n 
 // persona report: 675/700 after ~60 races); with the newbie refills it now lands in the first long session.
 // r4-ux (06.11, owner playtest): 200/450 was too fast — level 3 and a pile of achievements after 3–4 cases and one race,
 // before the player understood anything. L2 250, L3 600: level 3 in ~10–15 min of normal play.
-export const XP_TABLE = [250, 600, 1100, 1600, 2300, 3200, 4300, 5800, 7700, 10400];
+// r15 (owner 13.11, «стіна 4-го рівня»: in S2 level 3 came at a median 22 min, level 4 at 9 h): the steps 3→4 … 7→8
+// are cut (1100/1600/2300/3200/4300 → 650/800/1100/1500/2000; still above 2→3, the curve keeps rising).
+// tools/sim-unlock.mjs 30 32 (active minutes, 5 млн start): L4 43 → 29, L5 83 → 50, L6 146 → 76, L7 233 → 118,
+// L8 → 171 (sim day 2.6). L2, L3 and 8→9 onwards stay. users.xp is the XP inside the
+// current level, so a player already in 3…7 with more XP than the new step levels up on his next XP (levelUp pays
+// every level's reward once, in order); nobody loses a level.
+export const XP_TABLE = [250, 600, 650, 800, 1100, 1500, 2000, 5800, 7700, 10400];
+export const XP_TABLE_R14 = [250, 600, 1100, 1600, 2300, 3200, 4300, 5800, 7700, 10400]; // before r15 (tests, sims)
 export const xpForLevel = (lvl) => (lvl >= 1 && lvl <= XP_TABLE.length ? XP_TABLE[lvl - 1] : Math.round(300 * Math.pow(Math.max(lvl, 1), 1.6)));
 // The curve before the table (300·L^1.8). game.js migrateProgress rescales a player's xp within his level by it, once.
 export const xpForLevelV1 = (lvl) => Math.round(300 * Math.pow(lvl, 1.8));
@@ -2787,6 +2794,31 @@ export const VETERAN_S1 = {
   tiers: [{ tier: 1, minLevel: 3, name: 'бронза' }, { tier: 2, minLevel: 10, name: 'срібло' }, { tier: 3, minLevel: 20, name: 'золото' }],
 };
 export const veteranTierOf = (level) => VETERAN_S1.tiers.filter((t) => (level || 0) >= t.minLevel).pop() || null;
+// r15 «Ми вас почули» (owner 13.11): a one-time comeback pack for every Season 1 player (a row in s1_archive) by his
+// S1 wealth at the wipe = balance + garage value (s1_archive.balance + garage_value). `min` is the tier's lower bound
+// (≥); money in ₴, `keys` «Міський» keys (keyCase), `premium` keys of premiumCase — the dearest regular case of S2
+// («Еліта», 19 млн). Granted once per player by the owner (admin «Сезон 2» → «Ми вас почули», src/comeback.js; table
+// s1_comeback): the player takes it from the gift window, one bot message per player. minLevel: the S1 level a row
+// needs (1 = everyone archived, as the owner asked). Banned players (at the wipe or now) get nothing.
+export const S1_COMEBACK = {
+  key: 's1-comeback', title: 'Ми вас почули', keyCase: 'city', premiumCase: 'elite', minLevel: 1,
+  tiers: [
+    { tier: 1, min: 0, money: 5000000, keys: 2, premium: 0 },
+    { tier: 2, min: 100000000, money: 15000000, keys: 3, premium: 0 },
+    { tier: 3, min: 1000000000, money: 40000000, keys: 5, premium: 0 },
+    { tier: 4, min: 10000000000, money: 100000000, keys: 5, premium: 1 },
+  ],
+};
+export const s1ComebackTier = (wealth) => S1_COMEBACK.tiers.filter((t) => Math.max(0, Number(wealth) || 0) >= t.min).pop();
+// «2 ключі» / «5 ключів» / «1 ключ».
+export const keysWord = (n) => (n % 10 === 1 && n % 100 !== 11 ? 'ключ' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'ключі' : 'ключів');
+// What the pack says, for the gift window and the bot: «+5 000 000 ₴ і 2 ключі «Міський»» (+ «і 1 ключ «Еліта»»).
+export function s1ComebackText(t) {
+  const city = CASE_BY_ID[S1_COMEBACK.keyCase]?.name || S1_COMEBACK.keyCase, prem = CASE_BY_ID[S1_COMEBACK.premiumCase]?.name || S1_COMEBACK.premiumCase;
+  const parts = [`+${fmt(t.money)}`, `${t.keys} ${keysWord(t.keys)} «${city}»`];
+  if (t.premium) parts.push(`${t.premium} ${keysWord(t.premium)} «${prem}»`);
+  return parts.length === 2 ? parts.join(' і ') : `${parts.slice(0, -1).join(', ')} і ${parts[parts.length - 1]}`;
+}
 // The wipe itself: the season it opens (meta marker 'season_reset_s<season>'), the season whose rating is archived,
 // the phrase the owner types to run it, star credit = creditPct % of the Stars spent in Season 1, one «Міський» key per
 // friend brought to level 3 (at most friendKeysMax), the S1 rating's top legendTop get «Легенда S1». The frame worn
@@ -3100,6 +3132,11 @@ export const EVENTS = {
     text: 'Нічна дрифт-траса, призи за перемоги в дрифті +25%. Внесок той самий, після 5 перемог за добу — ½ призу, як завжди.' },
   caseday: { name: 'Тема кейса дня', icon: 'gift', color: '#5ac8a8', days: 1,
     text: 'Кейс дня обрано заздалегідь: як завжди, −10% і прихований бонус кейса дня.' },
+  // r15 «×2 тиждень» (owner 13.11, with «Ми вас почули»): the ₴ prizes of every race kind (drag, drift, bosses) and the
+  // businesses' income ×2 (EVENT_CAPS.boostMult). Never in the weekly rotation; started from admin «Сезон 2» (or «Події»).
+  // `overlay`: it runs on top of whatever the week has — it never switches a week's rotation off (planWeeks).
+  x2: { name: '×2 тиждень', icon: 'bolt', color: '#ffd60a', days: 7, moneyMult: 2, bizMult: 2, overlay: true,
+    text: 'Призи гонок (драг, дрифт, боси) ×2 і дохід бізнесів ×2. Внесок той самий.' },
 };
 export const EVENT_IDS = Object.keys(EVENTS);
 // Hard limits, whatever the definitions or the admin overrides say.
@@ -3107,7 +3144,7 @@ export const EVENT_IDS = Object.keys(EVENTS);
 //   most ×3; prizeMult — race prizes at most +25%; caseOff / plateOff — discounts; forced — admin starts: at most 3 at once,
 //   1–72 h; sellMax — a plate generation during its event sells back less than this share of the price paid (cases:
 //   under ~1 during any event via ORIGIN_SELL, test/caseev.test.js).
-export const EVENT_CAPS = { topMult: 1.3, fuelMult: 2, fuelTotal: 3, prizeMult: 1.25, caseOff: 0.15, plateOff: 0.2, forcedMax: 3, forcedHours: [1, 72], sellMax: 0.85 };
+export const EVENT_CAPS = { topMult: 1.3, fuelMult: 2, fuelTotal: 3, prizeMult: 1.25, boostMult: 2, caseOff: 0.15, plateOff: 0.2, forcedMax: 3, forcedHours: [1, 72], sellMax: 0.85 };
 // Scheduler limits: pass XP at most ×2; a planned event lasts 1 h – 7 days; at most this many planned events at once.
 export const PLAN_CAPS = { xpMult: 2, hours: [1, 168], parallel: 4 };
 // Never at the same time: double fuel means more races, and the race weekend pays more for each.
@@ -3177,7 +3214,7 @@ const planWeekCache = new WeakMap();
 export function planWeeks(planned) {
   if (!planned?.length) return null;
   let w = planWeekCache.get(planned);
-  if (!w) planWeekCache.set(planned, (w = new Set(planned.map((e) => kyivMondayOf(e.start)))));
+  if (!w) planWeekCache.set(planned, (w = new Set(planned.filter((e) => !EVENTS[e.id]?.overlay).map((e) => kyivMondayOf(e.start)))));
   return w;
 }
 export function eventsBetween(from, to, ov = null) {
@@ -3197,7 +3234,7 @@ export function eventsBetween(from, to, ov = null) {
 export const activeEvents = (t, ov = null) => eventsBetween(t, t + 1, ov);
 // What the running events do together, clamped.
 export function eventEffects(list) {
-  const fx = { ids: [], topMult: 1, fuelMult: 1, prizeMult: 1, countries: [], caseOff: 0, plateOff: 0, plateGens: [], noCaseOfDay: false, xpMult: 1, driftMult: 1, caseOfDay: null };
+  const fx = { ids: [], topMult: 1, fuelMult: 1, prizeMult: 1, countries: [], caseOff: 0, plateOff: 0, plateGens: [], noCaseOfDay: false, xpMult: 1, driftMult: 1, caseOfDay: null, moneyMult: 1, bizMult: 1 };
   for (const e of list) {
     const d = EVENTS[e.id];
     if (!d) continue;
@@ -3216,6 +3253,10 @@ export function eventEffects(list) {
     } else if (e.id === 'xp') fx.xpMult = Math.max(fx.xpMult, Math.min(PLAN_CAPS.xpMult, d.xpMult));
     else if (e.id === 'drift') fx.driftMult = Math.max(fx.driftMult, Math.min(EVENT_CAPS.prizeMult, d.driftMult));
     else if (e.id === 'caseday' && CASE_BY_ID[e.caseId]?.group === 'rarity' && !CASE_BY_ID[e.caseId].starter) fx.caseOfDay = e.caseId;
+    else if (e.id === 'x2') {
+      fx.moneyMult = Math.max(fx.moneyMult, Math.min(EVENT_CAPS.boostMult, d.moneyMult));
+      fx.bizMult = Math.max(fx.bizMult, Math.min(EVENT_CAPS.boostMult, d.bizMult));
+    }
   }
   return fx;
 }
@@ -3249,9 +3290,20 @@ export function caseDeal(cs, day, fx = NO_EVENTS) {
 // Plate generation price: gen is a PLATE_GEN id or 'region' (a chosen region).
 export const platePriceOf = (price, gen, fx = NO_EVENTS) => (fx.plateGens.includes(gen) ? Math.round((price * (1 - fx.plateOff)) / 100) * 100 : price);
 // Race prize during the race weekend (entries stay as they are).
-export const eventPrize = (prize, fx = NO_EVENTS, step = 1000) => (fx.prizeMult > 1 ? Math.round((prize * Math.min(fx.prizeMult, EVENT_CAPS.prizeMult)) / step) * step : prize);
-// Drift prizes: the race weekend or «Ніч дрифту», whichever is higher (they never add up), at most EVENT_CAPS.prizeMult.
-export const driftPrize = (prize, fx = NO_EVENTS, step = 1000) => eventPrize(prize, { prizeMult: Math.max(fx.prizeMult || 1, fx.driftMult || 1) }, step);
+// r15: «×2 тиждень» (fx.moneyMult, at most EVENT_CAPS.boostMult) — the higher of the two wins, they never add up.
+const prizeMultOf = (fx) => Math.max(Math.min(fx.prizeMult || 1, EVENT_CAPS.prizeMult), Math.min(fx.moneyMult || 1, EVENT_CAPS.boostMult));
+export const eventPrize = (prize, fx = NO_EVENTS, step = 1000) => {
+  const m = prizeMultOf(fx);
+  return m > 1 ? Math.round((prize * m) / step) * step : prize;
+};
+// Drift prizes: the race weekend or «Ніч дрифту», whichever is higher (they never add up), at most EVENT_CAPS.prizeMult;
+// «×2 тиждень» over both.
+export const driftPrize = (prize, fx = NO_EVENTS, step = 1000) => eventPrize(prize, { prizeMult: Math.max(fx.prizeMult || 1, fx.driftMult || 1), moneyMult: fx.moneyMult || 1 }, step);
+// Boss money (rematch prize, the first win's reward money) during «×2 тиждень»; ×1 otherwise.
+export const boostMoney = (n, fx = NO_EVENTS) => (fx.moneyMult > 1 ? Math.round(n * Math.min(fx.moneyMult, EVENT_CAPS.boostMult)) : n);
+// The «×2 тиждень» windows over [a, b) for the businesses' boxes: [{ start, end, mult }] (public/business.js boxAt).
+export const bizBoosts = (a, b, ov = null) => (b > a ? eventsBetween(a, b, ov).filter((e) => EVENTS[e.id]?.bizMult > 1)
+  .map((e) => ({ start: e.start, end: e.end, mult: Math.min(EVENT_CAPS.boostMult, EVENTS[e.id].bizMult) })) : []);
 // The case of the day right now: a planned theme wins over the daily rotation; none during «Вихідні удачі».
 export const caseOfDayNow = (day, fx = NO_EVENTS) => (fx.noCaseOfDay ? null : fx.caseOfDay || caseOfDay(day));
 // Fuel refill speed over [a, b): VIP × the fuel event, at most EVENT_CAPS.fuelTotal.
@@ -3321,6 +3373,7 @@ export function eventPreview(e) {
     case 'race': return [`Призи драгу й дрифту +${pct(d.prizeMult)}: приз 100 тис → ${money(eventPrize(100000, { prizeMult: d.prizeMult }))}`, 'Внесок той самий; не можна одночасно з «Подвійним пальним»'];
     case 'plates': return [`«Красивий» номер і номери областей −${Math.round(d.off * 100)}%`];
     case 'xp': return [`Досвід сезонного пропуску ×${d.xpMult}`, 'Рівень гравця, ліміт досвіду з кейсів (1500/добу) і ціни не змінюються', 'Нагород пропуску не більшає — 30 рівнів просто проходяться швидше'];
+    case 'x2': return [`Призи гонок ×${d.moneyMult}: драг, дрифт, боси (приз 100 тис → ${money(eventPrize(100000, { moneyMult: d.moneyMult }))})`, `Дохід бізнесів ×${d.bizMult} (каса наповнюється вдвічі швидше, місткість у годинах та сама)`, 'З «Гоночним уїкендом» / «Ніччю дрифту» не складається — діє більший множник'];
     case 'drift': return [`Призи дрифту +${pct(d.driftMult)} (з «Гоночним уїкендом» не складається)`, 'Нічна траса в дрифті', 'Після 5 перемог за добу — ½ призу, як завжди'];
     case 'caseday': {
       const cs = CASE_BY_ID[e.caseId];

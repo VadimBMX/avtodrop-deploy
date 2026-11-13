@@ -72,7 +72,9 @@ test('effects: definitions within the caps, all events at once still clamped', (
   assert.ok(S.EVENTS.country.off <= C.caseOff && S.EVENTS.plates.off <= C.plateOff);
   const fx = S.eventEffects(S.EVENT_IDS.map((id) => ({ id, country: 'JP' })).concat([{ id: 'luck' }, { id: 'race' }, { id: 'fuel' }]));
   assert.ok(fx.topMult <= C.topMult && fx.fuelMult <= C.fuelMult && fx.prizeMult <= C.prizeMult && fx.caseOff <= C.caseOff && fx.plateOff <= C.plateOff);
-  assert.equal(S.eventPrize(100000, fx), 125000);
+  assert.ok(fx.moneyMult <= C.boostMult && fx.bizMult <= C.boostMult);
+  assert.equal(S.eventPrize(100000, fx), 200000); // r15: «×2 тиждень» is among them (the higher multiplier wins)
+  assert.equal(S.eventPrize(100000, S.eventEffects([{ id: 'race' }, { id: 'drift' }])), 125000);
   assert.equal(S.eventPrize(100000, S.NO_EVENTS), 100000);
   // VIP ×2 with the fuel event ×2 is capped at ×3.
   const t = K('2026-10-29T12:00:00');

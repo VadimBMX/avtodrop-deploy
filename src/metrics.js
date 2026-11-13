@@ -50,6 +50,7 @@ export const MONEY_GROUPS = [
   { key: 'races', name: 'Гонки, дрифт, PvP', src: ['race/', 'boss/', 'drift/', 'pvp/'] },
   { key: 'garage', name: 'Дохід гаража', src: ['collect'] },
   { key: 'upkeep', name: 'Гараж і тюнінг', src: ['buy-slot', 'upgrade-cap', 'cap-refund', 'buy-showcase', 'showcase', 'wash/', 'car/', 'plate/', 'parts/', 'upgrade', 'dream/', 'tank/'] },
+  { key: 's1comeback', name: '«Ми вас почули» (компенсація S1)', src: ['comeback/s1'] }, // r15: before «Нагороди» (its 'comeback' would take it)
   { key: 'rewards', name: 'Нагороди', src: ['rewards', 'newbie/', 'quests/', 'weekly', 'ach/', 'sets/', 'collection/', 'season', 'promo', 'rescue/', 'gifts/', 'comeback'] },
   { key: 'levels', name: 'Рівні й реферали', src: ['level'] },
   { key: 'start', name: 'Старт новачка', src: ['signup'] },

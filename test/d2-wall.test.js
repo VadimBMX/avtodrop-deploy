@@ -28,7 +28,7 @@ test('rules: the numbers the sim was run with (1 refill, reward case every 30 mi
   // Tuned on tools/sim-newbies.mjs (3 seeds): 2 refills + every 20 min for 2 h made the long-session personas 22–37%
   // richer in earned income by day 7 — over the 15% the owner allows.
   assert.deepEqual(NB, { fuelRefills: 1, fuelHours: 24, rcaseMin: 30, rcaseHours: 1.5 });
-  assert.deepEqual([1, 2, 3, 4].map(S.xpForLevel), [250, 600, 1100, 1600]);
+  assert.deepEqual([1, 2, 3, 4].map(S.xpForLevel), [250, 600, 650, 800]); // r15: 3→4 / 4→5 cut (were 1100 / 1600)
   const c = 1e12;
   assert.equal(S.newbieFuelLeft({ created_at: c, newbie_fuel: 0 }, c + 23 * H), NB.fuelRefills);
   assert.equal(S.newbieFuelLeft({ created_at: c, newbie_fuel: NB.fuelRefills }, c + H), 0);

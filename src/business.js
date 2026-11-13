@@ -17,6 +17,9 @@ const H = 3600e3;
 
 export function createBusiness(ctx) {
   const { db, q, now, fail, addMoney, pay, userRow, vipOf, srcWrap } = ctx;
+  // r15 «×2 тиждень»: the boost windows over [a, b) and the multiplier right now (game.js: S.bizBoosts / evFx().bizMult).
+  const boostsOf = (a, b) => ctx.boosts?.(a, b) || [];
+  const multNow = () => ctx.bizMult?.() || 1;
   db.exec(SCHEMA);
   const managerPay = srcWrap('biz/manager', addMoney);
 
@@ -38,12 +41,15 @@ export function createBusiness(ctx) {
   // Rate, cap and box of one row at t.
   function stateOf(r, vip, t, district) {
     const row = shape(r);
-    const rate = B.rateOf(row, district), capH = B.capHoursOf(row, vip);
+    const base = B.rateOf(row, district), capH = B.capHoursOf(row, vip);
+    // The rate and the cap shown are today's (× the boost while it runs); the box counts every stretch at its own rate.
+    const rate = Math.round(base * multNow());
     const cap = Math.floor(rate * capH);
     const mgr = r.manager_until > t;
-    const box = B.boxAt({ banked: r.banked, cashAt: r.cash_at, rate, capH, managerUntil: r.manager_until }, t);
+    const box = B.boxAt({ banked: r.banked, cashAt: r.cash_at, rate: base, capH, managerUntil: r.manager_until, boosts: boostsOf(r.cash_at, t) }, t);
     const full = !mgr && box >= cap;
-    const fullAt = mgr || full || !rate ? 0 : Math.ceil(r.cash_at + ((cap - r.banked) / rate) * H);
+    const plain = rate === base && !boostsOf(r.cash_at, t).length;
+    const fullAt = mgr || full || !rate ? 0 : plain ? Math.ceil(r.cash_at + ((cap - r.banked) / rate) * H) : Math.ceil(t + ((cap - box) / rate) * H);
     return { row, rate, capH, cap, box, full, fullAt, mgr };
   }
   // A working manager takes everything earned up to now (or up to his last day) to the balance, uncapped.
@@ -56,7 +62,7 @@ export function createBusiness(ctx) {
     for (const r of list) {
       if (!(r.manager_until > r.cash_at)) continue;
       const e = Math.min(t, r.manager_until);
-      const amt = Math.floor(r.banked + (B.rateOf(shape(r), district) * (e - r.cash_at)) / H);
+      const amt = Math.floor(r.banked + B.earnedBetween(B.rateOf(shape(r), district), r.cash_at, e, boostsOf(r.cash_at, e)));
       q('UPDATE user_business SET banked = 0, cash_at = ? WHERE uid = ? AND biz_id = ?').run(e, uid, r.biz_id);
       got += amt;
     }

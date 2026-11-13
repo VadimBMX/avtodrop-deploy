@@ -68,7 +68,7 @@ export const ECON = {
   fragmentsPerKey: 8, // drops below the case price leave a fragment; this many make a free key
 
   // ---------- garage ----------
-  startBalance: 500000,
+  startBalance: 5000000, // r15 (owner 13.11): 500 000 → 5 000 000 for new sign-ups — S2 newcomers saw ~500k and quit; existing players untouched
   firstCash: 2500, // the first garage income, put in the cash box by the starter case
   startSlots: 6,
   maxSlots: 40,
